@@ -23,7 +23,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -337,7 +338,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.hero}>
+    <OpenSection style={styles.hero}>
       {/* One reveal for the whole hero: the connector overlay measures with
           getBoundingClientRect, so every wired node has to live inside the same
           (translate-only) transform. */}
@@ -373,7 +374,7 @@ function Hero() {
           <JourneyDiagram />
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -386,7 +387,7 @@ function Philosophy() {
   const l = useLayout();
 
   return (
-    <Section style={styles.philosophy}>
+    <Band tone="surface" style={styles.philosophy}>
       <Reveal style={styles.philosophyInner} distance={14}>
         <IconTile icon="book-open" tone="brand" size={l.isPhone ? 60 : 84} />
         <View style={styles.philosophyCopy}>
@@ -399,7 +400,7 @@ function Philosophy() {
           </Text>
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -414,7 +415,7 @@ function Pillars() {
   const columns = l.isPhone ? 2 : l.isDesktop ? 6 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -440,7 +441,7 @@ function Pillars() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -572,7 +573,7 @@ function ReadinessCard() {
 function PathsAndReadiness() {
   const styles = useStyles();
   return (
-    <Section>
+    <OpenSection>
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpWide} distance={14}>
           <LearningPaths />
@@ -581,7 +582,7 @@ function PathsAndReadiness() {
           <ReadinessCard />
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -609,7 +610,7 @@ function CourseToCapability() {
   const columns = l.isPhone ? 1 : 2;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="THE PATH"
         title="From course to capability"
@@ -642,7 +643,7 @@ function CourseToCapability() {
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -655,7 +656,7 @@ function SupportStrip() {
   const l = useLayout();
 
   return (
-    <Section style={styles.stripSection}>
+    <Band tone="orange" style={styles.stripSection}>
       <Reveal style={styles.strip} distance={12}>
         {SUPPORT.map((item, index) => (
           <View
@@ -670,7 +671,7 @@ function SupportStrip() {
           </View>
         ))}
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -794,7 +795,7 @@ function AssistantCard() {
 function GovernanceAndAssistant() {
   const styles = useStyles();
   return (
-    <Section>
+    <OpenSection>
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpNarrow} distance={14}>
           <GovernanceCard />
@@ -803,7 +804,7 @@ function GovernanceAndAssistant() {
           <AssistantCard />
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -817,7 +818,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Section style={styles.closing}>
+    <Band tone="green" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <Media
           name="flowsmartly-mark"
@@ -848,7 +849,7 @@ function Closing() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

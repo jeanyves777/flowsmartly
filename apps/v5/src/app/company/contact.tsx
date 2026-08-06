@@ -19,7 +19,8 @@ import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
 import {
   Heading,
   PrimaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -346,7 +347,7 @@ export default function ContactPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero + form */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>CONTACT US</SectionLabel>
@@ -506,10 +507,10 @@ export default function ContactPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ how can we help */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.helpHead}>
           <SectionLabel>WHERE TO START</SectionLabel>
           <Heading level={2} style={[type.h2, styles.helpTitle]}>
@@ -547,10 +548,10 @@ export default function ContactPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ response times + faq */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.closerRow}>
           <Reveal style={styles.closerColumn} distance={16}>
             <Heading level={2} style={[type.h2, styles.closerTitle]}>
@@ -614,7 +615,7 @@ export default function ContactPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

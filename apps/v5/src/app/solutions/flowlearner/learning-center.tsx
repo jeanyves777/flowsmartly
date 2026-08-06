@@ -21,9 +21,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -611,7 +612,7 @@ export default function LearningCenterPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -629,7 +630,7 @@ export default function LearningCenterPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <View style={styles.eyebrowRow}>
@@ -843,7 +844,7 @@ export default function LearningCenterPage() {
       </Reveal>
 
       {/* ------------------------------------------------ delivery modes */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="HOW IT IS DELIVERED"
@@ -878,10 +879,10 @@ export default function LearningCenterPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ the player */}
-      <Section>
+      <Band tone="surface">
         <Reveal distance={16}>
           <SectionHead
             eyebrow="THE LESSON PLAYER"
@@ -967,10 +968,10 @@ export default function LearningCenterPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ quizzes */}
-      <Section>
+      <Band tone="violet">
         <Reveal distance={16}>
           <SectionHead
             eyebrow="QUIZZES & ASSESSMENTS"
@@ -1115,10 +1116,10 @@ export default function LearningCenterPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ progress */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="PROGRESS THAT MOTIVATES"
@@ -1239,10 +1240,10 @@ export default function LearningCenterPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ certificates */}
-      <Section>
+      <Band tone="brand">
         <Reveal distance={16}>
           <SectionHead
             eyebrow="BRANDED CERTIFICATES"
@@ -1295,10 +1296,10 @@ export default function LearningCenterPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ selling */}
-      <Section>
+      <Band tone="orange">
         <Reveal distance={16}>
           <SectionHead
             eyebrow="SELL YOUR COURSES"
@@ -1365,10 +1366,10 @@ export default function LearningCenterPage() {
           </Text>
           <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
         </Pressable>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ access */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="ACCESS & ENROLMENT"
@@ -1395,10 +1396,10 @@ export default function LearningCenterPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ devices */}
-      <Section>
+      <Band tone="green">
         <Reveal distance={16}>
           <SectionHead
             eyebrow="EVERY DEVICE"
@@ -1435,10 +1436,10 @@ export default function LearningCenterPage() {
             second they left it.
           </Text>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ close */}
-      <Section>
+      <Band tone="pink">
         <Reveal style={styles.closePanel} distance={16}>
           <View style={styles.closeCopy}>
             <SectionLabel>PUBLISH YOUR FIRST COURSE</SectionLabel>
@@ -1491,7 +1492,7 @@ export default function LearningCenterPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

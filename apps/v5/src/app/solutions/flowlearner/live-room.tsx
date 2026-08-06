@@ -23,9 +23,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -461,7 +462,7 @@ export default function LiveRoomPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -479,7 +480,7 @@ export default function LiveRoomPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>
@@ -718,7 +719,7 @@ export default function LiveRoomPage() {
       </Reveal>
 
       {/* ------------------------------------------------ participation */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PARTICIPATION, NOT ATTENDANCE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Everyone participates, not just watches.</Heading>
@@ -847,10 +848,10 @@ export default function LiveRoomPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ whiteboard */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.sharedBoardCard}>
@@ -953,10 +954,10 @@ export default function LiveRoomPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ roles */}
-      <Section>
+      <Band tone="violet">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO CAN DO WHAT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Heading>
@@ -1025,10 +1026,10 @@ export default function LiveRoomPage() {
             </ScrollView>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ breakouts */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SMALL GROUPS, SAME SESSION</SectionLabel>
@@ -1118,10 +1119,10 @@ export default function LiveRoomPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ recording & replay */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SESSION OUTLIVES THE HOUR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Recording and replay.</Heading>
@@ -1209,10 +1210,10 @@ export default function LiveRoomPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ room setup */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DECIDED BEFORE ANYONE JOINS</SectionLabel>
@@ -1297,10 +1298,10 @@ export default function LiveRoomPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ session summary */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED WITHOUT ASKING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1365,10 +1366,10 @@ export default function LiveRoomPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Section>
+      <Band tone="green">
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>
@@ -1440,7 +1441,7 @@ export default function LiveRoomPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

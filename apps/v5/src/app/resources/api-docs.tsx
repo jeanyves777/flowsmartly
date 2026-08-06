@@ -23,7 +23,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -604,7 +605,7 @@ function Hero() {
   const l = useLayout();
 
   return (
-    <Section style={[styles.heroSection, l.isStacked ? styles.stackColumn : styles.rowSection]}>
+    <OpenSection style={[styles.heroSection, l.isStacked ? styles.stackColumn : styles.rowSection]}>
       <Reveal style={l.isStacked ? styles.fullColumn : styles.heroCopy} distance={16}>
         <SectionLabel>API DOCS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -659,7 +660,7 @@ function Hero() {
       <Reveal style={l.isStacked ? styles.fullColumn : styles.heroCode} delay={120} distance={20}>
         <CodeSample />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -669,7 +670,7 @@ function Quickstarts() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="QUICKSTARTS"
         title="Start where your product does."
@@ -698,7 +699,7 @@ function Quickstarts() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -709,7 +710,7 @@ function Sdks() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="SDKS"
         title="Official SDKs"
@@ -753,7 +754,7 @@ function Sdks() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -873,7 +874,7 @@ function ExplorerAndWebhooks() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="TRY IT"
         title="Explore the API, then let it call you back."
@@ -887,7 +888,7 @@ function ExplorerAndWebhooks() {
           <WebhooksPanel />
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -898,7 +899,7 @@ function SecurityAndLimits() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="OPERATING RULES"
         title="Secure by design, predictable under load."
@@ -946,7 +947,7 @@ function SecurityAndLimits() {
           </Card>
         </Reveal>
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -956,7 +957,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Section style={styles.closing}>
+    <Band tone="orange" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         {/* SectionLabel pins itself to flex-start, so a shrink-to-fit wrapper is
             what actually centres it */}
@@ -992,7 +993,7 @@ function Closing() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

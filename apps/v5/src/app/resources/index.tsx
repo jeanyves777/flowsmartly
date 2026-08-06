@@ -29,7 +29,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -484,7 +485,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>LEARN. BUILD. GROW.</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -591,7 +592,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
           />
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -606,7 +607,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Section>
+    <Band tone="surface">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -654,7 +655,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -665,7 +666,7 @@ function Categories() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."
@@ -696,7 +697,7 @@ function Categories() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -707,7 +708,7 @@ function FeaturedArticles() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="FEATURED ARTICLES"
         title="What people are reading this month."
@@ -741,7 +742,7 @@ function FeaturedArticles() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -752,7 +753,7 @@ function PopularGuides() {
   const columns = l.isCompact ? 1 : 2;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead title="Popular guides" body="Short, specific, and written to be finished in one sitting." />
 
       <View style={styles.grid}>
@@ -778,7 +779,7 @@ function PopularGuides() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -842,7 +843,7 @@ function Academy() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="orange">
       <View style={styles.academyTop}>
         <SectionHead
           label="FLOWSMARTLY ACADEMY"
@@ -871,7 +872,7 @@ function Academy() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -885,7 +886,7 @@ function Developers() {
   const snippet = SNIPPETS[active];
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="FOR DEVELOPERS"
         title="Build on the same platform we do."
@@ -982,7 +983,7 @@ function Developers() {
           </View>
         </View>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -995,7 +996,7 @@ function WhatsNew() {
     kind === 'New' ? 'green' : kind === 'Improvement' ? 'brand' : 'orange';
 
   return (
-    <Section>
+    <Band tone="green">
       <SectionHead
         label="CHANGELOG"
         title="What’s new at FlowSmartly"
@@ -1019,7 +1020,7 @@ function WhatsNew() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -1031,7 +1032,7 @@ function Newsletter() {
   const [email, setEmail] = useState('');
 
   return (
-    <Section style={styles.newsletter}>
+    <Band tone="pink" style={styles.newsletter}>
       <Reveal style={styles.newsletterInner} distance={14}>
         <IconTile icon="envelope-open-text" tone="brand" size={54} />
         <Heading level={2} style={styles.newsletterTitle}>
@@ -1073,7 +1074,7 @@ function Newsletter() {
 
         <Text style={styles.newsletterFine}>No spam. Unsubscribe anytime.</Text>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

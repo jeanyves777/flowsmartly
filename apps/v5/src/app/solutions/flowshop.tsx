@@ -24,7 +24,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -482,7 +483,7 @@ export default function FlowShopPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>AI-READY COMMERCE</SectionLabel>
@@ -677,10 +678,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 01 store builder */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -781,10 +782,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 02 catalog + AI copy */}
-      <Section>
+      <Band tone="violet">
         <NumberedHead
           index={2}
           eyebrow="CATALOG & PRODUCT COPY"
@@ -933,10 +934,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 checkout + orders */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1043,10 +1044,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 04 agent-ready data */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1103,10 +1104,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 05 visibility */}
-      <Section>
+      <Band tone="orange">
         <NumberedHead
           index={5}
           eyebrow="AI-SHOPPING VISIBILITY"
@@ -1153,10 +1154,10 @@ export default function FlowShopPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 campaign to product */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1229,10 +1230,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 07 sales associate */}
-      <Section>
+      <Band tone="green">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1312,10 +1313,10 @@ export default function FlowShopPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 08 analytics */}
-      <Section>
+      <Band tone="pink">
         <NumberedHead
           index={8}
           eyebrow="COMMERCE ANALYTICS"
@@ -1365,10 +1366,10 @@ export default function FlowShopPage() {
             ))}
           </View>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ themes */}
-      <Section>
+      <OpenSection>
         <View style={styles.headCentered}>
           <SectionLabel>THEMES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -1420,7 +1421,7 @@ export default function FlowShopPage() {
             discoverability does not.
           </Text>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

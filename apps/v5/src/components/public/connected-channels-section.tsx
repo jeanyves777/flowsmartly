@@ -24,7 +24,6 @@ import {
   SecondaryButton,
   SectionLabel,
   Band,
-  useOpenSection,
   useTypeScale,
 } from './ui';
 

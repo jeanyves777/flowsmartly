@@ -11,7 +11,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -295,7 +296,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>SYSTEM STATUS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -346,7 +347,7 @@ function Hero() {
           </Text>
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -355,7 +356,7 @@ function Components() {
   const l = useLayout();
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="COMPONENTS"
         title="Nine services, ninety days each."
@@ -409,7 +410,7 @@ function Components() {
           <Text style={styles.legendText}>Partial outage</Text>
         </View>
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -420,7 +421,7 @@ function UptimeTiles() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="UPTIME OVER TIME"
         title="Availability, measured three ways."
@@ -442,7 +443,7 @@ function UptimeTiles() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -460,7 +461,7 @@ function Incidents() {
           : 'green';
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="RECENT INCIDENTS"
         title="Everything we have opened in the last 90 days."
@@ -517,7 +518,7 @@ function Incidents() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -526,7 +527,7 @@ function Maintenance() {
   const t = useTokens();
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="SCHEDULED MAINTENANCE"
         title="One window on the calendar."
@@ -549,7 +550,7 @@ function Maintenance() {
           <Text style={styles.cardBody}>{MAINTENANCE.body}</Text>
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -571,7 +572,7 @@ function Subscribe() {
   };
 
   return (
-    <Section style={styles.subscribe}>
+    <Band tone="orange" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />
@@ -612,7 +613,7 @@ function Subscribe() {
           Status notifications only. Unsubscribe from any message.
         </Text>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

@@ -24,7 +24,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -595,7 +596,7 @@ export default function ListSmartlyPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>LOCAL VISIBILITY FOR THE AI ERA</SectionLabel>
@@ -826,10 +827,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 01 publishers */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -875,10 +876,10 @@ export default function ListSmartlyPage() {
             </ConnectorSurface>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 02 knowledge profile */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -928,10 +929,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 duplicates */}
-      <Section>
+      <OpenSection>
         <NumberedHead
           index={3}
           eyebrow="ACCURACY"
@@ -1030,10 +1031,10 @@ export default function ListSmartlyPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 04 reviews */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1117,10 +1118,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 05 local pages */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1199,10 +1200,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 AI search visibility */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1287,10 +1288,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 07 multi-location */}
-      <Section>
+      <Band tone="green">
         <NumberedHead
           index={7}
           eyebrow="MULTI-LOCATION"
@@ -1374,10 +1375,10 @@ export default function ListSmartlyPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 08 teams */}
-      <Section>
+      <Band tone="pink">
         <NumberedHead
           index={8}
           eyebrow="TEAMS & PERMISSIONS"
@@ -1474,10 +1475,10 @@ export default function ListSmartlyPage() {
             ))}
           </View>
         )}
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 09 actions */}
-      <Section>
+      <OpenSection>
         <NumberedHead
           index={9}
           eyebrow="RECOMMENDED ACTIONS"
@@ -1525,10 +1526,10 @@ export default function ListSmartlyPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ testimonial */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.quoteRow}>
           <Media
             name="people/amanda-rodriguez"
@@ -1547,7 +1548,7 @@ export default function ListSmartlyPage() {
             </Text>
           </View>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

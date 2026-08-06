@@ -136,18 +136,27 @@ validation. Build, screenshot, and open the image.
     positioning, safety copy, logos and diagrams do not.
 
     Reach for `useOpenSection()`/`<OpenSection>` (gutter + `l.sectionSpace`,
-    nothing else) or `<Band>` (the same, on a full-bleed tint) from
-    `components/public/ui`. `useSectionShell()`/`<Section>` is the *card*
-    shell — the older default, still used by the non-home routes. Building a
-    page entirely from it is what produced the "dashboard under a hero" look
-    the home page was rebuilt to escape: a wall of equally-weighted rounded
-    rectangles, each holding a grid of more rounded rectangles, with two
-    borders around every idea and no hierarchy left.
+    nothing else) or `<Band tone>` (the same, on a full-bleed ground) from
+    `components/public/ui`. There is no card-shell section component any more:
+    `Section`/`useSectionShell` were deleted once every route was converted,
+    because a page built entirely from them is exactly the "dashboard under a
+    hero" look this rule exists to prevent.
 
-    Rhythm comes from alternating open sections with the occasional band, not
-    from boxing things. Bands escape the `BP.maxContent` column with a measured
-    negative margin — see `bandBleed` — so they reach the viewport edge while
-    their text stays on the same gutter as the open section above.
+    Rhythm comes from soft alternating grounds, not from boxing things. A
+    route's sections run open (hero) → two tinted bands → open, with `BandTone`
+    cycling so no two adjacent bands share a hue. The accent tones are a much
+    weaker wash than `softFill` (5% light / 9% dark) — felt, not seen. Bands
+    escape the `BP.maxContent` column with a *measured* negative margin (see
+    `bandBleed`) so they reach the viewport edge while their text stays on the
+    same gutter as the open section above; a flat overrun would leave the
+    scroll container reporting phantom width at every viewport.
+
+    `<SectionArt>` puts a faded diagram behind a section. Use it sparingly —
+    a few per page at most. It is drawn geometry, not a sourced image (see the
+    asset rule above), it takes the accent colour and the theme's own alpha,
+    and it goes behind the **copy** rather than a mock: a mock is an opaque
+    card and hides it completely. Its alphas are set by what keeps body text
+    readable, not by what looks good on an empty section.
 
 ---
 

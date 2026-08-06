@@ -20,7 +20,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -322,7 +323,7 @@ function Hero() {
   const openApp = useOpenApp();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>TEMPLATES</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -359,7 +360,7 @@ function Hero() {
           radius={18}
         />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -379,7 +380,7 @@ function Library() {
   const columns = fitColumns(visible.length, base);
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         title="The template library"
         body="Pick the channel you are working on today. Every template arrives complete — copy, timing, audience and all."
@@ -448,7 +449,7 @@ function Library() {
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -460,7 +461,7 @@ function Bundles() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="POPULAR BUNDLES"
         title="Whole plays, not single assets."
@@ -506,7 +507,7 @@ function Bundles() {
           );
         })}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -518,7 +519,7 @@ function BuiltToBeEdited() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : l.isDesktop ? 4 : 2;
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="BUILT TO BE EDITED"
         title="A template is a starting point, not a straitjacket."
@@ -556,7 +557,7 @@ function BuiltToBeEdited() {
           onPress={() => router.push(ROUTES.aiStudio as never)}
         />
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -568,7 +569,7 @@ function Closing() {
   const openApp = useOpenApp();
 
   return (
-    <Section style={styles.closing}>
+    <Band tone="brand" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <View style={styles.closingIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
@@ -597,7 +598,7 @@ function Closing() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

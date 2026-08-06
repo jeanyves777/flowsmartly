@@ -22,9 +22,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -549,7 +550,7 @@ export default function TrainingStudioPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -574,7 +575,7 @@ export default function TrainingStudioPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>
@@ -821,7 +822,7 @@ export default function TrainingStudioPage() {
       </Reveal>
 
       {/* ------------------------------------------------ plan with AI */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DRAFTED, NOT DECIDED</SectionLabel>
@@ -915,10 +916,10 @@ export default function TrainingStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ seven moments */}
-      <Section>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SHAPE OF A GOOD LESSON</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Seven teaching moments, every lesson.</Heading>
@@ -947,10 +948,10 @@ export default function TrainingStudioPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ draw live */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.boardCard}>
@@ -1130,10 +1131,10 @@ export default function TrainingStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ activities & quizzes */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PROVE IT LANDED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1277,10 +1278,10 @@ export default function TrainingStudioPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ media */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SHOW, DO NOT TELL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Bring in media that lands.</Heading>
@@ -1352,10 +1353,10 @@ export default function TrainingStudioPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Section>
+      <Band tone="orange">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Templates for every training type.</Heading>
@@ -1391,10 +1392,10 @@ export default function TrainingStudioPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ versions & collaboration */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BUILT BY MORE THAN ONE PERSON</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Version history and collaboration.</Heading>
@@ -1514,10 +1515,10 @@ export default function TrainingStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Section>
+      <Band tone="green">
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>
@@ -1583,7 +1584,7 @@ export default function TrainingStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

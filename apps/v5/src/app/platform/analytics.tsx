@@ -23,9 +23,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -770,7 +771,7 @@ export default function AnalyticsPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -806,7 +807,7 @@ export default function AnalyticsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ONE VIEW OF WHAT MOVES GROWTH</SectionLabel>
@@ -1058,7 +1059,7 @@ export default function AnalyticsPage() {
       </Reveal>
 
       {/* ------------------------------------------------ 01 channel overview */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="01"
@@ -1110,10 +1111,10 @@ export default function AnalyticsPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 02 attribution */}
-      <Section>
+      <Band tone="surface">
         <Reveal distance={16}>
           <NumberedHead
             index="02"
@@ -1185,10 +1186,10 @@ export default function AnalyticsPage() {
             </Text>
           </View>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 campaign analytics */}
-      <Section>
+      <Band tone="violet">
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1290,10 +1291,10 @@ export default function AnalyticsPage() {
             )}
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 04 deliverability */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="04"
@@ -1354,10 +1355,10 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 05 ad spend & roas */}
-      <Section>
+      <Band tone="brand">
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1470,10 +1471,10 @@ export default function AnalyticsPage() {
             )}
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 call agent */}
-      <Section>
+      <Band tone="orange">
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1522,10 +1523,10 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 07 commerce */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="07"
@@ -1590,10 +1591,10 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 08 local & AI visibility */}
-      <Section>
+      <Band tone="green">
         <Reveal distance={16}>
           <NumberedHead
             index="08"
@@ -1663,10 +1664,10 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 09 briefing & anomalies */}
-      <Section>
+      <Band tone="pink">
         <Reveal distance={16}>
           <NumberedHead
             index="09"
@@ -1735,10 +1736,10 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 10 reports & sharing */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="10"
@@ -1835,7 +1836,7 @@ export default function AnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

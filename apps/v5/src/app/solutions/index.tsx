@@ -13,9 +13,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -494,7 +495,7 @@ export default function SolutionsPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -521,7 +522,7 @@ export default function SolutionsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>SOLUTIONS THAT MOVE WITH YOUR BUSINESS</SectionLabel>
@@ -584,7 +585,7 @@ export default function SolutionsPage() {
       </Reveal>
 
       {/* ------------------------------------------------ business type picker */}
-      <Section>
+      <OpenSection>
         <View style={styles.sectionHead}>
           <SectionLabel>START HERE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -639,10 +640,10 @@ export default function SolutionsPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ outcomes */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -676,7 +677,7 @@ export default function SolutionsPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ scenarios
           The picker above is a real filter, not decoration: it chooses the
@@ -684,7 +685,7 @@ export default function SolutionsPage() {
           no walkthrough written yet, so selecting it renders an honest empty
           state instead of silently changing nothing. */}
       {shownScenarios.length === 0 ? (
-        <Section>
+        <Band tone="violet">
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle} />
@@ -706,13 +707,13 @@ export default function SolutionsPage() {
               />
             </View>
           </View>
-        </Section>
+        </Band>
       ) : null}
       {shownScenarios.map((scenario, index) => {
         const accent = accentOf(scenario.accent);
         const flip = index % 2 === 1;
         return (
-          <Section key={scenario.key}>
+          <OpenSection key={scenario.key}>
             <View style={[styles.scenarioRow, flip ? styles.scenarioRowFlip : null]}>
               <Reveal style={styles.scenarioCopy} distance={16}>
                 <Text style={[styles.scenarioEyebrow, { color: accent }]}>{scenario.eyebrow}</Text>
@@ -760,12 +761,12 @@ export default function SolutionsPage() {
                 </View>
               </Reveal>
             </View>
-          </Section>
+          </OpenSection>
         );
       })}
 
       {/* ------------------------------------------------ industry presets */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.sectionHead}>
           <SectionLabel>PRESETS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -791,10 +792,10 @@ export default function SolutionsPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ comparison + testimonial */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.sectionHead}>
           <SectionLabel>WHY ONE PLATFORM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -913,7 +914,7 @@ export default function SolutionsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

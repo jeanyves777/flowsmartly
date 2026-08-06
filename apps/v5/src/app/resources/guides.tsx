@@ -19,7 +19,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -282,7 +283,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <View style={styles.eyebrowRow}>
           <SectionLabel>GUIDES</SectionLabel>
@@ -324,7 +325,7 @@ function Hero() {
           radius={18}
         />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -335,7 +336,7 @@ function FeaturedGuide() {
   const router = useRouter();
 
   return (
-    <Section>
+    <Band tone="surface">
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredCopy}>
           <TopicChip label="Featured guide" tone="orange" />
@@ -395,7 +396,7 @@ function FeaturedGuide() {
           />
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -420,7 +421,7 @@ function Library() {
   const rowMode = columns === 1;
 
   return (
-    <Section>
+    <Band tone="violet">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse the library
@@ -492,7 +493,7 @@ function Library() {
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -503,7 +504,7 @@ function Paths() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <OpenSection>
       <Reveal style={styles.head} distance={14}>
         <SectionLabel>LEARNING PATHS</SectionLabel>
         <Heading level={2} style={styles.headTitle}>
@@ -552,7 +553,7 @@ function Paths() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -562,7 +563,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Section style={styles.closing}>
+    <Band tone="brand" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="compass" tone="brand" size={54} />
         <Heading level={2} style={styles.closingTitle}>
@@ -582,7 +583,7 @@ function Closing() {
           onPress={() => router.push(contactHref('guide') as never)}
         />
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

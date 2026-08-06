@@ -15,9 +15,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -531,7 +532,7 @@ export default function AiStudioPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -558,7 +559,7 @@ export default function AiStudioPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>CREATE WITH YOUR BRAND BUILT IN</SectionLabel>
@@ -609,7 +610,7 @@ export default function AiStudioPage() {
       </Reveal>
 
       {/* ------------------------------------------------ formats */}
-      <Section>
+      <OpenSection>
         <View style={styles.sectionHead}>
           <SectionLabel>EVERY FORMAT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -637,10 +638,10 @@ export default function AiStudioPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ brand context */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>BRAND CONTEXT</SectionLabel>
@@ -741,10 +742,10 @@ export default function AiStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ one brief, many outputs */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.sectionHead}>
           <SectionLabel>ONE BRIEF</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -802,10 +803,10 @@ export default function AiStudioPage() {
             })}
           </View>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ editor + video builder */}
-      <Section>
+      <OpenSection>
         <View style={styles.sectionHead}>
           <SectionLabel>EDIT AND EXTEND</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -912,10 +913,10 @@ export default function AiStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ collaborate */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TEAMWORK</SectionLabel>
@@ -1021,10 +1022,10 @@ export default function AiStudioPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.sectionHead}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -1093,10 +1094,10 @@ export default function AiStudioPage() {
             ))}
           </View>
         )}
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ trust */}
-      <Section>
+      <OpenSection>
         <View style={styles.sectionHead}>
           <SectionLabel>ORIGINALITY AND RIGHTS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -1151,7 +1152,7 @@ export default function AiStudioPage() {
             })}
           </View>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

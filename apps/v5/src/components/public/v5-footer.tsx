@@ -17,7 +17,6 @@ import {
   SectionLabel,
   Band,
   useOpenSection,
-  useSectionShell,
   useTypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
@@ -431,11 +430,11 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
 
 export function IntegrationShelf() {
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useFooterStyles();
   const router = useRouter();
   return (
-    <View style={shell}>
+    <View style={open}>
       <View style={styles.shelfHeader}>
         <View style={styles.shelfHeaderCopy}>
           <SectionLabel>INTEGRATIONS</SectionLabel>

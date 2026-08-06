@@ -21,7 +21,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -353,7 +354,7 @@ function Hero() {
   const [customers, revenue, together, trusted] = PROMISES;
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>PARTNER PROGRAM</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -428,7 +429,7 @@ function Hero() {
           </View>
         </ConnectorSurface>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -439,7 +440,7 @@ function Paths() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="PARTNER PATHS"
         title="Choose the path that fits your business."
@@ -467,7 +468,7 @@ function Paths() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -475,7 +476,7 @@ function ValueAndRevenue() {
   const styles = useStyles();
 
   return (
-    <Section>
+    <Band tone="violet">
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpCol} distance={16}>
           <View style={styles.panel}>
@@ -516,7 +517,7 @@ function ValueAndRevenue() {
           </View>
         </Reveal>
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -526,7 +527,7 @@ function Integrations() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="INTEGRATIONS"
         title="Integrate. Extend. Deliver more value."
@@ -555,7 +556,7 @@ function Integrations() {
         <Text style={[styles.linkText, { color: t.brand }]}>View all integrations</Text>
         <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
       </Pressable>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -566,7 +567,7 @@ function Journey() {
   const arrowWidth = l.isDesktop ? 52 : 30;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="HOW IT WORKS"
         title="A simple path to partnership."
@@ -599,7 +600,7 @@ function Journey() {
           </View>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -610,7 +611,7 @@ function Proof() {
   const rowMode = columns === 1;
 
   return (
-    <Section>
+    <Band tone="orange">
       <SectionHead
         label="THE NUMBERS"
         title="Partners choose FlowSmartly. Customers see results."
@@ -628,7 +629,7 @@ function Proof() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -638,7 +639,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Section style={styles.closing}>
+    <OpenSection style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="handshake" tone="brand" size={54} />
         <Heading level={2} style={styles.closingTitle}>
@@ -668,7 +669,7 @@ function Closing() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

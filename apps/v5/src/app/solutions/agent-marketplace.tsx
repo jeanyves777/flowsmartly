@@ -23,7 +23,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -544,7 +545,7 @@ export default function AgentMarketplacePage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>EXPERT HELP INSIDE YOUR WORKSPACE</SectionLabel>
@@ -638,10 +639,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ browse by service */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>BROWSE BY SERVICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>Start with the job to be done.</Heading>
@@ -671,10 +672,10 @@ export default function AgentMarketplacePage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ featured experts */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.headCentered}>
           <SectionLabel>FEATURED GROWTH EXPERTS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>People who have done this before.</Heading>
@@ -691,10 +692,10 @@ export default function AgentMarketplacePage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ smart matching */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SMART MATCHING</SectionLabel>
@@ -781,10 +782,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ hire & collaborate */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>A better way to hire and collaborate.</Heading>
@@ -825,10 +826,10 @@ export default function AgentMarketplacePage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ shared workspace */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SHARED WORKSPACE</SectionLabel>
@@ -896,10 +897,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ milestones */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PAYMENTS & SCOPE</SectionLabel>
@@ -983,10 +984,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ reporting */}
-      <Section>
+      <Band tone="green">
         <View style={styles.headCentered}>
           <SectionLabel>PERFORMANCE REPORTING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -1016,10 +1017,10 @@ export default function AgentMarketplacePage() {
             </View>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ trust */}
-      <Section>
+      <Band tone="pink">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TRUST & SAFETY</SectionLabel>
@@ -1095,10 +1096,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ join the network */}
-      <Section>
+      <OpenSection>
         <View style={styles.joinRow}>
           <Reveal style={styles.joinVisual} distance={16}>
             <Media
@@ -1144,10 +1145,10 @@ export default function AgentMarketplacePage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ testimonial */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.quoteRow}>
           <Media
             name="people/daniel-kim"
@@ -1166,7 +1167,7 @@ export default function AgentMarketplacePage() {
             </Text>
           </View>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

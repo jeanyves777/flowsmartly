@@ -19,7 +19,8 @@ import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   Heading,
   PrimaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -228,7 +229,7 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
   const styles = useStyles();
 
   return (
-    <Section style={styles.hero}>
+    <OpenSection style={styles.hero}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>BLOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -258,7 +259,7 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
           );
         })}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -268,7 +269,7 @@ function Featured() {
   const router = useRouter();
 
   return (
-    <Section>
+    <Band tone="surface">
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredArt}>
           <Artwork name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />
@@ -314,7 +315,7 @@ function Featured() {
           </View>
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -335,7 +336,7 @@ function Archive({ topic }: { topic: Topic }) {
   const columns = Math.max(1, Math.min(base, visible.length));
 
   return (
-    <Section>
+    <Band tone="violet">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Latest articles
@@ -386,7 +387,7 @@ function Archive({ topic }: { topic: Topic }) {
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -398,7 +399,7 @@ function Newsletter() {
   const [email, setEmail] = useState('');
 
   return (
-    <Section style={styles.newsletter}>
+    <OpenSection style={styles.newsletter}>
       <Reveal style={styles.newsletterInner} distance={14}>
         <View style={styles.newsletterIcon}>
           <FontAwesome6 name="envelope-open-text" size={22} color={t.brand} />
@@ -444,7 +445,7 @@ function Newsletter() {
         <Text style={styles.newsletterProof}>Join 8,000+ growth-minded teams</Text>
         <Text style={styles.newsletterFine}>No spam. Unsubscribe anytime.</Text>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

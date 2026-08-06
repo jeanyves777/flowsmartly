@@ -21,7 +21,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -295,7 +296,7 @@ function Hero() {
   const l = useLayout();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CAREERS AT FLOWSMARTLY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -333,7 +334,7 @@ function Hero() {
           radius={18}
         />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -345,7 +346,7 @@ function Values() {
   const columns = l.isCompact ? 1 : 5;
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="WHAT WE VALUE"
         title="Five things we actually hire for."
@@ -369,7 +370,7 @@ function Values() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -379,7 +380,7 @@ function Life() {
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="LIFE AT FLOWSMARTLY"
         title="Remote, but not distant."
@@ -402,7 +403,7 @@ function Life() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -412,7 +413,7 @@ function Benefits() {
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="BENEFITS"
         title="Benefits that actually help."
@@ -434,7 +435,7 @@ function Benefits() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -526,7 +527,7 @@ function OpenRoles() {
   );
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="OPEN ROLES"
         title="Where we need people right now."
@@ -575,7 +576,7 @@ function OpenRoles() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -584,7 +585,7 @@ function HowWeHire() {
   const t = useTokens();
 
   return (
-    <Section>
+    <Band tone="orange">
       <SectionHead
         label="HOW WE HIRE"
         title="Five steps, about two weeks."
@@ -621,7 +622,7 @@ function HowWeHire() {
           longer than that, the exercise was wrong — not you.
         </Text>
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -631,7 +632,7 @@ function NoRole() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <Reveal style={styles.closePanel} distance={14}>
         <IconTile icon="paper-plane" tone="brand" size={54} />
         <Heading level={2} style={styles.closeTitle}>
@@ -651,7 +652,7 @@ function NoRole() {
           onPress={() => router.push(contactHref('careers') as never)}
         />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

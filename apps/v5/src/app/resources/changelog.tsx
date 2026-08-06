@@ -9,7 +9,8 @@ import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   Heading,
   PrimaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -208,7 +209,7 @@ function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) =
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CHANGELOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -245,7 +246,7 @@ function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) =
           );
         })}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -273,7 +274,7 @@ function Timeline({ filter }: { filter: Filter }) {
   const total = groups.reduce((sum, group) => sum + group.entries.length, 0);
 
   return (
-    <Section>
+    <Band tone="surface">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Release history
@@ -370,7 +371,7 @@ function Timeline({ filter }: { filter: Filter }) {
         </View>
       </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -382,7 +383,7 @@ function Subscribe() {
   const [email, setEmail] = useState('');
 
   return (
-    <Section style={styles.subscribe}>
+    <Band tone="violet" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />
@@ -426,7 +427,7 @@ function Subscribe() {
 
         <Text style={styles.subscribeFine}>No spam. Unsubscribe anytime.</Text>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

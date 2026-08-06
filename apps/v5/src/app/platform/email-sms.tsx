@@ -14,9 +14,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -545,7 +546,7 @@ export default function EmailSmsPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -564,7 +565,7 @@ export default function EmailSmsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>MESSAGING THAT REACHES PEOPLE</SectionLabel>
@@ -615,7 +616,7 @@ export default function EmailSmsPage() {
       </Reveal>
 
       {/* ------------------------------------------------ 01 email builder */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -703,10 +704,10 @@ export default function EmailSmsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 02 sms + mms */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -772,10 +773,10 @@ export default function EmailSmsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 journeys */}
-      <Section>
+      <Band tone="violet">
         <StepHead
           index={3}
           eyebrow="AUTOMATED JOURNEYS"
@@ -823,10 +824,10 @@ export default function EmailSmsPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 04 segmentation */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -901,10 +902,10 @@ export default function EmailSmsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 05 deliverability */}
-      <Section>
+      <Band tone="brand">
         <StepHead
           index={5}
           eyebrow="DELIVERABILITY"
@@ -954,10 +955,10 @@ export default function EmailSmsPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 consent */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -1044,10 +1045,10 @@ export default function EmailSmsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 07 test and time */}
-      <Section>
+      <OpenSection>
         <StepHead
           index={7}
           eyebrow="TEST AND TIME IT"
@@ -1150,10 +1151,10 @@ export default function EmailSmsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 08 measure */}
-      <Section>
+      <Band tone="green">
         <StepHead
           index={8}
           eyebrow="PROVE THE IMPACT"
@@ -1267,7 +1268,7 @@ export default function EmailSmsPage() {
             )}
           </View>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

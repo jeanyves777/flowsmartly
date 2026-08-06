@@ -19,7 +19,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -233,7 +234,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>PRESS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -261,7 +262,7 @@ function Hero() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -316,7 +317,7 @@ function InTheNews() {
   const styles = useStyles();
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="IN THE NEWS"
         title="Recent coverage."
@@ -330,7 +331,7 @@ function InTheNews() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -338,7 +339,7 @@ function CompanyFacts() {
   const styles = useStyles();
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="COMPANY FACTS"
         title="The details, ready to quote."
@@ -356,7 +357,7 @@ function CompanyFacts() {
           </Fragment>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -366,7 +367,7 @@ function BrandAssets() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="BRAND ASSETS"
         title="Everything you need, correctly sized."
@@ -423,7 +424,7 @@ function BrandAssets() {
           ))}
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -451,7 +452,7 @@ function LogoUsage() {
   ];
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="LOGO USAGE"
         title="How to use the mark."
@@ -489,7 +490,7 @@ function LogoUsage() {
           );
         })}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -499,7 +500,7 @@ function Leadership() {
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="orange">
       <SectionHead
         label="LEADERSHIP"
         title="Who to quote."
@@ -533,7 +534,7 @@ function Leadership() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -544,7 +545,7 @@ function MediaContact() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <Reveal style={styles.contactCard} distance={14}>
         <IconTile icon="newspaper" tone="brand" size={54} />
         <View style={styles.contactCopy}>
@@ -577,7 +578,7 @@ function MediaContact() {
           />
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

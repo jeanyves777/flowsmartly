@@ -14,7 +14,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -416,7 +417,7 @@ export default function VideoStudioPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>VIDEO &amp; VOICE STUDIO</SectionLabel>
@@ -518,10 +519,10 @@ export default function VideoStudioPage() {
             </View>
           ))}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ the crafts */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>WHAT YOU CAN MAKE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -558,10 +559,10 @@ export default function VideoStudioPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ virtual try-on */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.tryonRow}>
           <Reveal style={styles.tryonCopy} distance={16}>
             <SectionLabel>VIRTUAL TRY-ON</SectionLabel>
@@ -608,10 +609,10 @@ export default function VideoStudioPage() {
             ))}
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ flow.ai */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.aiBand} distance={14}>
           <View style={styles.aiCopy}>
             <SectionLabel>FLOW.AI</SectionLabel>
@@ -639,10 +640,10 @@ export default function VideoStudioPage() {
             ))}
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ quotes */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.headCentered}>
           <SectionLabel>IN PRACTICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -672,10 +673,10 @@ export default function VideoStudioPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ faq */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -693,7 +694,7 @@ export default function VideoStudioPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

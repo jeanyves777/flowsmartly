@@ -22,7 +22,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -309,7 +310,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CUSTOMER STORIES</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -347,7 +348,7 @@ function Hero() {
           radius={18}
         />
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -357,7 +358,7 @@ function StatStrip() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Section>
+    <Band tone="surface">
       <View style={styles.grid}>
         {HEADLINE_STATS.map((item, index) => (
           <Reveal
@@ -371,7 +372,7 @@ function StatStrip() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -393,7 +394,7 @@ function Stories() {
   const columns = Math.max(1, Math.min(base, visible.length));
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="FEATURED STORIES"
         title="Three teams, three very different problems."
@@ -482,7 +483,7 @@ function Stories() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -491,7 +492,7 @@ function PullQuote() {
   const t = useTokens();
 
   return (
-    <Section>
+    <OpenSection>
       <Reveal style={styles.quoteRow} distance={16}>
         <View style={styles.quotePortrait}>
           <Media
@@ -515,7 +516,7 @@ function PullQuote() {
           </View>
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -526,7 +527,7 @@ function Outcomes() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="RESULTS ACROSS THE PLATFORM"
         title="Every product answers to a number."
@@ -555,7 +556,7 @@ function Outcomes() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -563,7 +564,7 @@ function ByTheNumbers() {
   const styles = useStyles();
 
   return (
-    <Section>
+    <Band tone="orange">
       <SectionHead label="BY THE NUMBERS" title="What that adds up to across the platform." />
 
       <View style={styles.band}>
@@ -582,7 +583,7 @@ function ByTheNumbers() {
           ))}
         </View>
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -592,7 +593,7 @@ function AddYourStory() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <Reveal style={styles.closePanel} distance={14}>
         <IconTile icon="star" tone="orange" size={54} />
         <Heading level={2} style={styles.closeTitle}>
@@ -620,7 +621,7 @@ function AddYourStory() {
           />
         </ButtonRow>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

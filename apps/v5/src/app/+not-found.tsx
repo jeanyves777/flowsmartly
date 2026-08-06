@@ -11,7 +11,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -123,7 +124,7 @@ export default function NotFoundScreen() {
       description="That page moved, or never existed. Here is the way back into FlowSmartly — product, pricing, FlowAgent, FlowLearner, the help center and contact."
       cta={false}
       jsonLd={[breadcrumbJsonLd([{ name: 'Home', path: ROUTES.home }])]}>
-      <Section style={styles.hero}>
+      <OpenSection style={styles.hero}>
         <Reveal style={styles.heroInner} distance={16}>
           <SectionLabel>PAGE NOT FOUND</SectionLabel>
           {/* decorative figure — the sentence below it is the page's heading */}
@@ -156,9 +157,9 @@ export default function NotFoundScreen() {
             </ButtonRow>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
-      <Section>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={14}>
           <Heading level={2} style={styles.headTitle}>
             Popular destinations
@@ -202,7 +203,7 @@ export default function NotFoundScreen() {
             );
           })}
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

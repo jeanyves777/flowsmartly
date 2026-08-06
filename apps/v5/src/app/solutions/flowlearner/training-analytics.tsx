@@ -22,9 +22,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -700,7 +701,7 @@ export default function TrainingAnalyticsPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -739,7 +740,7 @@ export default function TrainingAnalyticsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <View style={styles.eyebrowRow}>
@@ -958,7 +959,7 @@ export default function TrainingAnalyticsPage() {
       </Reveal>
 
       {/* ------------------------------------------------ 01 attendance */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="01"
@@ -1034,10 +1035,10 @@ export default function TrainingAnalyticsPage() {
             </ScrollView>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 02 completion & drop-off */}
-      <Section>
+      <Band tone="surface">
         <Reveal distance={16}>
           <NumberedHead
             index="02"
@@ -1090,10 +1091,10 @@ export default function TrainingAnalyticsPage() {
             })}
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 engagement */}
-      <Section>
+      <Band tone="violet">
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1148,10 +1149,10 @@ export default function TrainingAnalyticsPage() {
             </Text>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 04 assessments */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="04"
@@ -1226,10 +1227,10 @@ export default function TrainingAnalyticsPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 05 certificates */}
-      <Section>
+      <Band tone="brand">
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1294,10 +1295,10 @@ export default function TrainingAnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 revenue */}
-      <Section>
+      <Band tone="orange">
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1385,10 +1386,10 @@ export default function TrainingAnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 07 segments */}
-      <Section>
+      <OpenSection>
         <Reveal distance={16}>
           <NumberedHead
             index="07"
@@ -1427,10 +1428,10 @@ export default function TrainingAnalyticsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 08 reports */}
-      <Section>
+      <Band tone="green">
         <Reveal distance={16}>
           <NumberedHead
             index="08"
@@ -1534,7 +1535,7 @@ export default function TrainingAnalyticsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

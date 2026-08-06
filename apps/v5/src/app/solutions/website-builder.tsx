@@ -12,7 +12,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -259,7 +260,7 @@ export default function WebsiteBuilderPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>WEBSITE BUILDER</SectionLabel>
@@ -360,10 +361,10 @@ export default function WebsiteBuilderPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>FROM PROMPT TO PUBLISHED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -392,10 +393,10 @@ export default function WebsiteBuilderPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ what ships */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.headCentered}>
           <SectionLabel>IN EVERY SITE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -416,10 +417,10 @@ export default function WebsiteBuilderPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ editing */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>EDITING</SectionLabel>
@@ -486,10 +487,10 @@ export default function WebsiteBuilderPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ found */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.seoCard}>
@@ -528,10 +529,10 @@ export default function WebsiteBuilderPage() {
             />
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ connected */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.headCentered}>
           <SectionLabel>CONNECTED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -558,10 +559,10 @@ export default function WebsiteBuilderPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ domain */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.domainBand} distance={14}>
           <View style={styles.domainCopy}>
             <SectionLabel>YOUR ADDRESS</SectionLabel>
@@ -602,10 +603,10 @@ export default function WebsiteBuilderPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ faq */}
-      <Section>
+      <Band tone="green">
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -623,10 +624,10 @@ export default function WebsiteBuilderPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ testimonial */}
-      <Section>
+      <Band tone="pink">
         <View style={styles.quoteRow}>
           <Media
             name="people/maya-chen"
@@ -645,7 +646,7 @@ export default function WebsiteBuilderPage() {
             </Text>
           </View>
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

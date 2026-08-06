@@ -5,7 +5,7 @@ import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
-import { Heading, SectionLabel, useSectionShell, useTypeScale, type TypeScale } from './ui';
+import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } from './ui';
 
 export type DocSection = { id: string; title: string };
 
@@ -36,10 +36,10 @@ export function LegalLayout({
   const styles = useDocStyles();
   const type = useTypeScale();
   const l = useLayout();
-  const shell = useSectionShell();
+  const open = useOpenSection();
 
   return (
-    <View style={[shell, styles.shell]}>
+    <View style={[open, styles.shell]}>
       <View style={styles.frame}>
         {!l.isStacked ? (
           <View style={styles.rail}>

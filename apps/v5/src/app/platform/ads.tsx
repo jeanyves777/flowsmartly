@@ -30,9 +30,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -586,7 +587,7 @@ export default function AdsPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -618,7 +619,7 @@ export default function AdsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ADS WITH CONNECTED INTELLIGENCE</SectionLabel>
@@ -837,7 +838,7 @@ export default function AdsPage() {
       </Reveal>
 
       {/* ------------------------------------------------ cross-channel */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>ONE BOARD, EVERY NETWORK</SectionLabel>
@@ -898,10 +899,10 @@ export default function AdsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ organic → ads */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PROVEN BEFORE IT PAYS</SectionLabel>
@@ -987,10 +988,10 @@ export default function AdsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ creative variants */}
-      <Section>
+      <Band tone="violet">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CREATIVE THAT EARNS ITS PLACE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Heading>
@@ -1061,10 +1062,10 @@ export default function AdsPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ audiences */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>AUDIENCES FROM YOUR OWN DATA</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Build connected audiences.</Heading>
@@ -1131,10 +1132,10 @@ export default function AdsPage() {
             </View>
           </View>
         </ConnectorSurface>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ guardrails */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SPEND ON YOUR TERMS</SectionLabel>
@@ -1247,10 +1248,10 @@ export default function AdsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Section>
+      <Band tone="orange">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PERFORMANCE IN ONE VIEW</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1310,10 +1311,10 @@ export default function AdsPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ recommendations */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OPTIMIZATION YOU CAN READ</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1356,10 +1357,10 @@ export default function AdsPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ disclosure */}
-      <Section>
+      <Band tone="green">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>HONEST BY DEFAULT</SectionLabel>
@@ -1432,10 +1433,10 @@ export default function AdsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ audit */}
-      <Section>
+      <Band tone="pink">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>NOTHING HAPPENS QUIETLY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>
@@ -1516,7 +1517,7 @@ export default function AdsPage() {
             )}
           </View>
         </Reveal>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

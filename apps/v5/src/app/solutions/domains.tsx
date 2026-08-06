@@ -11,7 +11,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -263,7 +264,7 @@ export default function DomainsPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>DOMAINS</SectionLabel>
@@ -360,10 +361,10 @@ export default function DomainsPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -389,10 +390,10 @@ export default function DomainsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ included */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.headCentered}>
           <SectionLabel>IN THE PRICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -417,10 +418,10 @@ export default function DomainsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ connect */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>POINTING IT SOMEWHERE</SectionLabel>
@@ -497,10 +498,10 @@ export default function DomainsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ pricing */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.headCentered}>
           <SectionLabel>PRICING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -557,10 +558,10 @@ export default function DomainsPage() {
             change what a specific extension costs.
           </Text>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ transfer */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.headCentered}>
           <SectionLabel>MOVING ONE IN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -581,10 +582,10 @@ export default function DomainsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ faq */}
-      <Section>
+      <OpenSection>
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -602,7 +603,7 @@ export default function DomainsPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

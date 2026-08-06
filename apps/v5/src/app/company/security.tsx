@@ -20,7 +20,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -293,7 +294,7 @@ function Hero() {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>TRUST &amp; SECURITY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -345,7 +346,7 @@ function Hero() {
           />
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -357,7 +358,7 @@ function Compliance() {
   const columns = l.isPhone ? 1 : 5;
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         label="COMPLIANCE"
         title="The frameworks we are held to."
@@ -381,7 +382,7 @@ function Compliance() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -391,7 +392,7 @@ function Protections() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="HOW WE PROTECT YOUR DATA"
         title="Six controls that run whether or not anyone is watching."
@@ -413,7 +414,7 @@ function Protections() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -422,7 +423,7 @@ function Controls() {
   const l = useLayout();
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="YOUR CONTROLS"
         title="What you can enforce yourself."
@@ -442,7 +443,7 @@ function Controls() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -453,7 +454,7 @@ function Testing() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="brand">
       <SectionHead
         label="INDEPENDENT TESTING"
         title="We do not grade our own homework."
@@ -479,7 +480,7 @@ function Testing() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -488,7 +489,7 @@ function IncidentResponse() {
   const t = useTokens();
 
   return (
-    <Section>
+    <Band tone="orange">
       <SectionHead
         label="INCIDENT RESPONSE"
         title="What happens in the first hour, and the first week."
@@ -530,7 +531,7 @@ function IncidentResponse() {
           </Text>
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 
@@ -541,7 +542,7 @@ function Residency() {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="SUBPROCESSORS AND DATA RESIDENCY"
         title="Where your data lives, and who else can see it."
@@ -600,7 +601,7 @@ function Residency() {
           </View>
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -610,7 +611,7 @@ function Vulnerability() {
   const l = useLayout();
 
   return (
-    <Section>
+    <Band tone="green">
       <Reveal style={styles.reportCard} distance={14}>
         <View style={styles.reportHead}>
           <IconTile icon="shield-virus" tone="pink" size={54} />
@@ -665,7 +666,7 @@ function Vulnerability() {
           />
         </View>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

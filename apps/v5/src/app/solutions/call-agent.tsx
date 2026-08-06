@@ -30,9 +30,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -484,7 +485,7 @@ export default function CallAgentPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -503,7 +504,7 @@ export default function CallAgentPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>AI VOICE THAT WORKS FOR YOUR BUSINESS</SectionLabel>
@@ -678,7 +679,7 @@ export default function CallAgentPage() {
       </Reveal>
 
       {/* ------------------------------------------------ roles */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>ONE AGENT, MANY JOBS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>One AI call agent. Many ways to help.</Heading>
@@ -704,10 +705,10 @@ export default function CallAgentPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ configure */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SET IT UP IN AN AFTERNOON</SectionLabel>
@@ -775,10 +776,10 @@ export default function CallAgentPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ voices */}
-      <Section>
+      <Band tone="violet">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT SHOULD SOUND LIKE YOU</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Heading>
@@ -858,10 +859,10 @@ export default function CallAgentPage() {
             </Pressable>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ workflows */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BOTH DIRECTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Inbound and outbound, same agent.</Heading>
@@ -894,10 +895,10 @@ export default function CallAgentPage() {
             />
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ capabilities */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHAT IT ACTUALLY DOES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Heading>
@@ -1065,10 +1066,10 @@ export default function CallAgentPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ transcript & summary */}
-      <Section>
+      <Band tone="orange">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>AFTER THE CALL</SectionLabel>
@@ -1130,10 +1131,10 @@ export default function CallAgentPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ integrations */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT PLUGS INTO YOUR STACK</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Works seamlessly with your tools.</Heading>
@@ -1155,10 +1156,10 @@ export default function CallAgentPage() {
             ))}
           </View>
         </Reveal>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ trust */}
-      <Section>
+      <Band tone="green">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE PARTS THAT MATTER</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Heading>
@@ -1184,10 +1185,10 @@ export default function CallAgentPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Section>
+      <Band tone="pink">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED LIKE ANY CHANNEL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Performance at a glance.</Heading>
@@ -1239,10 +1240,10 @@ export default function CallAgentPage() {
             </View>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ pricing */}
-      <Section>
+      <OpenSection>
         <View style={styles.priceRow}>
           <Reveal style={styles.priceCopy} distance={16}>
             <SectionLabel>TRANSPARENT PRICING</SectionLabel>
@@ -1312,7 +1313,7 @@ export default function CallAgentPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

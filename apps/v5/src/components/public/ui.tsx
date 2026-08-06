@@ -100,35 +100,6 @@ export function Heading({
 /* section shell                                                       */
 /* ------------------------------------------------------------------ */
 
-export function useSectionShell(): ViewStyle {
-  const l = useLayout();
-  const t = useTokens();
-  return useMemo(
-    () => ({
-      marginHorizontal: l.gutter,
-      marginTop: l.sectionGap,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: l.radius,
-      backgroundColor: t.surface,
-      padding: l.sectionPad,
-      ...(elevation(t, 1) as ViewStyle),
-    }),
-    [l, t],
-  );
-}
-
-export function Section({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: ViewStyle | ViewStyle[];
-}) {
-  const shell = useSectionShell();
-  return <View style={[shell, style]}>{children}</View>;
-}
-
 /* ------------------------------------------------------------------ */
 /* open sections and bands                                             */
 /* ------------------------------------------------------------------ */
@@ -137,10 +108,12 @@ export function Section({
  * A public-page section is **open by default**: the page gutter, real vertical
  * breathing room, and nothing else. No border, no radius, no surface.
  *
- * `useSectionShell` above puts every section in a card, and a page built
- * entirely from it reads as a dashboard — a wall of equally-weighted rounded
- * rectangles, each one holding a grid of more rounded rectangles. Two borders
- * around every idea flattens the hierarchy instead of creating it.
+ * There used to be a `Section`/`useSectionShell` pair that put every section in
+ * a card, and every route was built from it. A page made entirely of them reads
+ * as a dashboard — a wall of equally-weighted rounded rectangles, each holding
+ * a grid of more rounded rectangles. Two borders around every idea flattens the
+ * hierarchy instead of creating it, so the pair is gone rather than left around
+ * to be reached for again.
  *
  * The rule this encodes:
  *

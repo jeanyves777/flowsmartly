@@ -15,9 +15,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -419,7 +420,7 @@ export default function SocialPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -436,7 +437,7 @@ export default function SocialPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ONE SOCIAL WORKSPACE</SectionLabel>
@@ -577,7 +578,7 @@ export default function SocialPage() {
       </Reveal>
 
       {/* ------------------------------------------------ 01 calendar */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -668,10 +669,10 @@ export default function SocialPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 02 adapt per channel */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -735,10 +736,10 @@ export default function SocialPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 03 unified inbox */}
-      <Section>
+      <Band tone="violet">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -813,10 +814,10 @@ export default function SocialPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 04 comment to lead */}
-      <Section>
+      <OpenSection>
         <StepHead
           index={4}
           eyebrow="COMMENT TO LEAD"
@@ -867,10 +868,10 @@ export default function SocialPage() {
             advance.
           </Text>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 05 performance */}
-      <Section>
+      <Band tone="brand">
         <StepHead
           index={5}
           eyebrow="WHAT IT EARNED"
@@ -908,10 +909,10 @@ export default function SocialPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 06 ugc library */}
-      <Section>
+      <Band tone="orange">
         <StepHead
           index={6}
           eyebrow="CREATOR CONTENT"
@@ -950,10 +951,10 @@ export default function SocialPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ 07 approvals */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -1051,10 +1052,10 @@ export default function SocialPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ 08 integrations */}
-      <Section>
+      <Band tone="green">
         <StepHead
           index={8}
           eyebrow="CONNECTED TO YOUR STACK"
@@ -1089,7 +1090,7 @@ export default function SocialPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }

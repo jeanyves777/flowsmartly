@@ -13,7 +13,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -282,7 +283,7 @@ function Hero({ onBrowse }: { onBrowse: () => void }) {
   const router = useRouter();
 
   return (
-    <Section style={styles.heroSection}>
+    <OpenSection style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>INTEGRATIONS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
@@ -330,7 +331,7 @@ function Hero({ onBrowse }: { onBrowse: () => void }) {
           <Text style={styles.panelFoot}>…and every other tool in the directory below.</Text>
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -358,7 +359,7 @@ function Directory() {
   const columns = fitColumns(visible.length, base);
 
   return (
-    <Section>
+    <Band tone="surface">
       <SectionHead
         title="The integration directory"
         body="Search by name, or narrow it down to the part of your stack you are wiring up today."
@@ -436,7 +437,7 @@ function Directory() {
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -447,7 +448,7 @@ function FeaturedIntegrations() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Section>
+    <Band tone="violet">
       <SectionHead
         label="FEATURED INTEGRATIONS"
         title="The three most teams connect first."
@@ -493,7 +494,7 @@ function FeaturedIntegrations() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -504,7 +505,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
   const router = useRouter();
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="TWO WAYS TO CONNECT"
         title="Click it together, or build exactly what you need."
@@ -568,7 +569,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
           </View>
         </Reveal>
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -587,7 +588,7 @@ function RequestPanel() {
   };
 
   return (
-    <Section style={styles.request}>
+    <Band tone="brand" style={styles.request}>
       <Reveal style={styles.requestInner} distance={14}>
         <View style={styles.requestIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
@@ -624,7 +625,7 @@ function RequestPanel() {
 
         <Text style={styles.requestFine}>We reply to every request, usually the same week.</Text>
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

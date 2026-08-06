@@ -29,7 +29,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -319,7 +320,7 @@ export default function AboutPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>
@@ -387,11 +388,11 @@ export default function AboutPage() {
             </ConnectorSurface>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ mission */}
       <View nativeID="about-mission">
-        <Section>
+        <Band tone="surface">
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
@@ -429,11 +430,11 @@ export default function AboutPage() {
             </View>
           </Reveal>
         </View>
-        </Section>
+        </Band>
       </View>
 
       {/* ------------------------------------------------ story */}
-      <Section>
+      <Band tone="violet">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR STORY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -469,10 +470,10 @@ export default function AboutPage() {
             })}
           </View>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ impact */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR PLATFORM IMPACT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -490,10 +491,10 @@ export default function AboutPage() {
             ))}
           </View>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ leadership */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>LEADERSHIP TEAM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -541,10 +542,10 @@ export default function AboutPage() {
           <Text style={styles.teamLinkText}>Meet the wider team</Text>
           <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
         </Pressable>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ values */}
-      <Section>
+      <Band tone="orange">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR VALUES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -570,10 +571,10 @@ export default function AboutPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ closing */}
-      <Section>
+      <OpenSection>
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCell} distance={16}>
             <View style={styles.closeCard}>
@@ -619,7 +620,7 @@ export default function AboutPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }

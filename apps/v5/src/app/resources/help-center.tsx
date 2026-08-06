@@ -11,7 +11,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -202,7 +203,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
   const l = useLayout();
 
   return (
-    <Section style={styles.hero}>
+    <OpenSection style={styles.hero}>
       <Reveal style={styles.heroInner} distance={16}>
         {/* SectionLabel pins itself to flex-start, so a shrink-to-fit wrapper is
             what actually centres it */}
@@ -239,7 +240,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
           />
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -250,7 +251,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Section>
+    <Band tone="surface">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -298,7 +299,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
           ))}
         </View>
       )}
-    </Section>
+    </Band>
   );
 }
 
@@ -315,7 +316,7 @@ function Topics() {
   const columns = l.isPhone ? 1 : l.isStacked ? 2 : 5;
 
   return (
-    <Section>
+    <Band tone="violet">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse help by product
@@ -349,7 +350,7 @@ function Topics() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -443,7 +444,7 @@ function SupportRow() {
   const panels = [<PopularPanel key="popular" />, <StatusPanel key="status" />, <ContactPanel key="contact" />];
 
   return (
-    <Section>
+    <OpenSection>
       <View style={styles.grid}>
         {panels.map((panel, index) => (
           <Reveal
@@ -455,7 +456,7 @@ function SupportRow() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -465,7 +466,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Section style={styles.closing}>
+    <Band tone="brand" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="life-ring" tone="brand" size={52} />
         <Heading level={2} style={styles.closingTitle}>
@@ -485,7 +486,7 @@ function Closing() {
           onPress={() => router.push(contactHref('support') as never)}
         />
       </Reveal>
-    </Section>
+    </Band>
   );
 }
 

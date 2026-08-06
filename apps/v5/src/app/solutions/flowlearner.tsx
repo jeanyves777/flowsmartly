@@ -22,7 +22,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -908,7 +909,7 @@ export default function FlowLearnerPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>FLOWLEARNER BY FLOWSMARTLY</SectionLabel>
@@ -1156,10 +1157,10 @@ export default function FlowLearnerPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ stat strip */}
-      <Section>
+      <Band tone="surface">
         <Reveal style={styles.stripHead} distance={14}>
           <Text numberOfLines={1} style={styles.stripLabel}>
             LAST 30 DAYS
@@ -1182,10 +1183,10 @@ export default function FlowLearnerPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ four areas */}
-      <Section>
+      <Band tone="violet">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>FOUR CONNECTED AREAS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1236,10 +1237,10 @@ export default function FlowLearnerPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ four steps */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>From idea to impact — in four simple steps</Heading>
@@ -1281,10 +1282,10 @@ export default function FlowLearnerPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ growth stack */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1332,10 +1333,10 @@ export default function FlowLearnerPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ audiences */}
-      <Section>
+      <Band tone="orange">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO IT&apos;S FOR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1378,7 +1379,7 @@ export default function FlowLearnerPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }
