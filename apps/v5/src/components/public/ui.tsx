@@ -1,9 +1,10 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { trackCta } from '@/lib/analytics';
-import { elevation, type ThemeTokens } from '@/theme/tokens';
+import { elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 
@@ -171,7 +172,195 @@ export function OpenSection({
   return <View style={[open, style]}>{children}</View>;
 }
 
-export type BandTone = 'surface' | 'brand';
+export type BandTone = 'surface' | 'brand' | 'violet' | 'green' | 'orange' | 'pink';
+
+/**
+ * The ground a band sits on.
+ *
+ * `surface` is the neutral lift. The accent tones are a *much* weaker wash than
+ * `softFill` — that one is sized for a 38px icon tile, and the same alpha
+ * across a whole section reads as a coloured panel rather than a tint. These
+ * are the alternating soft grounds the page rhythm is built from, so they have
+ * to be felt more than seen.
+ */
+function bandGround(tone: BandTone, t: ThemeTokens): string {
+  if (tone === 'surface') return t.surface;
+  const hex =
+    tone === 'violet' ? t.violet : tone === 'green' ? t.green : tone === 'orange' ? t.orange : tone === 'pink' ? t.pink : t.brand;
+  return hexToRgba(hex, t.mode === 'light' ? 0.05 : 0.09);
+}
+
+/* ------------------------------------------------------------------ */
+/* section artwork                                                     */
+/* ------------------------------------------------------------------ */
+
+export type ArtVariant = 'network' | 'waves' | 'chart' | 'docs';
+
+/**
+ * A faded diagram behind a section, drawn rather than sourced.
+ *
+ * This repo never generates or downloads an image, and a flat PNG of a
+ * light-mode illustration would be wrong in two of the three themes anyway.
+ * Geometry takes the accent colour and the theme's own alpha, so it fades
+ * correctly everywhere and costs nothing to ship.
+ *
+ * It is decoration in the strictest sense: absolutely positioned, never
+ * pressable, no layout contribution, and dropped entirely on phone where it
+ * would sit under the copy instead of beside it.
+ */
+export function SectionArt({
+  variant,
+  color,
+  side = 'right',
+}: {
+  variant: ArtVariant;
+  color: string;
+  side?: 'left' | 'right';
+}) {
+  const t = useTokens();
+  const l = useLayout();
+  if (l.isPhone) return null;
+
+  // A whisper, not a graphic. Body copy sits over the inner edge of this, so
+  // the alphas are set by what stays readable rather than by what looks good
+  // on an empty section.
+  const line = hexToRgba(color, t.mode === 'light' ? 0.16 : 0.2);
+  const fill = hexToRgba(color, t.mode === 'light' ? 0.05 : 0.08);
+  const dot = hexToRgba(color, t.mode === 'light' ? 0.18 : 0.22);
+
+  return (
+    <View
+      pointerEvents="none"
+      aria-hidden
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        // Pulled outward so the bulk of it sits in the section's outer margin
+        // and only its inner edge reaches under the copy. Behind the *copy*
+        // rather than the mock — the mock is an opaque card and would hide it
+        // completely, which is what the first pass did.
+        [side]: -150,
+        width: 470,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+      <Svg width={420} height={300} viewBox="0 0 420 300">
+        {variant === 'network' ? (
+          <>
+            <Path
+              d="M90 96 C140 60 170 52 214 58 M214 58 C262 68 286 104 300 146 M90 96 C104 148 118 182 146 212 M146 212 C204 202 260 180 300 146 M300 146 C322 182 330 212 334 242"
+              stroke={line}
+              strokeWidth={1.4}
+              strokeDasharray="1 7"
+              strokeLinecap="round"
+              fill="none"
+            />
+            {(
+              [
+                [90, 96, 27],
+                [214, 58, 21],
+                [300, 146, 25],
+                [146, 212, 22],
+                [334, 242, 17],
+              ] as const
+            ).map(([cx, cy, r]) => (
+              <Fragment key={`${cx}-${cy}`}>
+                <Circle cx={cx} cy={cy} r={r} fill={fill} stroke={line} strokeWidth={1.2} />
+                <Circle cx={cx} cy={cy} r={r * 0.3} fill={dot} />
+              </Fragment>
+            ))}
+          </>
+        ) : null}
+
+        {variant === 'waves' ? (
+          <>
+            {[
+              'M20 150 C70 90 120 210 170 150 C220 90 270 210 320 150 C356 108 384 132 404 150',
+              'M20 190 C74 140 126 240 180 190 C232 142 284 238 336 190 C364 164 386 178 404 190',
+              'M20 110 C68 66 118 154 166 110 C214 68 262 152 310 110 C344 82 376 100 404 110',
+            ].map((d, i) => (
+              <Path
+                key={d}
+                d={d}
+                stroke={line}
+                strokeWidth={i === 0 ? 1.8 : 1.2}
+                strokeLinecap="round"
+                fill="none"
+              />
+            ))}
+            <Circle cx={96} cy={64} r={26} fill={fill} stroke={line} strokeWidth={1.2} />
+            <Circle cx={318} cy={244} r={21} fill={fill} stroke={line} strokeWidth={1.2} />
+          </>
+        ) : null}
+
+        {variant === 'chart' ? (
+          <>
+            {(
+              [
+                [64, 96],
+                [124, 138],
+                [184, 116],
+                [244, 178],
+                [304, 214],
+              ] as const
+            ).map(([x, h]) => (
+              <Rect key={x} x={x} y={252 - h} width={38} height={h} rx={8} fill={fill} stroke={line} strokeWidth={1.2} />
+            ))}
+            <Path
+              d="M72 150 L134 108 L196 126 L256 68 L318 44"
+              stroke={line}
+              strokeWidth={1.6}
+              strokeDasharray="1 7"
+              strokeLinecap="round"
+              fill="none"
+            />
+            {(
+              [
+                [72, 150],
+                [134, 108],
+                [196, 126],
+                [256, 68],
+                [318, 44],
+              ] as const
+            ).map(([cx, cy]) => (
+              <Circle key={`${cx}`} cx={cx} cy={cy} r={5} fill={dot} />
+            ))}
+          </>
+        ) : null}
+
+        {variant === 'docs' ? (
+          <>
+            {(
+              [
+                [58, 66],
+                [110, 100],
+                [162, 134],
+              ] as const
+            ).map(([x, y]) => (
+              <Fragment key={`${x}`}>
+                <Rect x={x} y={y} width={132} height={116} rx={14} fill={fill} stroke={line} strokeWidth={1.2} />
+                {[26, 48, 70].map((offset) => (
+                  <Rect
+                    key={offset}
+                    x={x + 18}
+                    y={y + offset}
+                    width={offset === 70 ? 60 : 96}
+                    height={6}
+                    rx={3}
+                    fill={line}
+                  />
+                ))}
+              </Fragment>
+            ))}
+            <Circle cx={324} cy={92} r={30} fill={fill} stroke={line} strokeWidth={1.2} />
+            <Path d="M312 92 L322 102 L338 82" stroke={dot} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+          </>
+        ) : null}
+      </Svg>
+    </View>
+  );
+}
 
 /**
  * How far a band has to escape the page column on each side to reach the
@@ -222,7 +411,7 @@ export function Band({
       // text lines up with the open section above it.
       paddingHorizontal: bleed + l.gutter,
       paddingVertical: l.sectionSpace,
-      backgroundColor: tone === 'brand' ? t.brandSoft : t.surface,
+      backgroundColor: bandGround(tone, t),
       borderTopWidth: 1,
       borderBottomWidth: 1,
       borderColor: t.divider,

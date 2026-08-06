@@ -15,9 +15,12 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
+  type ArtVariant,
+  type BandTone,
   type TypeScale,
 } from '@/components/public/ui';
 import { EXTERNAL } from '@/lib/destinations';
@@ -251,12 +254,17 @@ type Pillar = {
   bullets: [string, string, string];
   href: string;
   accent: Accent;
+  /** the soft ground this pillar sits on — the page alternates down the run */
+  tone: BandTone;
+  /** a faded background diagram; only a few pillars carry one */
+  art?: ArtVariant;
   mock: { title: string; chip: string; rows: MockRow[]; footer: string };
 };
 
 const PILLARS: Pillar[] = [
   {
     key: 'operate',
+    tone: 'surface',
     icon: 'list-check',
     name: 'Operate',
     headline: 'Run the day without chasing it.',
@@ -282,6 +290,8 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'create',
+    tone: 'violet',
+    art: 'docs',
     icon: 'wand-magic-sparkles',
     name: 'Create',
     headline: 'One brief, every format you need.',
@@ -307,6 +317,8 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'connect',
+    tone: 'brand',
+    art: 'network',
     icon: 'plug',
     name: 'Connect',
     headline: 'Your systems, finally talking to each other.',
@@ -332,6 +344,8 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'serve',
+    tone: 'orange',
+    art: 'waves',
     icon: 'headset',
     name: 'Serve',
     headline: 'Answer everyone, on whichever channel they chose.',
@@ -357,6 +371,8 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'sell',
+    tone: 'pink',
+    art: 'chart',
     icon: 'arrow-trend-up',
     name: 'Sell',
     headline: 'From first contact to paid, in one workspace.',
@@ -382,6 +398,7 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'understand',
+    tone: 'surface',
     icon: 'chart-column',
     name: 'Understand',
     headline: 'Know what moved, and what to do next.',
@@ -566,10 +583,17 @@ function PillarSection({
   // ViewStyle array, and a `cond ? style : null` entry types as nullable.
   const row: ViewStyle[] = [styles.pillarRow];
   if (flip) row.push(styles.pillarRowFlip);
-  if (!first) row.push(styles.pillarRuled);
+  if (first) row.push(styles.pillarFirst);
 
+  // Each pillar is its own band, so the run alternates soft grounds instead of
+  // being six identical stripes. `overflow: hidden` is what keeps the artwork
+  // inside its own section rather than bleeding into the next one.
   return (
-    <Reveal style={row} distance={18}>
+    <Band tone={pillar.tone} style={styles.pillarBand}>
+      {pillar.art ? (
+        <SectionArt variant={pillar.art} color={accent} side={flip ? 'right' : 'left'} />
+      ) : null}
+      <Reveal style={row} distance={18}>
       <View style={styles.pillarCopy}>
         <View style={styles.pillarBadge}>
           <View style={[styles.pillarIcon, { backgroundColor: softFill(accent, t) }]}>
@@ -591,7 +615,8 @@ function PillarSection({
       <View style={styles.pillarVisual}>
         <PillarMock mock={pillar.mock} accent={accent} styles={styles} t={t} />
       </View>
-    </Reveal>
+      </Reveal>
+    </Band>
   );
 }
 
@@ -792,20 +817,22 @@ export default function ProductPage() {
           </Text>
         </View>
 
-        <View style={styles.pillarRun}>
-          {PILLARS.map((pillar, index) => (
-            <PillarSection
-              key={pillar.key}
-              pillar={pillar}
-              flip={index % 2 === 1}
-              first={index === 0}
-              accent={accentOf(pillar.accent)}
-              styles={styles}
-              t={t}
-            />
-          ))}
-        </View>
       </OpenSection>
+
+      {/* Siblings of the head, not children of it: a Band measures its bleed
+          against the page column, so nesting one inside a gutter-padded
+          section would leave it short of the viewport edge on both sides. */}
+      {PILLARS.map((pillar, index) => (
+        <PillarSection
+          key={pillar.key}
+          pillar={pillar}
+          flip={index % 2 === 1}
+          first={index === 0}
+          accent={accentOf(pillar.accent)}
+          styles={styles}
+          t={t}
+        />
+      ))}
 
       {/* ------------------------------------------------ how work happens */}
       <OpenSection>
@@ -1230,11 +1257,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     sectionSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 660 },
 
     /* -------------------------------------------------- the six pillars */
-    pillarRun: { marginTop: l.isPhone ? 8 : 16 },
-    // A rule between entries rather than a box around each: six bordered cards
-    // in a row is the shape this page was rebuilt to get away from.
+    // Each pillar is its own band, so the run alternates soft grounds rather
+    // than repeating one stripe six times. The band supplies the gutter and the
+    // vertical rhythm; `overflow: hidden` keeps the faded artwork inside it,
+    // and the borders come off because a tint change already marks the edge.
+    pillarBand: { overflow: 'hidden', borderTopWidth: 0, borderBottomWidth: 0 },
     pillarRow: {
-      paddingVertical: l.isPhone ? 28 : 40,
       flexDirection: stacked ? 'column' : 'row',
       alignItems: stacked ? 'stretch' : 'center',
       gap: stacked ? 24 : 48,
@@ -1242,7 +1270,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     // Sides alternate down the run. Only above the stack point — once the
     // layout is a single column, "flipped" would just put the picture first.
     pillarRowFlip: { flexDirection: stacked ? 'column' : 'row-reverse' },
-    pillarRuled: { borderTopWidth: 1, borderTopColor: t.border },
+    pillarFirst: {},
     pillarCopy: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 14 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 14 },
