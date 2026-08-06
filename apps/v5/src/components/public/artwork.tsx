@@ -50,17 +50,16 @@ export function Artwork({
    * card edge, so it reads as a deliberately mounted picture. A frame you can
    * see is honest; a backdrop pretending not to be one is not.
    */
+  // `Media` mounts artboards on the plate itself now, so every call site gets
+  // it and not just this component. Delegating keeps one plate, not two.
   if (isArtboard(name)) {
     return (
-      <View
-        style={[
-          styles.artboard,
-          { borderRadius: radius, padding: Math.round(inset * 0.55) },
-          height ? { height } : null,
-          style,
-        ]}>
-        <Media name={name} alt={alt} radius={Math.max(0, radius - 6)} style={styles.art as never} />
-      </View>
+      <Media
+        name={name}
+        alt={alt}
+        radius={radius}
+        style={[height ? { height } : null, style] as never}
+      />
     );
   }
 

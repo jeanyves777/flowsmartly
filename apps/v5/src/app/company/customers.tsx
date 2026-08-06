@@ -12,6 +12,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { Artwork } from '@/components/public/artwork';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
@@ -444,7 +445,18 @@ function Stories() {
             distance={14}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
             <View style={styles.storyCard}>
-              <Media name={story.art} alt={story.alt} style={styles.storyImage} radius={0} />
+              {/* `Artwork`, not `Media`: these three are illustrations, and one
+                  of them keeps its backdrop because its glass and shadows are
+                  painted into it. Artwork supplies the plate that makes that
+                  read as a mounted picture rather than as a light rectangle
+                  leaking onto a dark card. */}
+              <Artwork
+                name={story.art}
+                alt={story.alt}
+                height={styles.storyImage.height as number}
+                radius={0}
+                inset={12}
+              />
               <View style={styles.storyBody}>
                 <Chip label={story.industry} tone={story.tone} />
                 <Text style={[styles.storyResult, { color: accent(t, story.tone) }]}>

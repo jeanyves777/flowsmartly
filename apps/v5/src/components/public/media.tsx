@@ -4,6 +4,7 @@ import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient';
 import { hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
+import { isArtboard, isCutout } from './media-cutouts';
 
 /**
  * The image registry.
@@ -191,11 +192,23 @@ export type MediaProps = AltProp & {
  * has not been produced yet. The placeholder is deliberately abstract — it must
  * read as "art pending", never as a broken or fake photo.
  */
-export function Media({ name, style, contentFit = 'cover', alt, radius = 14 }: MediaProps) {
+export function Media({ name, style, contentFit, alt, radius = 14 }: MediaProps) {
   const t = useTokens();
   const styles = useMemo(() => createStyles(t), [t]);
   const source = REGISTRY[name];
   const decorative = alt.trim() === '';
+  /*
+   * A cut-out illustration is never cropped. It has real transparency and
+   * deliberate floating pieces — a stray sphere, a separate speech bubble —
+   * and `cover` chops whichever of them sit near the frame, which reads as
+   * torn artwork rather than as a crop. Photographs still default to `cover`,
+   * because a photo *should* fill its frame.
+   *
+   * This is the default rather than a per-call-site fix because the registry
+   * already knows which is which, and every place that forgot was rendering
+   * clipped art: the resources article grid, most obviously.
+   */
+  const fit = contentFit ?? (isCutout(name) ? 'contain' : 'cover');
 
   if (source === undefined) {
     return (
@@ -218,11 +231,37 @@ export function Media({ name, style, contentFit = 'cover', alt, radius = 14 }: M
     );
   }
 
+  /*
+   * An illustration whose art is painted into its backdrop — glass, a floor
+   * shadow, a glow that fades into the plate. The matte cannot separate those,
+   * so the asset keeps its backdrop and is *mounted* instead: a light plate in
+   * every theme, inset, which reads as a deliberately framed picture rather
+   * than as a lavender rectangle leaking onto a dark card.
+   *
+   * This lives here rather than only in `Artwork` because six pages render
+   * these names through plain `Media`, and every one of them would otherwise
+   * show the bare backdrop. The outer view takes the caller's style, so the
+   * layout contract is unchanged.
+   */
+  if (isArtboard(name)) {
+    return (
+      <View style={[styles.artboard, { borderRadius: radius }, style as ViewStyle]}>
+        <ImageAsset
+          source={source}
+          style={styles.artboardImage}
+          contentFit="contain"
+          transition={180}
+          alt={alt}
+        />
+      </View>
+    );
+  }
+
   return (
     <ImageAsset
       source={source}
       style={[{ borderRadius: radius }, style]}
-      contentFit={contentFit}
+      contentFit={fit}
       transition={180}
       alt={alt}
     />
@@ -231,6 +270,17 @@ export function Media({ name, style, contentFit = 'cover', alt, radius = 14 }: M
 
 function createStyles(t: ThemeTokens) {
   return StyleSheet.create({
+    // The mounted-picture plate. Light in every theme on purpose: the art it
+    // frames was rendered on a light backdrop, and a dark frame around a light
+    // picture is the same mismatch in reverse.
+    artboard: {
+      overflow: 'hidden',
+      backgroundColor: '#f2f0fb',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 10,
+    },
+    artboardImage: { width: '100%', height: '100%' },
     placeholder: {
       overflow: 'hidden',
       borderWidth: 1,

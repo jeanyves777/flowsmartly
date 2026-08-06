@@ -52,6 +52,27 @@ SKIP_CUTOUT = {
     "editorial/blog-omnichannel.png",
     "editorial/blog-analytics.png",
     "editorial/blog-ai-conversations.png",
+    # The whole customer-story set. These three are glass-and-glow renders —
+    # translucent panels, soft floor shadows, a gradient arrow that fades into
+    # the plate. The matte cannot separate any of that from the backdrop it was
+    # painted onto: story-2 came back 55% semi-transparent, story-1 kept a torn
+    # shadow beside the chart, and story-3 kept a straight-edged slab of plate
+    # down its right side. All three keep their backdrop and are mounted as
+    # artboards instead — a frame you can see is honest, a half-removed one is
+    # not.
+    "editorial/customer-story-1.png",
+    "editorial/customer-story-2.png",
+    "editorial/customer-story-3.png",
+    # Reviewed as a contact sheet on a dark card, which is the only way these
+    # faults show: a torn element, a shadow ghost, a slab of leftover plate, a
+    # feathered wisp. Each one is attached to the subject, so no despeckle can
+    # reach it — the matte simply could not separate this art from its backdrop.
+    "editorial/blog-cart-recovery.png",
+    "editorial/blog-social-dms.png",
+    "editorial/press-kit.png",
+    "editorial/resource-getting-started.png",
+    "editorial/resource-storefront.png",
+    "editorial/security-shield.png",
 }
 
 
@@ -173,7 +194,7 @@ def key_backdrop(im, colour, tolerance=52, shadow_reach=132):
     return out, float((alpha > 127).mean())
 
 
-def drop_shadow_islands(im, colour, max_area=0.02, colour_reach=150):
+def drop_shadow_islands(im, colour, max_area=0.02, colour_reach=150, min_area=0.0012):
     """Delete the leftover smudges a matte leaves behind.
 
     Neither method removes the soft drop shadow cleanly: the colour key cannot
@@ -187,9 +208,35 @@ def drop_shadow_islands(im, colour, max_area=0.02, colour_reach=150):
     bubbles). So size is only the trigger; the decision is COLOUR. A leftover
     shadow is still the backdrop hue, while a real floating element is saturated
     or white — far from the lavender it was rendered on.
+
+    `min_area` is the exception to that: below about a tenth of a percent of the
+    subject, a piece is a speck rather than an element, whatever colour it is.
+    The deliverability envelope kept fifteen of them — invisible on the light
+    theme and unmistakable specks once the card went dark — because each one
+    happened to carry a saturated pixel and passed the colour test. The
+    deliberate floating sphere in that same illustration is 0.35%, three times
+    this floor, so the art survives.
     """
     rgb = np.asarray(im.convert("RGB")).astype(np.int16)
     alpha = np.asarray(im.getchannel("A")).copy()
+
+    # Faint residue first, before anything else looks at the image.
+    #
+    # A matte does not only leave solid crumbs — it leaves *ghosts*: patches at
+    # 10-50% alpha that are invisible on a light page and unmistakable smudges
+    # once the card behind them goes dark. They never reach full opacity, which
+    # is exactly what separates them from the artwork: a deliberate floating
+    # element is solid somewhere. Labelling on `alpha > 127` cannot see them at
+    # all, which is why fifteen of them survived on the deliverability envelope.
+    faint, faint_count = ndimage.label(alpha > 12)
+    if faint_count > 1:
+        faint_sizes = ndimage.sum(alpha > 12, faint, range(1, faint_count + 1))
+        biggest = faint_sizes.max()
+        peaks = ndimage.maximum(alpha, faint, range(1, faint_count + 1))
+        for index in range(1, faint_count + 1):
+            if faint_sizes[index - 1] < biggest * max_area and peaks[index - 1] < 200:
+                alpha[faint == index] = 0
+
     solid = alpha > 127
     if not solid.any():
         return im
@@ -204,9 +251,14 @@ def drop_shadow_islands(im, colour, max_area=0.02, colour_reach=150):
     removed = 0
 
     for index in range(1, count + 1):
-        if sizes[index - 1] >= largest * max_area:
+        size = sizes[index - 1]
+        if size >= largest * max_area:
             continue
         piece = labels == index
+        if size < largest * min_area:
+            alpha[piece] = 0
+            removed += 1
+            continue
         mean = rgb[piece].mean(axis=0)
         if np.abs(mean - base).sum() < colour_reach:
             alpha[piece] = 0
