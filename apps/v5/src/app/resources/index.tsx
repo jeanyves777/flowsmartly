@@ -607,7 +607,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -666,7 +666,7 @@ function Categories() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."
@@ -753,7 +753,7 @@ function PopularGuides() {
   const columns = l.isCompact ? 1 : 2;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead title="Popular guides" body="Short, specific, and written to be finished in one sitting." />
 
       <View style={styles.grid}>
@@ -837,13 +837,14 @@ function AcademyCard({ path, index }: { path: AcademyPath; index: number }) {
 }
 
 function Academy() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
       <View style={styles.academyTop}>
         <SectionHead
           label="FLOWSMARTLY ACADEMY"
@@ -988,6 +989,7 @@ function Developers() {
 }
 
 function WhatsNew() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : l.isDesktop ? 4 : 2;
@@ -996,7 +998,7 @@ function WhatsNew() {
     kind === 'New' ? 'green' : kind === 'Improvement' ? 'brand' : 'orange';
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
       <SectionHead
         label="CHANGELOG"
         title="What’s new at FlowSmartly"

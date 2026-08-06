@@ -510,7 +510,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
   // A band, with the plans themselves still carded — a pricing plan is a
   // discrete object you compare and choose, which is what a card is for.
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'chart', color: t.brand, side: 'right' }}>
       <Reveal>
         <SectionLabel>PRICING</SectionLabel>
         <Heading level={2} style={[type.h1, styles.shelfHeading]}>

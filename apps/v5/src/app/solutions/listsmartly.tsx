@@ -830,7 +830,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 01 publishers */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -879,7 +879,7 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 knowledge profile */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1034,7 +1034,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 04 reviews */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1121,7 +1121,7 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 05 local pages */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1291,7 +1291,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 07 multi-location */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <NumberedHead
           index={7}
           eyebrow="MULTI-LOCATION"
@@ -1378,7 +1378,7 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 08 teams */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
         <NumberedHead
           index={8}
           eyebrow="TEAMS & PERMISSIONS"
@@ -1529,7 +1529,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ testimonial */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.quoteRow}>
           <Media
             name="people/amanda-rodriguez"

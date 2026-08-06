@@ -643,7 +643,7 @@ export default function SolutionsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ outcomes */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -685,7 +685,7 @@ export default function SolutionsPage() {
           no walkthrough written yet, so selecting it renders an honest empty
           state instead of silently changing nothing. */}
       {shownScenarios.length === 0 ? (
-        <Band tone="brand">
+        <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle} />
@@ -766,7 +766,7 @@ export default function SolutionsPage() {
       })}
 
       {/* ------------------------------------------------ industry presets */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>PRESETS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -795,7 +795,7 @@ export default function SolutionsPage() {
       </Band>
 
       {/* ------------------------------------------------ comparison + testimonial */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>WHY ONE PLATFORM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

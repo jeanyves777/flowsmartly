@@ -223,7 +223,7 @@ export function ConnectedChannelsSection() {
     // which includes transforms — so every measured node has to sit inside the
     // *same* transform. A per-tile stagger, or a scale here, would leave the
     // wires pointing at where the tiles used to be.
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
     <Reveal distance={22}>
       <View style={styles.main}>
         <View style={styles.copy}>

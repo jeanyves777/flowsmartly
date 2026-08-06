@@ -264,12 +264,13 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
 }
 
 function Featured() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredArt}>
           <Artwork name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />
@@ -336,7 +337,7 @@ function Archive({ topic }: { topic: Topic }) {
   const columns = Math.max(1, Math.min(base, visible.length));
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'left' }}>
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Latest articles

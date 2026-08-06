@@ -1160,7 +1160,7 @@ export default function FlowLearnerPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ stat strip */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal style={styles.stripHead} distance={14}>
           <Text numberOfLines={1} style={styles.stripLabel}>
             LAST 30 DAYS
@@ -1186,7 +1186,7 @@ export default function FlowLearnerPage() {
       </Band>
 
       {/* ------------------------------------------------ four areas */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>FOUR CONNECTED AREAS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1285,7 +1285,7 @@ export default function FlowLearnerPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ growth stack */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'palette', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1336,7 +1336,7 @@ export default function FlowLearnerPage() {
       </Band>
 
       {/* ------------------------------------------------ audiences */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO IT&apos;S FOR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

@@ -380,7 +380,7 @@ function Library() {
   const columns = fitColumns(visible.length, base);
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
       <SectionHead
         title="The template library"
         body="Pick the channel you are working on today. Every template arrives complete — copy, timing, audience and all."
@@ -461,7 +461,7 @@ function Bundles() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
       <SectionHead
         label="POPULAR BUNDLES"
         title="Whole plays, not single assets."

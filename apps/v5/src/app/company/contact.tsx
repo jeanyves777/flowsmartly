@@ -510,7 +510,7 @@ export default function ContactPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how can we help */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.helpHead}>
           <SectionLabel>WHERE TO START</SectionLabel>
           <Heading level={2} style={[type.h2, styles.helpTitle]}>
@@ -551,7 +551,7 @@ export default function ContactPage() {
       </Band>
 
       {/* ------------------------------------------------ response times + faq */}
-      <Band tone="orange">
+      <Band tone="orange" art={{ variant: 'support', color: t.orange, side: 'left' }}>
         <View style={styles.closerRow}>
           <Reveal style={styles.closerColumn} distance={16}>
             <Heading level={2} style={[type.h2, styles.closerTitle]}>

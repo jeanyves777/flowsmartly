@@ -681,7 +681,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 01 store builder */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -785,7 +785,7 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 catalog + AI copy */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }}>
         <NumberedHead
           index={2}
           eyebrow="CATALOG & PRODUCT COPY"
@@ -1047,7 +1047,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 04 agent-ready data */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1107,7 +1107,7 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 05 visibility */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'people', color: t.pink, side: 'left' }}>
         <NumberedHead
           index={5}
           eyebrow="AI-SHOPPING VISIBILITY"
@@ -1233,7 +1233,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 07 sales associate */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1316,7 +1316,7 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 08 analytics */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'funnel', color: t.pink, side: 'left' }}>
         <NumberedHead
           index={8}
           eyebrow="COMMERCE ANALYTICS"

@@ -364,7 +364,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>FROM PROMPT TO PUBLISHED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -396,7 +396,7 @@ export default function WebsiteBuilderPage() {
       </Band>
 
       {/* ------------------------------------------------ what ships */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>IN EVERY SITE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -490,7 +490,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ found */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.seoCard}>
@@ -532,7 +532,7 @@ export default function WebsiteBuilderPage() {
       </Band>
 
       {/* ------------------------------------------------ connected */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'network', color: t.violet, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>CONNECTED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -606,7 +606,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ faq */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'support', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -627,7 +627,7 @@ export default function WebsiteBuilderPage() {
       </Band>
 
       {/* ------------------------------------------------ testimonial */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
         <View style={styles.quoteRow}>
           <Media
             name="people/maya-chen"

@@ -882,7 +882,7 @@ export default function LearningCenterPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the player */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="THE LESSON PLAYER"
@@ -971,7 +971,7 @@ export default function LearningCenterPage() {
       </Band>
 
       {/* ------------------------------------------------ quizzes */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="QUIZZES & ASSESSMENTS"
@@ -1243,7 +1243,7 @@ export default function LearningCenterPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ certificates */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="BRANDED CERTIFICATES"
@@ -1299,7 +1299,7 @@ export default function LearningCenterPage() {
       </Band>
 
       {/* ------------------------------------------------ selling */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="SELL YOUR COURSES"
@@ -1399,7 +1399,7 @@ export default function LearningCenterPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ devices */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="EVERY DEVICE"
@@ -1439,7 +1439,7 @@ export default function LearningCenterPage() {
       </Band>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
         <Reveal style={styles.closePanel} distance={16}>
           <View style={styles.closeCopy}>
             <SectionLabel>PUBLISH YOUR FIRST COURSE</SectionLabel>

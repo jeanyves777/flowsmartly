@@ -336,7 +336,7 @@ function FeaturedGuide() {
   const router = useRouter();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredCopy}>
           <TopicChip label="Featured guide" tone="orange" />
@@ -421,7 +421,7 @@ function Library() {
   const rowMode = columns === 1;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse the library

@@ -642,7 +642,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ browse by service */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>BROWSE BY SERVICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>Start with the job to be done.</Heading>
@@ -675,7 +675,7 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ featured experts */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>FEATURED GROWTH EXPERTS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>People who have done this before.</Heading>
@@ -785,7 +785,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ hire & collaborate */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>A better way to hire and collaborate.</Heading>
@@ -829,7 +829,7 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ shared workspace */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SHARED WORKSPACE</SectionLabel>
@@ -987,7 +987,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ reporting */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>PERFORMANCE REPORTING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -1020,7 +1020,7 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ trust */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'shield', color: t.violet, side: 'left' }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TRUST & SAFETY</SectionLabel>
@@ -1148,7 +1148,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ testimonial */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.quoteRow}>
           <Media
             name="people/daniel-kim"

@@ -707,7 +707,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 sms + mms */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -776,7 +776,7 @@ export default function EmailSmsPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 journeys */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'chart', color: t.pink, side: 'left' }}>
         <StepHead
           index={3}
           eyebrow="AUTOMATED JOURNEYS"
@@ -905,7 +905,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 deliverability */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <StepHead
           index={5}
           eyebrow="DELIVERABILITY"
@@ -958,7 +958,7 @@ export default function EmailSmsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 consent */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }}>
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -1154,7 +1154,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 measure */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <StepHead
           index={8}
           eyebrow="PROVE THE IMPACT"

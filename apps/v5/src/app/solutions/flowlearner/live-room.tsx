@@ -851,7 +851,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ whiteboard */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.sharedBoardCard}>
@@ -957,7 +957,7 @@ export default function LiveRoomPage() {
       </Band>
 
       {/* ------------------------------------------------ roles */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO CAN DO WHAT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Heading>
@@ -1122,7 +1122,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ recording & replay */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SESSION OUTLIVES THE HOUR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Recording and replay.</Heading>
@@ -1213,7 +1213,7 @@ export default function LiveRoomPage() {
       </Band>
 
       {/* ------------------------------------------------ room setup */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DECIDED BEFORE ANYONE JOINS</SectionLabel>
@@ -1369,7 +1369,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'learn', color: t.brand, side: 'right' }}>
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>

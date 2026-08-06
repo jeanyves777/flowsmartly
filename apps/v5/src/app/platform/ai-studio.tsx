@@ -641,7 +641,7 @@ export default function AiStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ brand context */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'palette', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>BRAND CONTEXT</SectionLabel>
@@ -745,7 +745,7 @@ export default function AiStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ one brief, many outputs */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>ONE BRIEF</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -916,7 +916,7 @@ export default function AiStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ collaborate */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'people', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TEAMWORK</SectionLabel>
@@ -1025,7 +1025,7 @@ export default function AiStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'left' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

@@ -151,26 +151,25 @@ validation. Build, screenshot, and open the image.
     same gutter as the open section above; a flat overrun would leave the
     scroll container reporting phantom width at every viewport.
 
-    `<SectionArt>` puts a faded line composition behind a section — pass it as
-    the `art` prop on `OpenSection`/`Band` and the section clips it for you.
-    It is drawn geometry, not a sourced image (see the asset rule above), it
-    takes the accent colour and the theme's own alpha, and it **crosses** the
-    section: the curves run off both edges and get clipped. A vignette tucked
-    in one corner reads as a stray graphic; a run that enters and leaves reads
-    as a diagram the page is sitting on.
+    Illustration has exactly **two zones**, and both are empty page:
 
-    There are 21 variants (`network` `sync` `api` `waves` `inbox` `support`
-    `chart` `funnel` `store` `people` `docs` `media` `palette` `calendar`
-    `tasks` `shield` `pulse` `analytics` `learn` `map` `search`) so a section
-    can wear the picture **its own subject** asks for — a security section and
-    a scheduling section must never wear the same one. Pick by content, then
-    check the page: no variant twice on one route.
+    - **The gap between sections** — every section carries `l.sectionSpace` of
+      padding top and bottom, so a boundary is 80-150px that never holds copy,
+      a card or a mockup. `<SectionArt>` (the `art` prop) straddles it with
+      flowing lines and icon nodes, full width, so it fills the side margins
+      the content columns leave behind too.
+    - **Beside a narrow left-aligned head** — a head capped at 780px on a
+      1224-1464 column leaves 400-600px genuinely empty to its right, for the
+      height of the heading block. `<SectionAside>` (the `aside` prop) fills
+      it. Only where the head really is narrow and left-aligned: a centred head
+      has no empty side, and a split section has a mockup there instead.
 
-    Its alphas are set by what keeps body text readable, not by what looks
-    good on an empty section, and the icon nodes sit *below* the linework in
-    weight because they carry a border, a fill and a glyph. The product
-    mockups stay the strongest thing on any page; if the art competes with a
-    heading, the art is wrong.
+    Nothing goes behind the content. Three earlier attempts did and all three
+    were wrong — a composition behind the copy collided with headings, a
+    version keyed to "sections without an `<Image>`" still landed on the
+    connector diagrams, and an outline tracing each section is a border, not an
+    illustration. Real product imagery always wins; illustration only fills
+    space that is otherwise empty.
 
 ---
 

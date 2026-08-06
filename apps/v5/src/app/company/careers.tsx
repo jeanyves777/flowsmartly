@@ -339,6 +339,7 @@ function Hero() {
 }
 
 function Values() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   // Five is prime: only one or five columns divide it, so the row form is used
@@ -346,7 +347,7 @@ function Values() {
   const columns = l.isCompact ? 1 : 5;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="WHAT WE VALUE"
         title="Five things we actually hire for."
@@ -375,12 +376,13 @@ function Values() {
 }
 
 function Life() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
       <SectionHead
         label="LIFE AT FLOWSMARTLY"
         title="Remote, but not distant."
@@ -527,7 +529,7 @@ function OpenRoles() {
   );
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
       <SectionHead
         label="OPEN ROLES"
         title="Where we need people right now."
@@ -585,7 +587,7 @@ function HowWeHire() {
   const t = useTokens();
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
       <SectionHead
         label="HOW WE HIRE"
         title="Five steps, about two weeks."

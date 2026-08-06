@@ -471,7 +471,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the five states */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHERE THE WORK IS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -536,7 +536,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ insight to impact */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -624,7 +624,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the one named agent */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'funnel', color: t.violet, side: 'right' }}>
         <View style={styles.strategistRow}>
           <Reveal style={styles.strategistCopy} distance={16}>
             <SectionLabel>OPPORTUNITY STRATEGIST</SectionLabel>
@@ -693,7 +693,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ control */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>GUARDRAILS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

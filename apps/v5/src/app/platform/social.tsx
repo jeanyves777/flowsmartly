@@ -672,7 +672,7 @@ export default function SocialPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 adapt per channel */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -739,7 +739,7 @@ export default function SocialPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 unified inbox */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'funnel', color: t.pink, side: 'left' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -871,7 +871,7 @@ export default function SocialPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 performance */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <StepHead
           index={5}
           eyebrow="WHAT IT EARNED"
@@ -912,7 +912,7 @@ export default function SocialPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 ugc library */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'chart', color: t.pink, side: 'left' }}>
         <StepHead
           index={6}
           eyebrow="CREATOR CONTENT"
@@ -1055,7 +1055,7 @@ export default function SocialPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 integrations */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <StepHead
           index={8}
           eyebrow="CONNECTED TO YOUR STACK"

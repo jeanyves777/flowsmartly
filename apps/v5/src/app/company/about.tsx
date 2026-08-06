@@ -392,7 +392,7 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ mission */}
       <View nativeID="about-mission">
-        <Band tone="surface">
+        <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
@@ -434,7 +434,7 @@ export default function AboutPage() {
       </View>
 
       {/* ------------------------------------------------ story */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'people', color: t.brand, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR STORY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -494,7 +494,7 @@ export default function AboutPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ leadership */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'funnel', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>LEADERSHIP TEAM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -545,7 +545,7 @@ export default function AboutPage() {
       </Band>
 
       {/* ------------------------------------------------ values */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'analytics', color: t.brand, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR VALUES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

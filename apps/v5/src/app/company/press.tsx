@@ -314,10 +314,11 @@ function NewsItem({ article }: { article: Article }) {
 }
 
 function InTheNews() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="IN THE NEWS"
         title="Recent coverage."
@@ -336,10 +337,11 @@ function InTheNews() {
 }
 
 function CompanyFacts() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
       <SectionHead
         label="COMPANY FACTS"
         title="The details, ready to quote."
@@ -452,7 +454,7 @@ function LogoUsage() {
   ];
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
       <SectionHead
         label="LOGO USAGE"
         title="How to use the mark."
@@ -495,12 +497,13 @@ function LogoUsage() {
 }
 
 function Leadership() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
       <SectionHead
         label="LEADERSHIP"
         title="Who to quote."

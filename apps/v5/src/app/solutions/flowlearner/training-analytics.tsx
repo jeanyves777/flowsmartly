@@ -1038,7 +1038,7 @@ export default function TrainingAnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 completion & drop-off */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="02"
@@ -1094,7 +1094,7 @@ export default function TrainingAnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 engagement */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'analytics', color: t.brand, side: 'left' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1230,7 +1230,7 @@ export default function TrainingAnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 certificates */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1298,7 +1298,7 @@ export default function TrainingAnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 revenue */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1431,7 +1431,7 @@ export default function TrainingAnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 reports */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="08"

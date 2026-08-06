@@ -1114,7 +1114,7 @@ export default function AnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 attribution */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="02"
@@ -1189,7 +1189,7 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 campaign analytics */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'analytics', color: t.brand, side: 'left' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1358,7 +1358,7 @@ export default function AnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 ad spend & roas */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1474,7 +1474,7 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 call agent */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1594,7 +1594,7 @@ export default function AnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 local & AI visibility */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="08"
@@ -1667,7 +1667,7 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 09 briefing & anomalies */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
         <Reveal distance={16}>
           <NumberedHead
             index="09"

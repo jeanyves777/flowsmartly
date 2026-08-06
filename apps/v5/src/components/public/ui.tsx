@@ -137,12 +137,24 @@ export function useOpenSection(): ViewStyle {
 export function OpenSection({
   children,
   style,
+  art,
+  aside,
 }: {
   children: React.ReactNode;
   style?: ViewStyle | ViewStyle[];
+  /** illustration for the gap above this section — see `SectionArt` */
+  art?: SectionArtProps;
+  /** illustration for the empty space beside the head — see `SectionAside` */
+  aside?: SectionAsideProps;
 }) {
   const open = useOpenSection();
-  return <View style={[open, style]}>{children}</View>;
+  return (
+    <View style={[open, style]}>
+      {art ? <SectionArt {...art} /> : null}
+      {aside ? <SectionAside {...aside} /> : null}
+      {children}
+    </View>
+  );
 }
 
 export type BandTone = 'surface' | 'brand' | 'violet' | 'green' | 'orange' | 'pink';
@@ -194,6 +206,354 @@ function bandBleed(width: number): number {
   return Math.max(0, Math.round((width - BP.maxContent) / 2));
 }
 
+/* ------------------------------------------------------------------ */
+/* section artwork                                                     */
+/* ------------------------------------------------------------------ */
+
+export type ArtVariant =
+  | 'network' | 'sync' | 'api'
+  | 'waves' | 'inbox' | 'support'
+  | 'chart' | 'funnel' | 'store' | 'people'
+  | 'docs' | 'media' | 'palette'
+  | 'calendar' | 'tasks'
+  | 'shield' | 'pulse' | 'analytics'
+  | 'learn' | 'map' | 'search';
+
+export type SectionArtProps = { variant: ArtVariant; color: string; side?: 'left' | 'right' };
+
+/**
+ * The illustration that sits in the gap above a section.
+ *
+ * **Where it goes is the whole design.** Every section carries
+ * `l.sectionSpace` of padding top and bottom, so the boundary between any two
+ * of them is 80-150px of page that is guaranteed empty at every width — the
+ * one zone that never holds copy, a card or a product mockup. The composition
+ * lives there and runs the full width, so it also fills the left and right
+ * margins the content columns leave behind.
+ *
+ * Two earlier placements were wrong and are worth not repeating: behind the
+ * content, where it collided with headings and fought the mockups; and as an
+ * outline around the section, which is a border, not an illustration.
+ */
+type Strip = {
+  /** flowing lines across a 1440x150 field */
+  lines: string[];
+  /** icon nodes riding the lines: x as a fraction of width, y in field units */
+  nodes: { at: number; y: number; icon: string }[];
+  /** junction marks, in field coordinates */
+  dots: [number, number][];
+};
+
+const CURVE = {
+  a: 'M0 88 C 170 30 320 120 480 78 S 800 26 980 74 S 1280 122 1440 70',
+  b: 'M0 62 C 210 118 360 24 540 70 S 880 122 1060 66 S 1320 20 1440 62',
+  c: 'M0 76 C 190 76 280 34 440 46 S 720 108 940 82 S 1260 38 1440 62',
+  d: 'M0 46 C 250 46 380 106 580 92 S 920 32 1140 54 S 1350 100 1440 86',
+} as const;
+
+/** two lines per strip, so it reads as a weave rather than a rule */
+const PAIRS: Record<string, [string, string]> = {
+  a: [CURVE.a, CURVE.c],
+  b: [CURVE.b, CURVE.d],
+  c: [CURVE.c, CURVE.b],
+  d: [CURVE.d, CURVE.a],
+};
+
+const STRIPS: Record<ArtVariant, Strip> = {
+  network: { lines: PAIRS.a, nodes: [{ at: 0.18, y: 58, icon: 'cloud' }, { at: 0.5, y: 86, icon: 'database' }, { at: 0.82, y: 56, icon: 'plug' }], dots: [[520, 96], [1180, 58]] },
+  sync: { lines: PAIRS.b, nodes: [{ at: 0.22, y: 56, icon: 'arrows-rotate' }, { at: 0.58, y: 88, icon: 'link' }, { at: 0.85, y: 58, icon: 'cloud-arrow-up' }], dots: [[600, 52], [1240, 88]] },
+  api: { lines: PAIRS.c, nodes: [{ at: 0.2, y: 56, icon: 'code' }, { at: 0.56, y: 88, icon: 'server' }, { at: 0.84, y: 60, icon: 'key' }], dots: [[480, 60], [1100, 92]] },
+
+  waves: { lines: PAIRS.b, nodes: [{ at: 0.18, y: 62, icon: 'comment-dots' }, { at: 0.53, y: 84, icon: 'phone' }, { at: 0.84, y: 58, icon: 'headset' }], dots: [[560, 54], [1160, 90]] },
+  inbox: { lines: PAIRS.a, nodes: [{ at: 0.2, y: 58, icon: 'envelope' }, { at: 0.55, y: 88, icon: 'paper-plane' }, { at: 0.85, y: 60, icon: 'inbox' }], dots: [[520, 92], [1200, 56]] },
+  support: { lines: PAIRS.d, nodes: [{ at: 0.22, y: 60, icon: 'headset' }, { at: 0.58, y: 86, icon: 'life-ring' }, { at: 0.86, y: 58, icon: 'ticket' }], dots: [[640, 56], [1260, 90]] },
+
+  chart: { lines: PAIRS.c, nodes: [{ at: 0.18, y: 62, icon: 'arrow-trend-up' }, { at: 0.52, y: 84, icon: 'cart-shopping' }, { at: 0.85, y: 56, icon: 'sack-dollar' }], dots: [[500, 58], [1140, 92]] },
+  funnel: { lines: PAIRS.a, nodes: [{ at: 0.2, y: 58, icon: 'filter' }, { at: 0.56, y: 88, icon: 'bullseye' }, { at: 0.86, y: 58, icon: 'handshake' }], dots: [[560, 94], [1220, 56]] },
+  store: { lines: PAIRS.d, nodes: [{ at: 0.18, y: 60, icon: 'store' }, { at: 0.53, y: 86, icon: 'credit-card' }, { at: 0.84, y: 58, icon: 'truck' }], dots: [[600, 54], [1180, 90]] },
+  people: { lines: PAIRS.b, nodes: [{ at: 0.2, y: 58, icon: 'user' }, { at: 0.52, y: 86, icon: 'user-group' }, { at: 0.85, y: 60, icon: 'heart' }], dots: [[520, 90], [1210, 56]] },
+
+  docs: { lines: PAIRS.a, nodes: [{ at: 0.19, y: 60, icon: 'file-lines' }, { at: 0.54, y: 86, icon: 'image' }, { at: 0.85, y: 56, icon: 'pen-nib' }], dots: [[540, 92], [1190, 58]] },
+  media: { lines: PAIRS.c, nodes: [{ at: 0.2, y: 58, icon: 'play' }, { at: 0.55, y: 88, icon: 'clapperboard' }, { at: 0.86, y: 60, icon: 'microphone' }], dots: [[500, 62], [1120, 90]] },
+  palette: { lines: PAIRS.d, nodes: [{ at: 0.21, y: 60, icon: 'palette' }, { at: 0.56, y: 86, icon: 'brush' }, { at: 0.86, y: 58, icon: 'layer-group' }], dots: [[620, 56], [1240, 90]] },
+
+  calendar: { lines: PAIRS.b, nodes: [{ at: 0.19, y: 58, icon: 'calendar-days' }, { at: 0.53, y: 88, icon: 'clock' }, { at: 0.85, y: 58, icon: 'bell' }], dots: [[560, 52], [1180, 90]] },
+  tasks: { lines: PAIRS.a, nodes: [{ at: 0.2, y: 60, icon: 'list-check' }, { at: 0.54, y: 86, icon: 'circle-check' }, { at: 0.85, y: 56, icon: 'clipboard-check' }], dots: [[520, 94], [1200, 56]] },
+
+  shield: { lines: PAIRS.d, nodes: [{ at: 0.2, y: 60, icon: 'shield-halved' }, { at: 0.55, y: 86, icon: 'lock' }, { at: 0.86, y: 58, icon: 'fingerprint' }], dots: [[600, 54], [1220, 90]] },
+  pulse: { lines: PAIRS.c, nodes: [{ at: 0.19, y: 58, icon: 'heart-pulse' }, { at: 0.54, y: 88, icon: 'signal' }, { at: 0.85, y: 58, icon: 'circle-check' }], dots: [[500, 60], [1140, 92]] },
+  analytics: { lines: PAIRS.b, nodes: [{ at: 0.2, y: 58, icon: 'chart-column' }, { at: 0.54, y: 86, icon: 'table-list' }, { at: 0.85, y: 60, icon: 'arrow-trend-up' }], dots: [[540, 52], [1190, 90]] },
+
+  learn: { lines: PAIRS.a, nodes: [{ at: 0.19, y: 60, icon: 'graduation-cap' }, { at: 0.53, y: 86, icon: 'book-open' }, { at: 0.85, y: 56, icon: 'certificate' }], dots: [[540, 92], [1200, 58]] },
+  map: { lines: PAIRS.d, nodes: [{ at: 0.2, y: 58, icon: 'location-dot' }, { at: 0.55, y: 88, icon: 'star' }, { at: 0.86, y: 60, icon: 'map-location-dot' }], dots: [[610, 54], [1230, 90]] },
+  search: { lines: PAIRS.c, nodes: [{ at: 0.2, y: 60, icon: 'magnifying-glass' }, { at: 0.55, y: 86, icon: 'globe' }, { at: 0.86, y: 58, icon: 'ranking-star' }], dots: [[500, 58], [1130, 92]] },
+};
+
+const STRIP_H = 150;
+
+/**
+ * Drawn, never sourced — this repo does not generate or download images, and a
+ * flat PNG of a light-mode illustration would be wrong in two of the three
+ * themes. Everything takes the accent colour and the theme's own alpha.
+ *
+ * Decoration in the strictest sense: absolutely positioned, never pressable,
+ * no layout contribution, and dropped on phone where the gap between sections
+ * is too shallow to hold it.
+ */
+export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) {
+  const t = useTokens();
+  const l = useLayout();
+  const strip = STRIPS[variant];
+
+  if (l.isPhone) return null;
+
+  const dark = t.mode !== 'light';
+  // It sits in empty page, so nothing has to read through it — the ceiling
+  // here is taste rather than legibility.
+  const line = hexToRgba(color, dark ? 0.34 : 0.26);
+  const soft = hexToRgba(color, dark ? 0.22 : 0.17);
+  const fill = hexToRgba(color, dark ? 0.14 : 0.09);
+  const mark = hexToRgba(color, dark ? 0.42 : 0.34);
+
+  // Mirrored on alternate sections, so a run of them does not read as the same
+  // picture repeating down the page.
+  const flip = side === 'left' ? ([{ scaleX: -1 }] as const) : undefined;
+
+  return (
+    <View
+      pointerEvents="none"
+      aria-hidden
+      style={[artStyles.strip, { top: -STRIP_H / 2, height: STRIP_H }, flip ? { transform: [...flip] } : null]}>
+      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${STRIP_H}`} preserveAspectRatio="none">
+        {strip.lines.map((d, i) => (
+          <Path
+            key={d}
+            d={d}
+            stroke={i === 0 ? line : soft}
+            strokeWidth={i === 0 ? 2.4 : 1.6}
+            strokeDasharray={i === 0 ? undefined : '1 9'}
+            strokeLinecap="round"
+            fill="none"
+          />
+        ))}
+        {strip.dots.map(([cx, cy]) => (
+          <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={5} fill={mark} />
+        ))}
+      </Svg>
+
+      {/* Nodes are Views, not SVG: the field is stretched horizontally to the
+          page width, which would turn anything drawn inside it into an oval. */}
+      {strip.nodes.map((n) => (
+        <View
+          key={n.icon}
+          style={[
+            artStyles.node,
+            {
+              left: `${n.at * 100}%`,
+              top: (n.y / STRIP_H) * STRIP_H - 19,
+              backgroundColor: fill,
+              borderColor: line,
+              // undo the mirror so a glyph is never back-to-front
+              transform: flip ? [...flip] : undefined,
+            },
+          ]}>
+          <FontAwesome6 name={n.icon as never} size={15} color={mark} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const artStyles = StyleSheet.create({
+  strip: { position: 'absolute', left: 0, right: 0 },
+  node: {
+    position: 'absolute',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/* section aside                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The illustration that fills the empty space beside a section head.
+ *
+ * A left-aligned head is capped at 780px, so on a 1224-1464 column it leaves
+ * 400-600px of genuinely empty page to its right, for the height of the
+ * heading block. That hole is the second illustration zone (the first is the
+ * gap between sections, see `SectionArt`).
+ *
+ * Only use it where the head really is narrow and left-aligned and the content
+ * below starts under it — a centred head has no empty side, and a split
+ * section has a mockup there instead.
+ */
+export type AsideVariant = 'network' | 'waves' | 'chart' | 'docs' | 'shield' | 'calendar';
+
+export type SectionAsideProps = { variant: AsideVariant; color: string; side?: 'left' | 'right' };
+
+type AsideNode = { x: number; y: number; r: number; icon: string };
+
+type Aside = {
+  /** dotted runs connecting the nodes, in a 480x300 field */
+  links: string[];
+  nodes: AsideNode[];
+  dots: [number, number][];
+  /** soft plates behind the nodes: [x, y, w, h, radius] */
+  plates?: [number, number, number, number, number][];
+};
+
+const ASIDES: Record<AsideVariant, Aside> = {
+  network: {
+    links: [
+      'M118 96 C 168 58 214 62 258 84 S 336 128 372 108',
+      'M118 96 C 128 154 156 194 206 214 S 306 236 356 200',
+      'M258 84 C 282 132 300 168 356 200',
+    ],
+    nodes: [
+      { x: 112, y: 96, r: 34, icon: 'cloud' },
+      { x: 258, y: 82, r: 28, icon: 'database' },
+      { x: 372, y: 108, r: 25, icon: 'plug' },
+      { x: 206, y: 214, r: 30, icon: 'envelope' },
+      { x: 358, y: 202, r: 26, icon: 'calendar-days' },
+    ],
+    dots: [[186, 70], [316, 148], [278, 246]],
+  },
+  waves: {
+    links: [
+      'M40 150 C 100 96 148 200 208 148 S 316 92 380 146 S 440 178 470 152',
+      'M40 196 C 108 152 152 244 216 194 S 330 142 392 190 S 448 216 470 198',
+    ],
+    nodes: [
+      { x: 96, y: 78, r: 30, icon: 'comment-dots' },
+      { x: 300, y: 74, r: 25, icon: 'ellipsis' },
+      { x: 386, y: 234, r: 28, icon: 'phone' },
+    ],
+    dots: [[196, 108], [352, 130], [128, 246]],
+  },
+  chart: {
+    links: ['M56 232 C 140 214 196 176 262 150 S 386 96 452 66'],
+    nodes: [
+      { x: 300, y: 206, r: 30, icon: 'cart-shopping' },
+      { x: 400, y: 96, r: 25, icon: 'arrow-trend-up' },
+    ],
+    dots: [[132, 214], [214, 176], [452, 66]],
+    plates: [
+      [64, 176, 44, 84, 12],
+      [126, 148, 44, 112, 12],
+      [188, 168, 44, 92, 12],
+    ],
+  },
+  docs: {
+    links: ['M120 214 C 190 246 268 232 330 196 S 424 122 448 88'],
+    nodes: [
+      { x: 96, y: 92, r: 30, icon: 'wand-magic-sparkles' },
+      { x: 404, y: 216, r: 27, icon: 'pen-nib' },
+    ],
+    dots: [[240, 236], [356, 158]],
+    plates: [
+      [196, 54, 132, 112, 16],
+      [256, 92, 132, 112, 16],
+    ],
+  },
+  shield: {
+    links: [
+      'M112 108 C 176 76 236 92 276 132 S 356 200 420 186',
+      'M112 108 C 122 168 158 214 214 232',
+    ],
+    nodes: [
+      { x: 254, y: 132, r: 38, icon: 'shield-halved' },
+      { x: 104, y: 104, r: 26, icon: 'lock' },
+      { x: 400, y: 210, r: 26, icon: 'fingerprint' },
+    ],
+    dots: [[180, 92], [330, 176], [206, 234]],
+  },
+  calendar: {
+    links: ['M104 118 C 172 82 244 100 296 142 S 400 210 452 190'],
+    nodes: [
+      { x: 96, y: 112, r: 30, icon: 'clock' },
+      { x: 420, y: 96, r: 25, icon: 'bell' },
+      { x: 300, y: 232, r: 27, icon: 'calendar-check' },
+    ],
+    dots: [[196, 96], [368, 168]],
+    plates: [[196, 130, 118, 92, 14]],
+  },
+};
+
+const ASIDE_W = 480;
+const ASIDE_H = 300;
+
+/**
+ * Drawn, never sourced — this repo does not generate or download images, and a
+ * flat PNG of a light-mode illustration would be wrong in two of the three
+ * themes. Everything takes the accent colour and the theme's own alpha.
+ *
+ * Decoration in the strictest sense: absolutely positioned, never pressable,
+ * no layout contribution, and dropped below laptop where the head is no longer
+ * narrow enough to leave a hole beside it.
+ */
+export function SectionAside({ variant, color, side = 'right' }: SectionAsideProps) {
+  const t = useTokens();
+  const l = useLayout();
+  const aside = ASIDES[variant];
+
+  // Below the split point the head goes full width and there is no empty side.
+  if (l.isStacked) return null;
+
+  const dark = t.mode !== 'light';
+  const line = hexToRgba(color, dark ? 0.3 : 0.24);
+  const soft = hexToRgba(color, dark ? 0.18 : 0.14);
+  const fill = hexToRgba(color, dark ? 0.12 : 0.075);
+  const mark = hexToRgba(color, dark ? 0.4 : 0.32);
+
+  return (
+    <View
+      pointerEvents="none"
+      aria-hidden
+      style={[asideStyles.wrap, side === 'left' ? { left: 0 } : { right: 0 }]}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_H}`} preserveAspectRatio="xMidYMid meet">
+        {aside.plates?.map(([x, y, w, h, r]) => (
+          <Rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx={r} fill={fill} stroke={soft} strokeWidth={1.2} />
+        ))}
+        {aside.links.map((d) => (
+          <Path key={d} d={d} stroke={line} strokeWidth={1.5} strokeDasharray="1 8" strokeLinecap="round" fill="none" />
+        ))}
+        {aside.nodes.map((n) => (
+          <Circle key={`${n.x}-${n.y}`} cx={n.x} cy={n.y} r={n.r} fill={fill} stroke={line} strokeWidth={1.3} />
+        ))}
+        {aside.dots.map(([cx, cy]) => (
+          <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={5} fill={mark} />
+        ))}
+      </Svg>
+
+      {/* Glyphs are Views laid over the circles: drawing them inside the SVG
+          would scale them with the viewBox and lose the icon font. */}
+      {aside.nodes.map((n) => (
+        <View
+          key={n.icon}
+          style={[
+            asideStyles.glyph,
+            { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_H) * 100}%` },
+          ]}>
+          <FontAwesome6 name={n.icon as never} size={Math.round(n.r * 0.62)} color={mark} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const asideStyles = StyleSheet.create({
+  // Anchored to the top of the section so it sits beside the head, not over
+  // the grid that follows it.
+  wrap: { position: 'absolute', top: 0, width: '38%', height: ASIDE_H },
+  glyph: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
+});
+
 /**
  * An open section on a tinted, edge-to-edge ground.
  *
@@ -206,10 +566,16 @@ export function Band({
   children,
   tone = 'surface',
   style,
+  art,
+  aside,
 }: {
   children: React.ReactNode;
   tone?: BandTone;
   style?: ViewStyle | ViewStyle[];
+  /** illustration for the gap above this section — see `SectionArt` */
+  art?: SectionArtProps;
+  /** illustration for the empty space beside the head — see `SectionAside` */
+  aside?: SectionAsideProps;
 }) {
   const t = useTokens();
   const l = useLayout();
@@ -230,7 +596,15 @@ export function Band({
       borderColor: t.divider,
     };
   }, [t, l, tone]);
-  return <View style={[band, style]}>{children}</View>;
+  // No `overflow: hidden`: the illustration deliberately hangs above this
+  // section into the gap, and clipping would cut it in half.
+  return (
+    <View style={[band, style]}>
+      {art ? <SectionArt {...art} /> : null}
+      {aside ? <SectionAside {...aside} /> : null}
+      {children}
+    </View>
+  );
 }
 
 /* ------------------------------------------------------------------ */

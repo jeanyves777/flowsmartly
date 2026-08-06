@@ -352,11 +352,12 @@ function Hero() {
 }
 
 function Components() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <SectionHead
         label="COMPONENTS"
         title="Nine services, ninety days each."
@@ -421,7 +422,7 @@ function UptimeTiles() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
       <SectionHead
         label="UPTIME OVER TIME"
         title="Availability, measured three ways."
@@ -527,7 +528,7 @@ function Maintenance() {
   const t = useTokens();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="SCHEDULED MAINTENANCE"
         title="One window on the calendar."

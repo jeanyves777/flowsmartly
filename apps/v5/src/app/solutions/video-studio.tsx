@@ -522,7 +522,7 @@ export default function VideoStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the crafts */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>WHAT YOU CAN MAKE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -562,7 +562,7 @@ export default function VideoStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ virtual try-on */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
         <View style={styles.tryonRow}>
           <Reveal style={styles.tryonCopy} distance={16}>
             <SectionLabel>VIRTUAL TRY-ON</SectionLabel>
@@ -643,7 +643,7 @@ export default function VideoStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ quotes */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>IN PRACTICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -676,7 +676,7 @@ export default function VideoStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ faq */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'support', color: t.violet, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

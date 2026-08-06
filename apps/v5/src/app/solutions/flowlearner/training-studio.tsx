@@ -919,7 +919,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ seven moments */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'learn', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SHAPE OF A GOOD LESSON</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Seven teaching moments, every lesson.</Heading>
@@ -951,7 +951,7 @@ export default function TrainingStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ draw live */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'left' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.boardCard}>
@@ -1281,7 +1281,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ media */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SHOW, DO NOT TELL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Bring in media that lands.</Heading>
@@ -1356,7 +1356,7 @@ export default function TrainingStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Band tone="violet">
+      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Templates for every training type.</Heading>
@@ -1518,7 +1518,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'media', color: t.brand, side: 'right' }}>
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>

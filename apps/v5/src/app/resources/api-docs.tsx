@@ -665,12 +665,13 @@ function Hero() {
 }
 
 function Quickstarts() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <SectionHead
         label="QUICKSTARTS"
         title="Start where your product does."
@@ -710,7 +711,7 @@ function Sdks() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Band tone="brand">
+    <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
       <SectionHead
         label="SDKS"
         title="Official SDKs"
@@ -893,13 +894,14 @@ function ExplorerAndWebhooks() {
 }
 
 function SecurityAndLimits() {
+  const t = useTokens();
   const styles = useStyles();
   const ink = useInk();
   const l = useLayout();
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="OPERATING RULES"
         title="Secure by design, predictable under load."

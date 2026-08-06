@@ -902,7 +902,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ organic → ads */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PROVEN BEFORE IT PAYS</SectionLabel>
@@ -991,7 +991,7 @@ export default function AdsPage() {
       </Band>
 
       {/* ------------------------------------------------ creative variants */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'chart', color: t.pink, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CREATIVE THAT EARNS ITS PLACE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Heading>
@@ -1135,7 +1135,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ guardrails */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SPEND ON YOUR TERMS</SectionLabel>
@@ -1251,7 +1251,7 @@ export default function AdsPage() {
       </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PERFORMANCE IN ONE VIEW</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1360,7 +1360,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ disclosure */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>HONEST BY DEFAULT</SectionLabel>
@@ -1436,7 +1436,7 @@ export default function AdsPage() {
       </Band>
 
       {/* ------------------------------------------------ audit */}
-      <Band tone="pink">
+      <Band tone="pink" art={{ variant: 'people', color: t.pink, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>NOTHING HAPPENS QUIETLY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>

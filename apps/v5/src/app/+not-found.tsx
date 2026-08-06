@@ -159,7 +159,7 @@ export default function NotFoundScreen() {
         </Reveal>
       </OpenSection>
 
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={14}>
           <Heading level={2} style={styles.headTitle}>
             Popular destinations

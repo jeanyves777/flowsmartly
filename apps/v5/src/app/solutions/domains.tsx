@@ -364,7 +364,7 @@ export default function DomainsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -393,7 +393,7 @@ export default function DomainsPage() {
       </Band>
 
       {/* ------------------------------------------------ included */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'chart', color: t.brand, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>IN THE PRICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -501,7 +501,7 @@ export default function DomainsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ pricing */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>PRICING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -561,7 +561,7 @@ export default function DomainsPage() {
       </Band>
 
       {/* ------------------------------------------------ transfer */}
-      <Band tone="brand">
+      <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <View style={styles.headCentered}>
           <SectionLabel>MOVING ONE IN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

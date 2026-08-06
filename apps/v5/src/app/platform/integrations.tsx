@@ -359,7 +359,7 @@ function Directory() {
   const columns = fitColumns(visible.length, base);
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         title="The integration directory"
         body="Search by name, or narrow it down to the part of your stack you are wiring up today."
@@ -448,7 +448,7 @@ function FeaturedIntegrations() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="green">
+    <Band tone="green" art={{ variant: 'shield', color: t.green, side: 'left' }}>
       <SectionHead
         label="FEATURED INTEGRATIONS"
         title="The three most teams connect first."

@@ -708,7 +708,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ configure */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SET IT UP IN AN AFTERNOON</SectionLabel>
@@ -779,7 +779,7 @@ export default function CallAgentPage() {
       </Band>
 
       {/* ------------------------------------------------ voices */}
-      <Band tone="orange">
+      <Band tone="orange" art={{ variant: 'tasks', color: t.orange, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT SHOULD SOUND LIKE YOU</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Heading>
@@ -898,7 +898,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ capabilities */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHAT IT ACTUALLY DOES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Heading>
@@ -1069,7 +1069,7 @@ export default function CallAgentPage() {
       </Band>
 
       {/* ------------------------------------------------ transcript & summary */}
-      <Band tone="orange">
+      <Band tone="orange" art={{ variant: 'waves', color: t.orange, side: 'left' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>AFTER THE CALL</SectionLabel>
@@ -1159,7 +1159,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ trust */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE PARTS THAT MATTER</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Heading>
@@ -1188,7 +1188,7 @@ export default function CallAgentPage() {
       </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Band tone="orange">
+      <Band tone="orange" art={{ variant: 'calendar', color: t.orange, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED LIKE ANY CHANNEL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Performance at a glance.</Heading>

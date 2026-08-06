@@ -409,13 +409,14 @@ function Philosophy() {
 /* ------------------------------------------------------------------ */
 
 function Pillars() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   /** six items divide cleanly at 6 / 3 / 2 — no row ever strands one cell */
   const columns = l.isPhone ? 2 : l.isDesktop ? 6 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'right' }}>
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -610,7 +611,7 @@ function CourseToCapability() {
   const columns = l.isPhone ? 1 : 2;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'left' }}>
       <SectionHead
         label="THE PATH"
         title="From course to capability"
