@@ -67,6 +67,20 @@ SKIP_CUTOUT = {
     "editorial/customer-story-1.png",
     "editorial/customer-story-2.png",
     "editorial/customer-story-3.png",
+    # And finally the rest of the editorial set. Cutting these worked
+    # technically — clean edges, no residue — but the result was a page where
+    # half the cards carried a mounted picture and half had art floating on the
+    # dark surface, and the floating ones read as unfinished. Uniformity beats
+    # a technically-better matte: every editorial illustration is now mounted
+    # the same way. Nothing is cut out any more, which is the honest outcome of
+    # the experiment rather than a pipeline kept alive for its own sake.
+    "editorial/blog-local-growth.png",
+    "editorial/guide-playbook-cover.png",
+    "editorial/guide-playbook-spread.png",
+    "editorial/resource-automation.png",
+    "editorial/resource-deliverability.png",
+    "editorial/template-library.png",
+
     # Reviewed as a contact sheet on a dark card, which is the only way these
     # faults show: a torn element, a shadow ghost, a slab of leftover plate, a
     # feathered wisp. Each one is attached to the subject, so no despeckle can

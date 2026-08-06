@@ -9,12 +9,7 @@
  * rectangles — glaring light blocks in the grey and dark themes.
  */
 export const CUTOUTS: ReadonlySet<string> = new Set([
-  'editorial/blog-local-growth',
-  'editorial/guide-playbook-cover',
-  'editorial/guide-playbook-spread',
-  'editorial/resource-automation',
-  'editorial/resource-deliverability',
-  'editorial/template-library',
+
 ]);
 
 /**
@@ -44,15 +39,21 @@ export const ARTBOARDS: ReadonlySet<string> = new Set([
   'editorial/blog-ai-conversations',
   'editorial/blog-analytics',
   'editorial/blog-cart-recovery',
+  'editorial/blog-local-growth',
   'editorial/blog-omnichannel',
   'editorial/blog-social-dms',
   'editorial/customer-story-1',
   'editorial/customer-story-2',
   'editorial/customer-story-3',
+  'editorial/guide-playbook-cover',
+  'editorial/guide-playbook-spread',
   'editorial/press-kit',
+  'editorial/resource-automation',
+  'editorial/resource-deliverability',
   'editorial/resource-getting-started',
   'editorial/resource-storefront',
   'editorial/security-shield',
+  'editorial/template-library',
 ]);
 
 export function isArtboard(name: string): boolean {
