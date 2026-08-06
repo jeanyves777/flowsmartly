@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -393,7 +394,8 @@ export default function DomainsPage() {
       </Band>
 
       {/* ------------------------------------------------ included */}
-      <Band tone="violet">
+      <Band tone="brand">
+        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>IN THE PRICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -501,7 +503,7 @@ export default function DomainsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ pricing */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>PRICING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -561,7 +563,8 @@ export default function DomainsPage() {
       </Band>
 
       {/* ------------------------------------------------ transfer */}
-      <Band tone="orange">
+      <Band tone="brand">
+        <SectionArt variant="chart" color={t.brand} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>MOVING ONE IN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

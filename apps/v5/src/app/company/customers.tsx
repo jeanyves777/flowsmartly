@@ -24,6 +24,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -394,7 +395,8 @@ function Stories() {
   const columns = Math.max(1, Math.min(base, visible.length));
 
   return (
-    <Band tone="violet">
+    <Band tone="pink">
+      <SectionArt variant="chart" color={t.pink} side="right" />
       <SectionHead
         label="FEATURED STORIES"
         title="Three teams, three very different problems."
@@ -527,7 +529,7 @@ function Outcomes() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="RESULTS ACROSS THE PLATFORM"
         title="Every product answers to a number."
@@ -561,10 +563,12 @@ function Outcomes() {
 }
 
 function ByTheNumbers() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
-    <Band tone="orange">
+    <Band tone="pink">
+      <SectionArt variant="waves" color={t.pink} side="left" />
       <SectionHead label="BY THE NUMBERS" title="What that adds up to across the platform." />
 
       <View style={styles.band}>

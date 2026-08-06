@@ -317,7 +317,7 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'connect',
-    tone: 'brand',
+    tone: 'green',
     art: 'network',
     icon: 'plug',
     name: 'Connect',
@@ -398,7 +398,7 @@ const PILLARS: Pillar[] = [
   },
   {
     key: 'understand',
-    tone: 'surface',
+    tone: 'brand',
     icon: 'chart-column',
     name: 'Understand',
     headline: 'Know what moved, and what to do next.',
@@ -1259,9 +1259,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* -------------------------------------------------- the six pillars */
     // Each pillar is its own band, so the run alternates soft grounds rather
     // than repeating one stripe six times. The band supplies the gutter and the
-    // vertical rhythm; `overflow: hidden` keeps the faded artwork inside it,
-    // and the borders come off because a tint change already marks the edge.
-    pillarBand: { overflow: 'hidden', borderTopWidth: 0, borderBottomWidth: 0 },
+    // vertical rhythm; the borders come off because a tint change already
+    // marks the edge (Band clips its own artwork).
+    pillarBand: { borderTopWidth: 0, borderBottomWidth: 0 },
     pillarRow: {
       flexDirection: stacked ? 'column' : 'row',
       alignItems: stacked ? 'stretch' : 'center',

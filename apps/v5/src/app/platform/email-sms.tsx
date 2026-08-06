@@ -16,6 +16,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -776,7 +777,8 @@ export default function EmailSmsPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 journeys */}
-      <Band tone="violet">
+      <Band tone="pink">
+        <SectionArt variant="chart" color={t.pink} side="right" />
         <StepHead
           index={3}
           eyebrow="AUTOMATED JOURNEYS"
@@ -905,7 +907,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 deliverability */}
-      <Band tone="brand">
+      <Band tone="surface">
         <StepHead
           index={5}
           eyebrow="DELIVERABILITY"
@@ -958,7 +960,8 @@ export default function EmailSmsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 consent */}
-      <Band tone="orange">
+      <Band tone="pink">
+        <SectionArt variant="waves" color={t.pink} side="left" />
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -1154,7 +1157,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 measure */}
-      <Band tone="green">
+      <Band tone="surface">
         <StepHead
           index={8}
           eyebrow="PROVE THE IMPACT"

@@ -22,6 +22,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -107,50 +108,94 @@ const STEPS: { icon: string; title: string; body: string; accent: Accent }[] = [
   },
 ];
 
-const AGENTS: { icon: string; title: string; body: string; accent: Accent }[] = [
+/**
+ * Capability groups, deliberately not an agent roster.
+ *
+ * This was seven named "agents" — Opportunity Audit, Campaign Builder, Customer
+ * Journey Agent and so on — which claims seven autonomous reasoning agents
+ * exist. Exactly one does (see OPPORTUNITY_STRATEGIST below). The rest of this
+ * is work FlowAgent coordinates, so it is described as capability rather than
+ * given a name and a personality it has not earned.
+ *
+ * Tones follow meaning, not rotation: blue for platform and analytics, violet
+ * for creation, green for connection and completion, orange for service and
+ * operations, pink for sales and customers.
+ */
+const CAPABILITIES: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
-    icon: 'magnifying-glass-chart',
-    title: 'Opportunity Audit',
-    body: 'Scans your whole account and surfaces what is genuinely worth doing next, ranked by projected impact.',
-    accent: 'brand',
-  },
-  {
-    icon: 'bullhorn',
-    title: 'Campaign Builder',
-    body: 'Drafts the creative, the audience, the budget and the schedule for social, email and SMS in one pass.',
-    accent: 'violet',
-  },
-  {
-    icon: 'route',
-    title: 'Customer Journey Agent',
-    body: 'Maps where people stall between interest and purchase, then prepares the follow-up that moves them on.',
+    icon: 'list-check',
+    title: 'Business operations',
+    body: 'Coordinates tasks, approvals, documents, appointments and follow-ups.',
     accent: 'orange',
   },
   {
-    icon: 'phone-volume',
-    title: 'Call Intelligence Agent',
-    body: 'Reads every call summary, tags what was asked, and turns the pattern into something you can act on.',
-    accent: 'green',
+    icon: 'headset',
+    title: 'Customer service',
+    body: 'Prepares responses, manages reminders and supports human handoffs.',
+    accent: 'orange',
   },
   {
-    icon: 'bag-shopping',
-    title: 'Commerce Agent',
-    body: 'Watches catalogue, pricing, stock and carts, and prepares the fix before the revenue quietly leaks away.',
+    icon: 'wand-magic-sparkles',
+    title: 'Content and communications',
+    body: 'Creates branded content, campaigns, presentations and training materials.',
+    accent: 'violet',
+  },
+  {
+    icon: 'file-signature',
+    title: 'Sales and proposals',
+    body: 'Researches opportunities, prepares outreach and builds professional proposals.',
     accent: 'pink',
   },
   {
-    icon: 'location-dot',
-    title: 'Local Visibility Agent',
-    body: 'Keeps listings, hours, photos and review replies accurate across every location you serve.',
-    accent: 'brand',
+    icon: 'bag-shopping',
+    title: 'Commerce',
+    body: 'Supports products, orders, payments, customer journeys and recovery workflows.',
+    accent: 'pink',
+  },
+  {
+    icon: 'plug',
+    title: 'Connected systems',
+    body: 'Coordinates approved work across your website, CRM, email, SMS, calendar and store.',
+    accent: 'green',
   },
   {
     icon: 'chart-column',
-    title: 'Analytics Advisor',
-    body: 'Explains what changed, why it changed and what to do about it — in plain language, not a chart dump.',
-    accent: 'violet',
+    title: 'Analytics and reporting',
+    body: 'Prepares reports, identifies exceptions and explains verified outcomes.',
+    accent: 'brand',
+  },
+  {
+    icon: 'location-dot',
+    title: 'Local presence',
+    body: 'Coordinates listings, reviews, locations and business information.',
+    accent: 'brand',
   },
 ];
+
+/**
+ * The one reasoning agent that is actually designed and locked.
+ *
+ * Nothing else on this page is named as an agent, because a name implies
+ * declared inputs, outputs, permissions, verifiers and stop conditions. Where
+ * those exist, say so. Where they do not, say "capability".
+ *
+ * The `cannot` list is the more important half: an agent page that only
+ * advertises reach is the kind a buyer stops trusting the first time something
+ * unexpected happens.
+ */
+const OPPORTUNITY_STRATEGIST = {
+  name: 'Opportunity Strategist',
+  blurb:
+    'Reads a prospect’s situation and works out what to propose. It reasons about the opportunity — it does not touch your systems.',
+  can: [
+    'Interpret a prospect’s business situation',
+    'Identify the needs that are actually relevant',
+    'Recommend outcomes and services to propose',
+    'Structure a proposal strategy',
+    'State its assumptions and what information is missing',
+  ],
+  cannot: ['Send', 'Publish', 'Charge', 'Wait', 'Approve', 'Modify records'],
+};
 
 const CONTEXT: { icon: string; label: string }[] = [
   { icon: 'pen-nib', label: 'Brand voice & style' },
@@ -501,39 +546,38 @@ export default function FlowAiPage() {
         </View>
       </Band>
 
-      {/* ------------------------------------------------ specialized agents */}
+      {/* ------------------------------------------------ capability groups */}
       <OpenSection>
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>THE TEAM</SectionLabel>
+          <SectionLabel>FLOWAGENT CAPABILITIES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
-            Specialized agents. One intelligent team.
+            FlowAgent works across your organization.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Each agent is expert in one part of your business. They share the same context, so their
-            recommendations never contradict each other.
+            Eight areas of work it can prepare and coordinate, all against the same context — so
+            what it proposes in one never contradicts what it proposed in another.
           </Text>
         </Reveal>
 
         {/*
-          Seven is prime, so there is no grid that ends flush — four across left
-          a three-card hole on the second row. These are row cards instead: the
-          agent's name holds its own column beside the description, so the width
-          a fourth card used to waste is carrying copy.
+          Capability groups, not a roster of named agents. Eight rows rather
+          than a grid: the group's name holds its own column beside the
+          description, so the width a fourth card would waste carries copy.
         */}
         <View style={styles.agentList}>
-          {AGENTS.map((agent, index) => {
-            const accent = accentOf(agent.accent);
+          {CAPABILITIES.map((group, index) => {
+            const accent = accentOf(group.accent);
             return (
-              <Reveal key={agent.title} distance={16} delay={index * 55}>
+              <Reveal key={group.title} distance={16} delay={index * 55}>
                 <View style={styles.agentRow}>
                   <View style={[styles.agentIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={agent.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={group.icon as never} size={19} color={accent} />
                   </View>
                   <View style={styles.agentCopy}>
                     <Text style={[type.h4, styles.agentTitle, styles.agentTitleCol]}>
-                      {agent.title}
+                      {group.title}
                     </Text>
-                    <Text style={[styles.agentBody, styles.agentBodyCol]}>{agent.body}</Text>
+                    <Text style={[styles.agentBody, styles.agentBodyCol]}>{group.body}</Text>
                   </View>
                 </View>
               </Reveal>
@@ -541,6 +585,55 @@ export default function FlowAiPage() {
           })}
         </View>
       </OpenSection>
+
+      {/* ------------------------------------------------ the one named agent */}
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="right" />
+        <View style={styles.strategistRow}>
+          <Reveal style={styles.strategistCopy} distance={16}>
+            <SectionLabel>THE ONE NAMED AGENT</SectionLabel>
+            <Heading level={2} style={[type.h2, styles.headTitle, styles.strategistTitle]}>
+              Opportunity Strategist.
+            </Heading>
+            <Text style={[type.body, styles.headSub, styles.strategistBody]}>
+              {OPPORTUNITY_STRATEGIST.blurb}
+            </Text>
+            {/* The honest bit. Everything else on this page is described as a
+                capability precisely because only this one has declared inputs,
+                outputs, permissions, verifiers and stop conditions. */}
+            <Text style={[type.bodySm, styles.strategistNote]}>
+              It is the only reasoning agent we name. The rest of the work above is capability
+              FlowAgent coordinates — we will name another one here when it has the same declared
+              inputs, outputs, permissions, verifiers and stop conditions this one does.
+            </Text>
+          </Reveal>
+
+          <Reveal style={styles.strategistPanel} distance={16} delay={90}>
+            <View style={styles.strategistCard}>
+              <Text style={styles.strategistCardTitle}>What it does</Text>
+              {OPPORTUNITY_STRATEGIST.can.map((item) => (
+                <View key={item} style={styles.strategistCanRow}>
+                  <View style={styles.strategistTick}>
+                    <FontAwesome6 name="check" size={10} color={t.green} />
+                  </View>
+                  <Text style={styles.strategistCanText}>{item}</Text>
+                </View>
+              ))}
+
+              <View style={styles.strategistDivider} />
+
+              <Text style={styles.strategistCardTitle}>What it never does</Text>
+              <View style={styles.strategistCannotWrap}>
+                {OPPORTUNITY_STRATEGIST.cannot.map((item) => (
+                  <Text key={item} style={styles.strategistCannot}>
+                    {item}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </Reveal>
+        </View>
+      </Band>
 
       {/* ------------------------------------------------ context */}
       <OpenSection>
@@ -1026,6 +1119,58 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? {}
       : { width: agentTitleWidth, flexGrow: 0, flexShrink: 0 },
     agentBodyCol: l.isCompact ? {} : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    /* -------------------------------------------------- the one named agent */
+    strategistRow: {
+      flexDirection: l.isStacked ? 'column' : 'row',
+      alignItems: l.isStacked ? 'stretch' : 'center',
+      gap: l.isStacked ? 26 : 44,
+    },
+    strategistCopy: l.isStacked
+      ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 14 }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 14 },
+    strategistTitle: { textAlign: 'left' },
+    strategistBody: { textAlign: 'left', maxWidth: 520 },
+    strategistNote: { color: t.textSubtle, maxWidth: 520 },
+    strategistPanel: l.isStacked
+      ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
+      : { flexGrow: 0.9, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    strategistCard: {
+      borderWidth: 1,
+      borderColor: t.borderStrong,
+      borderRadius: 18,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 16 : 20,
+      gap: 10,
+      ...(elevation(t, 1) as ViewStyle),
+    },
+    strategistCardTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    strategistCanRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    strategistTick: {
+      width: 20,
+      height: 20,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      backgroundColor: t.successBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    strategistCanText: { ...type.bodySm, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    strategistDivider: { height: 1, backgroundColor: t.divider, marginVertical: 6 },
+    // Bare words on a warn ground: a list of things that never happen should
+    // not look like a feature list with ticks beside it.
+    strategistCannotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+    strategistCannot: {
+      ...type.micro,
+      color: t.warnText,
+      backgroundColor: t.warnBg,
+      fontWeight: '700',
+      borderRadius: 999,
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      overflow: 'hidden',
+    },
+
     agentIcon: {
       width: 46,
       height: 46,

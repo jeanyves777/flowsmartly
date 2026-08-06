@@ -17,6 +17,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -746,6 +747,7 @@ export default function AiStudioPage() {
 
       {/* ------------------------------------------------ one brief, many outputs */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <View style={styles.sectionHead}>
           <SectionLabel>ONE BRIEF</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -916,7 +918,7 @@ export default function AiStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ collaborate */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TEAMWORK</SectionLabel>
@@ -1025,7 +1027,8 @@ export default function AiStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Band tone="orange">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.sectionHead}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

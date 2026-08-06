@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -676,6 +677,7 @@ export default function AgentMarketplacePage() {
 
       {/* ------------------------------------------------ featured experts */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>FEATURED GROWTH EXPERTS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>People who have done this before.</Heading>
@@ -785,7 +787,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ hire & collaborate */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>A better way to hire and collaborate.</Heading>
@@ -829,7 +831,7 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ shared workspace */}
-      <Band tone="orange">
+      <Band tone="violet">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SHARED WORKSPACE</SectionLabel>
@@ -987,7 +989,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ reporting */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>PERFORMANCE REPORTING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -1020,7 +1022,8 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ trust */}
-      <Band tone="pink">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TRUST & SAFETY</SectionLabel>

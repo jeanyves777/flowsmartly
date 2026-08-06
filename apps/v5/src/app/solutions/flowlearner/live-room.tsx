@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -958,6 +959,7 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ roles */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO CAN DO WHAT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Heading>
@@ -1122,7 +1124,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ recording & replay */}
-      <Band tone="brand">
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SESSION OUTLIVES THE HOUR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Recording and replay.</Heading>
@@ -1213,7 +1215,8 @@ export default function LiveRoomPage() {
       </Band>
 
       {/* ------------------------------------------------ room setup */}
-      <Band tone="orange">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DECIDED BEFORE ANYONE JOINS</SectionLabel>
@@ -1369,7 +1372,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>

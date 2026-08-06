@@ -26,6 +26,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -785,7 +786,8 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 catalog + AI copy */}
-      <Band tone="violet">
+      <Band tone="pink">
+        <SectionArt variant="chart" color={t.pink} side="right" />
         <NumberedHead
           index={2}
           eyebrow="CATALOG & PRODUCT COPY"
@@ -1047,7 +1049,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 04 agent-ready data */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1107,7 +1109,7 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 05 visibility */}
-      <Band tone="orange">
+      <Band tone="pink">
         <NumberedHead
           index={5}
           eyebrow="AI-SHOPPING VISIBILITY"
@@ -1233,7 +1235,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 07 sales associate */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1317,6 +1319,7 @@ export default function FlowShopPage() {
 
       {/* ------------------------------------------------ 08 analytics */}
       <Band tone="pink">
+        <SectionArt variant="waves" color={t.pink} side="left" />
         <NumberedHead
           index={8}
           eyebrow="COMMERCE ANALYTICS"

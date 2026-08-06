@@ -21,6 +21,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -336,10 +337,12 @@ function InTheNews() {
 }
 
 function CompanyFacts() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
-    <Band tone="violet">
+    <Band tone="brand">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="COMPANY FACTS"
         title="The details, ready to quote."
@@ -452,7 +455,7 @@ function LogoUsage() {
   ];
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="LOGO USAGE"
         title="How to use the mark."
@@ -495,12 +498,14 @@ function LogoUsage() {
 }
 
 function Leadership() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Band tone="orange">
+    <Band tone="brand">
+      <SectionArt variant="chart" color={t.brand} side="left" />
       <SectionHead
         label="LEADERSHIP"
         title="Who to quote."

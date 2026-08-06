@@ -32,6 +32,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -779,7 +780,8 @@ export default function CallAgentPage() {
       </Band>
 
       {/* ------------------------------------------------ voices */}
-      <Band tone="violet">
+      <Band tone="orange">
+        <SectionArt variant="waves" color={t.orange} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT SHOULD SOUND LIKE YOU</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Heading>
@@ -898,7 +900,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ capabilities */}
-      <Band tone="brand">
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHAT IT ACTUALLY DOES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Heading>
@@ -1159,7 +1161,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ trust */}
-      <Band tone="green">
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE PARTS THAT MATTER</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Heading>
@@ -1188,7 +1190,8 @@ export default function CallAgentPage() {
       </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Band tone="pink">
+      <Band tone="orange">
+        <SectionArt variant="docs" color={t.orange} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED LIKE ANY CHANNEL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Performance at a glance.</Heading>

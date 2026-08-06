@@ -23,6 +23,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -473,10 +474,12 @@ function Paths() {
 }
 
 function ValueAndRevenue() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
-    <Band tone="violet">
+    <Band tone="green">
+      <SectionArt variant="network" color={t.green} side="right" />
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpCol} distance={16}>
           <View style={styles.panel}>
@@ -567,7 +570,7 @@ function Journey() {
   const arrowWidth = l.isDesktop ? 52 : 30;
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="HOW IT WORKS"
         title="A simple path to partnership."
@@ -605,13 +608,15 @@ function Journey() {
 }
 
 function Proof() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isCompact ? 1 : 5;
   const rowMode = columns === 1;
 
   return (
-    <Band tone="orange">
+    <Band tone="green">
+      <SectionArt variant="docs" color={t.green} side="left" />
       <SectionHead
         label="THE NUMBERS"
         title="Partners choose FlowSmartly. Customers see results."

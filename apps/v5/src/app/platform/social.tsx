@@ -17,6 +17,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -739,7 +740,8 @@ export default function SocialPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 unified inbox */}
-      <Band tone="violet">
+      <Band tone="pink">
+        <SectionArt variant="chart" color={t.pink} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -871,7 +873,7 @@ export default function SocialPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 performance */}
-      <Band tone="brand">
+      <Band tone="surface">
         <StepHead
           index={5}
           eyebrow="WHAT IT EARNED"
@@ -912,7 +914,8 @@ export default function SocialPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 ugc library */}
-      <Band tone="orange">
+      <Band tone="pink">
+        <SectionArt variant="waves" color={t.pink} side="left" />
         <StepHead
           index={6}
           eyebrow="CREATOR CONTENT"
@@ -1055,7 +1058,7 @@ export default function SocialPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 integrations */}
-      <Band tone="green">
+      <Band tone="surface">
         <StepHead
           index={8}
           eyebrow="CONNECTED TO YOUR STACK"

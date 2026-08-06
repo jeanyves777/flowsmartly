@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -409,6 +410,7 @@ function Philosophy() {
 /* ------------------------------------------------------------------ */
 
 function Pillars() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   /** six items divide cleanly at 6 / 3 / 2 — no row ever strands one cell */
@@ -416,6 +418,7 @@ function Pillars() {
 
   return (
     <Band tone="violet">
+      <SectionArt variant="docs" color={t.violet} side="right" />
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -610,7 +613,7 @@ function CourseToCapability() {
   const columns = l.isPhone ? 1 : 2;
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="THE PATH"
         title="From course to capability"
@@ -656,7 +659,7 @@ function SupportStrip() {
   const l = useLayout();
 
   return (
-    <Band tone="orange" style={styles.stripSection}>
+    <Band tone="violet" style={styles.stripSection}>
       <Reveal style={styles.strip} distance={12}>
         {SUPPORT.map((item, index) => (
           <View
@@ -818,7 +821,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Band tone="green" style={styles.closing}>
+    <Band tone="surface" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <Media
           name="flowsmartly-mark"

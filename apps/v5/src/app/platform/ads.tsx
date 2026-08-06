@@ -32,6 +32,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -991,7 +992,8 @@ export default function AdsPage() {
       </Band>
 
       {/* ------------------------------------------------ creative variants */}
-      <Band tone="violet">
+      <Band tone="pink">
+        <SectionArt variant="chart" color={t.pink} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CREATIVE THAT EARNS ITS PLACE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Heading>
@@ -1135,7 +1137,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ guardrails */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SPEND ON YOUR TERMS</SectionLabel>
@@ -1251,7 +1253,7 @@ export default function AdsPage() {
       </Band>
 
       {/* ------------------------------------------------ performance */}
-      <Band tone="orange">
+      <Band tone="pink">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PERFORMANCE IN ONE VIEW</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1360,7 +1362,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ disclosure */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>HONEST BY DEFAULT</SectionLabel>
@@ -1437,6 +1439,7 @@ export default function AdsPage() {
 
       {/* ------------------------------------------------ audit */}
       <Band tone="pink">
+        <SectionArt variant="waves" color={t.pink} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>NOTHING HAPPENS QUIETLY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>

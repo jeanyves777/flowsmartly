@@ -21,6 +21,7 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -551,7 +552,8 @@ export default function ContactPage() {
       </Band>
 
       {/* ------------------------------------------------ response times + faq */}
-      <Band tone="violet">
+      <Band tone="orange">
+        <SectionArt variant="waves" color={t.orange} side="right" />
         <View style={styles.closerRow}>
           <Reveal style={styles.closerColumn} distance={16}>
             <Heading level={2} style={[type.h2, styles.closerTitle]}>

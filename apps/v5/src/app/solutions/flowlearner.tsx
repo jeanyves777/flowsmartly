@@ -24,6 +24,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -1187,6 +1188,7 @@ export default function FlowLearnerPage() {
 
       {/* ------------------------------------------------ four areas */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>FOUR CONNECTED AREAS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1285,7 +1287,7 @@ export default function FlowLearnerPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ growth stack */}
-      <Band tone="brand">
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1336,7 +1338,8 @@ export default function FlowLearnerPage() {
       </Band>
 
       {/* ------------------------------------------------ audiences */}
-      <Band tone="orange">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO IT&apos;S FOR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

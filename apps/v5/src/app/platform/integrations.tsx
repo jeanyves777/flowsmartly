@@ -15,6 +15,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -448,7 +449,8 @@ function FeaturedIntegrations() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="green">
+      <SectionArt variant="network" color={t.green} side="right" />
       <SectionHead
         label="FEATURED INTEGRATIONS"
         title="The three most teams connect first."
@@ -588,7 +590,7 @@ function RequestPanel() {
   };
 
   return (
-    <Band tone="brand" style={styles.request}>
+    <Band tone="surface" style={styles.request}>
       <Reveal style={styles.requestInner} distance={14}>
         <View style={styles.requestIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />

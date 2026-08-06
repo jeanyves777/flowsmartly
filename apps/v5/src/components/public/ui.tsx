@@ -155,6 +155,18 @@ export type BandTone = 'surface' | 'brand' | 'violet' | 'green' | 'orange' | 'pi
  * across a whole section reads as a coloured panel rather than a tint. These
  * are the alternating soft grounds the page rhythm is built from, so they have
  * to be felt more than seen.
+ *
+ * **Pick a tone by meaning, never by rotation.** A hue that cycles is noise; a
+ * hue that means something is navigation:
+ *
+ * | Tone | Belongs to |
+ * | --- | --- |
+ * | `brand` (blue) | platform, systems, analytics, trust |
+ * | `violet` | FlowAgent, intelligence, creation |
+ * | `green` | connection, completion, verified outcomes |
+ * | `orange` | service, operations, scheduling |
+ * | `pink` | sales, customers, engagement |
+ * | `surface` | the neutral ground a route alternates against |
  */
 function bandGround(tone: BandTone, t: ThemeTokens): string {
   if (tone === 'surface') return t.surface;
@@ -385,6 +397,10 @@ export function Band({
       paddingHorizontal: bleed + l.gutter,
       paddingVertical: l.sectionSpace,
       backgroundColor: bandGround(tone, t),
+      // Clips its own artwork. A band is a ground, so nothing inside one is
+      // ever meant to escape it — and `SectionArt` deliberately hangs past the
+      // edge so its geometry runs off rather than ending in mid-air.
+      overflow: 'hidden',
       borderTopWidth: 1,
       borderBottomWidth: 1,
       borderColor: t.divider,

@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -316,7 +317,8 @@ function Topics() {
   const columns = l.isPhone ? 1 : l.isStacked ? 2 : 5;
 
   return (
-    <Band tone="violet">
+    <Band tone="orange">
+      <SectionArt variant="waves" color={t.orange} side="right" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse help by product
@@ -466,7 +468,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Band tone="brand" style={styles.closing}>
+    <Band tone="surface" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="life-ring" tone="brand" size={52} />
         <Heading level={2} style={styles.closingTitle}>

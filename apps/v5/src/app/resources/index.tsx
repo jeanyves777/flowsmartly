@@ -31,6 +31,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -667,6 +668,7 @@ function Categories() {
 
   return (
     <Band tone="violet">
+      <SectionArt variant="docs" color={t.violet} side="right" />
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."
@@ -753,7 +755,7 @@ function PopularGuides() {
   const columns = l.isCompact ? 1 : 2;
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead title="Popular guides" body="Short, specific, and written to be finished in one sitting." />
 
       <View style={styles.grid}>
@@ -837,13 +839,15 @@ function AcademyCard({ path, index }: { path: AcademyPath; index: number }) {
 }
 
 function Academy() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="orange">
+    <Band tone="violet">
+      <SectionArt variant="network" color={t.violet} side="left" />
       <View style={styles.academyTop}>
         <SectionHead
           label="FLOWSMARTLY ACADEMY"
@@ -996,7 +1000,7 @@ function WhatsNew() {
     kind === 'New' ? 'green' : kind === 'Improvement' ? 'brand' : 'orange';
 
   return (
-    <Band tone="green">
+    <Band tone="surface">
       <SectionHead
         label="CHANGELOG"
         title="What’s new at FlowSmartly"
@@ -1032,7 +1036,7 @@ function Newsletter() {
   const [email, setEmail] = useState('');
 
   return (
-    <Band tone="pink" style={styles.newsletter}>
+    <Band tone="violet" style={styles.newsletter}>
       <Reveal style={styles.newsletterInner} distance={14}>
         <IconTile icon="envelope-open-text" tone="brand" size={54} />
         <Heading level={2} style={styles.newsletterTitle}>

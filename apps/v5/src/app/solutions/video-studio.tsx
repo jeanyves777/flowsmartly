@@ -16,6 +16,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -563,6 +564,7 @@ export default function VideoStudioPage() {
 
       {/* ------------------------------------------------ virtual try-on */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <View style={styles.tryonRow}>
           <Reveal style={styles.tryonCopy} distance={16}>
             <SectionLabel>VIRTUAL TRY-ON</SectionLabel>
@@ -643,7 +645,7 @@ export default function VideoStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ quotes */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>IN PRACTICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -676,7 +678,8 @@ export default function VideoStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ faq */}
-      <Band tone="orange">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

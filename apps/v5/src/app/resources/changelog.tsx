@@ -383,7 +383,7 @@ function Subscribe() {
   const [email, setEmail] = useState('');
 
   return (
-    <Band tone="violet" style={styles.subscribe}>
+    <Band tone="brand" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />

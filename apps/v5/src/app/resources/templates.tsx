@@ -22,6 +22,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -462,6 +463,7 @@ function Bundles() {
 
   return (
     <Band tone="violet">
+      <SectionArt variant="docs" color={t.violet} side="right" />
       <SectionHead
         label="POPULAR BUNDLES"
         title="Whole plays, not single assets."
@@ -569,7 +571,7 @@ function Closing() {
   const openApp = useOpenApp();
 
   return (
-    <Band tone="brand" style={styles.closing}>
+    <Band tone="surface" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <View style={styles.closingIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />

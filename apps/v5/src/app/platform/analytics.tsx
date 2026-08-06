@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -1189,7 +1190,8 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 03 campaign analytics */}
-      <Band tone="violet">
+      <Band tone="brand">
+        <SectionArt variant="network" color={t.brand} side="right" />
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1358,7 +1360,7 @@ export default function AnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 05 ad spend & roas */}
-      <Band tone="brand">
+      <Band tone="surface">
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1474,7 +1476,7 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 call agent */}
-      <Band tone="orange">
+      <Band tone="brand">
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1594,7 +1596,7 @@ export default function AnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 08 local & AI visibility */}
-      <Band tone="green">
+      <Band tone="surface">
         <Reveal distance={16}>
           <NumberedHead
             index="08"
@@ -1667,7 +1669,8 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 09 briefing & anomalies */}
-      <Band tone="pink">
+      <Band tone="brand">
+        <SectionArt variant="chart" color={t.brand} side="left" />
         <Reveal distance={16}>
           <NumberedHead
             index="09"

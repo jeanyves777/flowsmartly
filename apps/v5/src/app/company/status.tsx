@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -421,7 +422,8 @@ function UptimeTiles() {
   const columns = l.isCompact ? 1 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="brand">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="UPTIME OVER TIME"
         title="Availability, measured three ways."
@@ -527,7 +529,7 @@ function Maintenance() {
   const t = useTokens();
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="SCHEDULED MAINTENANCE"
         title="One window on the calendar."
@@ -572,7 +574,7 @@ function Subscribe() {
   };
 
   return (
-    <Band tone="orange" style={styles.subscribe}>
+    <Band tone="brand" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />

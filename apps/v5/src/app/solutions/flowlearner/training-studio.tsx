@@ -24,6 +24,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -952,6 +953,7 @@ export default function TrainingStudioPage() {
 
       {/* ------------------------------------------------ draw live */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.boardCard}>
@@ -1281,7 +1283,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ media */}
-      <Band tone="brand">
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SHOW, DO NOT TELL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Bring in media that lands.</Heading>
@@ -1356,7 +1358,8 @@ export default function TrainingStudioPage() {
       </Band>
 
       {/* ------------------------------------------------ templates */}
-      <Band tone="orange">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Templates for every training type.</Heading>
@@ -1518,7 +1521,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>

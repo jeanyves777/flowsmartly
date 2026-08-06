@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -710,7 +711,8 @@ function Sdks() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Band tone="violet">
+    <Band tone="brand">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="SDKS"
         title="Official SDKs"
@@ -899,7 +901,7 @@ function SecurityAndLimits() {
   const columns = l.isStacked ? 1 : 2;
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="OPERATING RULES"
         title="Secure by design, predictable under load."
@@ -957,7 +959,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Band tone="orange" style={styles.closing}>
+    <Band tone="brand" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         {/* SectionLabel pins itself to flex-start, so a shrink-to-fit wrapper is
             what actually centres it */}

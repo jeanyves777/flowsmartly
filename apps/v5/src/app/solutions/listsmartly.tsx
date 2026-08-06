@@ -26,6 +26,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -879,7 +880,8 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 knowledge profile */}
-      <Band tone="violet">
+      <Band tone="brand">
+        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1034,7 +1036,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 04 reviews */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1121,7 +1123,7 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 05 local pages */}
-      <Band tone="orange">
+      <Band tone="brand">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1291,7 +1293,7 @@ export default function ListSmartlyPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 07 multi-location */}
-      <Band tone="green">
+      <Band tone="surface">
         <NumberedHead
           index={7}
           eyebrow="MULTI-LOCATION"
@@ -1378,7 +1380,8 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 08 teams */}
-      <Band tone="pink">
+      <Band tone="brand">
+        <SectionArt variant="chart" color={t.brand} side="left" />
         <NumberedHead
           index={8}
           eyebrow="TEAMS & PERMISSIONS"

@@ -23,6 +23,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -375,12 +376,14 @@ function Values() {
 }
 
 function Life() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="brand">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="LIFE AT FLOWSMARTLY"
         title="Remote, but not distant."
@@ -527,7 +530,7 @@ function OpenRoles() {
   );
 
   return (
-    <Band tone="brand">
+    <Band tone="surface">
       <SectionHead
         label="OPEN ROLES"
         title="Where we need people right now."
@@ -585,7 +588,8 @@ function HowWeHire() {
   const t = useTokens();
 
   return (
-    <Band tone="orange">
+    <Band tone="brand">
+      <SectionArt variant="chart" color={t.brand} side="left" />
       <SectionHead
         label="HOW WE HIRE"
         title="Five steps, about two weeks."

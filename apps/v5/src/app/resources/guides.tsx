@@ -21,6 +21,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -422,6 +423,7 @@ function Library() {
 
   return (
     <Band tone="violet">
+      <SectionArt variant="docs" color={t.violet} side="right" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse the library
@@ -563,7 +565,7 @@ function Closing() {
   const router = useRouter();
 
   return (
-    <Band tone="brand" style={styles.closing}>
+    <Band tone="surface" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="compass" tone="brand" size={54} />
         <Heading level={2} style={styles.closingTitle}>

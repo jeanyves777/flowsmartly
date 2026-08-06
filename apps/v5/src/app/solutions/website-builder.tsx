@@ -14,6 +14,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -397,6 +398,7 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ what ships */}
       <Band tone="violet">
+        <SectionArt variant="docs" color={t.violet} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>IN EVERY SITE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -490,7 +492,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ found */}
-      <Band tone="brand">
+      <Band tone="surface">
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.seoCard}>
@@ -532,7 +534,7 @@ export default function WebsiteBuilderPage() {
       </Band>
 
       {/* ------------------------------------------------ connected */}
-      <Band tone="orange">
+      <Band tone="violet">
         <View style={styles.headCentered}>
           <SectionLabel>CONNECTED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -606,7 +608,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ faq */}
-      <Band tone="green">
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -627,7 +629,8 @@ export default function WebsiteBuilderPage() {
       </Band>
 
       {/* ------------------------------------------------ testimonial */}
-      <Band tone="pink">
+      <Band tone="violet">
+        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.quoteRow}>
           <Media
             name="people/maya-chen"

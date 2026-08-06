@@ -513,7 +513,7 @@ export default function PricingPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ compare */}
-      <Band tone="surface">
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>INCLUDED PLATFORM CAPABILITIES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
