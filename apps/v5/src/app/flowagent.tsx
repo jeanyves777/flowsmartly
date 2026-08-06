@@ -20,7 +20,8 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -38,56 +39,36 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['Human-approved by default', 'No credit card', 'Cancel anytime'];
 
-type Opportunity = {
-  title: string;
-  impact: string;
-  level: 'High' | 'Medium';
-  confidence: number;
-  icon: string;
-  accent: Accent;
-};
+/**
+ * The queue FlowAgent has prepared, across six different organizations.
+ *
+ * This was a ranked opportunity table — projected impact and a confidence bar
+ * per row, top five "opportunities found this week". That is a lead-generation
+ * assistant, not an operating partner, and it was the loudest thing on the
+ * page contradicting the positioning.
+ */
+type QueueItem = { title: string; where: string; icon: string; accent: Accent };
 
-const OPPORTUNITIES: Opportunity[] = [
-  {
-    title: 'Re-engage inactive leads with personalized SMS',
-    impact: '$12.4K',
-    level: 'High',
-    confidence: 87,
-    icon: 'comment-dots',
-    accent: 'brand',
-  },
-  {
-    title: 'Boost Google Business visibility in 15 locations',
-    impact: '$8.7K',
-    level: 'High',
-    confidence: 81,
-    icon: 'location-dot',
-    accent: 'green',
-  },
-  {
-    title: 'Launch lookalike audience from recent purchasers',
-    impact: '$6.3K',
-    level: 'Medium',
-    confidence: 72,
-    icon: 'bullseye',
-    accent: 'violet',
-  },
-  {
-    title: 'Improve product page conversion rate',
-    impact: '$4.2K',
-    level: 'Medium',
-    confidence: 68,
-    icon: 'bag-shopping',
-    accent: 'orange',
-  },
-  {
-    title: 'Win back lost cart abandoners',
-    impact: '$3.1K',
-    level: 'Medium',
-    confidence: 61,
-    icon: 'cart-shopping',
-    accent: 'pink',
-  },
+const QUEUE: QueueItem[] = [
+  { title: 'Send document reminders to 12 tax clients', where: 'Email · Tax service', icon: 'file-invoice-dollar', accent: 'violet' },
+  { title: 'Fill 3 open elder-care appointments', where: 'Calendar · Rostering', icon: 'hand-holding-heart', accent: 'pink' },
+  { title: 'Publish the approved product campaign', where: 'Social · Store', icon: 'bullhorn', accent: 'brand' },
+  { title: 'Send the NGO donor report', where: 'Documents · Email', icon: 'chart-pie', accent: 'green' },
+  { title: 'Update holiday hours across 8 listings', where: 'Business listings', icon: 'location-dot', accent: 'orange' },
+  { title: 'Approve the customer proposal PDF', where: 'Documents · E-signature', icon: 'file-signature', accent: 'brand' },
+];
+
+/**
+ * Every piece of work is in exactly one of these, and the page says so —
+ * "blocked by policy" and "needs more information" are the two that make the
+ * difference between an operating partner and a thing that guesses.
+ */
+const STATES: { icon: string; label: string; count: string; note: string; accent: Accent }[] = [
+  { icon: 'bolt', label: 'Working now', count: '4', note: 'Running inside your permissions', accent: 'brand' },
+  { icon: 'circle-check', label: 'Waiting for approval', count: '6', note: 'Prepared, nothing sent', accent: 'green' },
+  { icon: 'clipboard-check', label: 'Completed safely', count: '128', note: 'Verified, this month', accent: 'violet' },
+  { icon: 'shield-halved', label: 'Blocked by policy', count: '1', note: 'A rule you set said no', accent: 'orange' },
+  { icon: 'circle-question', label: 'Needs more information', count: '2', note: 'FlowAgent stopped to ask', accent: 'pink' },
 ];
 
 const QUESTIONS = [
@@ -226,75 +207,37 @@ const BENEFITS = [
 
 type Styles = ReturnType<typeof createStyles>;
 
-function OpportunityRow({
+function QueueRow({
   item,
-  index,
-  wide,
   accent,
   styles,
   t,
 }: {
-  item: Opportunity;
-  index: number;
-  wide: boolean;
+  item: QueueItem;
   accent: string;
   styles: Styles;
   t: ThemeTokens;
 }) {
-  const levelHigh = item.level === 'High';
-  const bar: DimensionValue = `${item.confidence}%`;
-
-  const confidence = (
-    <View style={wide ? styles.oppConfidence : styles.oppConfidenceCompact}>
-      <View style={styles.oppConfidenceHead}>
-        <Text style={styles.oppConfidenceValue}>{item.confidence}%</Text>
-        <Text style={styles.oppConfidenceLabel}>confident</Text>
-      </View>
-      <View style={styles.oppTrack}>
-        <View style={[styles.oppTrackFill, { width: bar, backgroundColor: accent }]} />
-      </View>
-    </View>
-  );
-
-  const impact = (
-    <View style={wide ? styles.oppImpact : styles.oppImpactCompact}>
-      <Text style={styles.oppImpactValue}>{item.impact}</Text>
-      <Text style={[styles.oppLevel, { color: levelHigh ? t.successText : t.textSubtle }]}>
-        {item.level} impact
-      </Text>
-    </View>
-  );
-
   return (
-    <View style={[styles.oppRow, wide ? null : styles.oppRowCompact]}>
-      <View style={styles.oppLead}>
-        <View style={[styles.oppRank, { backgroundColor: softFill(accent, t) }]}>
-          <FontAwesome6 name={item.icon as never} size={13} color={accent} />
-        </View>
-        <View style={styles.oppCopy}>
-          <Text numberOfLines={3} style={styles.oppTitle}>
-            {item.title}
-          </Text>
-          <Text style={styles.oppMeta}>Ranked #{index + 1} this week</Text>
-        </View>
-        {wide ? impact : null}
-        {wide ? confidence : null}
+    <View style={styles.queueRow}>
+      <View style={[styles.queueIcon, { backgroundColor: softFill(accent, t) }]}>
+        <FontAwesome6 name={item.icon as never} size={14} color={accent} />
       </View>
-
-      {wide ? null : (
-        <View style={styles.oppMetaRow}>
-          {impact}
-          {confidence}
-        </View>
-      )}
-
+      <View style={styles.queueCopy}>
+        <Text numberOfLines={2} style={styles.queueTitle}>
+          {item.title}
+        </Text>
+        <Text numberOfLines={1} style={styles.queueWhere}>
+          {item.where}
+        </Text>
+      </View>
       {/*
-        Mockup chrome. This card is a picture of the FlowAgent command centre —
-        there is no opportunity behind the row to review, so the control is a
-        View that merely looks like the real one. A button that invites a click
-        and does nothing is worse than a static illustration of one.
+        Mockup chrome. This card is a picture of the FlowAgent queue — there is
+        no item behind the row to review, so the control is a View that merely
+        looks like the real one. A button that invites a click and does nothing
+        is worse than a static illustration of one.
       */}
-      <View style={[styles.reviewButton, wide ? null : styles.reviewButtonFull]}>
+      <View style={styles.reviewButton}>
         <Text style={styles.reviewLabel}>Review</Text>
         <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
       </View>
@@ -352,7 +295,6 @@ export default function FlowAiPage() {
 
   // Below phone the ranked table becomes stacked cards; the five columns simply
   // do not survive a 390px viewport without truncating the opportunity itself.
-  const wideTable = !l.isPhone;
 
   return (
     <PageShell
@@ -366,17 +308,17 @@ export default function FlowAiPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Section>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
-            <SectionLabel>YOUR AI OPERATING PARTNER</SectionLabel>
-            <Heading level={1} style={[type.display, styles.heroTitle]}>
-              FlowAgent works alongside your business.
+            <SectionLabel>FLOWAGENT</SectionLabel>
+            <Heading level={1} style={[type.h1, styles.heroTitle]}>
+              An AI operating partner that understands your business, works across your connected
+              systems, and keeps your team in control.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              FlowAgent understands your goals, business context, connected systems, permissions, and
-              operating rules. It can research, prepare, coordinate, create, automate, and recommend
-              actions — while keeping your team in control.
+              FlowAgent can prepare, coordinate, create, analyze and execute work across your
+              organization — using your permissions, policies and approval rules.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -415,8 +357,8 @@ export default function FlowAiPage() {
             <View style={styles.commandCard}>
               <View style={styles.commandHead}>
                 <View style={styles.commandHeadCopy}>
-                  <Text style={styles.commandTitle}>FlowAgent Command Center</Text>
-                  <Text style={styles.commandSub}>5 opportunities found this week</Text>
+                  <Text style={styles.commandTitle}>Needs your approval</Text>
+                  <Text style={styles.commandSub}>Prepared by FlowAgent</Text>
                 </View>
                 <View style={styles.commandChip}>
                   <View style={styles.commandDot} />
@@ -424,22 +366,11 @@ export default function FlowAiPage() {
                 </View>
               </View>
 
-              {wideTable ? (
-                <View style={styles.tableHead}>
-                  <Text style={[styles.tableHeadCell, styles.tableHeadOpportunity]}>Opportunity</Text>
-                  <Text style={[styles.tableHeadCell, styles.tableHeadImpact]}>Projected impact</Text>
-                  <Text style={[styles.tableHeadCell, styles.tableHeadConfidence]}>Confidence</Text>
-                  <View style={styles.tableHeadAction} />
-                </View>
-              ) : null}
-
               <View style={styles.oppList}>
-                {OPPORTUNITIES.map((item, index) => (
-                  <OpportunityRow
+                {QUEUE.map((item) => (
+                  <QueueRow
                     key={item.title}
                     item={item}
-                    index={index}
-                    wide={wideTable}
                     accent={accentOf(item.accent)}
                     styles={styles}
                     t={t}
@@ -456,10 +387,48 @@ export default function FlowAiPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
+
+      {/* ------------------------------------------------ the five states */}
+      <Band tone="surface">
+        <Reveal style={styles.head} distance={16}>
+          <SectionLabel>WHERE THE WORK IS</SectionLabel>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Every piece of work is in exactly one of five states.
+          </Heading>
+          <Text style={[type.body, styles.headSub]}>
+            No black box. You can always see what FlowAgent is doing, what it finished, and the two
+            reasons it stopped.
+          </Text>
+        </Reveal>
+
+        <View style={styles.stateRow}>
+          {STATES.map((state, index) => {
+            const accent = accentOf(state.accent);
+            return (
+              <Reveal key={state.label} style={styles.stateCell} distance={14} delay={index * 60}>
+                <View style={styles.state}>
+                  <View style={styles.stateTop}>
+                    <View style={[styles.stateIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={state.icon as never} size={15} color={accent} />
+                    </View>
+                    <Text style={[styles.stateCount, { color: accent }]}>{state.count}</Text>
+                  </View>
+                  <Text numberOfLines={2} style={styles.stateLabel}>
+                    {state.label}
+                  </Text>
+                  <Text numberOfLines={2} style={styles.stateNote}>
+                    {state.note}
+                  </Text>
+                </View>
+              </Reveal>
+            );
+          })}
+        </View>
+      </Band>
 
       {/* ------------------------------------------------ one conversation */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>ASK ANYTHING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -483,10 +452,10 @@ export default function FlowAiPage() {
             </Reveal>
           ))}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ insight to impact */}
-      <Section>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -530,10 +499,10 @@ export default function FlowAiPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ specialized agents */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE TEAM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -571,10 +540,10 @@ export default function FlowAiPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ context */}
-      <Section>
+      <OpenSection>
         <View style={styles.contextRow}>
           <Reveal style={styles.contextCopy} distance={16}>
             <SectionLabel>GROUNDED IN YOUR DATA</SectionLabel>
@@ -600,10 +569,10 @@ export default function FlowAiPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ control */}
-      <Section>
+      <Band tone="brand">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>GUARDRAILS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -644,10 +613,10 @@ export default function FlowAiPage() {
             </Text>
           </View>
         </Reveal>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ weekly briefing */}
-      <Section>
+      <OpenSection>
         <View style={styles.briefRowOuter}>
           <Reveal style={styles.briefPanel} distance={16}>
             <View style={styles.briefCard}>
@@ -678,7 +647,7 @@ export default function FlowAiPage() {
           <Reveal style={styles.briefCopy} distance={16} delay={80}>
             <SectionLabel>WHAT YOU GET</SectionLabel>
             <Heading level={2} style={[type.h2, styles.briefCopyTitle]}>
-              A growth operator that reports to you.
+              An operating partner that reports to you.
             </Heading>
             <View style={styles.benefitList}>
               {BENEFITS.map((benefit) => (
@@ -708,7 +677,7 @@ export default function FlowAiPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }
@@ -856,8 +825,53 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     tableHeadConfidence: { width: confW, flexGrow: 0, flexShrink: 0 },
     tableHeadAction: { width: reviewW, flexGrow: 0, flexShrink: 0 },
 
+    /* -------------------------------------------------- the five states */
+    // Five across once there is room, 2-up on tablet, stacked on phone. Cells
+    // do not grow, so a wrapped last row keeps the column grid instead of
+    // stretching one orphan across it.
+    stateRow: {
+      marginTop: l.isPhone ? 18 : 26,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'stretch',
+      marginHorizontal: -6,
+    },
+    stateCell: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: l.isPhone ? '100%' : l.isStacked ? '50%' : '20%',
+      minWidth: 0,
+      padding: 6,
+    },
+    state: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+      borderTopWidth: 2,
+      borderTopColor: t.border,
+      paddingTop: 14,
+      gap: 6,
+    },
+    stateTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    stateIcon: {
+      width: 34,
+      height: 34,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stateCount: { ...type.h3, flexShrink: 1, minWidth: 0, textAlign: 'right' },
+    stateLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    stateNote: { ...type.micro, color: t.textSubtle },
+
     oppList: { gap: 8 },
-    oppRow: {
+    // One row per queued item: icon, what it is and where it lands, and a
+    // mock Review control. The confidence bar and projected-impact column that
+    // used to live here went with the opportunity table.
+    queueRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
@@ -868,17 +882,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 11,
     },
-    oppRowCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 11 },
-    oppLead: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 'auto',
-      minWidth: 0,
-    },
-    oppRank: {
+    queueIcon: {
       width: 32,
       height: 32,
       flexGrow: 0,
@@ -887,32 +891,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    oppCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
-    oppTitle: { ...type.caption, color: t.text, fontWeight: '700' },
-    oppMeta: { ...type.micro, color: t.textSubtle },
-
-    oppMetaRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-    oppImpact: { width: impactW, flexGrow: 0, flexShrink: 0, gap: 2 },
-    oppImpactCompact: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
-    oppImpactValue: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    oppLevel: { ...type.micro },
-
-    oppConfidence: { width: confW, flexGrow: 0, flexShrink: 0, gap: 5 },
-    oppConfidenceCompact: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 5 },
-    oppConfidenceHead: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-    oppConfidenceValue: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    oppConfidenceLabel: { ...type.micro, color: t.textSubtle },
-    oppTrack: {
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: t.surfaceInset,
-      overflow: 'hidden',
-    },
-    oppTrackFill: { height: 5, borderRadius: 3 },
+    queueCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
+    queueTitle: { ...type.caption, color: t.text, fontWeight: '700' },
+    queueWhere: { ...type.micro, color: t.textSubtle },
 
     reviewButton: {
-      width: reviewW,
       minHeight: 44,
+      paddingHorizontal: 14,
       flexGrow: 0,
       flexShrink: 0,
       flexDirection: 'row',
@@ -924,7 +909,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 9,
       backgroundColor: t.surfaceMuted,
     },
-    reviewButtonFull: { width: '100%', minHeight: 44 },
     reviewButtonPressed: { backgroundColor: t.surfaceInset },
     reviewLabel: { fontSize: 12.5, fontWeight: '700', color: t.brand },
 
