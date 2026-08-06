@@ -19,7 +19,8 @@ import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
 import {
   Heading,
   PrimaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -314,15 +315,16 @@ export default function PricingPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero + toggle */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.hero} distance={16}>
           <SectionLabel>SIMPLE, FLEXIBLE PRICING</SectionLabel>
           <Heading level={1} style={[type.display, styles.heroTitle]}>
             Start lean. Scale when growth demands it.
           </Heading>
           <Text style={[type.body, styles.heroBody]}>
-            One plan covers the whole workspace — creation, publishing, messaging, commerce and
-            insight. Add usage only for the work that genuinely costs us money to run.
+            One plan covers the whole workspace — operating, creating, connecting, serving, selling
+            and understanding. You pay for outcomes and for the usage those outcomes consume, never
+            for the platform thinking about them.
           </Text>
 
           <View style={styles.toggleWrap}>
@@ -433,17 +435,92 @@ export default function PricingPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
+
+      {/* ------------------------------------------------ credits */}
+      <OpenSection>
+        <View style={styles.creditsRow}>
+          <Reveal style={styles.creditsPanel} distance={16}>
+            <View style={styles.balanceCard}>
+              <View style={styles.balanceHead}>
+                <Text style={styles.balanceTitle}>This month</Text>
+                <Text style={styles.balanceSub}>Credits used by surface</Text>
+              </View>
+              <View style={styles.balanceList}>
+                {BALANCE.map((row) => {
+                  const accent = accentOf(row.accent);
+                  const width: DimensionValue = `${Math.round((row.used / maxUsed) * 100)}%`;
+                  return (
+                    <View key={row.label} style={styles.balanceRow}>
+                      <View style={[styles.balanceIcon, { backgroundColor: softFill(accent, t) }]}>
+                        <FontAwesome6 name={row.icon as never} size={12} color={accent} />
+                      </View>
+                      <View style={styles.balanceCopy}>
+                        <View style={styles.balanceLabelRow}>
+                          <Text style={styles.balanceLabel}>{row.label}</Text>
+                          <Text style={styles.balanceValue}>{row.used}</Text>
+                        </View>
+                        <View style={styles.balanceTrack}>
+                          <View
+                            style={[styles.balanceFill, { width, backgroundColor: accent }]}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.balanceTotal}>
+                <Text style={styles.balanceTotalLabel}>Your balance</Text>
+                <Text style={styles.balanceTotalValue}>1,500 credits</Text>
+              </View>
+            </View>
+          </Reveal>
+
+          <Reveal style={styles.creditsCopy} distance={16} delay={80}>
+            <SectionLabel>HOW CREDITS WORK</SectionLabel>
+            <Heading level={2} style={[type.h2, styles.creditsTitle]}>
+              One balance across your creative workspace.
+            </Heading>
+            <Text style={[type.body, styles.creditsBody]}>
+              There is no separate wallet for images, another for video and a third for messaging.
+              Your plan tops up one balance each month, every surface draws from it, and each action
+              shows what it will cost before it runs.
+            </Text>
+            <Text style={[type.body, styles.creditsBody]}>
+              Run out mid-month? Top up in seconds and keep the same balance. Bought credits never
+              expire, and they are only spent once your monthly allowance is gone.
+            </Text>
+
+            {/* The part of the model that is easy to get wrong and expensive to
+                discover later, so it is stated rather than left to the FAQ. */}
+            <View style={styles.notBilled}>
+              <View style={styles.notBilledIcon}>
+                <FontAwesome6 name="circle-check" size={14} color={t.green} />
+              </View>
+              <View style={styles.notBilledCopy}>
+                <Text style={styles.notBilledTitle}>What you are not billed for</Text>
+                <Text style={styles.notBilledBody}>
+                  FlowAgent thinking. Reading your data, planning the work, checking whether it
+                  actually succeeded and retrying when it did not are part of the platform. You pay
+                  for the work that ships and the usage it genuinely consumes — not for every step
+                  the agent took to get there.
+                </Text>
+              </View>
+            </View>
+          </Reveal>
+        </View>
+      </OpenSection>
 
       {/* ------------------------------------------------ compare */}
-      <Section>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>SIDE BY SIDE</SectionLabel>
+          <SectionLabel>INCLUDED PLATFORM CAPABILITIES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
-            Compare plans.
+            What each plan includes.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Every line of the platform, and exactly what each plan includes.
+            Every capability of the platform, and exactly where each plan draws the line.
           </Text>
         </Reveal>
 
@@ -524,10 +601,10 @@ export default function PricingPage() {
           </ScrollView>
           )}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ usage-based */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PAY FOR WHAT YOU RUN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -561,68 +638,10 @@ export default function PricingPage() {
             );
           })}
         </View>
-      </Section>
-
-      {/* ------------------------------------------------ credits */}
-      <Section>
-        <View style={styles.creditsRow}>
-          <Reveal style={styles.creditsPanel} distance={16}>
-            <View style={styles.balanceCard}>
-              <View style={styles.balanceHead}>
-                <Text style={styles.balanceTitle}>This month</Text>
-                <Text style={styles.balanceSub}>Credits used by surface</Text>
-              </View>
-              <View style={styles.balanceList}>
-                {BALANCE.map((row) => {
-                  const accent = accentOf(row.accent);
-                  const width: DimensionValue = `${Math.round((row.used / maxUsed) * 100)}%`;
-                  return (
-                    <View key={row.label} style={styles.balanceRow}>
-                      <View style={[styles.balanceIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={row.icon as never} size={12} color={accent} />
-                      </View>
-                      <View style={styles.balanceCopy}>
-                        <View style={styles.balanceLabelRow}>
-                          <Text style={styles.balanceLabel}>{row.label}</Text>
-                          <Text style={styles.balanceValue}>{row.used}</Text>
-                        </View>
-                        <View style={styles.balanceTrack}>
-                          <View
-                            style={[styles.balanceFill, { width, backgroundColor: accent }]}
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-              <View style={styles.balanceTotal}>
-                <Text style={styles.balanceTotalLabel}>Your balance</Text>
-                <Text style={styles.balanceTotalValue}>1,500 credits</Text>
-              </View>
-            </View>
-          </Reveal>
-
-          <Reveal style={styles.creditsCopy} distance={16} delay={80}>
-            <SectionLabel>HOW CREDITS WORK</SectionLabel>
-            <Heading level={2} style={[type.h2, styles.creditsTitle]}>
-              One balance across your creative workspace.
-            </Heading>
-            <Text style={[type.body, styles.creditsBody]}>
-              There is no separate wallet for images, another for video and a third for messaging.
-              Your plan tops up one balance each month, every surface draws from it, and each action
-              shows what it will cost before it runs.
-            </Text>
-            <Text style={[type.body, styles.creditsBody]}>
-              Run out mid-month? Top up in seconds and keep the same balance. Bought credits never
-              expire, and they are only spent once your monthly allowance is gone.
-            </Text>
-          </Reveal>
-        </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ faq + reassurance */}
-      <Section>
+      <OpenSection>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BEFORE YOU DECIDE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -657,7 +676,7 @@ export default function PricingPage() {
             </View>
           ))}
         </View>
-      </Section>
+      </OpenSection>
     </PageShell>
   );
 }
@@ -1029,6 +1048,32 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     creditsCopy: stacked ? { width: '100%', minWidth: 0 } : { ...twoUp, paddingTop: 4 },
     creditsTitle: { marginTop: 14 },
     creditsBody: { marginTop: 14, maxWidth: 560 },
+    // A callout, not a card: an inset strip with a rule down its leading edge,
+    // so it reads as emphasis inside the copy rather than a separate object.
+    notBilled: {
+      marginTop: 20,
+      maxWidth: 560,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      paddingLeft: 16,
+      paddingVertical: 4,
+      borderLeftWidth: 3,
+      borderLeftColor: t.green,
+    },
+    notBilledIcon: {
+      width: 28,
+      height: 28,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 9,
+      backgroundColor: t.successBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notBilledCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 5 },
+    notBilledTitle: { ...type.h4, color: t.text },
+    notBilledBody: { ...type.bodySm, color: t.textMuted },
 
     /* -------------------------------------------------- faq */
     faqList: { marginTop: l.isPhone ? 20 : 26, gap: 10 },
