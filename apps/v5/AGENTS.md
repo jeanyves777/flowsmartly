@@ -158,11 +158,20 @@ validation. Build, screenshot, and open the image.
       a card or a mockup. `<SectionArt>` (the `art` prop) straddles it with
       flowing lines and icon nodes, full width, so it fills the side margins
       the content columns leave behind too.
-    - **Beside a narrow left-aligned head** — a head capped at 780px on a
-      1224-1464 column leaves 400-600px genuinely empty to its right, for the
-      height of the heading block. `<SectionAside>` (the `aside` prop) fills
-      it. Only where the head really is narrow and left-aligned: a centred head
-      has no empty side, and a split section has a mockup there instead.
+    - **The hole a layout actually leaves** — usually beside a narrow
+      left-aligned head, or below the copy column of a split hero whose mockup
+      is taller. `<SectionAside>` (the `aside` prop, or the component directly
+      when the section is a `Reveal` rather than an `OpenSection`) fills it.
+
+      **Measure it, do not reason about it.** Rasterise where content really is
+      and find the largest empty rectangle per section — guessing "the head is
+      capped at 780 so the right must be free" holds for one layout and fails
+      on the next. Two traps the measurement itself has: a mock panel is a card
+      full of nested rows, so a detector that only counts leaf nodes reads it as
+      empty and points at the busiest part of the page; and a "right/top" hole
+      on a split hero is usually the mockup's own top padding, where an
+      illustration lands behind an opaque card and shows as a stray sliver.
+      Check the screenshot before keeping a placement.
 
     Nothing goes behind the content. Three earlier attempts did and all three
     were wrong — a composition behind the copy collided with headings, a

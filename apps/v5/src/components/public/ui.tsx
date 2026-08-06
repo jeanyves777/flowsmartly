@@ -393,9 +393,26 @@ const artStyles = StyleSheet.create({
  * below starts under it — a centred head has no empty side, and a split
  * section has a mockup there instead.
  */
-export type AsideVariant = 'network' | 'waves' | 'chart' | 'docs' | 'shield' | 'calendar';
+export type AsideVariant =
+  | 'network'
+  | 'waves'
+  | 'chart'
+  | 'docs'
+  | 'shield'
+  | 'calendar'
+  | 'map';
 
-export type SectionAsideProps = { variant: AsideVariant; color: string; side?: 'left' | 'right' };
+export type SectionAsideProps = {
+  variant: AsideVariant;
+  color: string;
+  side?: 'left' | 'right';
+  /**
+   * Which end of the section the empty space is at. A hero whose copy column
+   * is shorter than its mockup leaves the hole at the *bottom* of the copy
+   * side, not beside the heading — measure before choosing.
+   */
+  at?: 'top' | 'bottom';
+};
 
 type AsideNode = { x: number; y: number; r: number; icon: string };
 
@@ -473,6 +490,19 @@ const ASIDES: Record<AsideVariant, Aside> = {
     ],
     dots: [[180, 92], [330, 176], [206, 234]],
   },
+  map: {
+    links: [
+      'M74 214 C 140 246 214 226 268 186 S 372 108 436 92',
+      'M74 214 C 118 156 168 128 232 122',
+    ],
+    nodes: [
+      { x: 120, y: 108, r: 30, icon: 'location-dot' },
+      { x: 296, y: 176, r: 27, icon: 'star' },
+      { x: 420, y: 90, r: 25, icon: 'magnifying-glass' },
+    ],
+    dots: [[196, 152], [352, 138], [242, 240]],
+    plates: [[214, 46, 128, 96, 14]],
+  },
   calendar: {
     links: ['M104 118 C 172 82 244 100 296 142 S 400 210 452 190'],
     nodes: [
@@ -497,7 +527,7 @@ const ASIDE_H = 300;
  * no layout contribution, and dropped below laptop where the head is no longer
  * narrow enough to leave a hole beside it.
  */
-export function SectionAside({ variant, color, side = 'right' }: SectionAsideProps) {
+export function SectionAside({ variant, color, side = 'right', at = 'top' }: SectionAsideProps) {
   const t = useTokens();
   const l = useLayout();
   const aside = ASIDES[variant];
@@ -515,7 +545,14 @@ export function SectionAside({ variant, color, side = 'right' }: SectionAsidePro
     <View
       pointerEvents="none"
       aria-hidden
-      style={[asideStyles.wrap, side === 'left' ? { left: 0 } : { right: 0 }]}>
+      style={[
+        asideStyles.wrap,
+        side === 'left' ? { left: 0 } : { right: 0 },
+        // Set one edge or the other, never both: an `undefined` in a later
+        // style does not erase an earlier `top: 0`, so a default top in the
+        // base style would pin this to the wrong end and silently win.
+        at === 'bottom' ? { bottom: 0 } : { top: 0 },
+      ]}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_H}`} preserveAspectRatio="xMidYMid meet">
         {aside.plates?.map(([x, y, w, h, r]) => (
           <Rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx={r} fill={fill} stroke={soft} strokeWidth={1.2} />
@@ -550,7 +587,7 @@ export function SectionAside({ variant, color, side = 'right' }: SectionAsidePro
 const asideStyles = StyleSheet.create({
   // Anchored to the top of the section so it sits beside the head, not over
   // the grid that follows it.
-  wrap: { position: 'absolute', top: 0, width: '38%', height: ASIDE_H },
+  wrap: { position: 'absolute', width: '38%', height: ASIDE_H },
   glyph: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
 });
 
