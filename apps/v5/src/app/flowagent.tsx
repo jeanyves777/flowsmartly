@@ -597,7 +597,7 @@ export default function FlowAiPage() {
           <Reveal style={styles.strategistCopy} distance={16}>
             <SectionLabel>OPPORTUNITY STRATEGIST</SectionLabel>
             <Heading level={2} style={[type.h2, styles.headTitle, styles.strategistTitle]}>
-              {OPPORTUNITY_STRATEGIST.name}
+              {OPPORTUNITY_STRATEGIST.headline}
             </Heading>
             <Text style={[type.body, styles.headSub, styles.strategistBody]}>
               {OPPORTUNITY_STRATEGIST.blurb}
