@@ -25,7 +25,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -384,13 +383,11 @@ function Hero() {
 /* ------------------------------------------------------------------ */
 
 function Philosophy() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <Band tone="surface" style={styles.philosophy}>
-      <SectionArt variant="network" color={t.brand} side="right" />
       <Reveal style={styles.philosophyInner} distance={14}>
         <IconTile icon="book-open" tone="brand" size={l.isPhone ? 60 : 84} />
         <View style={styles.philosophyCopy}>
@@ -412,7 +409,6 @@ function Philosophy() {
 /* ------------------------------------------------------------------ */
 
 function Pillars() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   /** six items divide cleanly at 6 / 3 / 2 — no row ever strands one cell */
@@ -420,7 +416,6 @@ function Pillars() {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="docs" color={t.violet} side="left" />
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -616,7 +611,6 @@ function CourseToCapability() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="tasks" color={t.brand} side="right" />
       <SectionHead
         label="THE PATH"
         title="From course to capability"
@@ -658,13 +652,11 @@ function CourseToCapability() {
 /* ------------------------------------------------------------------ */
 
 function SupportStrip() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <Band tone="violet" style={styles.stripSection}>
-      <SectionArt variant="palette" color={t.violet} side="left" />
       <Reveal style={styles.strip} distance={12}>
         {SUPPORT.map((item, index) => (
           <View

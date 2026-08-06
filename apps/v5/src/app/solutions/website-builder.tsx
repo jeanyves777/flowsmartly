@@ -14,7 +14,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -366,7 +365,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ how it works */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>FROM PROMPT TO PUBLISHED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -399,7 +397,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ what ships */}
       <Band tone="violet">
-        <SectionArt variant="media" color={t.violet} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>IN EVERY SITE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -494,7 +491,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ found */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.seoCard}>
@@ -537,7 +533,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ connected */}
       <Band tone="violet">
-        <SectionArt variant="network" color={t.violet} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>CONNECTED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

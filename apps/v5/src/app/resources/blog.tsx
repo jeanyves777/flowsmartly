@@ -21,7 +21,6 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -338,7 +337,6 @@ function Archive({ topic }: { topic: Topic }) {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="docs" color={t.violet} side="left" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Latest articles

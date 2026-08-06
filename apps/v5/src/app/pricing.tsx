@@ -21,7 +21,6 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -515,7 +514,6 @@ export default function PricingPage() {
 
       {/* ------------------------------------------------ compare */}
       <Band tone="brand">
-        <SectionArt variant="chart" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>INCLUDED PLATFORM CAPABILITIES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

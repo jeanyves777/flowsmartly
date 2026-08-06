@@ -16,7 +16,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -678,7 +677,6 @@ export default function VideoStudioPage() {
 
       {/* ------------------------------------------------ faq */}
       <Band tone="violet">
-        <SectionArt variant="support" color={t.violet} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

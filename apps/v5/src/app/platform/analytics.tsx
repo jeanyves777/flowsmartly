@@ -25,7 +25,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -1116,7 +1115,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 02 attribution */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <Reveal distance={16}>
           <NumberedHead
             index="02"
@@ -1192,7 +1190,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 03 campaign analytics */}
       <Band tone="brand">
-        <SectionArt variant="analytics" color={t.brand} side="left" />
         <Reveal distance={16}>
           <NumberedHead
             index="03"
@@ -1362,7 +1359,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 05 ad spend & roas */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <Reveal distance={16}>
           <NumberedHead
             index="05"
@@ -1479,7 +1475,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 06 call agent */}
       <Band tone="brand">
-        <SectionArt variant="shield" color={t.brand} side="left" />
         <Reveal distance={16}>
           <NumberedHead
             index="06"
@@ -1600,7 +1595,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 08 local & AI visibility */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal distance={16}>
           <NumberedHead
             index="08"
@@ -1674,7 +1668,6 @@ export default function AnalyticsPage() {
 
       {/* ------------------------------------------------ 09 briefing & anomalies */}
       <Band tone="brand">
-        <SectionArt variant="api" color={t.brand} side="left" />
         <Reveal distance={16}>
           <NumberedHead
             index="09"

@@ -26,7 +26,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -832,7 +831,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 01 publishers */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -882,7 +880,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 02 knowledge profile */}
       <Band tone="brand">
-        <SectionArt variant="api" color={t.brand} side="left" />
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1295,7 +1292,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 07 multi-location */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <NumberedHead
           index={7}
           eyebrow="MULTI-LOCATION"

@@ -14,7 +14,6 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  SectionArt,
   SectionLabel,
   Band,
   useOpenSection,
@@ -70,11 +69,20 @@ const socialProfiles = [
   ['youtube', 'FlowSmartly on YouTube', '#ff0000', 'https://www.youtube.com/@flowsmartly'],
 ] as const;
 
+/**
+ * Business-wide outcomes, not a campaign scorecard. Faster campaign launches,
+ * qualified leads, deliverability and revenue influenced described a marketing
+ * suite on every page of the site.
+ *
+ * These are **illustrative** — the kind of figure a connected workspace
+ * produces, not an aggregate we have measured across customers. The section
+ * says so in the sub-line, because a number presented as proof has to be one.
+ */
 const metrics = [
-  ['rocket', '6×', 'Faster campaign launches', 'vs. disconnected workflows'],
-  ['users', '22%', 'More qualified leads', 'from connected engagement'],
-  ['envelope', '98.7%', 'Message deliverability', '30-day average'],
-  ['chart-column', '18.4%', 'Revenue influenced', 'across connected channels'],
+  ['clock-rotate-left', '84+ hours', 'Time saved', 'through coordinated workflows'],
+  ['circle-check', '326', 'Work completed', 'tasks completed and verified'],
+  ['users', '1,284', 'Customers served', 'customers and community members'],
+  ['plug', '12', 'Connected systems', 'business systems working together'],
 ] as const;
 
 /** the nine sparkline bars behind every metric, in px */
@@ -195,12 +203,23 @@ function BrandTile({
  * anything that does not start with a number, so the caller can print the
  * string untouched rather than animating nonsense.
  */
-function splitMetric(value: string): { amount: number; suffix: string; decimals: number } | null {
-  const match = /^(\d+(?:\.\d+)?)(.*)$/.exec(value);
+function splitMetric(
+  value: string,
+): { amount: number; suffix: string; decimals: number; grouped: boolean } | null {
+  // Thousands separators are part of the number, not the suffix. Without the
+  // comma in this character class "1,284" parsed as 1 with a ",284" suffix —
+  // it printed correctly by accident and then counted up from 0 to 1.
+  const match = /^([\d,]+(?:\.\d+)?)(.*)$/.exec(value);
   if (!match) return null;
-  const [, digits, suffix] = match;
+  const [, raw, suffix] = match;
+  const digits = raw.replace(/,/g, '');
   const dot = digits.indexOf('.');
-  return { amount: Number(digits), suffix, decimals: dot < 0 ? 0 : digits.length - dot - 1 };
+  return {
+    amount: Number(digits),
+    suffix,
+    decimals: dot < 0 ? 0 : digits.length - dot - 1,
+    grouped: raw.includes(','),
+  };
 }
 
 /**
@@ -276,7 +295,16 @@ function MetricCard({
           ref={count.ref as never}
           style={[type.h2, styles.metricValue, { color: accent }]}
           numberOfLines={1}>
-          {parsed ? `${count.value.toFixed(parsed.decimals)}${parsed.suffix}` : value}
+          {parsed
+            ? `${
+                parsed.grouped
+                  ? count.value.toLocaleString('en-US', {
+                      minimumFractionDigits: parsed.decimals,
+                      maximumFractionDigits: parsed.decimals,
+                    })
+                  : count.value.toFixed(parsed.decimals)
+              }${parsed.suffix}`
+            : value}
         </Text>
       </View>
       <Text style={[type.h4, styles.metricCaption]}>{caption}</Text>
@@ -316,11 +344,12 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
           <SectionLabel>OUTCOMES THAT MATTER</SectionLabel>
         </View>
         <Heading level={2} style={[type.display, styles.outcomesHeadingText]}>
-          One connected growth stack. Real business outcomes.
+          One connected workspace. Real business outcomes.
         </Heading>
         <Text style={[type.body, styles.outcomesSub]}>
-          See how connected signals, approved actions, and consistent follow-through compound into
-          measurable growth.
+          Less manual work, faster customer service, safer automation and clearer decisions — what
+          a connected workspace gives back. Figures below are illustrative of a workspace at this
+          scale, not an average across customers.
         </Text>
       </Reveal>
 
@@ -482,7 +511,6 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
   // discrete object you compare and choose, which is what a card is for.
   return (
     <Band tone="surface">
-      <SectionArt variant="chart" color={t.brand} side="right" />
       <Reveal>
         <SectionLabel>PRICING</SectionLabel>
         <Heading level={2} style={[type.h1, styles.shelfHeading]}>
@@ -619,25 +647,28 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
             <FontAwesome6 name="wand-magic-sparkles" size={l.isPhone ? 22 : 26} color={t.textOnBrand} />
           </View>
           <Heading level={2} style={[type.h2, styles.ctaTitle]}>
-            Ready to turn every signal into growth?
+            Ready to bring your business together?
           </Heading>
           <Text style={[type.body, styles.ctaBody]}>
-            Start with one campaign. FlowSmartly connects what happens next.
+            Connect your work, customers, content, systems, and decisions in one intelligent
+            workspace — with FlowAgent working safely alongside your team.
           </Text>
         </View>
         <View style={styles.ctaPanel}>
           <PrimaryButton
-            label="Start growing free"
+            label="Start free"
             size="md"
             full
             trackId="footer.cta.start-free"
             onPress={startFree}
           />
+          {/* No walkthrough video exists, so "see it in action" books the real
+              conversation rather than opening a player with nothing behind it. */}
           <SecondaryButton
-            label="Book a demo"
+            label="See FlowAgent in action"
             size="md"
             full
-            trackId="footer.cta.book-demo"
+            trackId="footer.cta.see-in-action"
             onPress={bookDemo}
           />
           <Text style={[type.caption, styles.ctaProof]}>
@@ -713,7 +744,12 @@ export function FooterNavigation() {
           contentPosition="left"
           alt="FlowSmartly"
         />
-        <Text style={[type.bodySm, styles.tagline]}>Create, sell, and grow with AI.</Text>
+        {/* Echoes the site's H1 rather than naming three commercial verbs — this
+            line sits under the logo on all 44 routes, including the nonprofit
+            and service-organization pages. */}
+        <Text style={[type.bodySm, styles.tagline]}>
+          Run, connect, and grow your business with AI.
+        </Text>
         <View style={styles.socials}>
           {socialProfiles.map(([icon, label, color, url]) => (
             <BrandTile

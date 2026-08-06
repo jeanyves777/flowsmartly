@@ -15,11 +15,9 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
-  type ArtVariant,
   type BandTone,
   type TypeScale,
 } from '@/components/public/ui';
@@ -256,8 +254,6 @@ type Pillar = {
   accent: Accent;
   /** the soft ground this pillar sits on — the page alternates down the run */
   tone: BandTone;
-  /** a faded background diagram; only a few pillars carry one */
-  art?: ArtVariant;
   mock: { title: string; chip: string; rows: MockRow[]; footer: string };
 };
 
@@ -291,7 +287,6 @@ const PILLARS: Pillar[] = [
   {
     key: 'create',
     tone: 'violet',
-    art: 'docs',
     icon: 'wand-magic-sparkles',
     name: 'Create',
     headline: 'One brief, every format you need.',
@@ -318,7 +313,6 @@ const PILLARS: Pillar[] = [
   {
     key: 'connect',
     tone: 'green',
-    art: 'network',
     icon: 'plug',
     name: 'Connect',
     headline: 'Your systems, finally talking to each other.',
@@ -345,7 +339,6 @@ const PILLARS: Pillar[] = [
   {
     key: 'serve',
     tone: 'orange',
-    art: 'waves',
     icon: 'headset',
     name: 'Serve',
     headline: 'Answer everyone, on whichever channel they chose.',
@@ -372,7 +365,6 @@ const PILLARS: Pillar[] = [
   {
     key: 'sell',
     tone: 'pink',
-    art: 'chart',
     icon: 'arrow-trend-up',
     name: 'Sell',
     headline: 'From first contact to paid, in one workspace.',
@@ -586,13 +578,9 @@ function PillarSection({
   if (first) row.push(styles.pillarFirst);
 
   // Each pillar is its own band, so the run alternates soft grounds instead of
-  // being six identical stripes. `overflow: hidden` is what keeps the artwork
-  // inside its own section rather than bleeding into the next one.
+  // being six identical stripes.
   return (
     <Band tone={pillar.tone} style={styles.pillarBand}>
-      {pillar.art ? (
-        <SectionArt variant={pillar.art} color={accent} side={flip ? 'right' : 'left'} />
-      ) : null}
       <Reveal style={row} distance={18}>
       <View style={styles.pillarCopy}>
         <View style={styles.pillarBadge}>
@@ -880,7 +868,6 @@ export default function ProductPage() {
 
       {/* ------------------------------------------------ modules */}
       <Band tone="surface">
-        <SectionArt variant="sync" color={t.brand} side="right" />
         <View style={styles.sectionHead}>
           <SectionLabel>EVERY MODULE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -1060,7 +1047,6 @@ export default function ProductPage() {
 
       {/* ------------------------------------------------ trust */}
       <Band tone="brand">
-        <SectionArt variant="shield" color={t.brand} side="left" />
         <View style={styles.sectionHead}>
           <SectionLabel>HOW WE OPERATE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

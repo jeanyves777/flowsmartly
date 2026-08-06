@@ -31,7 +31,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -394,7 +393,6 @@ export default function AboutPage() {
       {/* ------------------------------------------------ mission */}
       <View nativeID="about-mission">
         <Band tone="surface">
-          <SectionArt variant="docs" color={t.brand} side="right" />
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
@@ -437,7 +435,6 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ story */}
       <Band tone="brand">
-        <SectionArt variant="people" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR STORY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -549,7 +546,6 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ values */}
       <Band tone="brand">
-        <SectionArt variant="analytics" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR VALUES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

@@ -22,7 +22,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -352,7 +351,6 @@ function Hero() {
 }
 
 function Compliance() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   // Five badges: one column on a phone, five across everywhere else. Anything
@@ -361,7 +359,6 @@ function Compliance() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="shield" color={t.brand} side="right" />
       <SectionHead
         label="COMPLIANCE"
         title="The frameworks we are held to."
@@ -390,14 +387,12 @@ function Compliance() {
 }
 
 function Protections() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
     <Band tone="brand">
-      <SectionArt variant="tasks" color={t.brand} side="left" />
       <SectionHead
         label="HOW WE PROTECT YOUR DATA"
         title="Six controls that run whether or not anyone is watching."
@@ -460,7 +455,6 @@ function Testing() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="INDEPENDENT TESTING"
         title="We do not grade our own homework."
@@ -496,7 +490,6 @@ function IncidentResponse() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="api" color={t.brand} side="left" />
       <SectionHead
         label="INCIDENT RESPONSE"
         title="What happens in the first hour, and the first week."
@@ -619,7 +612,6 @@ function Vulnerability() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="network" color={t.brand} side="right" />
       <Reveal style={styles.reportCard} distance={14}>
         <View style={styles.reportHead}>
           <IconTile icon="shield-virus" tone="pink" size={54} />

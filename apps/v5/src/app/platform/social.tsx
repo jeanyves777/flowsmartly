@@ -17,7 +17,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -873,7 +872,6 @@ export default function SocialPage() {
 
       {/* ------------------------------------------------ 05 performance */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <StepHead
           index={5}
           eyebrow="WHAT IT EARNED"
@@ -1058,7 +1056,6 @@ export default function SocialPage() {
 
       {/* ------------------------------------------------ 08 integrations */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <StepHead
           index={8}
           eyebrow="CONNECTED TO YOUR STACK"

@@ -15,7 +15,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -645,7 +644,6 @@ export default function SolutionsPage() {
 
       {/* ------------------------------------------------ outcomes */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -688,7 +686,6 @@ export default function SolutionsPage() {
           state instead of silently changing nothing. */}
       {shownScenarios.length === 0 ? (
         <Band tone="brand">
-          <SectionArt variant="api" color={t.brand} side="left" />
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle} />
@@ -770,7 +767,6 @@ export default function SolutionsPage() {
 
       {/* ------------------------------------------------ industry presets */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.sectionHead}>
           <SectionLabel>PRESETS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -800,7 +796,6 @@ export default function SolutionsPage() {
 
       {/* ------------------------------------------------ comparison + testimonial */}
       <Band tone="brand">
-        <SectionArt variant="shield" color={t.brand} side="left" />
         <View style={styles.sectionHead}>
           <SectionLabel>WHY ONE PLATFORM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

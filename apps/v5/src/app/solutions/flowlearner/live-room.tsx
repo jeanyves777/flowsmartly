@@ -25,7 +25,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -853,7 +852,6 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ whiteboard */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.sharedBoardCard}>
@@ -960,7 +958,6 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ roles */}
       <Band tone="violet">
-        <SectionArt variant="palette" color={t.violet} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO CAN DO WHAT</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Heading>
@@ -1126,7 +1123,6 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ recording & replay */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SESSION OUTLIVES THE HOUR</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Recording and replay.</Heading>
@@ -1218,7 +1214,6 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ room setup */}
       <Band tone="violet">
-        <SectionArt variant="media" color={t.violet} side="left" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DECIDED BEFORE ANYONE JOINS</SectionLabel>
@@ -1375,7 +1370,6 @@ export default function LiveRoomPage() {
 
       {/* ------------------------------------------------ close */}
       <Band tone="surface">
-        <SectionArt variant="learn" color={t.brand} side="right" />
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>

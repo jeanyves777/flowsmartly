@@ -23,7 +23,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -529,7 +528,6 @@ function OpenRoles() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="OPEN ROLES"
         title="Where we need people right now."
@@ -588,7 +586,6 @@ function HowWeHire() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="shield" color={t.brand} side="left" />
       <SectionHead
         label="HOW WE HIRE"
         title="Five steps, about two weeks."

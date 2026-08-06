@@ -23,7 +23,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -973,7 +972,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ quizzes */}
       <Band tone="violet">
-        <SectionArt variant="palette" color={t.violet} side="left" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="QUIZZES & ASSESSMENTS"
@@ -1302,7 +1300,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ selling */}
       <Band tone="violet">
-        <SectionArt variant="media" color={t.violet} side="left" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="SELL YOUR COURSES"
@@ -1403,7 +1400,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ devices */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="EVERY DEVICE"
@@ -1444,7 +1440,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ close */}
       <Band tone="violet">
-        <SectionArt variant="learn" color={t.violet} side="left" />
         <Reveal style={styles.closePanel} distance={16}>
           <View style={styles.closeCopy}>
             <SectionLabel>PUBLISH YOUR FIRST COURSE</SectionLabel>

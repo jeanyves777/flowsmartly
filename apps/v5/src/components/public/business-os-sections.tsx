@@ -14,7 +14,6 @@ import {
   Heading,
   OpenSection,
   PrimaryButton,
-  SectionArt,
   SecondaryButton,
   SectionLabel,
   useOpenSection,
@@ -237,7 +236,7 @@ export function IndustriesSection() {
   const columns = l.gridColumns(3);
 
   return (
-    <OpenSection art={{ variant: 'network', color: t.brand, side: 'right' }}>
+    <OpenSection>
       <SectionHead
         label="BUILT FOR YOUR ORGANIZATION"
         title="Built for the way your organization actually works"
@@ -281,8 +280,7 @@ export function PillarsSection() {
   return (
     // A band, so the six pillars read as one idea on their own ground without
     // any of them being boxed.
-    <Band tone="surface" art={{ variant: 'docs', color: t.violet, side: 'right' }}>
-      <SectionArt variant="analytics" color={t.brand} side="right" />
+    <Band tone="surface">
       <SectionHead
         label="THE PLATFORM"
         title="More than marketing. One connected business workspace."
@@ -328,8 +326,7 @@ export function FlowAgentAlongsideSection() {
   // things inside a box. The panel itself stays a card — it is a picture of a
   // product surface, which is exactly what a card is for.
   return (
-    <Reveal style={[open, styles.clip, styles.split]} distance={20}>
-      <SectionArt variant="network" color={t.violet} side="left" />
+    <Reveal style={[open, styles.split]} distance={20}>
       <View style={styles.splitCopy}>
         <SectionLabel>FLOWAGENT</SectionLabel>
         <Heading level={2} style={styles.headTitle}>
@@ -395,8 +392,7 @@ export function ControlSection() {
   return (
     // The soft brand ground, so the safety promise is the one section on the
     // page with its own colour — it is positioning, not a footnote.
-    <Band tone="brand" art={{ variant: 'chart', color: t.brand, side: 'right' }}>
-      <SectionArt variant="api" color={t.brand} side="left" />
+    <Band tone="brand">
       <SectionHead
         label="CONTROL"
         title="Powerful automation. Professional control."
@@ -438,7 +434,6 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
 
   return StyleSheet.create({
     /* ---------- shared ---------- */
-    clip: { overflow: 'hidden' },
     head: { gap: 14, maxWidth: 780 },
     headTitle: { ...ty.h2, color: t.text, marginTop: 2 },
     headBody: { ...ty.body, color: t.textMuted, maxWidth: 720 },

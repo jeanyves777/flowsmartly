@@ -22,7 +22,6 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  SectionArt,
   SectionLabel,
   Band,
   useTypeScale,
@@ -225,7 +224,6 @@ export function ConnectedChannelsSection() {
     // *same* transform. A per-tile stagger, or a scale here, would leave the
     // wires pointing at where the tiles used to be.
     <Band tone="surface">
-      <SectionArt variant="docs" color={t.brand} side="right" />
     <Reveal distance={22}>
       <View style={styles.main}>
         <View style={styles.copy}>

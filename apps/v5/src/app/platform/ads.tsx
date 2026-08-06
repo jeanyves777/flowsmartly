@@ -32,7 +32,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -1137,7 +1136,6 @@ export default function AdsPage() {
 
       {/* ------------------------------------------------ guardrails */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SPEND ON YOUR TERMS</SectionLabel>
@@ -1254,7 +1252,6 @@ export default function AdsPage() {
 
       {/* ------------------------------------------------ performance */}
       <Band tone="pink">
-        <SectionArt variant="store" color={t.pink} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PERFORMANCE IN ONE VIEW</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1440,7 +1437,6 @@ export default function AdsPage() {
 
       {/* ------------------------------------------------ audit */}
       <Band tone="pink">
-        <SectionArt variant="people" color={t.pink} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>NOTHING HAPPENS QUIETLY</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>

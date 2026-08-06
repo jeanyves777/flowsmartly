@@ -10,7 +10,6 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { ArrowLink } from '@/components/public/connectors';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -22,7 +21,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -72,39 +70,75 @@ const STATES: { icon: string; label: string; count: string; note: string; accent
   { icon: 'circle-question', label: 'Needs more information', count: '2', note: 'FlowAgent stopped to ask', accent: 'pink' },
 ];
 
+/**
+ * Cross-business, because the section claims one conversation across the whole
+ * organization and six marketing questions would contradict it.
+ *
+ * The single marketing example is deliberately phrased as "what should we
+ * review" rather than "where should the budget go" — the page should not imply
+ * FlowAgent moves advertising money on its own.
+ */
 const QUESTIONS = [
-  'Which customers are about to slip away?',
-  'What should we post this week, and where?',
-  'Why did revenue dip last month?',
-  'Which campaign deserves more budget?',
-  'What are callers asking about most?',
-  'Which products are about to run out?',
+  'What needs my attention today?',
+  'Which client files are still incomplete?',
+  'Prepare follow-ups for customers waiting on us.',
+  'Which appointments still need coverage?',
+  'Build a proposal for this qualified lead.',
+  'Summarize what changed across my business this week.',
+  'Which connected workflow is blocked, and why?',
+  'Prepare the monthly donor and program report.',
+  'What work can be completed safely without my approval?',
+  'Show me every action waiting for review.',
+  'Which campaign is underperforming, and what should we review?',
 ];
 
+/**
+ * The operating sequence, six steps.
+ *
+ * It used to be Detect, Recommend, Prepare, Approve & launch — a
+ * recommendation feed with a publish button on the end. "Recommend" is now
+ * "Understand", which is the step that actually happens there (context,
+ * permissions, policy, workflow state), and Execute and Verify are named
+ * rather than folded into "launch": carrying work out and confirming it landed
+ * are different things, and the second is the one that makes the first
+ * trustworthy.
+ */
 const STEPS: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
     icon: 'magnifying-glass-chart',
     title: 'Detect',
-    body: 'FlowAgent reads every channel continuously and notices the change before you would.',
+    body: 'Identifies work, exceptions, requests and changes that need attention across your connected systems.',
     accent: 'brand',
   },
   {
-    icon: 'lightbulb',
-    title: 'Recommend',
-    body: 'It ranks what to do next by projected impact, with the reasoning attached.',
+    icon: 'brain',
+    title: 'Understand',
+    body: 'Applies your business context, permissions, policies and current workflow state.',
     accent: 'violet',
   },
   {
     icon: 'wand-magic-sparkles',
     title: 'Prepare',
-    body: 'Copy, audience, budget and schedule arrive built — not a to-do list.',
+    body: 'Researches, organizes, drafts and coordinates the work required to move the task forward.',
     accent: 'orange',
   },
   {
     icon: 'circle-check',
-    title: 'Approve & launch',
-    body: 'You read it, edit anything, and press go. Nothing ships until you do.',
+    title: 'Approve',
+    body: 'Brings sensitive or consequential actions to the right person before execution.',
     accent: 'green',
+  },
+  {
+    icon: 'bolt',
+    title: 'Execute',
+    body: 'Carries out approved work through registered capabilities and connected systems.',
+    accent: 'pink',
+  },
+  {
+    icon: 'clipboard-check',
+    title: 'Verify',
+    body: 'Confirms the result, records evidence and reports anything that remains incomplete or blocked.',
+    accent: 'brand',
   },
 ];
 
@@ -438,7 +472,6 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ the five states */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHERE THE WORK IS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -504,21 +537,25 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ insight to impact */}
       <Band tone="surface">
-        <SectionArt variant="sync" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
-            From insight to impact—built for human control.
+            The same six steps, whatever the work is.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Four steps, every time. The last one is always yours.
+            Detect, understand, prepare, approve, execute, verify. Step four is always yours, and
+            step six is how you know the rest of it actually happened.
           </Text>
         </Reveal>
 
+        {/*
+          A numbered grid, not a single arrowed row. Four steps fitted across a
+          line; six leave about 195px each, which is not enough for a title and
+          a sentence. The 01-06 numerals carry the sequence instead, and the
+          connecting arrow survives only on phone, where the cards genuinely
+          are a single column.
+        */}
         <View style={styles.stepRow}>
-          {/* Cards and arrows are siblings so every card gets the same share of
-              the row — nesting the arrow inside the card's cell would make the
-              last card wider than the other three by the arrow's width. */}
           {STEPS.map((step, index) => {
             const accent = accentOf(step.accent);
             return (
@@ -535,13 +572,9 @@ export default function FlowAiPage() {
                     <Text style={styles.stepBody}>{step.body}</Text>
                   </View>
                 </View>
-                {index < STEPS.length - 1 ? (
+                {l.isPhone && index < STEPS.length - 1 ? (
                   <View style={styles.stepArrow}>
-                    {l.isStacked ? (
-                      <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
-                    ) : (
-                      <ArrowLink width={38} height={12} color={t.borderStrong} />
-                    )}
+                    <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
                   </View>
                 ) : null}
               </Fragment>
@@ -592,7 +625,6 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ the one named agent */}
       <Band tone="violet">
-        <SectionArt variant="funnel" color={t.violet} side="right" />
         <View style={styles.strategistRow}>
           <Reveal style={styles.strategistCopy} distance={16}>
             <SectionLabel>OPPORTUNITY STRATEGIST</SectionLabel>
@@ -662,7 +694,6 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ control */}
       <Band tone="brand">
-        <SectionArt variant="shield" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>GUARDRAILS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1061,14 +1092,25 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     questionText: { ...type.bodySm, color: t.text, fontWeight: '600', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- steps */
+    // Three across once there is room, two on tablet, one on phone. Cells do
+    // not grow, so the second row keeps the first row's column grid instead of
+    // stretching three cards across the full width.
     stepRow: {
-      flexDirection: stacked ? 'column' : 'row',
+      flexDirection: l.isPhone ? 'column' : 'row',
+      flexWrap: 'wrap',
       alignItems: 'stretch',
       marginTop: l.isPhone ? 20 : 28,
+      marginHorizontal: l.isPhone ? 0 : -7,
     },
-    stepCell: stacked
+    stepCell: l.isPhone
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%' }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, alignSelf: 'stretch' },
+      : {
+          flexGrow: 0,
+          flexShrink: 0,
+          flexBasis: l.isCompact ? '50%' : '33.333%',
+          minWidth: 0,
+          padding: 7,
+        },
     stepCard: { ...cardBase, height: '100%' },
     stepArrow: {
       flexGrow: 0,

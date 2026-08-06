@@ -23,7 +23,6 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -442,7 +441,6 @@ function Paths() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="docs" color={t.brand} side="right" />
       <SectionHead
         label="PARTNER PATHS"
         title="Choose the path that fits your business."
@@ -475,12 +473,10 @@ function Paths() {
 }
 
 function ValueAndRevenue() {
-  const t = useTokens();
   const styles = useStyles();
 
   return (
     <Band tone="green">
-      <SectionArt variant="tasks" color={t.green} side="left" />
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpCol} distance={16}>
           <View style={styles.panel}>
@@ -572,7 +568,6 @@ function Journey() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="HOW IT WORKS"
         title="A simple path to partnership."
@@ -610,7 +605,6 @@ function Journey() {
 }
 
 function Proof() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isCompact ? 1 : 5;
@@ -618,7 +612,6 @@ function Proof() {
 
   return (
     <Band tone="green">
-      <SectionArt variant="sync" color={t.green} side="left" />
       <SectionHead
         label="THE NUMBERS"
         title="Partners choose FlowSmartly. Customers see results."

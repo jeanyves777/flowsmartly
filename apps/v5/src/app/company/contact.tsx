@@ -21,7 +21,6 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
-  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -512,7 +511,6 @@ export default function ContactPage() {
 
       {/* ------------------------------------------------ how can we help */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <View style={styles.helpHead}>
           <SectionLabel>WHERE TO START</SectionLabel>
           <Heading level={2} style={[type.h2, styles.helpTitle]}>
@@ -554,7 +552,6 @@ export default function ContactPage() {
 
       {/* ------------------------------------------------ response times + faq */}
       <Band tone="orange">
-        <SectionArt variant="support" color={t.orange} side="left" />
         <View style={styles.closerRow}>
           <Reveal style={styles.closerColumn} distance={16}>
             <Heading level={2} style={[type.h2, styles.closerTitle]}>
