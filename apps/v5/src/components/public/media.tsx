@@ -1,4 +1,4 @@
-import { Image, type ImageContentFit, type ImageProps } from 'expo-image';
+import { Image, type ImageContentFit, type ImageContentPosition, type ImageProps } from 'expo-image';
 import { useMemo } from 'react';
 import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -183,6 +183,12 @@ export type MediaProps = AltProp & {
   /** sizing/spacing only — it is applied to both the image and the placeholder */
   style?: ImageStyle | ImageStyle[];
   contentFit?: ImageContentFit;
+  /**
+   * Where the crop is anchored when `cover` has to discard part of the image.
+   * A portrait in a wide tile crops from the centre by default, which takes the
+   * top of the subject's head off — `'top'` keeps the face.
+   */
+  contentPosition?: ImageContentPosition;
   /** rounded corners on both the image and the placeholder */
   radius?: number;
 };
@@ -192,7 +198,7 @@ export type MediaProps = AltProp & {
  * has not been produced yet. The placeholder is deliberately abstract — it must
  * read as "art pending", never as a broken or fake photo.
  */
-export function Media({ name, style, contentFit, alt, radius = 14 }: MediaProps) {
+export function Media({ name, style, contentFit, contentPosition, alt, radius = 14 }: MediaProps) {
   const t = useTokens();
   const styles = useMemo(() => createStyles(t), [t]);
   const source = REGISTRY[name];
@@ -262,6 +268,7 @@ export function Media({ name, style, contentFit, alt, radius = 14 }: MediaProps)
       source={source}
       style={[{ borderRadius: radius }, style]}
       contentFit={fit}
+      contentPosition={contentPosition}
       transition={180}
       alt={alt}
     />

@@ -558,10 +558,13 @@ export default function LiveRoomPage() {
                 {/* stage: presenter + whiteboard */}
                 <View style={styles.stage}>
                   <View style={styles.presenterTile}>
+                    {/* Biased above centre so the face sits in the frame the
+                        way a camera would put it, rather than dead centre. */}
                     <Media
                       name="people/megan-roberts"
                       alt="Megan Roberts presenting the live session"
                       style={styles.presenterImage}
+                      contentPosition={{ left: '50%', top: '22%' }}
                       radius={13}
                     />
                     <View style={styles.presenterBadge}>
@@ -1605,8 +1608,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 10 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
 
+    // 16:9, like the camera feed it is a picture of. A fixed 176px height made
+    // this 2.6:1 on a wide stage, which is a letterbox no portrait survives —
+    // centred it cropped the top of her head off, anchored to the top it took
+    // the chin instead. Give the frame the shape of the source and neither
+    // happens.
     presenterTile: {
-      height: l.isPhone ? 150 : 176,
+      aspectRatio: 16 / 9,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 14,

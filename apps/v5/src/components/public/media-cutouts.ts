@@ -15,10 +15,6 @@ export const CUTOUTS: ReadonlySet<string> = new Set([
   'editorial/resource-automation',
   'editorial/resource-deliverability',
   'editorial/template-library',
-  'product-black-sneakers',
-  'product-canvas-tote',
-  'product-commuter-backpack',
-  'product-navy-bottle',
 ]);
 
 /**

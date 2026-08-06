@@ -41,7 +41,11 @@ FLAT_TOLERANCE = 26
 # behind the subject, cutting it out is not what we want.
 # Photographs. Even a product shot on a near-black studio sweep must keep
 # its backdrop — the lighting IS the shot.
-NEVER_CUT = ("people/", "scenes/", "video/")
+# `product-` too: these are studio packshots on a white sweep. The sweep IS the
+# photograph — lifting it leaves the goods floating next to the lifestyle shots
+# they sit beside in the reference grid, which is the one place they have to
+# look like a matched set.
+NEVER_CUT = ("people/", "scenes/", "video/", "product-")
 
 # Illustrations whose art is painted INTO the backdrop, so there is no clean
 # subject to lift: the paper plane's motion trail, the analytics panel's glass,
