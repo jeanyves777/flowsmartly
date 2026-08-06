@@ -788,7 +788,6 @@ export default function FlowShopPage() {
 
       {/* ------------------------------------------------ 02 catalog + AI copy */}
       <Band tone="pink">
-        <SectionArt variant="store" color={t.pink} side="left" />
         <NumberedHead
           index={2}
           eyebrow="CATALOG & PRODUCT COPY"
@@ -1239,7 +1238,6 @@ export default function FlowShopPage() {
 
       {/* ------------------------------------------------ 07 sales associate */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead

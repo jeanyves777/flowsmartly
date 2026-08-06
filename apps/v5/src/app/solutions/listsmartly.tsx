@@ -1038,7 +1038,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 04 reviews */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1126,7 +1125,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 05 local pages */}
       <Band tone="brand">
-        <SectionArt variant="shield" color={t.brand} side="left" />
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead
@@ -1385,7 +1383,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ 08 teams */}
       <Band tone="brand">
-        <SectionArt variant="api" color={t.brand} side="left" />
         <NumberedHead
           index={8}
           eyebrow="TEAMS & PERMISSIONS"
@@ -1537,7 +1534,6 @@ export default function ListSmartlyPage() {
 
       {/* ------------------------------------------------ testimonial */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <View style={styles.quoteRow}>
           <Media
             name="people/amanda-rodriguez"

@@ -398,7 +398,6 @@ function Stories() {
 
   return (
     <Band tone="pink">
-      <SectionArt variant="funnel" color={t.pink} side="left" />
       <SectionHead
         label="FEATURED STORIES"
         title="Three teams, three very different problems."

@@ -612,7 +612,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ faq */}
       <Band tone="surface">
-        <SectionArt variant="support" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>QUESTIONS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -634,7 +633,6 @@ export default function WebsiteBuilderPage() {
 
       {/* ------------------------------------------------ testimonial */}
       <Band tone="violet">
-        <SectionArt variant="learn" color={t.violet} side="left" />
         <View style={styles.quoteRow}>
           <Media
             name="people/maya-chen"

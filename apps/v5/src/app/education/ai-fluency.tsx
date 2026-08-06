@@ -821,14 +821,12 @@ function GovernanceAndAssistant() {
 /* ------------------------------------------------------------------ */
 
 function Closing() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="surface" style={styles.closing}>
-      <SectionArt variant="support" color={t.brand} side="right" />
       <Reveal style={styles.closingInner} distance={14}>
         <Media
           name="flowsmartly-mark"

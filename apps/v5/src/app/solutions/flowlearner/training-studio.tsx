@@ -1285,7 +1285,6 @@ export default function TrainingStudioPage() {
 
       {/* ------------------------------------------------ media */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SHOW, DO NOT TELL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Bring in media that lands.</Heading>

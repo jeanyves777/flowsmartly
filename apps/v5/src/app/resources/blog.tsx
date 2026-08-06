@@ -265,14 +265,12 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
 }
 
 function Featured() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="surface">
-      <SectionArt variant="tasks" color={t.brand} side="right" />
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredArt}>
           <Artwork name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />

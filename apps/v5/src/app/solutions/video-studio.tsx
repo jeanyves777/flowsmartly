@@ -524,7 +524,6 @@ export default function VideoStudioPage() {
 
       {/* ------------------------------------------------ the crafts */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>WHAT YOU CAN MAKE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -565,7 +564,6 @@ export default function VideoStudioPage() {
 
       {/* ------------------------------------------------ virtual try-on */}
       <Band tone="violet">
-        <SectionArt variant="learn" color={t.violet} side="left" />
         <View style={styles.tryonRow}>
           <Reveal style={styles.tryonCopy} distance={16}>
             <SectionLabel>VIRTUAL TRY-ON</SectionLabel>
@@ -647,7 +645,6 @@ export default function VideoStudioPage() {
 
       {/* ------------------------------------------------ quotes */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>IN PRACTICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

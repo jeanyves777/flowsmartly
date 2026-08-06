@@ -498,7 +498,6 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ leadership */}
       <Band tone="surface">
-        <SectionArt variant="funnel" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>LEADERSHIP TEAM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

@@ -1156,7 +1156,6 @@ export default function AgentMarketplacePage() {
 
       {/* ------------------------------------------------ testimonial */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.quoteRow}>
           <Media
             name="people/daniel-kim"

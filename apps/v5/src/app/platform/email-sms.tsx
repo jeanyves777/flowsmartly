@@ -709,7 +709,6 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 02 sms + mms */}
       <Band tone="surface">
-        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead

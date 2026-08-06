@@ -674,7 +674,6 @@ export default function SocialPage() {
 
       {/* ------------------------------------------------ 02 adapt per channel */}
       <Band tone="surface">
-        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -742,7 +741,6 @@ export default function SocialPage() {
 
       {/* ------------------------------------------------ 03 unified inbox */}
       <Band tone="pink">
-        <SectionArt variant="funnel" color={t.pink} side="left" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -917,7 +915,6 @@ export default function SocialPage() {
 
       {/* ------------------------------------------------ 06 ugc library */}
       <Band tone="pink">
-        <SectionArt variant="chart" color={t.pink} side="left" />
         <StepHead
           index={6}
           eyebrow="CREATOR CONTENT"

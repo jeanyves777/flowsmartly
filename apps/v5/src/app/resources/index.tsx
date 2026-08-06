@@ -669,7 +669,6 @@ function Categories() {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="media" color={t.violet} side="left" />
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."

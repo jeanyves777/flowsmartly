@@ -382,7 +382,6 @@ function Library() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="docs" color={t.brand} side="right" />
       <SectionHead
         title="The template library"
         body="Pick the channel you are working on today. Every template arrives complete — copy, timing, audience and all."

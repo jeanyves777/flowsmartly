@@ -884,7 +884,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ the player */}
       <Band tone="surface">
-        <SectionArt variant="docs" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="THE LESSON PLAYER"
@@ -1247,7 +1246,6 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ certificates */}
       <Band tone="surface">
-        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="BRANDED CERTIFICATES"

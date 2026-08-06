@@ -340,7 +340,6 @@ function Hero() {
 }
 
 function Values() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   // Five is prime: only one or five columns divide it, so the row form is used
@@ -349,7 +348,6 @@ function Values() {
 
   return (
     <Band tone="surface">
-      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="WHAT WE VALUE"
         title="Five things we actually hire for."
@@ -378,14 +376,12 @@ function Values() {
 }
 
 function Life() {
-  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : 3;
 
   return (
     <Band tone="brand">
-      <SectionArt variant="api" color={t.brand} side="left" />
       <SectionHead
         label="LIFE AT FLOWSMARTLY"
         title="Remote, but not distant."

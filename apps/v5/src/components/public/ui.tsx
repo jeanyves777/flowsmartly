@@ -610,6 +610,11 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
   const soft = hexToRgba(color, dark ? 0.11 : 0.085);
   const fill = hexToRgba(color, dark ? 0.07 : 0.042);
   const dot = hexToRgba(color, dark ? 0.19 : 0.155);
+  // Large filled shapes — card bodies, checklist rules, date cells, media
+  // frames — are the parts that actually collide with a paragraph sitting on
+  // top of them. Thin strokes read as texture; a 150px pale rectangle behind a
+  // headline reads as a rendering bug, so the solids get their own weaker ink.
+  const plate = hexToRgba(color, dark ? 0.1 : 0.075);
 
   return (
     <View
@@ -653,7 +658,7 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
         ))}
         {comp.waveform
           ? waveformBars(comp.waveform[0], comp.waveform[1]).map(([x, h]) => (
-              <Rect key={x} x={x} y={210 - h / 2} width={5} height={h} rx={2.5} fill={line} />
+              <Rect key={x} x={x} y={210 - h / 2} width={5} height={h} rx={2.5} fill={plate} />
             ))
           : null}
         {comp.grid
@@ -665,7 +670,7 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
                 width={30}
                 height={30}
                 rx={8}
-                fill={i === 7 || i === 13 ? dot : fill}
+                fill={i === 7 || i === 13 ? plate : fill}
                 stroke={line}
                 strokeWidth={1.1}
               />
@@ -691,7 +696,7 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
                 width={i === card.lines - 1 ? card.w * 0.42 : card.w * 0.66}
                 height={7}
                 rx={3.5}
-                fill={line}
+                fill={plate}
               />
             ))}
           </Fragment>
@@ -719,7 +724,7 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
                 <Fragment key={i}>
                   <Rect x={gx} y={y} width={26} height={26} rx={8} fill={fill} stroke={line} strokeWidth={1.2} />
                   <Path d={`M${gx + 7} ${y + 13} l6 6 l10 -12`} stroke={dot} strokeWidth={2.4} fill="none" strokeLinecap="round" />
-                  <Rect x={gx + 44} y={y + 9} width={i % 2 ? 150 : 220} height={8} rx={4} fill={line} />
+                  <Rect x={gx + 44} y={y + 9} width={i % 2 ? 150 : 220} height={8} rx={4} fill={plate} />
                 </Fragment>
               );
             })
