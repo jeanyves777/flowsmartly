@@ -47,10 +47,11 @@ import {
 import {
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from "@/components/public/ui";
@@ -1074,44 +1075,50 @@ function Dashboard() {
 
   // One reveal for the whole dashboard; the detail inside (counters, bars,
   // action rows) carries its own motion rather than each card fading in.
+  //
+  // The one section on this page that keeps its card, and the exception the
+  // rule is written around: this *is* a product surface — a picture of the
+  // dashboard — so the border is the screen's own edge, not decoration.
   return (
-    <Reveal distance={22} style={styles.dashboardOuter}>
-      <View style={styles.dashboardTitleRow}>
-        <Heading level={2} style={styles.dashboardTitle}>
-          Growth Command Center
-        </Heading>
-        <Text style={styles.dashboardFilter}>Last 30 days ⌄</Text>
-      </View>
-      <MetricCards />
-      <View style={styles.gridStack}>
-        {chunk(
-          panels.map((panel, index) => ({ ...panel, number: String(index + 1) })),
-          columns,
-        ).map((row, index) => (
-          <View key={index} style={styles.gridRow}>
-            {row.map(({ key, Component, number }) => (
-              <View key={key} style={styles.gridCell}>
-                <Component number={number} />
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
-      <View style={styles.integrations}>
-        <Text style={styles.integrationsTitle}>Integrations</Text>
-        <View style={styles.dashboardBrandRow}>
-          {channels.slice(0, 7).map((item) => (
-            <FontAwesome6
-              key={item.label}
-              name={item.brand as never}
-              size={17}
-              color={brandColor(item.color, t)}
-            />
+    <OpenSection>
+      <Reveal distance={22} style={styles.dashboardOuter}>
+        <View style={styles.dashboardTitleRow}>
+          <Heading level={2} style={styles.dashboardTitle}>
+            Growth Command Center
+          </Heading>
+          <Text style={styles.dashboardFilter}>Last 30 days ⌄</Text>
+        </View>
+        <MetricCards />
+        <View style={styles.gridStack}>
+          {chunk(
+            panels.map((panel, index) => ({ ...panel, number: String(index + 1) })),
+            columns,
+          ).map((row, index) => (
+            <View key={index} style={styles.gridRow}>
+              {row.map(({ key, Component, number }) => (
+                <View key={key} style={styles.gridCell}>
+                  <Component number={number} />
+                </View>
+              ))}
+            </View>
           ))}
         </View>
-        <Text style={styles.integrationsNote}>All your channels. One intelligent system.</Text>
-      </View>
-    </Reveal>
+        <View style={styles.integrations}>
+          <Text style={styles.integrationsTitle}>Integrations</Text>
+          <View style={styles.dashboardBrandRow}>
+            {channels.slice(0, 7).map((item) => (
+              <FontAwesome6
+                key={item.label}
+                name={item.brand as never}
+                size={17}
+                color={brandColor(item.color, t)}
+              />
+            ))}
+          </View>
+          <Text style={styles.integrationsNote}>All your channels. One intelligent system.</Text>
+        </View>
+      </Reveal>
+    </OpenSection>
   );
 }
 
@@ -1147,9 +1154,9 @@ function FlowShopSection() {
   const t = useTokens();
   const l = useLayout();
   const router = useRouter();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   return (
-    <Reveal style={[shell, styles.featureSection]}>
+    <Reveal style={[open, styles.featureSection]}>
       <View style={styles.featureCopy}>
         <SectionLabel>FLOWSHOP</SectionLabel>
         <Heading level={2} style={styles.featureTitle}>
@@ -1234,7 +1241,7 @@ function CustomerIntelligence() {
   const t = useTokens();
   const l = useLayout();
   const router = useRouter();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const signals: [string, string, string, string][] = [
     ["instagram", t.pink, "Instagram comment", "Love this collection!"],
     ["envelope", t.brand, "Email opened", "Spring Collection Lookbook"],
@@ -1252,7 +1259,7 @@ function CustomerIntelligence() {
     ["bag-shopping", "Total orders 8 • $1,286 spent"],
   ];
   return (
-    <Reveal style={[shell, styles.featureSection]}>
+    <Reveal style={[open, styles.featureSection]}>
       <View style={styles.featureCopy}>
         <SectionLabel>UNIFIED CUSTOMER INTELLIGENCE</SectionLabel>
         <Heading level={2} style={styles.featureTitle}>
@@ -1422,10 +1429,12 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     brandLogoCompact: { width: 30, height: 30 },
 
     /* ---------- hero ---------- */
+    // The hero sits directly under the header, so its top stays tight; the
+    // bottom carries the page's section rhythm like every open section below.
     hero: {
       paddingHorizontal: l.gutter,
       paddingTop: l.isPhone ? 20 : 28,
-      paddingBottom: l.isPhone ? 24 : 34,
+      paddingBottom: l.sectionSpace,
     },
     heroTop: stacked
       ? { flexDirection: "column", alignItems: "stretch", gap: 28 }
@@ -1734,9 +1743,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
 
     /* ---------- dashboard ---------- */
+    // No margins of its own — the OpenSection around it supplies the gutter
+    // and the vertical rhythm, so this card spaces like every other section.
     dashboardOuter: {
-      marginHorizontal: l.gutter,
-      marginTop: l.sectionGap,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: l.radius,

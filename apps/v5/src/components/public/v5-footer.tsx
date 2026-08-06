@@ -15,6 +15,8 @@ import {
   PrimaryButton,
   SecondaryButton,
   SectionLabel,
+  Band,
+  useOpenSection,
   useSectionShell,
   useTypeScale,
 } from '@/components/public/ui';
@@ -292,7 +294,7 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useFooterStyles();
   const router = useRouter();
 
@@ -308,7 +310,7 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
   const role = testimonial?.role ?? 'Founder, Northline Studio';
 
   return (
-    <View style={[shell, styles.outcomesSection]}>
+    <View style={[open, styles.outcomesSection]}>
       <Reveal style={styles.outcomeHeading}>
         <View style={styles.labelCenter}>
           <SectionLabel>OUTCOMES THAT MATTER</SectionLabel>
@@ -472,13 +474,14 @@ export function IntegrationShelf() {
 export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStartFree'>) {
   const t = useTokens();
   const type = useTypeScale();
-  const shell = useSectionShell();
   const styles = useFooterStyles();
   // The product lives outside this app, so signup is the honest default for
   // every plan CTA unless the host page overrides it.
   const startFree = onStartFree ?? (() => Linking.openURL(EXTERNAL.signup));
+  // A band, with the plans themselves still carded — a pricing plan is a
+  // discrete object you compare and choose, which is what a card is for.
   return (
-    <View style={shell}>
+    <Band tone="surface">
       <Reveal>
         <SectionLabel>PRICING</SectionLabel>
         <Heading level={2} style={[type.h1, styles.shelfHeading]}>
@@ -532,7 +535,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
       <Text style={[type.caption, styles.planNote]}>
         All plans include human-approved AI and can be canceled anytime.
       </Text>
-    </View>
+    </Band>
   );
 }
 
@@ -694,11 +697,11 @@ function StatusPill() {
 
 export function FooterNavigation() {
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useFooterStyles();
   const router = useRouter();
   return (
-    <View style={[shell, styles.navigation]}>
+    <View style={[open, styles.navigation]}>
       <View style={styles.brandColumn}>
         {/* Not decorative and not inside a labelled link: this wordmark is the
             only thing naming the site at the foot of every page. */}
@@ -1232,7 +1235,23 @@ function createStyles(t: ThemeTokens, l: Layout) {
     bottomText: { color: t.textSubtle },
     // The legal links used to be one run-on string; each is now its own 44px
     // target, separated by a rule rather than a word space.
-    legalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 2 },
+    //
+    // The flex properties are what make `flexWrap` do anything. As a plain row
+    // child this kept its max-content width — 483px of links inside a 390px
+    // phone — and the ScrollView's `overflow-x: hidden` quietly clipped the
+    // tail, so "Cookie settings" was off-screen and untappable on a phone.
+    // Withdrawing consent has to stay reachable, so it has to be able to shrink.
+    legalRow: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: phone ? 'flex-start' : 'flex-end',
+      gap: 2,
+    },
     legalLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8, borderRadius: 8 },
     legalLinkText: { color: t.textMuted },
     legalDivider: { width: 1, height: 12, backgroundColor: t.borderStrong },

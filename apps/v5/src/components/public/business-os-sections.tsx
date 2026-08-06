@@ -9,13 +9,14 @@ import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
 import { ROUTES } from './nav';
 import {
+  Band,
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
-  Section,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from './ui';
@@ -235,7 +236,7 @@ export function IndustriesSection() {
   const columns = l.gridColumns(3);
 
   return (
-    <Section>
+    <OpenSection>
       <SectionHead
         label="BUILT FOR YOUR ORGANIZATION"
         title="Built for the way your organization actually works"
@@ -248,7 +249,11 @@ export function IndustriesSection() {
             delay={40 + index * 55}
             distance={12}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <View style={styles.card}>
+            {/* A rule, not a card. Six bordered boxes inside a seventh
+                bordered box was the shape that made this page read as a
+                dashboard; a hairline above each entry separates them just as
+                clearly and leaves the page open. */}
+            <View style={styles.ruledItem}>
               <IconTile icon={item.icon} color={accentOf(t, item.accent)} />
               <Heading level={3} style={styles.cardTitle}>
                 {item.title}
@@ -258,7 +263,7 @@ export function IndustriesSection() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </OpenSection>
   );
 }
 
@@ -273,7 +278,9 @@ export function PillarsSection() {
   const columns = l.gridColumns(3);
 
   return (
-    <Section>
+    // A band, so the six pillars read as one idea on their own ground without
+    // any of them being boxed.
+    <Band tone="surface">
       <SectionHead
         label="THE PLATFORM"
         title="More than marketing. One connected business workspace."
@@ -286,10 +293,9 @@ export function PillarsSection() {
             delay={40 + index * 55}
             distance={12}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            {/* The accent lives on the card's top edge rather than in a second
-                icon colour — it is what separates this grid from the industry
-                grid above it at a glance. */}
-            <View style={[styles.pillarCard, { borderTopColor: accentOf(t, item.accent) }]}>
+            {/* No border at all: the tinted ground is already separating this
+                section, and the icon carries the accent the card edge used to. */}
+            <View style={styles.pillar}>
               <View style={styles.pillarHead}>
                 <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
                 <Heading level={3} style={styles.pillarTitle}>
@@ -301,7 +307,7 @@ export function PillarsSection() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -314,10 +320,13 @@ export function FlowAgentAlongsideSection() {
   const t = useTokens();
   const l = useLayout();
   const router = useRouter();
-  const shell = useSectionShell();
+  const open = useOpenSection();
 
+  // Open split: the copy and the panel are two columns of one page, not two
+  // things inside a box. The panel itself stays a card — it is a picture of a
+  // product surface, which is exactly what a card is for.
   return (
-    <Reveal style={[shell, styles.split]} distance={20}>
+    <Reveal style={[open, styles.split]} distance={20}>
       <View style={styles.splitCopy}>
         <SectionLabel>FLOWAGENT</SectionLabel>
         <Heading level={2} style={styles.headTitle}>
@@ -381,7 +390,9 @@ export function ControlSection() {
   const columns = l.gridColumns(3);
 
   return (
-    <Section>
+    // The soft brand ground, so the safety promise is the one section on the
+    // page with its own colour — it is positioning, not a footnote.
+    <Band tone="brand">
       <SectionHead
         label="CONTROL"
         title="Powerful automation. Professional control."
@@ -394,10 +405,7 @@ export function ControlSection() {
             delay={40 + index * 55}
             distance={12}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            {/* Row layout on an inset surface: the same grid as the two above,
-                deliberately quieter, so the page does not read as three
-                identical card walls in a row. */}
-            <View style={styles.controlCard}>
+            <View style={styles.control}>
               <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
               <View style={styles.controlCopy}>
                 <Heading level={3} style={styles.controlTitle}>
@@ -409,7 +417,7 @@ export function ControlSection() {
           </Reveal>
         ))}
       </View>
-    </Section>
+    </Band>
   );
 }
 
@@ -443,34 +451,29 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     cardBody: { ...ty.bodySm, color: t.textMuted },
 
     /* ---------- industries ---------- */
-    card: {
+    // Transparent, square, and separated by a hairline above rather than a box
+    // around. `flexGrow: 1` still equalises the row height so the rules across
+    // a row line up with each other.
+    ruledItem: {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
       minWidth: 0,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 16 : 18,
+      borderTopWidth: 1,
+      borderTopColor: t.border,
+      paddingTop: l.isPhone ? 18 : 22,
+      paddingBottom: l.isPhone ? 4 : 8,
       gap: 12,
-      ...card,
     },
 
     /* ---------- pillars ---------- */
-    pillarCard: {
+    pillar: {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
       minWidth: 0,
-      borderWidth: 1,
-      borderTopWidth: 3,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 16 : 18,
+      paddingVertical: l.isPhone ? 12 : 14,
       gap: 12,
-      ...card,
     },
     pillarHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     pillarTitle: { ...ty.h3, color: t.text, flexShrink: 1, minWidth: 0 },
@@ -531,16 +534,12 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     agentRowText: { ...ty.bodySm, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
 
     /* ---------- control ---------- */
-    controlCard: {
+    control: {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
       minWidth: 0,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceMuted,
-      padding: l.isPhone ? 16 : 18,
+      paddingVertical: l.isPhone ? 12 : 14,
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 14,

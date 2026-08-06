@@ -23,7 +23,8 @@ import {
   PrimaryButton,
   SecondaryButton,
   SectionLabel,
-  useSectionShell,
+  Band,
+  useOpenSection,
   useTypeScale,
 } from './ui';
 
@@ -203,7 +204,6 @@ export function ConnectedChannelsSection() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
   const field = useConnectorField();
   const router = useRouter();
   const styles = useMemo(() => createStyles(t, l), [t, l]);
@@ -215,12 +215,17 @@ export function ConnectedChannelsSection() {
   const radial = !l.isPhone;
 
   return (
-    // One reveal for the whole card, and translate-only. The connector overlay
+    // A band: the diagram is the page's one large visual canvas, so it gets its
+    // own ground rather than a card around it. The Band supplies the padding
+    // the section shell used to.
+    //
+    // One reveal for the whole thing, and translate-only. The connector overlay
     // measures the hub and the tiles against the field with getBoundingClientRect,
     // which includes transforms — so every measured node has to sit inside the
     // *same* transform. A per-tile stagger, or a scale here, would leave the
     // wires pointing at where the tiles used to be.
-    <Reveal style={shell} distance={22}>
+    <Band tone="surface">
+    <Reveal distance={22}>
       <View style={styles.main}>
         <View style={styles.copy}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
@@ -315,6 +320,7 @@ export function ConnectedChannelsSection() {
         ))}
       </View>
     </Reveal>
+    </Band>
   );
 }
 
@@ -446,13 +452,14 @@ function createStyles(t: ThemeTokens, l: Layout) {
       borderWidth: 2,
     },
 
+    // A ruled strip, not an inset box. On the band's own ground a bordered,
+    // tinted rectangle would be a card inside a card again — the rule above it
+    // separates it from the diagram just as well.
     security: {
-      marginTop: l.isStacked ? 26 : 32,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceMuted,
-      padding: l.isPhone ? 12 : 16,
+      marginTop: l.isStacked ? 28 : 36,
+      paddingTop: l.isPhone ? 18 : 24,
+      borderTopWidth: 1,
+      borderTopColor: t.border,
       flexDirection: 'row',
       flexWrap: oneRowSecurity ? 'nowrap' : 'wrap',
       alignItems: 'stretch',

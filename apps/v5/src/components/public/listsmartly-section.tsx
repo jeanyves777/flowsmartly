@@ -13,7 +13,7 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  OpenSection,
   SectionLabel,
   type TypeScale,
   useTypeScale,
@@ -39,7 +39,7 @@ export function ListSmartlySection() {
   const stacked = l.isStacked;
 
   return (
-    <Section style={stacked ? styles.sectionStacked : styles.sectionRow}>
+    <OpenSection style={stacked ? styles.sectionStacked : styles.sectionRow}>
       {/* The FlowSmartly wordmark lives in the header and the footer only —
           inside a feature section it competed with the eyebrow + headline. */}
       <Reveal style={stacked ? styles.columnFull : styles.copyColumn}>
@@ -93,7 +93,7 @@ export function ListSmartlySection() {
           </View>
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 

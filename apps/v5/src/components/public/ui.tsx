@@ -129,6 +129,109 @@ export function Section({
 }
 
 /* ------------------------------------------------------------------ */
+/* open sections and bands                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A public-page section is **open by default**: the page gutter, real vertical
+ * breathing room, and nothing else. No border, no radius, no surface.
+ *
+ * `useSectionShell` above puts every section in a card, and a page built
+ * entirely from it reads as a dashboard — a wall of equally-weighted rounded
+ * rectangles, each one holding a grid of more rounded rectangles. Two borders
+ * around every idea flattens the hierarchy instead of creating it.
+ *
+ * The rule this encodes:
+ *
+ * > A section gets a border, a radius or a card background only when the
+ * > container itself is an interactive object, a distinct product surface, or
+ * > grouped data. Sections are open; cards are for the content objects inside
+ * > one.
+ *
+ * So a heading, an intro, a feature narrative, a diagram or a CTA sits
+ * directly on the page, while a dashboard preview, a pricing plan or a
+ * testimonial keeps its box.
+ */
+export function useOpenSection(): ViewStyle {
+  const l = useLayout();
+  return useMemo(
+    () => ({ paddingHorizontal: l.gutter, paddingVertical: l.sectionSpace }),
+    [l],
+  );
+}
+
+export function OpenSection({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle | ViewStyle[];
+}) {
+  const open = useOpenSection();
+  return <View style={[open, style]}>{children}</View>;
+}
+
+export type BandTone = 'surface' | 'brand';
+
+/**
+ * How far a band has to escape the page column on each side to reach the
+ * viewport edge.
+ *
+ * `PageShell` caps its content at `BP.maxContent` and centres it, so above that
+ * width a band that simply filled its parent would stop at 1536 and read as a
+ * very wide card — the exact thing bands exist to avoid. Below it the column
+ * already *is* the viewport, so the answer is zero.
+ *
+ * Measured rather than a generous constant on purpose: a flat overrun leaves
+ * the scroll container reporting that much phantom width at every viewport.
+ * `overflow-x: hidden` means nobody can scroll into it, but a scroll container
+ * that lies about its own width is the kind of thing that quietly breaks
+ * something later.
+ */
+function bandBleed(width: number): number {
+  return Math.max(0, Math.round((width - BP.maxContent) / 2));
+}
+
+/**
+ * An open section on a tinted, edge-to-edge ground.
+ *
+ * Bands are the page's rhythm: a run of open sections on the page background
+ * with an occasional band gives variation without boxing anything. The tint is
+ * the only thing marking the section, so it carries hairline edges rather than
+ * a radius — a rounded tint is just a wide card again.
+ */
+export function Band({
+  children,
+  tone = 'surface',
+  style,
+}: {
+  children: React.ReactNode;
+  tone?: BandTone;
+  style?: ViewStyle | ViewStyle[];
+}) {
+  const t = useTokens();
+  const l = useLayout();
+  const band = useMemo<ViewStyle>(() => {
+    const bleed = bandBleed(l.width);
+    return {
+      // No `width`: the band stretches to its parent and the negative margins
+      // widen it from there. Setting a width would pin the border box to the
+      // column and leave the margins doing nothing.
+      marginHorizontal: -bleed,
+      // Brings the *content* back onto the column's own gutter, so a band's
+      // text lines up with the open section above it.
+      paddingHorizontal: bleed + l.gutter,
+      paddingVertical: l.sectionSpace,
+      backgroundColor: tone === 'brand' ? t.brandSoft : t.surface,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: t.divider,
+    };
+  }, [t, l, tone]);
+  return <View style={[band, style]}>{children}</View>;
+}
+
+/* ------------------------------------------------------------------ */
 /* eyebrow chip                                                        */
 /* ------------------------------------------------------------------ */
 

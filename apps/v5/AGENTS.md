@@ -128,6 +128,26 @@ validation. Build, screenshot, and open the image.
     server's assumption and adopt reality in a layout effect, or React discards
     the server tree (hydration #418) and the visitor sees a flash of the wrong
     layout. `useLayout()` already handles this; do not bypass it.
+15. **Public-page sections are open by default; cards are for the objects
+    inside one.** A section gets a border, a radius or a card background only
+    when the container *is* an interactive object, a distinct product surface,
+    or grouped data. So: dashboard previews, pricing plans, testimonials and
+    workflow steps keep their box — headings, intros, feature narratives,
+    positioning, safety copy, logos and diagrams do not.
+
+    Reach for `useOpenSection()`/`<OpenSection>` (gutter + `l.sectionSpace`,
+    nothing else) or `<Band>` (the same, on a full-bleed tint) from
+    `components/public/ui`. `useSectionShell()`/`<Section>` is the *card*
+    shell — the older default, still used by the non-home routes. Building a
+    page entirely from it is what produced the "dashboard under a hero" look
+    the home page was rebuilt to escape: a wall of equally-weighted rounded
+    rectangles, each holding a grid of more rounded rectangles, with two
+    borders around every idea and no hierarchy left.
+
+    Rhythm comes from alternating open sections with the occasional band, not
+    from boxing things. Bands escape the `BP.maxContent` column with a measured
+    negative margin — see `bandBleed` — so they reach the viewport edge while
+    their text stays on the same gutter as the open section above.
 
 ---
 

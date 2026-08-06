@@ -39,6 +39,16 @@ export type Layout = {
   sectionPad: number;
   /** vertical space between section cards */
   sectionGap: number;
+  /**
+   * Vertical breathing room *inside* an open section or a band — the rhythm of
+   * a page whose sections are not cards.
+   *
+   * Much larger than `sectionGap`, and deliberately so: a boxed section is
+   * separated from its neighbour by its own border, so 12–18px between the
+   * boxes is enough. An open section has no edge, and whitespace is the only
+   * thing telling a reader that one idea ended and the next began.
+   */
+  sectionSpace: number;
   /** section card corner radius */
   radius: number;
   /** how many cards fit per row for a grid that wants `desired` columns */
@@ -64,6 +74,7 @@ export function resolveLayout(width: number): Layout {
     gutter: pick(bp, 14, 20, 28, 36),
     sectionPad: pick(bp, 18, 24, 30, 38),
     sectionGap: pick(bp, 12, 14, 16, 18),
+    sectionSpace: pick(bp, 40, 52, 64, 76),
     radius: pick(bp, 16, 18, 20, 20),
     gridColumns: (desired: number) => {
       if (desired <= 1) return 1;

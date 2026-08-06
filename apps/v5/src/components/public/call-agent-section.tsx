@@ -21,7 +21,7 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  OpenSection,
   SectionLabel,
   type TypeScale,
   useTypeScale,
@@ -214,7 +214,7 @@ export function CallAgentSection() {
   );
 
   return (
-    <Section style={stacked ? styles.sectionStacked : styles.sectionRow}>
+    <OpenSection style={stacked ? styles.sectionStacked : styles.sectionRow}>
       {/* ---------------------------------------------------------- copy */}
       <Reveal style={stacked ? styles.columnFull : styles.copyColumn}>
         <SectionLabel>FLOWSMARTLY CALL AGENT</SectionLabel>
@@ -414,7 +414,7 @@ export function CallAgentSection() {
           ))}
         </View>
       </Reveal>
-    </Section>
+    </OpenSection>
   );
 }
 
