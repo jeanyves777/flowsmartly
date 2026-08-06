@@ -226,9 +226,14 @@ const TEMPLATES: { title: string; industry: string; media: string; alt: string }
     alt: 'Restaurant weekend menu template',
   },
   {
+    // A scene, like every other template in this grid. This was the backpack
+    // *product cutout* — a tall shot on a transparent ground, dropped into a
+    // 16:10 thumbnail, which crops to an unreadable close-up of one zip. A
+    // template card previews a finished post, so it needs a photograph that
+    // fills the frame.
     title: 'Product spotlight',
     industry: 'Retail & e-commerce',
-    media: 'product/commuter-backpack',
+    media: 'scenes/campaign-spring-product',
     alt: 'Product spotlight template',
   },
   {

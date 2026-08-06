@@ -84,8 +84,20 @@ export const CUTOUTS: ReadonlySet<string> = new Set([
 ${body}
 ]);
 
+/**
+ * Registry keys and derived-file names do not always agree: the editorial art
+ * lives in a subfolder so both sides read editorial/blog-cart-recovery, but
+ * the product shots are flat files (product-commuter-backpack.png) that the
+ * media registry addresses as product/commuter-backpack. Comparing raw, all
+ * four product cutouts reported false — so they were laid out as photographs
+ * and cropped to fill, which is exactly what a cutout must never do.
+ */
+function key(name: string): string {
+  return name.split('/').join('-');
+}
+
 export function isCutout(name: string): boolean {
-  return CUTOUTS.has(name);
+  return CUTOUTS.has(key(name));
 }
 
 /**
@@ -100,7 +112,7 @@ ${artboardBody}
 ]);
 
 export function isArtboard(name: string): boolean {
-  return ARTBOARDS.has(name);
+  return ARTBOARDS.has(key(name));
 }
 `;
   fs.mkdirSync(path.dirname(MANIFEST), { recursive: true });
