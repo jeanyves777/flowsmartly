@@ -14,6 +14,7 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
+  SectionArt,
   SectionLabel,
   Band,
   useOpenSection,
@@ -481,6 +482,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
   // discrete object you compare and choose, which is what a card is for.
   return (
     <Band tone="surface">
+      <SectionArt variant="chart" color={t.brand} side="right" />
       <Reveal>
         <SectionLabel>PRICING</SectionLabel>
         <Heading level={2} style={[type.h1, styles.shelfHeading]}>

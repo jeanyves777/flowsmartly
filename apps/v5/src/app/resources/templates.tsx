@@ -382,6 +382,7 @@ function Library() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="docs" color={t.brand} side="right" />
       <SectionHead
         title="The template library"
         body="Pick the channel you are working on today. Every template arrives complete — copy, timing, audience and all."
@@ -463,7 +464,7 @@ function Bundles() {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="docs" color={t.violet} side="right" />
+      <SectionArt variant="palette" color={t.violet} side="left" />
       <SectionHead
         label="POPULAR BUNDLES"
         title="Whole plays, not single assets."
@@ -572,6 +573,7 @@ function Closing() {
 
   return (
     <Band tone="surface" style={styles.closing}>
+      <SectionArt variant="tasks" color={t.brand} side="right" />
       <Reveal style={styles.closingInner} distance={14}>
         <View style={styles.closingIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />

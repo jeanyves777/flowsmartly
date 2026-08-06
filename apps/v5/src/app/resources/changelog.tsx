@@ -11,6 +11,7 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -275,6 +276,7 @@ function Timeline({ filter }: { filter: Filter }) {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="people" color={t.brand} side="right" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Release history
@@ -384,6 +386,7 @@ function Subscribe() {
 
   return (
     <Band tone="brand" style={styles.subscribe}>
+      <SectionArt variant="shield" color={t.brand} side="left" />
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />

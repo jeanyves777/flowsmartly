@@ -151,12 +151,26 @@ validation. Build, screenshot, and open the image.
     same gutter as the open section above; a flat overrun would leave the
     scroll container reporting phantom width at every viewport.
 
-    `<SectionArt>` puts a faded diagram behind a section. Use it sparingly —
-    a few per page at most. It is drawn geometry, not a sourced image (see the
-    asset rule above), it takes the accent colour and the theme's own alpha,
-    and it goes behind the **copy** rather than a mock: a mock is an opaque
-    card and hides it completely. Its alphas are set by what keeps body text
-    readable, not by what looks good on an empty section.
+    `<SectionArt>` puts a faded line composition behind a section — pass it as
+    the `art` prop on `OpenSection`/`Band` and the section clips it for you.
+    It is drawn geometry, not a sourced image (see the asset rule above), it
+    takes the accent colour and the theme's own alpha, and it **crosses** the
+    section: the curves run off both edges and get clipped. A vignette tucked
+    in one corner reads as a stray graphic; a run that enters and leaves reads
+    as a diagram the page is sitting on.
+
+    There are 21 variants (`network` `sync` `api` `waves` `inbox` `support`
+    `chart` `funnel` `store` `people` `docs` `media` `palette` `calendar`
+    `tasks` `shield` `pulse` `analytics` `learn` `map` `search`) so a section
+    can wear the picture **its own subject** asks for — a security section and
+    a scheduling section must never wear the same one. Pick by content, then
+    check the page: no variant twice on one route.
+
+    Its alphas are set by what keeps body text readable, not by what looks
+    good on an empty section, and the icon nodes sit *below* the linework in
+    weight because they carry a border, a fill and a glyph. The product
+    mockups stay the strongest thing on any page; if the art competes with a
+    heading, the art is wrong.
 
 ---
 

@@ -354,12 +354,14 @@ function Hero() {
 }
 
 function StatStrip() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <View style={styles.grid}>
         {HEADLINE_STATS.map((item, index) => (
           <Reveal
@@ -396,7 +398,7 @@ function Stories() {
 
   return (
     <Band tone="pink">
-      <SectionArt variant="chart" color={t.pink} side="right" />
+      <SectionArt variant="funnel" color={t.pink} side="left" />
       <SectionHead
         label="FEATURED STORIES"
         title="Three teams, three very different problems."
@@ -530,6 +532,7 @@ function Outcomes() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="RESULTS ACROSS THE PLATFORM"
         title="Every product answers to a number."
@@ -568,7 +571,7 @@ function ByTheNumbers() {
 
   return (
     <Band tone="pink">
-      <SectionArt variant="waves" color={t.pink} side="left" />
+      <SectionArt variant="chart" color={t.pink} side="left" />
       <SectionHead label="BY THE NUMBERS" title="What that adds up to across the platform." />
 
       <View style={styles.band}>

@@ -315,10 +315,12 @@ function NewsItem({ article }: { article: Article }) {
 }
 
 function InTheNews() {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="IN THE NEWS"
         title="Recent coverage."
@@ -342,7 +344,7 @@ function CompanyFacts() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="network" color={t.brand} side="right" />
+      <SectionArt variant="api" color={t.brand} side="left" />
       <SectionHead
         label="COMPANY FACTS"
         title="The details, ready to quote."
@@ -456,6 +458,7 @@ function LogoUsage() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="network" color={t.brand} side="right" />
       <SectionHead
         label="LOGO USAGE"
         title="How to use the mark."
@@ -505,7 +508,7 @@ function Leadership() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="chart" color={t.brand} side="left" />
+      <SectionArt variant="shield" color={t.brand} side="left" />
       <SectionHead
         label="LEADERSHIP"
         title="Who to quote."

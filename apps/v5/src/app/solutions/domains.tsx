@@ -366,6 +366,7 @@ export default function DomainsPage() {
 
       {/* ------------------------------------------------ how it works */}
       <Band tone="surface">
+        <SectionArt variant="tasks" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -395,7 +396,7 @@ export default function DomainsPage() {
 
       {/* ------------------------------------------------ included */}
       <Band tone="brand">
-        <SectionArt variant="network" color={t.brand} side="right" />
+        <SectionArt variant="chart" color={t.brand} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>IN THE PRICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -504,6 +505,7 @@ export default function DomainsPage() {
 
       {/* ------------------------------------------------ pricing */}
       <Band tone="surface">
+        <SectionArt variant="analytics" color={t.brand} side="right" />
         <View style={styles.headCentered}>
           <SectionLabel>PRICING</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -564,7 +566,7 @@ export default function DomainsPage() {
 
       {/* ------------------------------------------------ transfer */}
       <Band tone="brand">
-        <SectionArt variant="chart" color={t.brand} side="left" />
+        <SectionArt variant="shield" color={t.brand} side="left" />
         <View style={styles.headCentered}>
           <SectionLabel>MOVING ONE IN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

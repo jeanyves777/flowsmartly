@@ -880,6 +880,7 @@ export default function ProductPage() {
 
       {/* ------------------------------------------------ modules */}
       <Band tone="surface">
+        <SectionArt variant="sync" color={t.brand} side="right" />
         <View style={styles.sectionHead}>
           <SectionLabel>EVERY MODULE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -1059,6 +1060,7 @@ export default function ProductPage() {
 
       {/* ------------------------------------------------ trust */}
       <Band tone="brand">
+        <SectionArt variant="shield" color={t.brand} side="left" />
         <View style={styles.sectionHead}>
           <SectionLabel>HOW WE OPERATE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

@@ -884,6 +884,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ the player */}
       <Band tone="surface">
+        <SectionArt variant="docs" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="THE LESSON PLAYER"
@@ -973,7 +974,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ quizzes */}
       <Band tone="violet">
-        <SectionArt variant="docs" color={t.violet} side="right" />
+        <SectionArt variant="palette" color={t.violet} side="left" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="QUIZZES & ASSESSMENTS"
@@ -1246,6 +1247,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ certificates */}
       <Band tone="surface">
+        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="BRANDED CERTIFICATES"
@@ -1302,6 +1304,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ selling */}
       <Band tone="violet">
+        <SectionArt variant="media" color={t.violet} side="left" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="SELL YOUR COURSES"
@@ -1402,6 +1405,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ devices */}
       <Band tone="surface">
+        <SectionArt variant="analytics" color={t.brand} side="right" />
         <Reveal distance={16}>
           <SectionHead
             eyebrow="EVERY DEVICE"
@@ -1442,7 +1446,7 @@ export default function LearningCenterPage() {
 
       {/* ------------------------------------------------ close */}
       <Band tone="violet">
-        <SectionArt variant="network" color={t.violet} side="left" />
+        <SectionArt variant="learn" color={t.violet} side="left" />
         <Reveal style={styles.closePanel} distance={16}>
           <View style={styles.closeCopy}>
             <SectionLabel>PUBLISH YOUR FIRST COURSE</SectionLabel>

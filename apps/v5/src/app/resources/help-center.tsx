@@ -253,6 +253,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
 
   return (
     <Band tone="surface">
+      <SectionArt variant="docs" color={t.brand} side="right" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -318,7 +319,7 @@ function Topics() {
 
   return (
     <Band tone="orange">
-      <SectionArt variant="waves" color={t.orange} side="right" />
+      <SectionArt variant="support" color={t.orange} side="left" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse help by product
@@ -463,12 +464,14 @@ function SupportRow() {
 }
 
 function Closing() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="surface" style={styles.closing}>
+      <SectionArt variant="palette" color={t.brand} side="right" />
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="life-ring" tone="brand" size={52} />
         <Heading level={2} style={styles.closingTitle}>

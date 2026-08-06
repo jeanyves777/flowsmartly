@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionArt,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -160,6 +161,7 @@ export default function NotFoundScreen() {
       </OpenSection>
 
       <Band tone="surface">
+        <SectionArt variant="docs" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={14}>
           <Heading level={2} style={styles.headTitle}>
             Popular destinations

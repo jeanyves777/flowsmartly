@@ -338,6 +338,7 @@ function FeaturedGuide() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredCopy}>
           <TopicChip label="Featured guide" tone="orange" />
@@ -423,7 +424,7 @@ function Library() {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="docs" color={t.violet} side="right" />
+      <SectionArt variant="learn" color={t.violet} side="left" />
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse the library
@@ -560,12 +561,14 @@ function Paths() {
 }
 
 function Closing() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="surface" style={styles.closing}>
+      <SectionArt variant="network" color={t.brand} side="right" />
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="compass" tone="brand" size={54} />
         <Heading level={2} style={styles.closingTitle}>

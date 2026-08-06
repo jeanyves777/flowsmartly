@@ -709,6 +709,7 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 02 sms + mms */}
       <Band tone="surface">
+        <SectionArt variant="network" color={t.brand} side="right" />
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -778,7 +779,7 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 03 journeys */}
       <Band tone="pink">
-        <SectionArt variant="chart" color={t.pink} side="right" />
+        <SectionArt variant="chart" color={t.pink} side="left" />
         <StepHead
           index={3}
           eyebrow="AUTOMATED JOURNEYS"
@@ -908,6 +909,7 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 05 deliverability */}
       <Band tone="surface">
+        <SectionArt variant="docs" color={t.brand} side="right" />
         <StepHead
           index={5}
           eyebrow="DELIVERABILITY"
@@ -961,7 +963,7 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 06 consent */}
       <Band tone="pink">
-        <SectionArt variant="waves" color={t.pink} side="left" />
+        <SectionArt variant="store" color={t.pink} side="left" />
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead
@@ -1158,6 +1160,7 @@ export default function EmailSmsPage() {
 
       {/* ------------------------------------------------ 08 measure */}
       <Band tone="surface">
+        <SectionArt variant="tasks" color={t.brand} side="right" />
         <StepHead
           index={8}
           eyebrow="PROVE THE IMPACT"

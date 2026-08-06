@@ -710,6 +710,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ configure */}
       <Band tone="surface">
+        <SectionArt variant="tasks" color={t.brand} side="right" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SET IT UP IN AN AFTERNOON</SectionLabel>
@@ -781,7 +782,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ voices */}
       <Band tone="orange">
-        <SectionArt variant="waves" color={t.orange} side="right" />
+        <SectionArt variant="palette" color={t.orange} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT SHOULD SOUND LIKE YOU</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Heading>
@@ -901,6 +902,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ capabilities */}
       <Band tone="surface">
+        <SectionArt variant="support" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHAT IT ACTUALLY DOES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Heading>
@@ -1072,6 +1074,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ transcript & summary */}
       <Band tone="orange">
+        <SectionArt variant="waves" color={t.orange} side="left" />
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>AFTER THE CALL</SectionLabel>
@@ -1162,6 +1165,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ trust */}
       <Band tone="surface">
+        <SectionArt variant="docs" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE PARTS THAT MATTER</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Heading>
@@ -1191,7 +1195,7 @@ export default function CallAgentPage() {
 
       {/* ------------------------------------------------ performance */}
       <Band tone="orange">
-        <SectionArt variant="docs" color={t.orange} side="left" />
+        <SectionArt variant="analytics" color={t.orange} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED LIKE ANY CHANNEL</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Performance at a glance.</Heading>

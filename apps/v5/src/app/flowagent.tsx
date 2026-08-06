@@ -175,24 +175,26 @@ const CAPABILITIES: { icon: string; title: string; body: string; accent: Accent 
 /**
  * The one reasoning agent that is actually designed and locked.
  *
- * Nothing else on this page is named as an agent, because a name implies
- * declared inputs, outputs, permissions, verifiers and stop conditions. Where
- * those exist, say so. Where they do not, say "capability".
+ * The `cannot` list is the more important half: a page that only advertises
+ * reach is the kind a buyer stops trusting the first time something unexpected
+ * happens.
  *
- * The `cannot` list is the more important half: an agent page that only
- * advertises reach is the kind a buyer stops trusting the first time something
- * unexpected happens.
+ * **Why nothing else here is called an agent is not the visitor's problem.**
+ * The reasoning — declared inputs, outputs, permissions, verifiers, stop
+ * conditions — lives in `AGENTS.md` and the architecture docs. What a buyer
+ * needs from this section is the boundary, not its justification.
  */
 const OPPORTUNITY_STRATEGIST = {
   name: 'Opportunity Strategist',
+  headline: 'A specialist for complex opportunities',
   blurb:
-    'Reads a prospect’s situation and works out what to propose. It reasons about the opportunity — it does not touch your systems.',
+    'The Opportunity Strategist analyzes business context, identifies needs, recommends the right outcomes, and structures proposal strategy. FlowAgent coordinates the surrounding research, approvals, documents, communications, and follow-up through controlled capabilities.',
   can: [
-    'Interpret a prospect’s business situation',
-    'Identify the needs that are actually relevant',
-    'Recommend outcomes and services to propose',
-    'Structure a proposal strategy',
-    'State its assumptions and what information is missing',
+    'Interpret the business situation',
+    'Identify needs and opportunities',
+    'Recommend outcomes and services',
+    'Structure the proposal strategy',
+    'Surface assumptions and missing information',
   ],
   cannot: ['Send', 'Publish', 'Charge', 'Wait', 'Approve', 'Modify records'],
 };
@@ -436,6 +438,7 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ the five states */}
       <Band tone="surface">
+        <SectionArt variant="tasks" color={t.brand} side="right" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHERE THE WORK IS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -501,6 +504,7 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ insight to impact */}
       <Band tone="surface">
+        <SectionArt variant="sync" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -588,29 +592,21 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ the one named agent */}
       <Band tone="violet">
-        <SectionArt variant="network" color={t.violet} side="right" />
+        <SectionArt variant="funnel" color={t.violet} side="right" />
         <View style={styles.strategistRow}>
           <Reveal style={styles.strategistCopy} distance={16}>
-            <SectionLabel>THE ONE NAMED AGENT</SectionLabel>
+            <SectionLabel>OPPORTUNITY STRATEGIST</SectionLabel>
             <Heading level={2} style={[type.h2, styles.headTitle, styles.strategistTitle]}>
-              Opportunity Strategist.
+              {OPPORTUNITY_STRATEGIST.name}
             </Heading>
             <Text style={[type.body, styles.headSub, styles.strategistBody]}>
               {OPPORTUNITY_STRATEGIST.blurb}
-            </Text>
-            {/* The honest bit. Everything else on this page is described as a
-                capability precisely because only this one has declared inputs,
-                outputs, permissions, verifiers and stop conditions. */}
-            <Text style={[type.bodySm, styles.strategistNote]}>
-              It is the only reasoning agent we name. The rest of the work above is capability
-              FlowAgent coordinates — we will name another one here when it has the same declared
-              inputs, outputs, permissions, verifiers and stop conditions this one does.
             </Text>
           </Reveal>
 
           <Reveal style={styles.strategistPanel} distance={16} delay={90}>
             <View style={styles.strategistCard}>
-              <Text style={styles.strategistCardTitle}>What it does</Text>
+              <Text style={styles.strategistCardTitle}>It can</Text>
               {OPPORTUNITY_STRATEGIST.can.map((item) => (
                 <View key={item} style={styles.strategistCanRow}>
                   <View style={styles.strategistTick}>
@@ -622,7 +618,7 @@ export default function FlowAiPage() {
 
               <View style={styles.strategistDivider} />
 
-              <Text style={styles.strategistCardTitle}>What it never does</Text>
+              <Text style={styles.strategistCardTitle}>It never acts directly</Text>
               <View style={styles.strategistCannotWrap}>
                 {OPPORTUNITY_STRATEGIST.cannot.map((item) => (
                   <Text key={item} style={styles.strategistCannot}>
@@ -666,6 +662,7 @@ export default function FlowAiPage() {
 
       {/* ------------------------------------------------ control */}
       <Band tone="brand">
+        <SectionArt variant="shield" color={t.brand} side="left" />
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>GUARDRAILS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
@@ -1130,7 +1127,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 14 },
     strategistTitle: { textAlign: 'left' },
     strategistBody: { textAlign: 'left', maxWidth: 520 },
-    strategistNote: { color: t.textSubtle, maxWidth: 520 },
     strategistPanel: l.isStacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 0.9, flexShrink: 1, flexBasis: 0, minWidth: 0 },

@@ -384,11 +384,13 @@ function Hero() {
 /* ------------------------------------------------------------------ */
 
 function Philosophy() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <Band tone="surface" style={styles.philosophy}>
+      <SectionArt variant="network" color={t.brand} side="right" />
       <Reveal style={styles.philosophyInner} distance={14}>
         <IconTile icon="book-open" tone="brand" size={l.isPhone ? 60 : 84} />
         <View style={styles.philosophyCopy}>
@@ -418,7 +420,7 @@ function Pillars() {
 
   return (
     <Band tone="violet">
-      <SectionArt variant="docs" color={t.violet} side="right" />
+      <SectionArt variant="docs" color={t.violet} side="left" />
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -614,6 +616,7 @@ function CourseToCapability() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="tasks" color={t.brand} side="right" />
       <SectionHead
         label="THE PATH"
         title="From course to capability"
@@ -655,11 +658,13 @@ function CourseToCapability() {
 /* ------------------------------------------------------------------ */
 
 function SupportStrip() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <Band tone="violet" style={styles.stripSection}>
+      <SectionArt variant="palette" color={t.violet} side="left" />
       <Reveal style={styles.strip} distance={12}>
         {SUPPORT.map((item, index) => (
           <View
@@ -816,12 +821,14 @@ function GovernanceAndAssistant() {
 /* ------------------------------------------------------------------ */
 
 function Closing() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="surface" style={styles.closing}>
+      <SectionArt variant="support" color={t.brand} side="right" />
       <Reveal style={styles.closingInner} distance={14}>
         <Media
           name="flowsmartly-mark"

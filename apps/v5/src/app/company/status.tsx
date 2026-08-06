@@ -353,11 +353,13 @@ function Hero() {
 }
 
 function Components() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <Band tone="surface">
+      <SectionArt variant="tasks" color={t.brand} side="right" />
       <SectionHead
         label="COMPONENTS"
         title="Nine services, ninety days each."
@@ -423,7 +425,7 @@ function UptimeTiles() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="network" color={t.brand} side="right" />
+      <SectionArt variant="shield" color={t.brand} side="left" />
       <SectionHead
         label="UPTIME OVER TIME"
         title="Availability, measured three ways."
@@ -530,6 +532,7 @@ function Maintenance() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="SCHEDULED MAINTENANCE"
         title="One window on the calendar."
@@ -575,6 +578,7 @@ function Subscribe() {
 
   return (
     <Band tone="brand" style={styles.subscribe}>
+      <SectionArt variant="api" color={t.brand} side="left" />
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />

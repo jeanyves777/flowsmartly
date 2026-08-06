@@ -666,12 +666,14 @@ function Hero() {
 }
 
 function Quickstarts() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
     <Band tone="surface">
+      <SectionArt variant="tasks" color={t.brand} side="right" />
       <SectionHead
         label="QUICKSTARTS"
         title="Start where your product does."
@@ -712,7 +714,7 @@ function Sdks() {
 
   return (
     <Band tone="brand">
-      <SectionArt variant="network" color={t.brand} side="right" />
+      <SectionArt variant="shield" color={t.brand} side="left" />
       <SectionHead
         label="SDKS"
         title="Official SDKs"
@@ -895,6 +897,7 @@ function ExplorerAndWebhooks() {
 }
 
 function SecurityAndLimits() {
+  const t = useTokens();
   const styles = useStyles();
   const ink = useInk();
   const l = useLayout();
@@ -902,6 +905,7 @@ function SecurityAndLimits() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         label="OPERATING RULES"
         title="Secure by design, predictable under load."
@@ -954,12 +958,14 @@ function SecurityAndLimits() {
 }
 
 function Closing() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <Band tone="brand" style={styles.closing}>
+      <SectionArt variant="api" color={t.brand} side="left" />
       <Reveal style={styles.closingInner} distance={14}>
         {/* SectionLabel pins itself to flex-start, so a shrink-to-fit wrapper is
             what actually centres it */}

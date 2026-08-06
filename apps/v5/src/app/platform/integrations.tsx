@@ -361,6 +361,7 @@ function Directory() {
 
   return (
     <Band tone="surface">
+      <SectionArt variant="analytics" color={t.brand} side="right" />
       <SectionHead
         title="The integration directory"
         body="Search by name, or narrow it down to the part of your stack you are wiring up today."
@@ -450,7 +451,7 @@ function FeaturedIntegrations() {
 
   return (
     <Band tone="green">
-      <SectionArt variant="network" color={t.green} side="right" />
+      <SectionArt variant="shield" color={t.green} side="left" />
       <SectionHead
         label="FEATURED INTEGRATIONS"
         title="The three most teams connect first."
@@ -591,6 +592,7 @@ function RequestPanel() {
 
   return (
     <Band tone="surface" style={styles.request}>
+      <SectionArt variant="network" color={t.brand} side="right" />
       <Reveal style={styles.requestInner} distance={14}>
         <View style={styles.requestIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
