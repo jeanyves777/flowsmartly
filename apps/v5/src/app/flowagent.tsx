@@ -382,7 +382,7 @@ export default function FlowAiPage() {
     <PageShell
       title="FlowAgent"
       // 161 chars — the readiness audit fails a description over 165.
-      description="FlowAgent understands your goals, systems, permissions and operating rules, then researches, prepares and recommends. Nothing sensitive happens without approval."
+      description="FlowAgent understands your goals, systems, permissions and rules, then researches, prepares and recommends. Nothing sensitive happens without approval."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -473,7 +473,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the five states */}
-      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHERE THE WORK IS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

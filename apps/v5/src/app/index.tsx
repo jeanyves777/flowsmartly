@@ -1393,7 +1393,7 @@ export default function HomeScreen() {
     <PageShell
       title="The AI Business Operating System"
       // 163 chars — the readiness audit fails a description over 165.
-      description="One intelligent platform to run, connect and grow your business: operate, create, serve, sell and understand, with a secure AI partner working alongside your team."
+      description="One intelligent platform to run, connect and grow your business: operate, create, serve, sell and understand, with a secure AI partner alongside your team."
       footer="full"
       // The site root, so it carries the Organization and WebSite records as
       // well as its own breadcrumb.

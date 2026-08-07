@@ -253,7 +253,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -318,7 +318,7 @@ function Topics() {
   const columns = l.isPhone ? 1 : l.isStacked ? 2 : 5;
 
   return (
-    <Band tone="orange" art={{ variant: 'support', color: t.orange, side: 'left' }}>
+    <Band tone="orange">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Browse help by product

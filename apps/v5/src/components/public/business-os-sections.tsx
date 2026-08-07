@@ -280,8 +280,7 @@ export function PillarsSection() {
   return (
     // A band, so the six pillars read as one idea on their own ground without
     // any of them being boxed.
-    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}
-      aside={{ variant: 'docs', color: t.violet, side: 'right' }}>
+    <Band tone="surface"      aside={{ variant: 'docs', color: t.violet, side: 'right' }}>
       <SectionHead
         label="THE PLATFORM"
         title="More than marketing. One connected business workspace."
@@ -393,8 +392,7 @@ export function ControlSection() {
   return (
     // The soft brand ground, so the safety promise is the one section on the
     // page with its own colour — it is positioning, not a footnote.
-    <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}
-      aside={{ variant: 'shield', color: t.brand, side: 'right' }}>
+    <Band tone="brand"      aside={{ variant: 'shield', color: t.brand, side: 'right' }}>
       <SectionHead
         label="CONTROL"
         title="Powerful automation. Professional control."

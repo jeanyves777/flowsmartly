@@ -928,7 +928,7 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ seven moments */}
-      <Band tone="surface" art={{ variant: 'learn', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SHAPE OF A GOOD LESSON</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>Seven teaching moments, every lesson.</Heading>

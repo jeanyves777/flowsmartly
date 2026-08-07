@@ -572,7 +572,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
           <Text style={styles.featuredTitle}>The Connected Growth Playbook</Text>
           <Text style={styles.featuredBlurb}>
             How the channels you already run — content, messaging, commerce and local — add up to one
-            growth system instead of five disconnected chores.
+            operating system instead of five disconnected chores.
           </Text>
           <View style={styles.featuredMeta}>
             <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
@@ -609,7 +609,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -668,7 +668,7 @@ function Categories() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
+    <Band tone="violet">
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."

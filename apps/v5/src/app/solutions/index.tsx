@@ -433,7 +433,7 @@ function AudienceBoard({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
           </View>
           <View style={styles.boardHeadCopy}>
             <Text numberOfLines={1} style={styles.boardTitle}>
-              Your growth system
+              Your operating system
             </Text>
             <Text numberOfLines={1} style={styles.boardSub}>
               Configured for how you actually work
@@ -517,7 +517,7 @@ export default function SolutionsPage() {
   return (
     <PageShell
       title="Solutions"
-      description="Growth solutions for small businesses, ecommerce brands, agencies and multi-location teams. Start with the workflow you need today."
+      description="Solutions for services, retail, healthcare, professional practices, education, hospitality and multi-location teams. Start with the work you need done today."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -531,7 +531,7 @@ export default function SolutionsPage() {
           <View style={styles.heroCopy}>
             <SectionLabel>SOLUTIONS THAT MOVE WITH YOUR BUSINESS</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              A smarter growth system for every stage.
+              One operating system, shaped to how your business runs.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Start with the workflow you need today. Connect the rest when your business is ready.
@@ -647,7 +647,7 @@ export default function SolutionsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ outcomes */}
-      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

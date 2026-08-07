@@ -365,7 +365,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>FROM PROMPT TO PUBLISHED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -540,7 +540,7 @@ export default function WebsiteBuilderPage() {
             A site that is part of the business, not beside it.
           </Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
-            The website most small businesses have is disconnected from everything that happens after
+            The website most businesses have is disconnected from everything that happens after
             someone visits it. This one is not.
           </Text>
         </View>

@@ -365,7 +365,7 @@ export default function DomainsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

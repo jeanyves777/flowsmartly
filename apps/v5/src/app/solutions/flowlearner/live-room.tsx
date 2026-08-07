@@ -860,7 +860,7 @@ export default function LiveRoomPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ whiteboard */}
-      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.sharedBoardCard}>

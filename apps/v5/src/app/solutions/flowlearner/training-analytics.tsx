@@ -1051,7 +1051,7 @@ export default function TrainingAnalyticsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 completion & drop-off */}
-      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <Reveal distance={16}>
           <NumberedHead
             index="02"

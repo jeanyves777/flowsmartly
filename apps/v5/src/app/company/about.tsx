@@ -140,7 +140,7 @@ const STORY: { year: string; title: string; lines: [string, string]; icon: strin
     year: '2024+',
     title: 'The road ahead',
     lines: [
-      'One connected growth system, guided by an AI operator you control.',
+      'One connected operating system, guided by an AI partner you control.',
       'Same promise: powerful tools, accessible to every business.',
     ],
     icon: 'compass',
@@ -327,7 +327,7 @@ export default function AboutPage() {
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Building the connected growth system for modern businesses.
+              Building the operating system real businesses run on.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
               FlowSmartly brings powerful growth tools—playbooks, AI, automation, and insights—together
@@ -394,7 +394,7 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ mission */}
       <View nativeID="about-mission">
-        <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+        <Band tone="surface">
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>

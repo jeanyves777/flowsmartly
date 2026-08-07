@@ -303,7 +303,7 @@ function Hero() {
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CAREERS AT FLOWSMARTLY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
-          Build the growth system small businesses deserve.
+          Build the operating system real businesses deserve.
         </Heading>
         <Text style={styles.heroBody}>
           We&apos;re a small, senior team building software that thousands of businesses run on every
@@ -350,7 +350,7 @@ function Values() {
   const columns = l.isCompact ? 1 : 5;
 
   return (
-    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <SectionHead
         label="WHAT WE VALUE"
         title="Five things we actually hire for."
@@ -669,7 +669,7 @@ export default function CareersPage() {
   return (
     <PageShell
       title="Careers"
-      description="Join a small, senior team building the growth system thousands of businesses run on every day. Remote-first roles across engineering, design, product and growth."
+      description="Join a small, senior team building the system thousands of businesses run on every day. Remote-first roles across engineering, design, product and growth."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },

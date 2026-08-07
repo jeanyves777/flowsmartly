@@ -674,7 +674,7 @@ function Quickstarts() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
 
   return (
-    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <SectionHead
         label="QUICKSTARTS"
         title="Start where your product does."

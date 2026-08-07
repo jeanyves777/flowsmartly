@@ -640,7 +640,7 @@ export default function IntegrationsPage() {
   return (
     <PageShell
       title="Integrations"
-      description="FlowSmartly plugs into your stack so customer data, campaigns and conversations stay in sync — commerce, CRM, messaging, social, analytics and productivity tools."
+      description="FlowSmartly plugs into your stack so customer data, campaigns and conversations stay in sync: commerce, CRM, messaging, social, analytics and productivity."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },

@@ -909,7 +909,7 @@ export default function AdsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ organic → ads */}
-      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PROVEN BEFORE IT PAYS</SectionLabel>

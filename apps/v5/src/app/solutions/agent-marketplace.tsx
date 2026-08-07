@@ -643,7 +643,7 @@ export default function AgentMarketplacePage() {
       </OpenSection>
 
       {/* ------------------------------------------------ browse by service */}
-      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.headCentered}>
           <SectionLabel>BROWSE BY SERVICE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>Start with the job to be done.</Heading>

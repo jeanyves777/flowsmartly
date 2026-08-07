@@ -653,7 +653,7 @@ export default function AiStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ brand context */}
-      <Band tone="surface" art={{ variant: 'palette', color: t.brand, side: 'right' }}>
+      <Band tone="surface">
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>BRAND CONTEXT</SectionLabel>

@@ -359,7 +359,7 @@ function Components() {
   const l = useLayout();
 
   return (
-    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <SectionHead
         label="COMPONENTS"
         title="Nine services, ninety days each."

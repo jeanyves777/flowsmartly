@@ -158,34 +158,58 @@ validation. Build, screenshot, and open the image.
     same gutter as the open section above; a flat overrun would leave the
     scroll container reporting phantom width at every viewport.
 
-    Illustration has exactly **two zones**, and both are empty page:
+    Illustration has exactly **two zones**, and a section never has to guess
+    whether either one is free — both are empty by construction:
 
     - **The gap between sections** — every section carries `l.sectionSpace` of
       padding top and bottom, so a boundary is 80-150px that never holds copy,
       a card or a mockup. `<SectionArt>` (the `art` prop) straddles it with
       flowing lines and icon nodes, full width, so it fills the side margins
       the content columns leave behind too.
-    - **The hole a layout actually leaves** — usually beside a narrow
-      left-aligned head, or below the copy column of a split hero whose mockup
-      is taller. `<SectionAside>` (the `aside` prop, or the component directly
-      when the section is a `Reveal` rather than an `OpenSection`) fills it.
+    - **A band the section reserves for it** — `<SectionAside>` (the `aside`
+      prop, or the component directly when the section is a `Reveal` rather
+      than an `OpenSection`). The section adds `l.sectionSpace + BAND_H` to its
+      own bottom padding, and the illustration is drawn in that padding, so it
+      *cannot* land on content.
 
-      **Measure it, do not reason about it.** Rasterise where content really is
-      and find the largest empty rectangle per section — guessing "the head is
-      capped at 780 so the right must be free" holds for one layout and fails
-      on the next. Two traps the measurement itself has: a mock panel is a card
-      full of nested rows, so a detector that only counts leaf nodes reads it as
-      empty and points at the busiest part of the page; and a "right/top" hole
-      on a split hero is usually the mockup's own top padding, where an
-      illustration lands behind an opaque card and shows as a stray sliver.
-      Check the screenshot before keeping a placement.
+      The first version instead trusted the hole a layout leaves — the gap
+      under a copy column whose neighbouring mockup is taller. Measured against
+      every text run and image on all 44 routes, that hole is not reliably
+      there: illustrations sat on a CTA, a proof row or a hero paragraph on
+      nine routes, by 10px in the best case and 77 in the worst. Reserving the
+      space is the only version that holds at every width.
 
-    Nothing goes behind the content. Three earlier attempts did and all three
+    Three things this band has to get right, each of which was wrong first:
+
+    - **It spans the page, not a corner of it.** A 234px composition in one
+      margin leaves the rest of a reserved band as flat colour, which reads as
+      the page having stopped. The drawing runs edge to edge, with its plates
+      *spread* across the width rather than sliced off the front of the list —
+      taking the first N put every plate in the left half.
+    - **It bleeds past `BP.maxContent`.** `left: 0` stops at the content
+      column, so on a 1900 viewport the lines ended 180px short of both edges
+      and looked cut off. Use the same measured negative margin a tinted band
+      uses (`bandBleed`).
+    - **One decoration per seam.** The band closes the boundary below its
+      section; the *next* section's `art` strip straddles that same boundary,
+      and both together read as a duplicate. A section that follows an
+      aside-bearing one carries no `art`. Watch for a conditional section
+      (`{searching ? <SearchResults/> : null}`) — source order is not render
+      order, and either branch can be the one that follows the band.
+
+    Nothing goes behind the content. Four earlier attempts did and all four
     were wrong — a composition behind the copy collided with headings, a
     version keyed to "sections without an `<Image>`" still landed on the
-    connector diagrams, and an outline tracing each section is a border, not an
-    illustration. Real product imagery always wins; illustration only fills
-    space that is otherwise empty.
+    connector diagrams, an outline tracing each section is a border rather than
+    an illustration, and `Band` shipped without the reserve `OpenSection` had,
+    so on the two sections that use it the drawing sat over the last rows of
+    copy. Real product imagery always wins; illustration only fills space that
+    is otherwise empty.
+
+    **Both of these are detectors, not opinions.** Intersect every decoration
+    with every text run and image (`no aside sits on content`), and intersect
+    decorations with each other (`no seam carries two decorations`). Run them
+    after any change to section padding.
 
 ---
 

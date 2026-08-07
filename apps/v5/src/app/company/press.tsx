@@ -62,7 +62,7 @@ type Article = { publication: string; headline: string; date: string };
 const NEWS: Article[] = [
   {
     publication: 'Growth Weekly',
-    headline: 'FlowSmartly raises $32M to put an AI operating partner in every small business',
+    headline: 'FlowSmartly raises $32M to put an AI operating partner in every business',
     date: 'March 4, 2024',
   },
   {
@@ -321,7 +321,7 @@ function InTheNews() {
   const styles = useStyles();
 
   return (
-    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <SectionHead
         label="IN THE NEWS"
         title="Recent coverage."

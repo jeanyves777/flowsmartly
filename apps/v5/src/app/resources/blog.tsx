@@ -273,7 +273,7 @@ function Featured() {
   const router = useRouter();
 
   return (
-    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredArt}>
           <Artwork name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />

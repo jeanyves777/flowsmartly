@@ -349,7 +349,7 @@ function Hero() {
         <View style={styles.heroCopy}>
           <SectionLabel>AI FLUENCY</SectionLabel>
           <Heading level={1} style={styles.heroTitle}>
-            AI fluency for small businesses.
+            AI fluency for the whole business.
           </Heading>
           <Text style={styles.heroBody}>
             Build the knowledge, judgment, and practical skills to use AI confidently—without losing
@@ -419,7 +419,7 @@ function Pillars() {
   const columns = l.isPhone ? 2 : l.isDesktop ? 6 : 3;
 
   return (
-    <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'right' }}>
+    <Band tone="violet">
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"

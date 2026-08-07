@@ -146,7 +146,7 @@ export function useAsideBand(): ViewStyle {
   // an empty object rather than null: this is spread into a style array beside
   // the open style, and RNW's ViewStyle does not accept null in that position
   return useMemo(
-    () => (l.isStacked ? {} : { paddingBottom: l.sectionSpace + ASIDE_H }),
+    () => (l.isStacked ? {} : { paddingBottom: l.sectionSpace + BAND_H }),
     [l],
   );
 }
@@ -614,27 +614,40 @@ const ASIDES: Record<AsideVariant, Aside> = {
 };
 
 /**
- * The field the twelve compositions are drawn in, and the box they are drawn
- * into — two different things, and conflating them cut every one of them off.
+ * The band is the whole width of the page, not a corner of it.
  *
- * `ASIDE_H` is 190, not 300: a hero's copy column ends 100-150px above the
- * section edge, so a 300px band anchored there reaches back over the proof row
- * under the buttons. But the coordinates below were authored in a ~320-tall
- * field, and using the *rendered* height as the viewBox meant the SVG viewport
- * clipped everything past y=190 — plates sliced flat along their bottom edge,
- * connectors ending in mid-air. The viewBox is the authored field; the wrap is
- * sized to that field's ratio so `meet` letterboxes nothing and the icon
- * overlay, which positions in percentages of the wrap, still lands on its node.
+ * The first version drew a 234x156 composition in one margin, which on a
+ * 1440 page left most of a reserved band as flat colour — it read as the page
+ * having stopped rather than as an illustration. So the drawing spans the
+ * band: flowing lines edge to edge, plates and icon nodes distributed across
+ * the full width, at a scale that fills the space it was given.
+ *
+ * It is also the separator that boundary needs. A deep gap with nothing
+ * crossing it looks like a mistake; a line running the width of the page
+ * tells a reader one idea ended and the next began.
  */
-const ASIDE_W = 480;
-const ASIDE_FIELD = 320;
-/**
- * 156, measured rather than chosen. Anchored to a section's bottom edge, a
- * 190-tall box reached 10-23px past where the hero's proof row ends on every
- * route that has one; 156 clears it with room to spare at 1120, 1440 and 1920.
- */
-const ASIDE_H = 156;
-const ASIDE_DRAWN_W = Math.round(ASIDE_W * (ASIDE_H / ASIDE_FIELD));
+const BAND_H = 190;
+
+/** where the icon nodes sit across the width, and how big each one is */
+const BAND_STOPS = [
+  { at: 0.07, size: 44, y: 0.62 },
+  { at: 0.2, size: 34, y: 0.3 },
+  { at: 0.35, size: 54, y: 0.58 },
+  { at: 0.5, size: 38, y: 0.26 },
+  { at: 0.64, size: 48, y: 0.6 },
+  { at: 0.79, size: 34, y: 0.32 },
+  { at: 0.92, size: 44, y: 0.58 },
+];
+
+/** soft plates behind the run, as fractions of the band */
+const BAND_PLATES = [
+  { at: 0.13, w: 108, h: 74, y: 0.16 },
+  { at: 0.29, w: 74, h: 54, y: 0.52 },
+  { at: 0.44, w: 128, h: 82, y: 0.2 },
+  { at: 0.58, w: 84, h: 60, y: 0.48 },
+  { at: 0.72, w: 116, h: 76, y: 0.18 },
+  { at: 0.86, w: 78, h: 56, y: 0.5 },
+];
 
 /**
  * Drawn, never sourced — this repo does not generate or download images, and a
@@ -642,71 +655,132 @@ const ASIDE_DRAWN_W = Math.round(ASIDE_W * (ASIDE_H / ASIDE_FIELD));
  * themes. Everything takes the accent colour and the theme's own alpha.
  *
  * Decoration in the strictest sense: absolutely positioned, never pressable,
- * no layout contribution, and dropped below laptop where the head is no longer
- * narrow enough to leave a hole beside it.
+ * no layout contribution, and dropped below the split, where the section no
+ * longer reserves a band for it.
  */
-export function SectionAside({ variant, color, side = 'right', at = 'top' }: SectionAsideProps) {
+export function SectionAside({ variant, color, side = 'right', at = 'bottom' }: SectionAsideProps) {
   const t = useTokens();
   const l = useLayout();
   const aside = ASIDES[variant];
 
-  // Below the split point the head goes full width and there is no empty side.
+  // Below the split the section does not reserve the band, so there is no
+  // empty page to draw in.
   if (l.isStacked) return null;
 
   const dark = t.mode !== 'light';
-  const line = hexToRgba(color, dark ? 0.3 : 0.24);
-  const soft = hexToRgba(color, dark ? 0.18 : 0.14);
-  const fill = hexToRgba(color, dark ? 0.12 : 0.075);
-  const mark = hexToRgba(color, dark ? 0.4 : 0.32);
+  const line = hexToRgba(color, dark ? 0.32 : 0.25);
+  const soft = hexToRgba(color, dark ? 0.2 : 0.15);
+  const fill = hexToRgba(color, dark ? 0.13 : 0.085);
+  const mark = hexToRgba(color, dark ? 0.42 : 0.34);
+
+  /*
+   * Each variant keeps its own vocabulary — a docs band is files and a pen, a
+   * people band is faces — so the illustration still belongs to the section it
+   * sits under. The twelve aside variants share their names with twelve strip
+   * variants, so both icon sets are pooled: two icons cycling across seven
+   * stops read as a repeat, five or six read as a drawing.
+   */
+  /*
+   * The page column stops at BP.maxContent, so `left: 0` stops there too — on
+   * a 1900 viewport the lines ended 180px short of each edge and the band read
+   * as a cut-off drawing rather than one that runs the width of the page. The
+   * same measured negative margin a tinted band uses puts it back on the
+   * viewport edge; a flat overrun would leave the scroller reporting phantom
+   * width instead.
+   */
+  const bleed = bandBleed(l.width);
+
+  const icons = [
+    ...new Set([...aside.nodes.map((n) => n.icon), ...STRIPS[variant as ArtVariant].nodes.map((n) => n.icon)]),
+  ];
+  const curves = side === 'left' ? PAIRS.c : PAIRS.a;
+  /*
+   * Spread across the width, not the first N of them: taking a slice put every
+   * plate in the left half and left the right third of the band as bare line.
+   */
+  const plateCount = Math.min(BAND_PLATES.length, 4 + (aside.plates?.length ?? 0));
+  const stride = BAND_PLATES.length / plateCount;
+  const plates = Array.from({ length: plateCount }, (_, i) => BAND_PLATES[Math.floor(i * stride)]);
 
   return (
     <View
       pointerEvents="none"
       aria-hidden
       style={[
-        asideStyles.wrap,
-        side === 'left' ? { left: 0 } : { right: 0 },
-        // Set one edge or the other, never both: an `undefined` in a later
-        // style does not erase an earlier `top: 0`, so a default top in the
-        // base style would pin this to the wrong end and silently win.
+        bandStyles.wrap,
+        { left: -bleed, right: -bleed },
         at === 'bottom' ? { bottom: 0 } : { top: 0 },
       ]}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_FIELD}`} preserveAspectRatio="xMidYMid meet">
-        {aside.plates?.map(([x, y, w, h, r]) => (
-          <Rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx={r} fill={fill} stroke={soft} strokeWidth={1.2} />
-        ))}
-        {aside.links.map((d) => (
-          <Path key={d} d={d} stroke={line} strokeWidth={1.5} strokeDasharray="1 8" strokeLinecap="round" fill="none" />
-        ))}
-        {aside.nodes.map((n) => (
-          <Circle key={`${n.x}-${n.y}`} cx={n.x} cy={n.y} r={n.r} fill={fill} stroke={line} strokeWidth={1.3} />
-        ))}
-        {aside.dots.map(([cx, cy]) => (
-          <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={5} fill={mark} />
+      {/* The field is stretched to the page width, so only the long flowing
+          lines are drawn inside it — anything round would become an oval. */}
+      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${BAND_H}`} preserveAspectRatio="none">
+        {curves.map((d, i) => (
+          <Path
+            key={d}
+            d={d}
+            stroke={i === 0 ? line : soft}
+            strokeWidth={i === 0 ? 2.6 : 1.6}
+            strokeDasharray={i === 0 ? undefined : '1 9'}
+            strokeLinecap="round"
+            fill="none"
+            transform={`translate(0 ${BAND_H * 0.18})`}
+          />
         ))}
       </Svg>
 
-      {/* Glyphs are Views laid over the circles: drawing them inside the SVG
-          would scale them with the viewBox and lose the icon font. */}
-      {aside.nodes.map((n) => (
+      {plates.map((plate) => (
         <View
-          key={n.icon}
+          key={`plate-${plate.at}`}
           style={[
-            asideStyles.glyph,
-            { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_FIELD) * 100}%` },
+            bandStyles.plate,
+            {
+              left: `${plate.at * 100}%`,
+              top: plate.y * BAND_H,
+              width: plate.w,
+              height: plate.h,
+              backgroundColor: fill,
+              borderColor: soft,
+            },
+          ]}
+        />
+      ))}
+
+      {BAND_STOPS.map((stop, index) => (
+        <View
+          key={`stop-${stop.at}`}
+          style={[
+            bandStyles.node,
+            {
+              left: `${stop.at * 100}%`,
+              top: stop.y * BAND_H - stop.size / 2,
+              width: stop.size,
+              height: stop.size,
+              borderRadius: stop.size / 2,
+              marginLeft: -stop.size / 2,
+              backgroundColor: fill,
+              borderColor: line,
+            },
           ]}>
-          <FontAwesome6 name={n.icon as never} size={Math.round(n.r * 0.62)} color={mark} />
+          <FontAwesome6
+            name={icons[index % icons.length] as never}
+            size={Math.round(stop.size * 0.42)}
+            color={mark}
+          />
         </View>
       ))}
     </View>
   );
 }
 
-const asideStyles = StyleSheet.create({
-  // Anchored to the top of the section so it sits beside the head, not over
-  // the grid that follows it.
-  wrap: { position: 'absolute', width: ASIDE_DRAWN_W, height: ASIDE_H },
-  glyph: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
+const bandStyles = StyleSheet.create({
+  wrap: { position: 'absolute', left: 0, right: 0, height: BAND_H },
+  plate: { position: 'absolute', borderRadius: 16, borderWidth: 1.2 },
+  node: {
+    position: 'absolute',
+    borderWidth: 1.3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 /**
@@ -734,6 +808,12 @@ export function Band({
 }) {
   const t = useTokens();
   const l = useLayout();
+  // A band reserves the illustration's space exactly as an open section does.
+  // It did not, so on the two sections that carry an aside the drawing was
+  // absolutely positioned over the last rows of copy instead of sitting in
+  // empty page below them.
+  const asideBand = useAsideBand();
+  const reserve = hasAside(children, aside) ? asideBand : null;
   const band = useMemo<ViewStyle>(() => {
     const bleed = bandBleed(l.width);
     return {
@@ -754,7 +834,7 @@ export function Band({
   // No `overflow: hidden`: the illustration deliberately hangs above this
   // section into the gap, and clipping would cut it in half.
   return (
-    <View style={[band, style]}>
+    <View style={[band, style, reserve]}>
       {art ? <SectionArt {...art} /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}

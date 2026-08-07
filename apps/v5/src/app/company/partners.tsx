@@ -442,7 +442,7 @@ function Paths() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+    <Band tone="surface">
       <SectionHead
         label="PARTNER PATHS"
         title="Choose the path that fits your business."
