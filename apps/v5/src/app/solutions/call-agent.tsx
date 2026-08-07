@@ -32,6 +32,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -39,7 +40,7 @@ import {
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import Svg, { Circle } from 'react-native-svg';
@@ -505,6 +506,10 @@ export default function CallAgentPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        {/* These product heroes all run copy-left, mockup-right, and the copy
+            column is the shorter of the two — so the empty zone is the band
+            beneath it. */}
+        <SectionAside variant="waves" color={t.orange} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>AI VOICE THAT WORKS FOR YOUR BUSINESS</SectionLabel>
@@ -1442,7 +1447,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.pink, t.mode === 'light' ? 0.12 : 0.2),
     },
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.pink },
-    liveText: { ...type.micro, color: t.pink, fontWeight: '800', letterSpacing: 0.8 },
+    liveText: { ...type.micro, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },
     timer: {
       fontSize: l.isPhone ? 17 : 19,
       lineHeight: l.isPhone ? 22 : 24,
@@ -1477,7 +1482,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 7,
       backgroundColor: t.brandSoft,
     },
-    intentValue: { ...type.bodySm, color: t.brand, fontWeight: '800' },
+    intentValue: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800' },
     intentLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
 
     wave: {
@@ -1730,7 +1735,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 10,
       backgroundColor: t.surfaceMuted,
     },
-    voiceButtonText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    voiceButtonText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     cloneWrap: { marginTop: l.isPhone ? 16 : 22 },
     cloneRow: {
@@ -1770,7 +1775,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 11,
       backgroundColor: t.surfaceRaised,
     },
-    cloneButtonText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    cloneButtonText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     /* -------------------------------------------------- workflows */
     flowRow: {

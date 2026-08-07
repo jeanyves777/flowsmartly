@@ -18,7 +18,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -253,7 +253,7 @@ function Chip({ label, tone }: { label: string; tone: Tone }) {
   const color = accent(t, tone);
   return (
     <View style={[styles.chip, { backgroundColor: softFill(color, t) }]}>
-      <Text style={[styles.chipText, { color }]}>{label}</Text>
+      <Text style={[styles.chipText, { color: accentText(color, t) }]}>{label}</Text>
     </View>
   );
 }
@@ -898,7 +898,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     maintenanceCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 8 },
     maintenanceChips: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
     maintenanceTitle: { ...type.h4, color: t.text },
-    maintenanceWindow: { ...type.bodySm, color: t.violet, fontWeight: '800' },
+    maintenanceWindow: { ...type.bodySm, color: accentText(t.violet, t), fontWeight: '800' },
 
     /* subscribe ---------------------------------------------------- */
     subscribe: { alignItems: 'center' },

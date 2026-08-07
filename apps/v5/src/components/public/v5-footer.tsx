@@ -20,7 +20,7 @@ import {
   useTypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { brandColor, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, brandColor, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -293,7 +293,7 @@ function MetricCard({
         </View>
         <Text
           ref={count.ref as never}
-          style={[type.h2, styles.metricValue, { color: accent }]}
+          style={[type.h2, styles.metricValue, { color: accentText(accent, t) }]}
           numberOfLines={1}>
           {parsed
             ? `${

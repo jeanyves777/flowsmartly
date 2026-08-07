@@ -32,12 +32,13 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -620,6 +621,10 @@ export default function AdsPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        {/* These product heroes all run copy-left, mockup-right, and the copy
+            column is the shorter of the two — so the empty zone is the band
+            beneath it. */}
+        <SectionAside variant="chart" color={t.pink} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ADS WITH CONNECTED INTELLIGENCE</SectionLabel>
@@ -1343,7 +1348,7 @@ export default function AdsPage() {
                       {rec.reason}
                     </Text>
                   </View>
-                  <Text numberOfLines={1} style={[styles.recImpact, { color: accent, backgroundColor: softFill(accent, t) }]}>
+                  <Text numberOfLines={1} style={[styles.recImpact, { color: accentText(accent, t), backgroundColor: softFill(accent, t) }]}>
                     {rec.impact}
                   </Text>
                   {/* The "Apply" affordance illustrates the product surface;
@@ -2282,7 +2287,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 10,
       backgroundColor: t.surfaceRaised,
     },
-    applyText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    applyText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     /* -------------------------------------------------- disclosure */
     discList: { marginTop: 20, gap: 15 },

@@ -26,7 +26,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -493,7 +493,7 @@ export default function FlowAiPage() {
                     <View style={[styles.stateIcon, { backgroundColor: softFill(accent, t) }]}>
                       <FontAwesome6 name={state.icon as never} size={15} color={accent} />
                     </View>
-                    <Text style={[styles.stateCount, { color: accent }]}>{state.count}</Text>
+                    <Text style={[styles.stateCount, { color: accentText(accent, t) }]}>{state.count}</Text>
                   </View>
                   <Text numberOfLines={2} style={styles.stateLabel}>
                     {state.label}

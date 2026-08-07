@@ -27,7 +27,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -476,7 +476,7 @@ function Testing() {
               <Text style={styles.cardBody}>{item.body}</Text>
               <View style={styles.cardSpacer} />
               <View style={[styles.chip, { backgroundColor: softFill(accent(t, item.tone), t) }]}>
-                <Text style={[styles.chipText, { color: accent(t, item.tone) }]}>{item.cadence}</Text>
+                <Text style={[styles.chipText, { color: accentText(accent(t, item.tone), t) }]}>{item.cadence}</Text>
               </View>
             </View>
           </Reveal>
@@ -991,7 +991,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0, gap: 2 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     addressLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    addressValue: { ...type.bodySm, color: t.brand, fontWeight: '800' },
+    addressValue: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800' },
     disclosureHeading: { ...type.h4, color: t.text },
     disclosureList: { gap: 10 },
     disclosureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },

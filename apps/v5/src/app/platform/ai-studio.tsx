@@ -17,12 +17,13 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -565,6 +566,10 @@ export default function AiStudioPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        {/* These product heroes all run copy-left, mockup-right, and the copy
+            column is the shorter of the two — so the empty zone is the band
+            beneath it. */}
+        <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>CREATE WITH YOUR BRAND BUILT IN</SectionLabel>
@@ -798,7 +803,7 @@ export default function AiStudioPage() {
                       {output.title}
                     </Text>
                     <View style={[styles.outputSize, { backgroundColor: softFill(accent, t) }]}>
-                      <Text numberOfLines={1} style={[styles.outputSizeText, { color: accent }]}>
+                      <Text numberOfLines={1} style={[styles.outputSizeText, { color: accentText(accent, t) }]}>
                         {output.size}
                       </Text>
                     </View>
@@ -1371,7 +1376,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 3,
       backgroundColor: softFill(t.violet, t),
     },
-    resultTagText: { ...type.micro, color: t.violet, fontWeight: '800' },
+    resultTagText: { ...type.micro, color: accentText(t.violet, t), fontWeight: '800' },
 
     kitPane: l.isPhone
       ? {
@@ -1505,7 +1510,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.brandSoft,
     },
-    setupIndexText: { ...type.micro, color: t.brand, fontWeight: '800' },
+    setupIndexText: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
     setupCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     setupTitle: { ...type.caption, color: t.text, fontWeight: '800' },
     setupNote: { ...type.caption, color: t.textMuted },
@@ -1712,7 +1717,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 999,
       paddingHorizontal: 9,
       paddingVertical: 4,
-      backgroundColor: hexToRgba(t.shadowColor, 0.62),
+      // Near-black rather than the shadow token: in light that token is a
+      // navy (#1f2d62), and at 62% over a bright frame the white label landed
+      // at 4.07. The scrim has to carry the contrast on its own, because what
+      // is behind it is a photograph and could be anything.
+      backgroundColor: hexToRgba('#000000', 0.72),
     },
     // On a black scrim over imagery, not on a brand fill — so it needs the
     // always-white scrim ink, not the on-brand ink (which is dark in grey/dark).
@@ -1797,7 +1806,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.surfaceInset,
     },
-    currentChipText: { ...type.micro, color: t.brand, fontWeight: '800' },
+    currentChipText: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
 
     commentCard: {
       flexDirection: 'row',

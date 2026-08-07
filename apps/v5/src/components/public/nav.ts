@@ -98,8 +98,8 @@ export const SOLUTIONS_GROUP: NavGroup = {
   links: [
     { label: 'FlowShop', href: ROUTES.flowshop, icon: 'bag-shopping', description: 'Sell wherever customers discover you' },
     { label: 'ListSmartly', href: ROUTES.listsmartly, icon: 'magnifying-glass', description: 'Local listings, reviews and AI visibility' },
-    { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'Your AI growth operator' },
-    { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store', description: 'Hire vetted growth experts' },
+    { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'Your AI operating partner' },
+    { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store', description: 'Hire vetted experts inside your workspace' },
     { label: 'Call Agent', href: ROUTES.callAgent, icon: 'comment-dots', description: 'An AI voice agent that answers 24/7' },
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
     { label: 'Domains', href: ROUTES.domains, icon: 'globe', description: 'Search, register and connect a name' },

@@ -27,7 +27,7 @@ import {
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { CONTACT_TOPIC_LABEL, isContactTopic, type ContactTopic } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -686,7 +686,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: softFill(t.brand, t),
     },
-    stepNumberText: { ...type.micro, color: t.brand, fontWeight: '800' },
+    stepNumberText: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
     stepCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
     stepTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
     stepBody: { ...type.caption, color: t.textMuted },

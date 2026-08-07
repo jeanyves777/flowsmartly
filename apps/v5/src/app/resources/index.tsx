@@ -37,7 +37,7 @@ import {
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { contactHref } from '@/lib/destinations';
-import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -456,7 +456,7 @@ function Chip({ label, tone }: { label: string; tone: Tone }) {
   const color = accent(t, tone);
   return (
     <View style={[styles.chip, { backgroundColor: softFill(color, t) }]}>
-      <Text style={[styles.chipText, { color }]}>{label}</Text>
+      <Text style={[styles.chipText, { color: accentText(color, t) }]}>{label}</Text>
     </View>
   );
 }

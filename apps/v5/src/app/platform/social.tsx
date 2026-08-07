@@ -22,7 +22,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -396,7 +396,7 @@ function StatTile({
         {`${stat.prefix}${counter.value.toFixed(stat.decimals)}${stat.suffix}`}
       </Text>
       <View style={[styles.statDelta, { backgroundColor: softFill(accent, t) }]}>
-        <Text numberOfLines={1} style={[styles.statDeltaText, { color: accent }]}>
+        <Text numberOfLines={1} style={[styles.statDeltaText, { color: accentText(accent, t) }]}>
           {`${stat.delta} vs last month`}
         </Text>
       </View>

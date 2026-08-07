@@ -22,7 +22,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { EXTERNAL } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -518,7 +518,9 @@ function PillarMock({
         <Text numberOfLines={1} style={styles.mockTitle}>
           {mock.title}
         </Text>
-        <Text style={[styles.mockChip, { backgroundColor: softFill(accent, t), color: accent }]}>{mock.chip}</Text>
+        <Text style={[styles.mockChip, { backgroundColor: softFill(accent, t), color: accentText(accent, t) }]}>
+          {mock.chip}
+        </Text>
       </View>
       {mock.rows.map((row) => (
         <View key={row.label} style={styles.mockRow}>
@@ -587,7 +589,7 @@ function PillarSection({
           <View style={[styles.pillarIcon, { backgroundColor: softFill(accent, t) }]}>
             <FontAwesome6 name={pillar.icon as never} size={17} color={accent} />
           </View>
-          <Text style={[styles.pillarName, { color: accent }]}>{pillar.name}</Text>
+          <Text style={[styles.pillarName, { color: accentText(accent, t) }]}>{pillar.name}</Text>
         </View>
         <Heading level={3} style={styles.pillarHeadline}>
           {pillar.headline}
@@ -1421,7 +1423,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minHeight: 44,
       paddingRight: 6,
     },
-    exploreText: { ...type.bodySm, color: t.brand, fontWeight: '800' },
+    exploreText: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800' },
 
     /* -------------------------------------------------- customer intelligence */
     splitRow: {

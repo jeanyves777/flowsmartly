@@ -31,7 +31,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -1403,7 +1403,7 @@ export default function ListSmartlyPage() {
                   {member.name}
                 </Text>
                 <View style={[styles.roleChip, { backgroundColor: softFill(accentOf(member.accent), t) }]}>
-                  <Text numberOfLines={1} style={[styles.roleChipText, { color: accentOf(member.accent) }]}>
+                  <Text numberOfLines={1} style={[styles.roleChipText, { color: accentText(accentOf(member.accent), t) }]}>
                     {member.role}
                   </Text>
                 </View>
@@ -1722,7 +1722,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     railItemActive: { backgroundColor: t.brandSoft },
     railLabel: { ...type.micro, color: t.textSubtle, fontWeight: '600', flexShrink: 1, minWidth: 0 },
-    railLabelActive: { color: t.brand, fontWeight: '800' },
+    railLabelActive: { color: accentText(t.brand, t), fontWeight: '800' },
 
     /* `dashboardRow` turns into a column below 1024. `flexBasis: 0` is a *main
        axis* basis, so in a column it sizes the height — and because every RNW
@@ -1866,7 +1866,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.brandSoft,
     },
-    headNumberText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    headNumberText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
     headTitle: { textAlign: 'left' },
     headTitleCentered: { textAlign: l.isPhone ? 'left' : 'center' },
     headBody: { maxWidth: 560 },
@@ -2086,7 +2086,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 16,
     },
-    ghostActionText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    ghostActionText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
     actionPressed: { opacity: 0.85 },
 
     errorList: { marginTop: gap, gap: 8 },
@@ -2396,7 +2396,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 18,
     },
     doButtonFull: { width: '100%' },
-    doButtonText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    doButtonText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     /* -------------------------------------------------- testimonial */
     quoteRow: {

@@ -26,7 +26,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -247,7 +247,7 @@ function TopicChip({ label, tone }: { label: string; tone: Tone }) {
   const color = accent(t, tone);
   return (
     <View style={[styles.topicChip, { backgroundColor: softFill(color, t) }]}>
-      <Text style={[styles.topicChipText, { color }]}>{label}</Text>
+      <Text style={[styles.topicChipText, { color: accentText(color, t) }]}>{label}</Text>
     </View>
   );
 }

@@ -104,7 +104,7 @@ const light: ThemeTokens = {
   // 4.70:1 on surfaceInset (the darkest light surface) and 5.24:1 on white.
   // #6b7899 scored 3.95–4.40 and carries 400+ small nodes; textMuted is 7.72:1
   // on white, so this stays unmistakably the quietest of the three tiers.
-  textSubtle: '#606c8a',
+  textSubtle: '#59647f',
   textOnBrand: '#ffffff',
   textOnScrim: '#ffffff',
 
@@ -163,7 +163,7 @@ const grey: ThemeTokens = {
   text: '#f1f4f8',
   textMuted: '#b2bac7',
   // already 4.63:1 on surfaceInset, the tightest of the five surfaces
-  textSubtle: '#8c96a6',
+  textSubtle: '#98a2b3',
   // Neutral near-black, to match the charcoal palette: 6.74:1 on brand,
   // 8.86 brandStrong, 6.99 violet, 9.33 green, 9.40 orange, 6.50 pink.
   textOnBrand: '#101317',
@@ -214,7 +214,7 @@ const dark: ThemeTokens = {
   text: '#f5f8ff',
   textMuted: '#a9b6d2',
   // already 4.76:1 on surfaceInset, the tightest of the five surfaces
-  textSubtle: '#7e8bab',
+  textSubtle: '#8b98b8',
   // Navy near-black, to match the near-black-navy palette: 6.78:1 on brand,
   // 8.91 brandStrong, 7.03 violet, 9.38 green, 9.45 orange, 6.53 pink.
   textOnBrand: '#0b1220',
@@ -294,6 +294,33 @@ export function elevation(t: ThemeTokens, level: 1 | 2 | 3 = 1) {
       elevation: level * 4,
     },
   }) as object;
+}
+
+/**
+ * An accent, adjusted for use as *text on a tinted ground*.
+ *
+ * The palette accents were tuned to clear 4.5:1 on `surfaceInset`, the darkest
+ * surface that existed at the time. Soft band grounds arrived later and sit
+ * slightly off that value, which costs about a tenth of a point — enough to
+ * put a 12px chip label at 4.36 in light and 3.94 in grey. This nudges the
+ * accent in whichever direction the theme needs: darker on light, lighter on
+ * the two dark palettes.
+ *
+ * Only for text. Fills and icons are unaffected — they are not held to a
+ * contrast ratio.
+ */
+export function accentText(hex: string, t: ThemeTokens): string {
+  const value = hex.replace('#', '');
+  const full = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+  const shift = t.mode === 'light' ? -0.16 : 0.2;
+  const channel = (start: number) => {
+    const v = parseInt(full.slice(start, start + 2), 16);
+    const next = shift < 0 ? v * (1 + shift) : v + (255 - v) * shift;
+    return Math.round(Math.max(0, Math.min(255, next)))
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return `#${channel(0)}${channel(2)}${channel(4)}`;
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

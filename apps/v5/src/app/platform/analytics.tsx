@@ -25,12 +25,13 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -808,6 +809,10 @@ export default function AnalyticsPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        {/* These product heroes all run copy-left, mockup-right, and the copy
+            column is the shorter of the two — so the empty zone is the band
+            beneath it. */}
+        <SectionAside variant="chart" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ONE VIEW OF WHAT MOVES GROWTH</SectionLabel>
@@ -2047,7 +2052,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     panelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     panelTitle: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
     panelMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
-    panelMetaStrong: { ...type.micro, color: t.orange, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    panelMetaStrong: { ...type.micro, color: accentText(t.orange, t), fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     chartBox: { width: '100%', minWidth: 0 },
 
     donutRow: {
@@ -2106,7 +2111,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderColor: t.border,
       backgroundColor: t.surfaceMuted,
     },
-    numberBadgeText: { ...type.bodySm, color: t.brand, fontWeight: '800' },
+    numberBadgeText: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800' },
     numberedTitle: { textAlign: 'left' },
     numberedBody: { textAlign: 'left', maxWidth: 720 },
 

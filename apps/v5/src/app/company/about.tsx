@@ -35,7 +35,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -460,7 +460,7 @@ export default function AboutPage() {
                     <FontAwesome6 name={step.icon as never} size={15} color={accent} />
                   </View>
                   <View style={styles.timelineCopy}>
-                    <Text style={[styles.timelineYear, { color: accent }]}>{step.year}</Text>
+                    <Text style={[styles.timelineYear, { color: accentText(accent, t) }]}>{step.year}</Text>
                     <Text style={styles.timelineTitle}>{step.title}</Text>
                     <Text style={styles.timelineLine}>{step.lines[0]}</Text>
                     <Text style={styles.timelineLine}>{step.lines[1]}</Text>

@@ -22,7 +22,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -2042,7 +2042,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     chartCell: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, alignItems: 'center', gap: 7 },
     chartBar: { width: '100%', borderRadius: 6 },
     chartLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    chartLabelBest: { color: t.orange, fontWeight: '800' },
+    chartLabelBest: { color: accentText(t.orange, t), fontWeight: '800' },
     bestSlot: {
       flexDirection: 'row',
       alignItems: 'flex-start',

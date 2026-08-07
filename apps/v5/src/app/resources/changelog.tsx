@@ -16,7 +16,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -334,7 +334,7 @@ function Timeline({ filter }: { filter: Filter }) {
                   <View style={styles.entryCard}>
                     <View style={styles.entryHead}>
                       <View style={[styles.chip, { backgroundColor: softFill(color, t) }]}>
-                        <Text style={[styles.chipText, { color }]}>{entry.kind}</Text>
+                        <Text style={[styles.chipText, { color: accentText(color, t) }]}>{entry.kind}</Text>
                       </View>
                       {l.isPhone ? <Text style={styles.entryDateInline}>{entry.date}</Text> : null}
                     </View>

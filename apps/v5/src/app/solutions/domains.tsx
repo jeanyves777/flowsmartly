@@ -19,7 +19,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -264,7 +264,7 @@ export default function DomainsPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection>
+      <OpenSection aside={{ variant: 'network', color: t.brand, side: 'left', at: 'bottom' }}>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>DOMAINS</SectionLabel>
@@ -816,7 +816,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       textTransform: 'uppercase',
     },
     dnsRow: rowBase,
-    dnsType: { ...type.micro, color: t.brand, fontWeight: '800' },
+    dnsType: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
     dnsCell: { ...type.micro, color: t.textMuted },
     dnsCellStrong: { ...type.micro, color: t.text, fontWeight: '700' },
     colType: { width: 62, flexGrow: 0, flexShrink: 0 },

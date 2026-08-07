@@ -31,7 +31,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { EXTERNAL } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -483,7 +483,7 @@ export default function FlowShopPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection>
+      <OpenSection aside={{ variant: 'chart', color: t.pink, side: 'left', at: 'bottom' }}>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>AI-READY COMMERCE</SectionLabel>
@@ -1591,7 +1591,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     urlText: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
     cartPill: { ...pillBase, backgroundColor: t.brandSoft },
-    cartCount: { ...type.micro, color: t.brand, fontWeight: '800' },
+    cartCount: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
 
     storeNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     storeBrand: {
@@ -1707,7 +1707,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.brandSoft,
     },
-    headNumberText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    headNumberText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
     headTitle: { textAlign: 'left' },
     headTitleCentered: { textAlign: l.isPhone ? 'left' : 'center' },
     headBody: { maxWidth: 560 },
@@ -2270,7 +2270,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 18,
     },
     recoverButtonPressed: { backgroundColor: t.surfaceInset },
-    recoverButtonText: { ...type.bodySm, color: t.brand, fontWeight: '800' },
+    recoverButtonText: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800' },
     toolStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     toolChip: {
       flexGrow: 0,

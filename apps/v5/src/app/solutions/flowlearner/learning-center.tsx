@@ -23,13 +23,14 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -631,6 +632,10 @@ export default function LearningCenterPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        {/* These product heroes all run copy-left, mockup-right, and the copy
+            column is the shorter of the two — so the empty zone is the band
+            beneath it. */}
+        <SectionAside variant="calendar" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <View style={styles.eyebrowRow}>
@@ -1694,7 +1699,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
       paddingHorizontal: 14,
     },
-    resumeButtonText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    resumeButtonText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     portalGrid: { ...gridBase, marginVertical: -half },
     portalCell: {
@@ -2005,7 +2010,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 11,
       gap: 4,
     },
-    transcriptTime: { ...type.micro, color: t.brand, fontWeight: '800' },
+    transcriptTime: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
     transcriptText: { ...type.caption, color: t.textMuted },
 
     /* -------------------------------------------------- quizzes */

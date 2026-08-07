@@ -32,7 +32,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -995,7 +995,7 @@ export default function LiveRoomPage() {
                     return (
                       <View key={role.key} style={styles.matrixRoleCell}>
                         <View style={[styles.matrixRoleChip, { backgroundColor: softFill(accent, t) }]}>
-                          <Text numberOfLines={1} style={[styles.matrixRoleText, { color: accent }]}>
+                          <Text numberOfLines={1} style={[styles.matrixRoleText, { color: accentText(accent, t) }]}>
                             {role.label}
                           </Text>
                         </View>
@@ -1082,7 +1082,7 @@ export default function LiveRoomPage() {
                       <View style={styles.roomCard}>
                         <View style={styles.roomCardHead}>
                           <View style={[styles.roomBadge, { backgroundColor: softFill(accent, t) }]}>
-                            <Text numberOfLines={1} style={[styles.roomBadgeText, { color: accent }]}>
+                            <Text numberOfLines={1} style={[styles.roomBadgeText, { color: accentText(accent, t) }]}>
                               {room.name}
                             </Text>
                           </View>
@@ -1587,7 +1587,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.pink, t.mode === 'light' ? 0.12 : 0.2),
     },
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.pink },
-    liveText: { ...type.micro, color: t.pink, fontWeight: '800', letterSpacing: 0.8 },
+    liveText: { ...type.micro, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },
     timer: {
       fontSize: l.isPhone ? 17 : 19,
       lineHeight: l.isPhone ? 22 : 24,

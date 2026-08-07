@@ -29,7 +29,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { EXTERNAL } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -909,7 +909,7 @@ export default function FlowLearnerPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection>
+      <OpenSection aside={{ variant: 'docs', color: t.violet, side: 'left', at: 'bottom' }}>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>FLOWLEARNER BY FLOWSMARTLY</SectionLabel>
@@ -1284,15 +1284,15 @@ export default function FlowLearnerPage() {
         </View>
       </OpenSection>
 
-      {/* ------------------------------------------------ growth stack */}
+      {/* ------------------------------------------------ connected workspace */}
       <Band tone="surface" art={{ variant: 'palette', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
-            Training that connects to the FlowSmartly growth stack
+            Training that connects to the rest of your workspace
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            One platform. Every channel. Measurable outcomes.
+            One platform. Every connected system. Outcomes you can verify.
           </Text>
         </Reveal>
 
@@ -1962,7 +1962,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingRight: 4,
     },
     explorePressed: { opacity: 0.7 },
-    exploreText: { ...type.bodySm, color: t.brand, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    exploreText: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- steps */
     stepRow: {
@@ -2011,7 +2011,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     stepTitle: { marginTop: 2 },
     stepBody: { ...type.bodySm, color: t.textMuted },
 
-    /* -------------------------------------------------- growth stack */
+    /* -------------------------------------------------- connected workspace */
     stackRow: {
       flexDirection: stacked ? 'column' : 'row',
       alignItems: 'stretch',

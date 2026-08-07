@@ -20,7 +20,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -260,7 +260,7 @@ export default function WebsiteBuilderPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection>
+      <OpenSection aside={{ variant: 'docs', color: t.violet, side: 'left', at: 'bottom' }}>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>WEBSITE BUILDER</SectionLabel>
@@ -934,7 +934,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 9,
     },
     seoLabel: { ...type.micro, color: t.text, fontWeight: '600', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    seoValue: { ...type.micro, color: t.green, fontWeight: '800', flexShrink: 0 },
+    seoValue: { ...type.micro, color: accentText(t.green, t), fontWeight: '800', flexShrink: 0 },
 
     /* -------------------------------------------------- connected */
     connectGrid: gridBase,
@@ -993,7 +993,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 9,
     },
     domainResultName: { ...type.micro, color: t.text, fontWeight: '600', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    domainResultOk: { ...type.micro, color: t.green, fontWeight: '800', flexShrink: 0 },
+    domainResultOk: { ...type.micro, color: accentText(t.green, t), fontWeight: '800', flexShrink: 0 },
 
     /* -------------------------------------------------- faq */
     faqGrid: gridBase,

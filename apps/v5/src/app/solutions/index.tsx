@@ -22,7 +22,7 @@ import {
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -1167,7 +1167,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     outcomeLine: { ...type.caption, color: t.textMuted },
     outcomeSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 2 },
     outcomeFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-    outcomeCta: { ...type.caption, color: t.brand, fontWeight: '800' },
+    outcomeCta: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
 
     /* -------------------------------------------------- scenarios */
     scenarioRow: {
@@ -1309,7 +1309,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minWidth: 0,
     },
     tableColHead: { ...type.caption, color: t.textMuted, fontWeight: '700', textAlign: 'center' },
-    tableColHeadStrong: { color: t.brand, fontWeight: '800' },
+    tableColHeadStrong: { color: accentText(t.brand, t), fontWeight: '800' },
     tableCol: markCol,
     tableRow: {
       flexDirection: 'row',
