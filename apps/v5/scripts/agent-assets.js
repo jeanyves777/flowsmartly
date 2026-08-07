@@ -134,13 +134,15 @@ function writeLlms(list) {
 
   const text = `# FlowSmartly
 
-> The AI growth operating system for small businesses. FlowSmartly brings
-> content, campaigns, customer conversations, commerce, local visibility and
-> analytics into one workspace, with an AI assistant (FlowAgent) that finds
-> opportunities and prepares the next best action for human approval.
+> The AI Business Operating System. One intelligent platform to run, connect
+> and grow a business: the daily work, the content, the conversations, the
+> customers, the sales and the numbers in one place, with an AI partner
+> (FlowAgent) that prepares the next action for a person to approve.
 
-FlowSmartly is a single platform rather than a bundle of point tools. Its
-distinguishing idea is that every action is **human-approved by default** —
+FlowSmartly is a single platform rather than a bundle of point tools, and it
+is built for real businesses of any kind — services, retail, healthcare,
+professional practices, education, hospitality — not for one industry. Its
+distinguishing idea is that every action is **human-approved by default**:
 the AI proposes, a person approves, and the result is measured.
 
 ## What it does
@@ -241,7 +243,7 @@ const ORGANIZATION = {
   name: 'FlowSmartly',
   url: ORIGIN,
   logo: `${ORIGIN}/icon.png`,
-  description: 'FlowSmartly — the AI growth operating system for small businesses.',
+  description: 'FlowSmartly — the AI Business Operating System. One platform to run, connect and grow a business, with every AI action approved by a person.',
   sameAs: [
     'https://www.linkedin.com/company/flowsmartly',
     'https://www.instagram.com/flowsmartly',
@@ -261,6 +263,94 @@ const WEBSITE = {
   },
 };
 
+/**
+ * The product itself, as an entity a search or answer engine can resolve.
+ *
+ * The site shipped with BreadcrumbList and nothing else, so nothing on it said
+ * *what FlowSmartly is* in a form a machine reads. `SoftwareApplication` with
+ * the real plan prices is that statement, and the prices come from the same
+ * page a visitor sees.
+ *
+ * No `aggregateRating`: there are no collected reviews to aggregate, and
+ * inventing one is exactly the kind of markup that earns a manual action.
+ */
+const PLAN_OFFERS = [
+  { name: 'Starter', price: '0', description: '500 credits monthly' },
+  { name: 'Pro', price: '20', description: '1,500 credits monthly' },
+  { name: 'Business', price: '50', description: '4,000 credits monthly' },
+];
+
+const SOFTWARE = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'FlowSmartly',
+  applicationCategory: 'BusinessApplication',
+  applicationSubCategory: 'AI Business Operating System',
+  operatingSystem: 'Web',
+  url: ORIGIN,
+  description:
+    'One intelligent platform to run, connect and grow a business — work, content, conversations, customers, sales and analytics in one place, with every AI action approved by a person.',
+  featureList: [
+    'AI Studio — images, video, posts, emails, ads and copy',
+    'Social — plan, publish and engage from one calendar',
+    'Email + SMS — campaigns, journeys, deliverability and consent',
+    'Ads — cross-channel campaigns with budget guardrails',
+    'Analytics — unified reporting and attribution',
+    'FlowShop — storefront with AI-ready product data',
+    'ListSmartly — local listings, reviews and AI-search visibility',
+    'Call Agent — an AI voice agent that answers, books and qualifies',
+    'FlowLearner — build training, teach live, and sell courses',
+    'FlowAgent — the AI business operator across all of it',
+  ],
+  publisher: { '@type': 'Organization', name: 'FlowSmartly', url: ORIGIN },
+  offers: {
+    '@type': 'AggregateOffer',
+    priceCurrency: 'USD',
+    lowPrice: '0',
+    highPrice: '50',
+    offerCount: PLAN_OFFERS.length,
+    url: `${ORIGIN}/pricing`,
+    offers: PLAN_OFFERS.map((plan) => ({
+      '@type': 'Offer',
+      name: plan.name,
+      price: plan.price,
+      priceCurrency: 'USD',
+      description: plan.description,
+      url: `${ORIGIN}/pricing`,
+      availability: 'https://schema.org/InStock',
+    })),
+  },
+};
+
+/*
+ * The pricing questions, marked up from the same JSON the page renders — the
+ * page authored `faqJsonLd(...)` and it never reached the HTML, because
+ * expo-router's <Head> drops <script> children. Reading the shared file keeps
+ * the markup and the visible answers identical, which is what Google requires.
+ */
+function faqPage() {
+  const items = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'src', 'content', 'pricing-faq.json'), 'utf8'),
+  );
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  };
+}
+
+/** Extra blocks a specific route carries on top of its breadcrumb. */
+function extrasFor(route) {
+  if (route === '/') return [ORGANIZATION, WEBSITE, SOFTWARE];
+  if (route === '/product') return [SOFTWARE];
+  if (route === '/pricing') return [SOFTWARE, faqPage()];
+  return [];
+}
+
 function injectJsonLd(list) {
   let touched = 0;
   for (const route of list) {
@@ -272,7 +362,7 @@ function injectJsonLd(list) {
     if (!fs.existsSync(file)) continue;
     let html = fs.readFileSync(file, 'utf8');
     if (html.includes('application/ld+json')) continue;
-    const blocks = route === '/' ? [ORGANIZATION, WEBSITE, breadcrumbFor(route)] : [breadcrumbFor(route)];
+    const blocks = [...extrasFor(route), breadcrumbFor(route)];
     const tags = blocks
       .map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`)
       .join('');

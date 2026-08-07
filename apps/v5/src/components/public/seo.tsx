@@ -25,6 +25,8 @@ export type SeoProps = {
   description?: string;
   /** absolute or root-relative image for the social unfurl */
   image?: string;
+  /** what the unfurl image shows — read aloud when the link is shared */
+  imageAlt?: string;
   /** 'website' for pages, 'article' for a post */
   type?: 'website' | 'article';
   /** keep this page out of the index (thank-you pages, 404) */
@@ -39,7 +41,7 @@ export type SeoProps = {
   };
 };
 
-export function Seo({ title, description, image, type = 'website', noIndex, jsonLd, article }: SeoProps) {
+export function Seo({ title, description, image, imageAlt, type = 'website', noIndex, jsonLd, article }: SeoProps) {
   const pathname = usePathname();
   const canonical = `${SITE.origin}${pathname === '/' ? '' : pathname}`;
   const fullTitle = `${title} — ${SITE.name}`;
@@ -56,18 +58,49 @@ export function Seo({ title, description, image, type = 'website', noIndex, json
       <link rel="canonical" href={canonical} />
       {noIndex ? <meta name="robots" content="noindex, nofollow" /> : <meta name="robots" content="index, follow" />}
 
+      {/* An unfurl card without dimensions is laid out only after the image
+          downloads, and several scrapers skip it entirely; without alt text it
+          is unreadable to anyone using a screen reader on the shared post. */}
       <meta property="og:site_name" content={SITE.name} />
       <meta property="og:type" content={type} />
+      <meta property="og:locale" content="en_US" />
       <meta property="og:title" content={fullTitle} />
       {description ? <meta property="og:description" content={description} /> : null}
       <meta property="og:url" content={canonical} />
       <meta property="og:image" content={ogImage} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content={imageAlt ?? `${SITE.name} — ${SITE.tagline}`} />
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content={SITE.twitter} />
+      <meta name="twitter:creator" content={SITE.twitter} />
       <meta name="twitter:title" content={fullTitle} />
       {description ? <meta name="twitter:description" content={description} /> : null}
       <meta name="twitter:image" content={ogImage} />
+      <meta name="twitter:image:alt" content={imageAlt ?? `${SITE.name} — ${SITE.tagline}`} />
+
+      {/* Read by Google for the SERP snippet: allow a full-size preview image
+          and an untruncated text snippet rather than the conservative default. */}
+      {noIndex ? null : (
+        <meta
+          name="googlebot"
+          content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+        />
+      )}
+      <meta name="author" content={SITE.name} />
+      <meta name="publisher" content={SITE.name} />
+
+      {/* The export ships one 48px favicon.ico. These are the rest of the set
+          (see scripts/icons.js), so an installed app, an iOS home screen and a
+          crawler looking for the brand logo all find a real image. */}
+      <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+      <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+      <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+      <link rel="manifest" href="/site.webmanifest" />
+      {/* the page has three themes, so the browser chrome follows the one in use */}
+      <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+      <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1020" />
 
       {article?.publishedTime ? <meta property="article:published_time" content={article.publishedTime} /> : null}
       {article?.modifiedTime ? <meta property="article:modified_time" content={article.modifiedTime} /> : null}

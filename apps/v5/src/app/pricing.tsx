@@ -30,6 +30,7 @@ import { EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
+import PRICING_FAQ from '@/content/pricing-faq.json';
 
 /* ------------------------------------------------------------------ */
 /* content                                                             */
@@ -164,32 +165,17 @@ const BALANCE: { label: string; icon: string; used: number; accent: Accent }[] =
   { label: 'SMS', icon: 'comment-dots', used: 50, accent: 'orange' },
 ];
 
-const FAQ: { q: string; a: string }[] = [
-  {
-    q: 'What is a credit, exactly?',
-    a: 'A credit is one unit of AI work: a generated image, a short block of video, a drafted campaign, a minute of call handling. Ordinary work — writing a post, scheduling it, reading a report — costs nothing. Your plan includes a monthly allowance and every action shows its cost before you run it.',
-  },
-  {
-    q: 'Can I change plans later?',
-    a: 'Yes, at any time and in either direction. Upgrades take effect immediately and you only pay the difference for the rest of the billing period. Downgrades take effect at your next renewal, so you keep what you already paid for.',
-  },
-  {
-    q: 'Do unused credits roll over?',
-    a: 'Included plan credits reset each month, so the allowance always matches the month it belongs to. Credits you buy on top of a plan do not expire — they sit in the same balance and are only spent once the monthly allowance is used up.',
-  },
-  {
-    q: 'Is there a setup fee?',
-    a: 'No. There is no setup fee, no onboarding fee and no platform fee on top of your plan. What you see on this page is what you pay, plus any usage-based work you choose to run.',
-  },
-  {
-    q: 'Which payment methods do you accept?',
-    a: 'All major credit and debit cards, and bank transfer for annual Business plans. Payments are processed by our PCI-compliant provider — card details never touch our servers.',
-  },
-  {
-    q: 'How does annual billing work?',
-    a: 'You pay for twelve months up front and save 20% against the monthly rate. Your full year of credits is issued monthly, at the same allowance, so nothing changes day to day except the price.',
-  },
-];
+/**
+ * One source for the pricing questions.
+ *
+ * They are also marked up as `FAQPage` structured data, and Google requires
+ * that markup to match what a visitor actually reads — so the questions live
+ * in a JSON file the page renders and the build script reads, rather than in
+ * two copies that drift apart. (The markup cannot be emitted from here:
+ * expo-router's <Head> drops <script> children, so it is injected after the
+ * export, in scripts/agent-assets.js.)
+ */
+const FAQ: { q: string; a: string }[] = PRICING_FAQ;
 
 const REASSURANCE: { icon: string; label: string }[] = [
   { icon: 'circle-xmark', label: 'Cancel anytime' },

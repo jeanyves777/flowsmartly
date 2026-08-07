@@ -48,10 +48,17 @@ do not have:
    layout can be finished and reviewed without the art.
 2. Do **not** add it to the `REGISTRY` in `media.tsx` — that is done in one line
    once the file actually lands.
-3. Record the new name and write a prompt for it, so the user can generate it.
+3. Record the new name and write a prompt for it in `ART-REQUESTS.md`, so the
+   user can produce it. A missing asset that nothing records is a missing asset
+   nobody knows about — `og-default.png` was referenced by all 44 routes and
+   404ed on every one of them for as long as it went unwritten.
 
 The only exception is a real third-party trademark, which is *sourced* rather
 than generated — always via `BrandLogo`, never drawn by hand.
+
+Resizing an asset the user already made is not generating one. The favicon set
+(`scripts/icons.js`) is every size a browser, a phone and a crawler ask for,
+all resized from the single `assets/images/icon.png`.
 
 ## Philosophy
 
