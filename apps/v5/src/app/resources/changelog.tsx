@@ -11,6 +11,7 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -204,12 +205,14 @@ function useStyles(): Styles {
 /* ------------------------------------------------------------------ */
 
 function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) => void }) {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <OpenSection style={styles.heroSection}>
+      <SectionAside variant="calendar" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CHANGELOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

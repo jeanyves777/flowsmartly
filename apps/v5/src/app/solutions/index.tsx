@@ -15,6 +15,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useOpenSection,
   useTypeScale,
@@ -523,6 +524,7 @@ export default function SolutionsPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={open} distance={22}>
+        <SectionAside variant="network" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>SOLUTIONS THAT MOVE WITH YOUR BUSINESS</SectionLabel>

@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -204,6 +205,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
 
   return (
     <OpenSection style={styles.hero}>
+      <SectionAside variant="search" color={t.orange} side="left" at="bottom" />
       <Reveal style={styles.heroInner} distance={16}>
         {/* SectionLabel pins itself to flex-start, so a shrink-to-fit wrapper is
             what actually centres it */}

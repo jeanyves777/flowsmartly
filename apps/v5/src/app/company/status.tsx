@@ -13,6 +13,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -297,6 +298,7 @@ function Hero() {
 
   return (
     <OpenSection style={styles.heroSection}>
+      <SectionAside variant="analytics" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>SYSTEM STATUS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

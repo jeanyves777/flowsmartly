@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -601,11 +602,13 @@ function CodeSample() {
 /* ------------------------------------------------------------------ */
 
 function Hero() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <OpenSection style={[styles.heroSection, l.isStacked ? styles.stackColumn : styles.rowSection]}>
+      <SectionAside variant="network" color={t.brand} side="left" at="bottom" />
       <Reveal style={l.isStacked ? styles.fullColumn : styles.heroCopy} distance={16}>
         <SectionLabel>API DOCS</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

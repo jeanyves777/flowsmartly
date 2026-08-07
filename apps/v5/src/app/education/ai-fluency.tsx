@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -333,12 +334,14 @@ function JourneyDiagram() {
 }
 
 function Hero() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <OpenSection style={styles.hero}>
+      <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
       {/* One reveal for the whole hero: the connector overlay measures with
           getBoundingClientRect, so every wired node has to live inside the same
           (translate-only) transform. */}

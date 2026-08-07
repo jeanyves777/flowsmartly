@@ -23,6 +23,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -292,11 +293,13 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
 /* ------------------------------------------------------------------ */
 
 function Hero() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
 
   return (
     <OpenSection style={styles.heroSection}>
+      <SectionAside variant="people" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CAREERS AT FLOWSMARTLY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

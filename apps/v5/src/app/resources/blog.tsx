@@ -21,6 +21,7 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -226,10 +227,12 @@ function MetaRow({ date, read }: { date: string; read: string }) {
 /* ------------------------------------------------------------------ */
 
 function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void }) {
+  const t = useTokens();
   const styles = useStyles();
 
   return (
     <OpenSection style={styles.hero}>
+      <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>BLOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

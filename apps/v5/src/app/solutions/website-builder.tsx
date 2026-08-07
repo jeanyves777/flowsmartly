@@ -14,6 +14,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   TextLink,
   useTypeScale,
@@ -261,6 +262,7 @@ export default function WebsiteBuilderPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <OpenSection aside={{ variant: 'docs', color: t.violet, side: 'left', at: 'bottom' }}>
+        <SectionAside variant="media" color={t.violet} side="left" at="top" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>WEBSITE BUILDER</SectionLabel>

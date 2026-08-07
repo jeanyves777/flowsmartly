@@ -15,6 +15,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -506,6 +507,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
 
   return (
     <OpenSection aside={{ variant: 'network', color: t.green, side: 'left', at: 'bottom' }}>
+      <SectionAside variant="people" color={t.green} side="left" at="top" />
       <SectionHead
         label="TWO WAYS TO CONNECT"
         title="Click it together, or build exactly what you need."

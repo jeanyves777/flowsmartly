@@ -400,7 +400,12 @@ export type AsideVariant =
   | 'docs'
   | 'shield'
   | 'calendar'
-  | 'map';
+  | 'map'
+  | 'people'
+  | 'store'
+  | 'media'
+  | 'search'
+  | 'analytics';
 
 export type SectionAsideProps = {
   variant: AsideVariant;
@@ -490,6 +495,54 @@ const ASIDES: Record<AsideVariant, Aside> = {
     ],
     dots: [[180, 92], [330, 176], [206, 234]],
   },
+  people: {
+    links: [
+      'M96 126 C 158 92 226 104 278 148 S 386 214 448 190',
+      'M96 126 C 116 186 158 226 216 240',
+    ],
+    nodes: [
+      { x: 100, y: 118, r: 30, icon: 'user' },
+      { x: 258, y: 150, r: 34, icon: 'user-group' },
+      { x: 420, y: 196, r: 26, icon: 'heart' },
+    ],
+    dots: [[178, 106], [346, 182], [206, 244]],
+  },
+  store: {
+    links: ['M92 210 C 168 240 250 224 314 184 S 418 108 460 88'],
+    nodes: [
+      { x: 274, y: 196, r: 32, icon: 'store' },
+      { x: 420, y: 96, r: 26, icon: 'credit-card' },
+    ],
+    dots: [[150, 226], [356, 152]],
+    plates: [[70, 60, 130, 100, 14]],
+  },
+  media: {
+    links: ['M96 200 C 176 232 252 208 312 166 S 420 96 462 78'],
+    nodes: [
+      { x: 100, y: 108, r: 30, icon: 'play' },
+      { x: 300, y: 200, r: 28, icon: 'microphone' },
+    ],
+    dots: [[196, 150], [388, 122]],
+    plates: [[204, 52, 140, 96, 14]],
+  },
+  search: {
+    links: ['M104 116 C 180 150 262 140 322 176 S 424 216 460 200'],
+    nodes: [
+      { x: 104, y: 110, r: 32, icon: 'magnifying-glass' },
+      { x: 404, y: 92, r: 26, icon: 'globe' },
+    ],
+    dots: [[212, 148], [348, 190]],
+    plates: [[188, 196, 180, 54, 12], [212, 262, 180, 54, 12]],
+  },
+  analytics: {
+    links: ['M62 236 C 148 216 214 176 278 146 S 396 88 458 62'],
+    nodes: [
+      { x: 316, y: 190, r: 30, icon: 'chart-column' },
+      { x: 442, y: 82, r: 25, icon: 'arrow-trend-up' },
+    ],
+    dots: [[140, 220], [232, 176]],
+    plates: [[68, 168, 40, 92, 12], [124, 140, 40, 120, 12], [180, 160, 40, 100, 12]],
+  },
   map: {
     links: [
       'M74 214 C 140 246 214 226 268 186 S 372 108 436 92',
@@ -516,7 +569,10 @@ const ASIDES: Record<AsideVariant, Aside> = {
 };
 
 const ASIDE_W = 480;
-const ASIDE_H = 300;
+// 190, not 300. A hero's copy column ends 100-150px above the section edge,
+// so a 300px band anchored there reaches back over the proof row under the
+// buttons. This height keeps it inside the empty band on either end.
+const ASIDE_H = 190;
 
 /**
  * Drawn, never sourced — this repo does not generate or download images, and a

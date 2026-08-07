@@ -21,6 +21,7 @@ import {
   PrimaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -316,6 +317,7 @@ export default function PricingPage() {
       ]}>
       {/* ------------------------------------------------ hero + toggle */}
       <OpenSection>
+        <SectionAside variant="chart" color={t.brand} side="left" at="bottom" />
         <Reveal style={styles.hero} distance={16}>
           <SectionLabel>SIMPLE, FLEXIBLE PRICING</SectionLabel>
           <Heading level={1} style={[type.display, styles.heroTitle]}>

@@ -21,6 +21,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -278,12 +279,14 @@ function DownloadLink({ tone, guide }: { tone: Tone; guide: string }) {
 /* ------------------------------------------------------------------ */
 
 function Hero() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <OpenSection style={styles.heroSection}>
+      <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <View style={styles.eyebrowRow}>
           <SectionLabel>GUIDES</SectionLabel>

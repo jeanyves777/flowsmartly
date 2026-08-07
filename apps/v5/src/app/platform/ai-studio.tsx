@@ -569,6 +569,7 @@ export default function AiStudioPage() {
         {/* These product heroes all run copy-left, mockup-right, and the copy
             column is the shorter of the two — so the empty zone is the band
             beneath it. */}
+        <SectionAside variant="media" color={t.violet} side="left" at="top" />
         <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>

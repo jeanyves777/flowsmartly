@@ -745,6 +745,7 @@ export default function TrainingAnalyticsPage() {
         {/* These product heroes all run copy-left, mockup-right, and the copy
             column is the shorter of the two — so the empty zone is the band
             beneath it. */}
+        <SectionAside variant="analytics" color={t.brand} side="left" at="top" />
         <SectionAside variant="chart" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>

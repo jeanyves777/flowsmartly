@@ -25,6 +25,7 @@ import {
   SecondaryButton,
   Band,
   OpenSection,
+  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
@@ -306,12 +307,14 @@ function Stars({ size = 14 }: { size?: number }) {
 /* ------------------------------------------------------------------ */
 
 function Hero() {
+  const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
 
   return (
     <OpenSection style={styles.heroSection}>
+      <SectionAside variant="people" color={t.pink} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CUSTOMER STORIES</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>
