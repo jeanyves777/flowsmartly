@@ -365,7 +365,7 @@ export default function WebsiteBuilderPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how it works */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.headCentered}>
           <SectionLabel>FROM PROMPT TO PUBLISHED</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>

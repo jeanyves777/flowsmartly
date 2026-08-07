@@ -361,7 +361,7 @@ function Compliance() {
   const columns = l.isPhone ? 1 : 5;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <SectionHead
         label="COMPLIANCE"
         title="The frameworks we are held to."

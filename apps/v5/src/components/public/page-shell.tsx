@@ -9,6 +9,7 @@ import { ConsentNotice } from './consent';
 import { Seo, type SeoProps } from './seo';
 import { SiteHeader } from './site-header';
 import { V5PublicFooter } from './v5-footer';
+import { SectionSequence } from '@/components/public/ui';
 
 export type PageShellProps = Omit<SeoProps, 'title' | 'description'> & {
   children: React.ReactNode;
@@ -47,7 +48,9 @@ export function PageShell({
       <SiteHeader />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {children}
+          {/* Hands each section its position on the page, so the separator
+              between two of them is drawn without every route asking. */}
+          <SectionSequence>{children}</SectionSequence>
           <V5PublicFooter
             showProof={footer === 'full'}
             showIntegrations={false}

@@ -1161,7 +1161,7 @@ export default function FlowLearnerPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ stat strip */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal style={styles.stripHead} distance={14}>
           <Text numberOfLines={1} style={styles.stripLabel}>
             LAST 30 DAYS

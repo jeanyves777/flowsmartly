@@ -321,7 +321,7 @@ function InTheNews() {
   const styles = useStyles();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="IN THE NEWS"
         title="Recent coverage."

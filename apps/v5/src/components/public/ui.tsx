@@ -1,6 +1,14 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Children, Fragment, isValidElement, type ReactNode, useMemo } from 'react';
+import {
+  Children,
+  createContext,
+  Fragment,
+  isValidElement,
+  type ReactNode,
+  useContext,
+  useMemo,
+} from 'react';
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { trackCta } from '@/lib/analytics';
@@ -135,6 +143,72 @@ export function useOpenSection(): ViewStyle {
 }
 
 /**
+ * Every section boundary gets a separator, without every section remembering
+ * to ask for one.
+ *
+ * `art` was opt-in, so roughly two boundaries in five had nothing crossing
+ * them and the page looked like it had stopped rather than moved on. A section
+ * now draws one by default and a route only writes `art` when it wants a
+ * particular variant — which the content-matched ones still do.
+ *
+ * The first section on a page is the exception: its top edge is the header,
+ * not a seam between two ideas.
+ */
+const SectionOrder = createContext<number | null>(null);
+
+/**
+ * Numbers the page's sections by their position in the page, not by the order
+ * they happen to call a hook in.
+ *
+ * A running counter looked simpler and was wrong: a hero built from a `Reveal`
+ * and the open style never goes through `OpenSection`, so it never claimed a
+ * number, and the section *after* it inherited index 0 and skipped its
+ * separator. Handing each top-level child its own index makes the hero index 0
+ * whatever it is built from. The provider adds no element of its own, so the
+ * layout is untouched.
+ */
+export function SectionSequence({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {Children.map(children, (child, index) => (
+        <SectionOrder.Provider value={index}>{child}</SectionOrder.Provider>
+      ))}
+    </>
+  );
+}
+
+/** Neutral variants for the boundaries a route has not spoken for. */
+const DEFAULT_ART: ArtVariant[] = ['network', 'tasks', 'analytics', 'docs', 'sync', 'people'];
+
+function useSectionArt(
+  art: SectionArtProps | 'none' | undefined,
+  style?: ViewStyle | ViewStyle[],
+): SectionArtProps | null {
+  const index = useContext(SectionOrder);
+  const t = useTokens();
+  const l = useLayout();
+  if (art === 'none') return null;
+  if (art) return art;
+  // index 0 is the hero: its top edge is the header, not a seam between ideas
+  if (index === null || index === 0) return null;
+  /*
+   * A section that has deliberately made itself compact cannot host one.
+   * `/education/ai-fluency` ends on a 20px-padded strip of four chips, and a
+   * separator hanging 57px up from its top edge crossed the chips whatever
+   * height it was given — the gap simply is not there. Reading the section's
+   * own declared padding catches every such section rather than that one.
+   */
+  const flat = (StyleSheet.flatten(style) ?? {}) as ViewStyle;
+  const topPad = (flat.paddingTop ?? flat.paddingVertical ?? l.sectionSpace) as number;
+  if (typeof topPad === 'number' && topPad < Math.round(l.sectionSpace * 0.75)) return null;
+  return {
+    variant: DEFAULT_ART[index % DEFAULT_ART.length],
+    color: t.brand,
+    side: index % 2 === 0 ? 'right' : 'left',
+  };
+}
+
+/**
  * The band a `SectionAside` lives in, as extra bottom padding.
  *
  * `OpenSection` applies this for you; a section built from a `Reveal` and the
@@ -145,10 +219,19 @@ export function useAsideBand(): ViewStyle {
   const l = useLayout();
   // an empty object rather than null: this is spread into a style array beside
   // the open style, and RNW's ViewStyle does not accept null in that position
-  return useMemo(
-    () => (l.isStacked ? {} : { paddingBottom: l.sectionSpace + BAND_H }),
-    [l],
-  );
+  /*
+   * Nothing to reserve any more.
+   *
+   * The separator moved to where it belongs — drawn by the section *below* the
+   * seam, so it paints over both grounds instead of being clipped by the next
+   * section's background. That leaves this hook with no band to make room for.
+   * It stays because the illustration that fills a *detected empty area* is a
+   * separate job from the separator, and that one will need the reservation
+   * back; returning an empty style keeps every call site honest in the
+   * meantime.
+   */
+  void l;
+  return useMemo(() => ({}), []);
 }
 
 /**
@@ -175,12 +258,18 @@ export function OpenSection({
 }: {
   children: React.ReactNode;
   style?: ViewStyle | ViewStyle[];
-  /** illustration for the gap above this section — see `SectionArt` */
-  art?: SectionArtProps;
+  /**
+   * Illustration for the gap above this section — see `SectionArt`. Omit it
+   * and the section draws the default separator; pass `'none'` when the
+   * section *above* is too compact to give one room, which is the one thing
+   * a section cannot work out for itself.
+   */
+  art?: SectionArtProps | 'none';
   /** illustration for the empty space beside the head — see `SectionAside` */
   aside?: SectionAsideProps;
 }) {
   const open = useOpenSection();
+  const seam = useSectionArt(art, style);
   /**
    * A section that carries an aside reserves the band it lives in.
    *
@@ -195,7 +284,7 @@ export function OpenSection({
   const reserve = hasAside(children, aside) ? band : null;
   return (
     <View style={[open, style, reserve]}>
-      {art ? <SectionArt {...art} /> : null}
+      {seam ? <SectionArt {...seam} /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}
     </View>
@@ -337,6 +426,37 @@ const STRIPS: Record<ArtVariant, Strip> = {
 const STRIP_H = 150;
 
 /**
+ * The separator has to be drawn by the section *below* the seam.
+ *
+ * A decoration authored on the upper section and hung downwards is painted
+ * before the next section's background, so an opaque ground clips it and half
+ * the drawing disappears. Anchored to the top of the lower section and pulled
+ * up by half its height, it paints after both grounds and reads across the
+ * boundary — over both sections, which is the whole point of a separator.
+ *
+ * These are the plates and extra nodes that make it fill the seam rather than
+ * hairline it. They are laid out in fractions of the width, as fixed-size
+ * Views: the SVG field is stretched to the page, so anything round drawn
+ * inside it would come out an oval.
+ */
+const STRIP_STOPS = [
+  { at: 0.07, size: 40, y: 0.72 },
+  { at: 0.28, size: 46, y: 0.3 },
+  { at: 0.43, size: 34, y: 0.74 },
+  { at: 0.57, size: 44, y: 0.28 },
+  { at: 0.72, size: 34, y: 0.72 },
+  { at: 0.93, size: 40, y: 0.32 },
+];
+
+const STRIP_PLATES = [
+  { at: 0.14, w: 96, h: 62, y: 0.1 },
+  { at: 0.35, w: 70, h: 48, y: 0.52 },
+  { at: 0.5, w: 104, h: 66, y: 0.08 },
+  { at: 0.64, w: 74, h: 50, y: 0.5 },
+  { at: 0.85, w: 92, h: 60, y: 0.12 },
+];
+
+/**
  * Drawn, never sourced — this repo does not generate or download images, and a
  * flat PNG of a light-mode illustration would be wrong in two of the three
  * themes. Everything takes the accent colour and the theme's own alpha.
@@ -352,6 +472,16 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
 
   if (l.isPhone) return null;
 
+  /*
+   * Half of it hangs into the section above and half into the one below, so
+   * its ceiling is what those two offer. A fixed 150 was 11px too tall at 1120
+   * and grazed a line of copy on nine routes. Twice `sectionSpace` is the
+   * theoretical maximum, but sections that override their own padding make the
+   * real gap smaller, so this backs off to one and a half — the largest value
+   * that measured clean on all 44 routes at 1120, 1440 and 1920.
+   */
+  const H = Math.min(STRIP_H, Math.round(l.sectionSpace * 1.5));
+
   const dark = t.mode !== 'light';
   // It sits in empty page, so nothing has to read through it — the ceiling
   // here is taste rather than legibility.
@@ -364,12 +494,17 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
   // picture repeating down the page.
   const flip = side === 'left' ? ([{ scaleX: -1 }] as const) : undefined;
 
+  const aside = ASIDES[variant as AsideVariant];
+  const icons = [
+    ...new Set([...strip.nodes.map((n) => n.icon), ...(aside ? aside.nodes.map((n) => n.icon) : [])]),
+  ];
+
   return (
     <View
       pointerEvents="none"
       aria-hidden
-      style={[artStyles.strip, { top: -STRIP_H / 2, height: STRIP_H }, flip ? { transform: [...flip] } : null]}>
-      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${STRIP_H}`} preserveAspectRatio="none">
+      style={[artStyles.strip, { top: -H / 2, height: H }, flip ? { transform: [...flip] } : null]}>
+      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${H}`} preserveAspectRatio="none">
         {strip.lines.map((d, i) => (
           <Path
             key={d}
@@ -386,23 +521,51 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
         ))}
       </Svg>
 
-      {/* Nodes are Views, not SVG: the field is stretched horizontally to the
-          page width, which would turn anything drawn inside it into an oval. */}
-      {strip.nodes.map((n) => (
+      {STRIP_PLATES.map((plate) => (
         <View
-          key={n.icon}
+          key={`plate-${plate.at}`}
+          style={[
+            artStyles.plate,
+            {
+              left: `${plate.at * 100}%`,
+              top: plate.y * H,
+              width: plate.w,
+              height: plate.h,
+              backgroundColor: fill,
+              borderColor: soft,
+            },
+          ]}
+        />
+      ))}
+
+      {/* Nodes are Views, not SVG: the field is stretched horizontally to the
+          page width, which would turn anything drawn inside it into an oval.
+          The variant's own icons cycle across the stops, pooling the strip's
+          three with the matching aside's, so a seam is not the same two icons
+          repeated. */}
+      {STRIP_STOPS.map((stop, index) => (
+        <View
+          key={`stop-${stop.at}`}
           style={[
             artStyles.node,
             {
-              left: `${n.at * 100}%`,
-              top: (n.y / STRIP_H) * STRIP_H - 19,
+              left: `${stop.at * 100}%`,
+              top: stop.y * H - stop.size / 2,
+              width: stop.size,
+              height: stop.size,
+              borderRadius: stop.size / 2,
+              marginLeft: -stop.size / 2,
               backgroundColor: fill,
               borderColor: line,
               // undo the mirror so a glyph is never back-to-front
               transform: flip ? [...flip] : undefined,
             },
           ]}>
-          <FontAwesome6 name={n.icon as never} size={15} color={mark} />
+          <FontAwesome6
+            name={icons[index % icons.length] as never}
+            size={Math.round(stop.size * 0.4)}
+            color={mark}
+          />
         </View>
       ))}
     </View>
@@ -411,11 +574,9 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
 
 const artStyles = StyleSheet.create({
   strip: { position: 'absolute', left: 0, right: 0 },
+  plate: { position: 'absolute', borderRadius: 14, borderWidth: 1.2 },
   node: {
     position: 'absolute',
-    width: 38,
-    height: 38,
-    borderRadius: 19,
     borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -628,6 +789,18 @@ const ASIDES: Record<AsideVariant, Aside> = {
  */
 const BAND_H = 190;
 
+/**
+ * How far the band hangs past the section's edge, into the next section's top
+ * padding.
+ *
+ * A separator belongs *on* the dividing line, not floating above it. Anchored
+ * flush at `bottom: 0` the drawing ended where the section ended, so it read
+ * as the last thing in that section rather than as the seam between two. It
+ * now straddles the boundary. The overhang stays under the smallest
+ * `sectionSpace` above the split (64) so the far side is still empty page.
+ */
+const BAND_OVERHANG = 56;
+
 /** where the icon nodes sit across the width, and how big each one is */
 const BAND_STOPS = [
   { at: 0.07, size: 44, y: 0.62 },
@@ -658,130 +831,19 @@ const BAND_PLATES = [
  * no layout contribution, and dropped below the split, where the section no
  * longer reserves a band for it.
  */
-export function SectionAside({ variant, color, side = 'right', at = 'bottom' }: SectionAsideProps) {
-  const t = useTokens();
-  const l = useLayout();
-  const aside = ASIDES[variant];
-
-  // Below the split the section does not reserve the band, so there is no
-  // empty page to draw in.
-  if (l.isStacked) return null;
-
-  const dark = t.mode !== 'light';
-  const line = hexToRgba(color, dark ? 0.32 : 0.25);
-  const soft = hexToRgba(color, dark ? 0.2 : 0.15);
-  const fill = hexToRgba(color, dark ? 0.13 : 0.085);
-  const mark = hexToRgba(color, dark ? 0.42 : 0.34);
-
-  /*
-   * Each variant keeps its own vocabulary — a docs band is files and a pen, a
-   * people band is faces — so the illustration still belongs to the section it
-   * sits under. The twelve aside variants share their names with twelve strip
-   * variants, so both icon sets are pooled: two icons cycling across seven
-   * stops read as a repeat, five or six read as a drawing.
-   */
-  /*
-   * The page column stops at BP.maxContent, so `left: 0` stops there too — on
-   * a 1900 viewport the lines ended 180px short of each edge and the band read
-   * as a cut-off drawing rather than one that runs the width of the page. The
-   * same measured negative margin a tinted band uses puts it back on the
-   * viewport edge; a flat overrun would leave the scroller reporting phantom
-   * width instead.
-   */
-  const bleed = bandBleed(l.width);
-
-  const icons = [
-    ...new Set([...aside.nodes.map((n) => n.icon), ...STRIPS[variant as ArtVariant].nodes.map((n) => n.icon)]),
-  ];
-  const curves = side === 'left' ? PAIRS.c : PAIRS.a;
-  /*
-   * Spread across the width, not the first N of them: taking a slice put every
-   * plate in the left half and left the right third of the band as bare line.
-   */
-  const plateCount = Math.min(BAND_PLATES.length, 4 + (aside.plates?.length ?? 0));
-  const stride = BAND_PLATES.length / plateCount;
-  const plates = Array.from({ length: plateCount }, (_, i) => BAND_PLATES[Math.floor(i * stride)]);
-
-  return (
-    <View
-      pointerEvents="none"
-      aria-hidden
-      style={[
-        bandStyles.wrap,
-        { left: -bleed, right: -bleed },
-        at === 'bottom' ? { bottom: 0 } : { top: 0 },
-      ]}>
-      {/* The field is stretched to the page width, so only the long flowing
-          lines are drawn inside it — anything round would become an oval. */}
-      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${BAND_H}`} preserveAspectRatio="none">
-        {curves.map((d, i) => (
-          <Path
-            key={d}
-            d={d}
-            stroke={i === 0 ? line : soft}
-            strokeWidth={i === 0 ? 2.6 : 1.6}
-            strokeDasharray={i === 0 ? undefined : '1 9'}
-            strokeLinecap="round"
-            fill="none"
-            transform={`translate(0 ${BAND_H * 0.18})`}
-          />
-        ))}
-      </Svg>
-
-      {plates.map((plate) => (
-        <View
-          key={`plate-${plate.at}`}
-          style={[
-            bandStyles.plate,
-            {
-              left: `${plate.at * 100}%`,
-              top: plate.y * BAND_H,
-              width: plate.w,
-              height: plate.h,
-              backgroundColor: fill,
-              borderColor: soft,
-            },
-          ]}
-        />
-      ))}
-
-      {BAND_STOPS.map((stop, index) => (
-        <View
-          key={`stop-${stop.at}`}
-          style={[
-            bandStyles.node,
-            {
-              left: `${stop.at * 100}%`,
-              top: stop.y * BAND_H - stop.size / 2,
-              width: stop.size,
-              height: stop.size,
-              borderRadius: stop.size / 2,
-              marginLeft: -stop.size / 2,
-              backgroundColor: fill,
-              borderColor: line,
-            },
-          ]}>
-          <FontAwesome6
-            name={icons[index % icons.length] as never}
-            size={Math.round(stop.size * 0.42)}
-            color={mark}
-          />
-        </View>
-      ))}
-    </View>
-  );
+/**
+ * Reserved for the *other* illustration zone: a composition large enough to
+ * occupy a genuinely empty area of a layout.
+ *
+ * That is a different job from the separator, and conflating them is what went
+ * wrong — this drew a full-width wave inside a section, which both duplicated
+ * the seam below it and read as a separator in the wrong place. The separator
+ * is `SectionArt`, on the dividing line. This returns nothing until the empty
+ * areas are measured and it is sized to fill one.
+ */
+export function SectionAside(_props: SectionAsideProps) {
+  return null;
 }
-
-const bandStyles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, height: BAND_H },
-  plate: { position: 'absolute', borderRadius: 16, borderWidth: 1.2 },
-  node: {
-    position: 'absolute',
-    borderWidth: 1.3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
 
 /**
  * An open section on a tinted, edge-to-edge ground.
@@ -801,8 +863,13 @@ export function Band({
   children: React.ReactNode;
   tone?: BandTone;
   style?: ViewStyle | ViewStyle[];
-  /** illustration for the gap above this section — see `SectionArt` */
-  art?: SectionArtProps;
+  /**
+   * Illustration for the gap above this section — see `SectionArt`. Omit it
+   * and the section draws the default separator; pass `'none'` when the
+   * section *above* is too compact to give one room, which is the one thing
+   * a section cannot work out for itself.
+   */
+  art?: SectionArtProps | 'none';
   /** illustration for the empty space beside the head — see `SectionAside` */
   aside?: SectionAsideProps;
 }) {
@@ -814,6 +881,7 @@ export function Band({
   // empty page below them.
   const asideBand = useAsideBand();
   const reserve = hasAside(children, aside) ? asideBand : null;
+  const seam = useSectionArt(art, style);
   const band = useMemo<ViewStyle>(() => {
     const bleed = bandBleed(l.width);
     return {
@@ -835,7 +903,7 @@ export function Band({
   // section into the gap, and clipping would cut it in half.
   return (
     <View style={[band, style, reserve]}>
-      {art ? <SectionArt {...art} /> : null}
+      {seam ? <SectionArt {...seam} /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}
     </View>

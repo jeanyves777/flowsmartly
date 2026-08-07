@@ -647,7 +647,7 @@ export default function SolutionsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ outcomes */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

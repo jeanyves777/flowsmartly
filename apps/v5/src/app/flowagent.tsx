@@ -473,7 +473,7 @@ export default function FlowAiPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the five states */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHERE THE WORK IS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>

@@ -277,7 +277,7 @@ function Timeline({ filter }: { filter: Filter }) {
   const total = groups.reduce((sum, group) => sum + group.entries.length, 0);
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'people', color: t.brand, side: 'right' }}>
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           Release history

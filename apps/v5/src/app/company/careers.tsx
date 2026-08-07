@@ -350,7 +350,7 @@ function Values() {
   const columns = l.isCompact ? 1 : 5;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <SectionHead
         label="WHAT WE VALUE"
         title="Five things we actually hire for."

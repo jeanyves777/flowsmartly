@@ -609,7 +609,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
   const term = query.trim();
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
       <Reveal style={styles.head} distance={14}>
         <Heading level={2} style={styles.headTitle}>
           {`Results for “${term}”`}
@@ -668,7 +668,7 @@ function Categories() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'media', color: t.violet, side: 'left' }}>
       <SectionHead
         title="Start where you are."
         body="Four ways in, depending on whether you are stuck, curious, planning or building."

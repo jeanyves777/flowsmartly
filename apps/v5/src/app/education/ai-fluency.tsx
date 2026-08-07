@@ -419,7 +419,7 @@ function Pillars() {
   const columns = l.isPhone ? 2 : l.isDesktop ? 6 : 3;
 
   return (
-    <Band tone="violet">
+    <Band tone="violet" art={{ variant: 'docs', color: t.violet, side: 'right' }}>
       <SectionHead
         label="LEARNING PILLARS"
         title="Core learning pillars"
@@ -799,7 +799,7 @@ function AssistantCard() {
 function GovernanceAndAssistant() {
   const styles = useStyles();
   return (
-    <OpenSection>
+    <OpenSection art="none">
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpNarrow} distance={14}>
           <GovernanceCard />

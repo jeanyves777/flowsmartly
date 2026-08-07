@@ -158,58 +158,57 @@ validation. Build, screenshot, and open the image.
     same gutter as the open section above; a flat overrun would leave the
     scroll container reporting phantom width at every viewport.
 
-    Illustration has exactly **two zones**, and a section never has to guess
-    whether either one is free — both are empty by construction:
+    Illustration has exactly **two zones**, and they are different jobs. The
+    mistake worth not repeating is treating them as one:
 
-    - **The gap between sections** — every section carries `l.sectionSpace` of
-      padding top and bottom, so a boundary is 80-150px that never holds copy,
-      a card or a mockup. `<SectionArt>` (the `art` prop) straddles it with
-      flowing lines and icon nodes, full width, so it fills the side margins
-      the content columns leave behind too.
-    - **A band the section reserves for it** — `<SectionAside>` (the `aside`
-      prop, or the component directly when the section is a `Reveal` rather
-      than an `OpenSection`). The section adds `l.sectionSpace + BAND_H` to its
-      own bottom padding, and the illustration is drawn in that padding, so it
-      *cannot* land on content.
+    - **The separator, on the dividing line between two sections.**
+      `<SectionArt>`, drawn by the section *below* the seam and pulled up half
+      its own height so it straddles the boundary and reads across both.
 
-      The first version instead trusted the hole a layout leaves — the gap
-      under a copy column whose neighbouring mockup is taller. Measured against
-      every text run and image on all 44 routes, that hole is not reliably
-      there: illustrations sat on a CTA, a proof row or a hero paragraph on
-      nine routes, by 10px in the best case and 77 in the worst. Reserving the
-      space is the only version that holds at every width.
+      **It has to be drawn by the lower section.** A decoration authored on the
+      upper section and hung downwards is painted before the next section's
+      background, so an opaque ground clips it and half the drawing vanishes —
+      which is exactly what "it must be over both sections, not hidden" means.
 
-    Three things this band has to get right, each of which was wrong first:
+      **Every boundary gets one.** `art` used to be opt-in and two boundaries in
+      five had nothing crossing them, which reads as the page having stopped.
+      `SectionSequence` in `PageShell` numbers the top-level sections and each
+      one draws a default separator; a route only writes `art` when it wants a
+      particular variant. Index 0 is skipped — a hero's top edge is the header.
+      Number the sections *by position*, not with a running counter: a hero
+      built from a `Reveal` never goes through `OpenSection`, so a counter left
+      it unnumbered and the section after it silently lost its separator.
 
-    - **It spans the page, not a corner of it.** A 234px composition in one
-      margin leaves the rest of a reserved band as flat colour, which reads as
-      the page having stopped. The drawing runs edge to edge, with its plates
-      *spread* across the width rather than sliced off the front of the list —
-      taking the first N put every plate in the left half.
-    - **It bleeds past `BP.maxContent`.** `left: 0` stops at the content
-      column, so on a 1900 viewport the lines ended 180px short of both edges
-      and looked cut off. Use the same measured negative margin a tinted band
-      uses (`bandBleed`).
-    - **One decoration per seam.** The band closes the boundary below its
-      section; the *next* section's `art` strip straddles that same boundary,
-      and both together read as a duplicate. A section that follows an
-      aside-bearing one carries no `art`. Watch for a conditional section
-      (`{searching ? <SearchResults/> : null}`) — source order is not render
-      order, and either branch can be the one that follows the band.
+      **Its height is bounded by the padding on both sides**, not chosen.
+      `1.5 x sectionSpace` is the largest value that measured clean on all 44
+      routes; twice the padding is the theoretical ceiling and grazed copy on
+      nine of them, because sections that override their own padding make the
+      real gap smaller. A section that declares a compact padding skips its
+      separator automatically; the one case a section cannot work out — the
+      section *above* being the compact one — is `art="none"`.
 
-    Nothing goes behind the content. Four earlier attempts did and all four
-    were wrong — a composition behind the copy collided with headings, a
-    version keyed to "sections without an `<Image>`" still landed on the
-    connector diagrams, an outline tracing each section is a border rather than
-    an illustration, and `Band` shipped without the reserve `OpenSection` had,
-    so on the two sections that use it the drawing sat over the last rows of
-    copy. Real product imagery always wins; illustration only fills space that
-    is otherwise empty.
+    - **A composition filling a genuinely empty area of a layout.** A different
+      job, with nothing to do with the seam: it only has to be large enough to
+      occupy the hole it is placed in. `SectionAside` is the seat for it and
+      currently draws nothing, because the empty areas have not been measured
+      and sized for. Do not let it drift back into being a second separator —
+      that produced a full-width wave inside a section, duplicating the seam
+      below it and marking a boundary in the wrong place.
 
-    **Both of these are detectors, not opinions.** Intersect every decoration
-    with every text run and image (`no aside sits on content`), and intersect
-    decorations with each other (`no seam carries two decorations`). Run them
-    after any change to section padding.
+    Nothing goes behind the content. Five earlier attempts did — a composition
+    behind the copy collided with headings; a version keyed to "sections
+    without an `<Image>`" landed on the connector diagrams; an outline tracing
+    each section is a border, not an illustration; `Band` shipped without the
+    reserve `OpenSection` had; and a full-width band anchored inside a section
+    was both clipped by the next ground and duplicated by its strip. Real
+    product imagery always wins.
+
+    **These are detectors, not opinions.** Intersect every decoration with
+    every text run and image (`no aside sits on content`), and intersect
+    decorations with each other (`no seam carries two decorations`). Include
+    full-width decorations in the first one — excluding them by width is why
+    the separators went unchecked for so long. Run both after any change to
+    section padding.
 
 ---
 

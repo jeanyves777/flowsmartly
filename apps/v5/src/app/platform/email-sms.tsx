@@ -713,7 +713,7 @@ export default function EmailSmsPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 02 sms + mms */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead

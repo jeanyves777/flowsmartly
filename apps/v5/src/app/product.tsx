@@ -877,7 +877,7 @@ export default function ProductPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ modules */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>EVERY MODULE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>

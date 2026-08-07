@@ -682,7 +682,7 @@ export default function FlowShopPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ 01 store builder */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead

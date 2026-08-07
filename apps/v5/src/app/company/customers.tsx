@@ -363,7 +363,7 @@ function StatStrip() {
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
-    <Band tone="surface">
+    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
       <View style={styles.grid}>
         {HEADLINE_STATS.map((item, index) => (
           <Reveal

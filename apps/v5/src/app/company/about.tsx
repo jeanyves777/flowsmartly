@@ -394,7 +394,7 @@ export default function AboutPage() {
 
       {/* ------------------------------------------------ mission */}
       <View nativeID="about-mission">
-        <Band tone="surface">
+        <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>

@@ -718,7 +718,7 @@ export default function CallAgentPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ configure */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SET IT UP IN AN AFTERNOON</SectionLabel>

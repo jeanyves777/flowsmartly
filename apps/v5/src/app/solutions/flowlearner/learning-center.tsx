@@ -889,7 +889,7 @@ export default function LearningCenterPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ the player */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="THE LESSON PLAYER"

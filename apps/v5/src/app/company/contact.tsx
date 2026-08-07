@@ -512,7 +512,7 @@ export default function ContactPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ how can we help */}
-      <Band tone="surface">
+      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
         <View style={styles.helpHead}>
           <SectionLabel>WHERE TO START</SectionLabel>
           <Heading level={2} style={[type.h2, styles.helpTitle]}>
