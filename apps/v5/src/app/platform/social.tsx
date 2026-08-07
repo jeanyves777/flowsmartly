@@ -582,14 +582,9 @@ export default function SocialPage() {
                   {CHANNEL_PREVIEWS.map((preview) => (
                     <View key={preview.channel} style={styles.previewRow}>
                       <ChannelMark channel={preview.channel} size={16} styles={styles} />
-                      <View style={styles.previewCopy}>
-                        <Text numberOfLines={1} style={styles.previewName}>
-                          {preview.name}
-                        </Text>
-                        <Text numberOfLines={1} style={styles.previewCaption}>
-                          {preview.caption}
-                        </Text>
-                      </View>
+                      <Text numberOfLines={1} style={styles.previewName}>
+                        {preview.name}
+                      </Text>
                       <View style={styles.previewStats}>
                         <View style={styles.previewStat}>
                           <FontAwesome6 name="heart" size={9} color={t.textSubtle} />
@@ -604,6 +599,9 @@ export default function SocialPage() {
                           </Text>
                         </View>
                       </View>
+                      <Text numberOfLines={2} style={styles.previewCaption}>
+                        {preview.caption}
+                      </Text>
                     </View>
                   ))}
                 </View>
@@ -1318,7 +1316,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     dayStamp: {
-      width: 42,
+      // fixed so every day's slots start on one line — 42 cut the "n" off
+      // "Mon" and "Wed", which need 28 beside the 5px gap and the two digits
+      width: 48,
       flexGrow: 0,
       flexShrink: 0,
       flexDirection: 'row',
@@ -1352,10 +1352,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0, gap: 7 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 7 },
     previewLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    /**
+     * Name and stats on the header line, caption on its own — the way the
+     * networks themselves render a post. Keeping the caption beside the name
+     * gave it 75px of a 219px panel at 1120, so five of the six captions were
+     * cut mid-sentence; a `flexBasis: '100%'` child in a wrapping row always
+     * takes the full width instead, at every viewport.
+     */
     previewRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: 10,
+      columnGap: 10,
+      rowGap: 4,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 11,
@@ -1373,9 +1382,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.surfaceMuted,
     },
-    previewCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    previewName: { ...type.micro, color: t.text, fontWeight: '800' },
-    previewCaption: { ...type.micro, color: t.textSubtle },
+    previewName: {
+      ...type.micro,
+      color: t.text,
+      fontWeight: '800',
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+    },
+    previewCaption: { ...type.micro, color: t.textSubtle, flexBasis: '100%', width: '100%' },
     previewStats: { flexGrow: 0, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
     previewStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     previewStatText: { ...type.micro, color: t.textMuted, fontWeight: '700' },
@@ -1586,7 +1602,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       padding: 10,
       gap: 8,
     },
-    adaptHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    // The ratio pill wraps under the name rather than squeezing it: at 1120 a
+    // third of the row is 128px, and "Video cover" needs 70 of it.
+    adaptHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 9, rowGap: 6 },
     adaptTitle: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     adaptRatio: {
       flexGrow: 0,

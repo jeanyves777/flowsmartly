@@ -223,7 +223,16 @@ layout work:
 
 - horizontal overflow at 390 (the page rendering wider than the viewport)
 - a wrapped grid leaving one stretched orphan card
-- text ellipsizing at a *wider* viewport than one where it fits
+- text ellipsizing at a *wider* viewport than one where it fits. A mock panel
+  that sits beside a second panel inside a split hero is the usual culprit: it
+  is ~264px at 1120 and only ~400px at 1920, so a three-up stat grid inside it
+  clips at *every* desktop width while looking fine on a phone. Detect it by
+  script rather than by eye — but note that `numberOfLines` compiles to
+  `-webkit-line-clamp` and `overflow: hidden`, **not** `text-overflow:
+  ellipsis`, so a detector keyed to `text-overflow` reports a clean sweep on a
+  page full of cut text; and `useCountUp` runs for ~1.2s after a stat scrolls
+  into view, so anything measured before it settles reports a few px of
+  phantom clamp overflow on every animated number
 - a section that stacks while its neighbour does not
 - white cards or navy-on-navy text surviving in dark/grey
 - connector wires missing their target or stranding an end dot

@@ -671,7 +671,9 @@ export default function TrainingStudioPage() {
                         <Text style={styles.railIndex}>{step.index}</Text>
                         <SlideThumb kind={step.thumb} styles={styles} />
                         <View style={styles.railCopy}>
-                          <Text numberOfLines={1} style={styles.railTitle}>
+                          {/* the rail is a fixed 168 and the copy inside it 80,
+                              so a step title wraps instead of losing its end */}
+                          <Text numberOfLines={2} style={styles.railTitle}>
                             {step.title}
                           </Text>
                           <Text numberOfLines={1} style={styles.railMoment}>
@@ -718,7 +720,7 @@ export default function TrainingStudioPage() {
 
                   <View style={styles.canvas}>
                     <View style={styles.canvasHead}>
-                      <Text numberOfLines={1} style={styles.canvasTitle}>
+                      <Text numberOfLines={2} style={styles.canvasTitle}>
                         How a lead becomes a customer
                       </Text>
                       <Text numberOfLines={1} style={styles.canvasMeta}>
@@ -748,7 +750,7 @@ export default function TrainingStudioPage() {
                               <Text numberOfLines={1} style={styles.diagramLabel}>
                                 {node.label}
                               </Text>
-                              <Text numberOfLines={1} style={styles.diagramNote}>
+                              <Text numberOfLines={2} style={styles.diagramNote}>
                                 {node.note}
                               </Text>
                             </View>
@@ -787,7 +789,7 @@ export default function TrainingStudioPage() {
                           size={12}
                           color={layout.active ? t.brand : t.textSubtle}
                         />
-                        <Text numberOfLines={1} style={styles.layoutLabel}>
+                        <Text numberOfLines={2} style={styles.layoutLabel}>
                           {layout.label}
                         </Text>
                       </View>
@@ -1865,13 +1867,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       padding: l.isPhone ? 12 : 16,
       gap: 14,
     },
-    canvasHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    // The slide title owns the line. Sharing it with the step meta left the
+    // title 117px of a 196px head at 1120, and it needs 237.
+    canvasHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 2 },
     canvasTitle: {
       ...type.bodySm,
       color: t.text,
       fontWeight: '800',
       flexGrow: 1,
       flexShrink: 1,
+      flexBasis: '100%',
       minWidth: 0,
     },
     canvasMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
@@ -1937,7 +1942,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 6,
     },
     layoutTileActive: { borderColor: hexToRgba(t.brand, 0.55), backgroundColor: t.brandSoft },
-    layoutLabel: { fontSize: 11, lineHeight: 14, color: t.textMuted, fontWeight: '700' },
+    layoutLabel: { fontSize: 11, lineHeight: 14, color: t.textMuted, fontWeight: '700', textAlign: 'center' },
 
     inspectorMedia: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     inspectorThumb: {

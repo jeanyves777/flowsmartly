@@ -437,7 +437,7 @@ function ComposerMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Lay
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>PREVIEW</Text>
             <Text numberOfLines={1} style={styles.fieldValueMuted}>
-              The spring collection just landed — your size included.
+              The spring collection landed — your size included.
             </Text>
           </View>
 
@@ -1558,7 +1558,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     miniChipText: { ...type.micro, color: t.chipText, fontWeight: '700' },
 
     deliveryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
-    deliveryList: { flexGrow: 1, flexShrink: 1, flexBasis: 120, minWidth: 0, gap: 5 },
+    // 120 let the list stay beside the ring in a card too narrow for it, so
+    // "Sender reputation" lost its last word. At 170 it drops below the ring
+    // instead and gets the card's full width.
+    deliveryList: { flexGrow: 1, flexShrink: 1, flexBasis: 170, minWidth: 0, gap: 5 },
     excellentChip: {
       alignSelf: 'flex-start',
       borderRadius: 999,

@@ -442,7 +442,8 @@ function KpiTile({
         <View style={[styles.kpiIcon, { backgroundColor: hexToRgba(accent, 0.14) }]}>
           <FontAwesome6 name={icon as never} size={12} color={accent} />
         </View>
-        <Text numberOfLines={1} style={styles.kpiLabel}>
+        {/* two lines as a backstop, so a long label wraps rather than loses a word */}
+        <Text numberOfLines={2} style={styles.kpiLabel}>
           {label}
         </Text>
       </View>
@@ -678,7 +679,12 @@ function ColumnChart({
               <Text numberOfLines={1} style={styles.columnValue}>
                 {value}
               </Text>
-              <View style={[styles.columnBar, { height: barHeight, backgroundColor: color }]} />
+              {/* The bar is a percentage of what is left after the value, not
+                  of the whole plot — the tallest column is 100%, and measured
+                  against the plot that pushed its own number off the top. */}
+              <View style={styles.columnBarSlot}>
+                <View style={[styles.columnBar, { height: barHeight, backgroundColor: color }]} />
+              </View>
             </View>
           );
         })}
@@ -1561,7 +1567,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   // Four-item sets only ever split 2 / 2 or 4 / — never a stranded orphan.
   const quadColumns = columns(2, 2, 4, 4);
   const segmentColumns = columns(1, 2, 2, 4);
-  const kpiColumns = l.isPhone || l.isTablet ? 2 : 4;
+  // Four across needs the desktop width: this grid sits in the hero's mock
+  // column, so a laptop gives each tile ~137px and the longest label needs 111
+  // of it beside a 22px icon. Two across everywhere below 1440.
+  const kpiColumns = l.isDesktop ? 4 : 2;
 
   const gridBase: ViewStyle = {
     flexDirection: 'row',
@@ -1762,17 +1771,21 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     panelMetaStrong: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     chartBox: { width: '100%', minWidth: 0 },
 
+    // Always wrappable. With `nowrap` above tablet the donut kept its full size
+    // out of a ~204px row and left the legend 38px, so every label rendered at
+    // zero width — invisible entries, not short ones.
     donutRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      flexWrap: l.isTablet ? 'wrap' : 'nowrap',
+      flexWrap: 'wrap',
     },
     donutWrap: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
     donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 1 },
     donutValue: { ...type.bodySm, color: t.text, fontWeight: '800' },
     donutLabel: { ...type.micro, color: t.textSubtle },
-    donutLegend: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 7 },
+    // a real basis, so the legend drops below the donut instead of collapsing
+    donutLegend: { flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 0, gap: 7 },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
     legendSwatch: { width: 10, height: 10, borderRadius: 3, flexGrow: 0, flexShrink: 0 },
     legendText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
@@ -1908,7 +1921,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ...type.micro,
       color: t.textMuted,
       fontWeight: '700',
-      width: l.isPhone ? 104 : 132,
+      // fixed so every bar starts on one line — 104 cut "Product Fundamentals",
+      // "New hire onboarding" and "Reading-only lessons", which need 116
+      width: l.isPhone ? 122 : 132,
       flexGrow: 0,
       flexShrink: 0,
     },
@@ -2083,7 +2098,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'flex-end',
       gap: 4,
     },
-    columnValue: { ...type.micro, color: t.textSubtle, fontWeight: '700', textAlign: 'center' },
+    columnValue: {
+      ...type.micro,
+      color: t.textSubtle,
+      fontWeight: '700',
+      textAlign: 'center',
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    columnBarSlot: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, justifyContent: 'flex-end' },
     columnBar: { borderTopLeftRadius: 5, borderTopRightRadius: 5, width: '100%' },
     columnLabels: { flexDirection: 'row', alignItems: 'center', gap: l.isPhone ? 5 : 8 },
     columnLabel: {

@@ -1441,7 +1441,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
   const categoryColumns = l.isPhone ? 2 : 4;
-  const dashColumns = l.isPhone ? 1 : 3;
+  /**
+   * Above the split the dashboard card shares the hero's mock column with the
+   * readiness card, so it is only ~264px wide at 1120 and ~400px at 1920.
+   * Three stat tiles leave each value 46-84px for a number that measures 86px,
+   * so "$248,760" was cut at *every* desktop width. Below the split the mock
+   * column is the full page and the tiles fit, so the tile layout stays there
+   * and the narrow column gets a compact one-per-line row instead.
+   */
+  const dashRow = !l.isStacked;
+  const dashColumns = l.isPhone || dashRow ? 1 : 3;
   /**
    * Five channels is a prime count: only one and five columns divide it, so
    * two or three leave a hole where a card should be. The five-up card needs
@@ -1661,11 +1670,28 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
       paddingHorizontal: 11,
       paddingVertical: 11,
-      gap: 3,
+      ...(dashRow
+        ? { flexDirection: 'row', alignItems: 'center', gap: 8 }
+        : { gap: 3 }),
     },
-    dashStatLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    dashStatValue: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800', color: t.text },
-    dashStatDelta: { ...type.micro, fontWeight: '800' },
+    dashStatLabel: {
+      ...type.micro,
+      color: t.textSubtle,
+      fontWeight: '700',
+      ...(dashRow ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 } : null),
+    },
+    dashStatValue: {
+      fontSize: dashRow ? 16 : l.isPhone ? 17 : 19,
+      lineHeight: dashRow ? 21 : l.isPhone ? 22 : 24,
+      fontWeight: '800',
+      color: t.text,
+      ...(dashRow ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' } : null),
+    },
+    dashStatDelta: {
+      ...type.micro,
+      fontWeight: '800',
+      ...(dashRow ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' } : null),
+    },
 
     readyCard: {
       ...cardBase,

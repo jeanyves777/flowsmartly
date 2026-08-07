@@ -609,7 +609,10 @@ export default function CallAgentPage() {
                   <Text numberOfLines={1} style={styles.callerName}>
                     Sarah Johnson
                   </Text>
-                  <Text numberOfLines={1} style={styles.callerMeta}>
+                  {/* three facts and a 44px face and an intent chip do not fit
+                      one 390px line — the row keeps its shape and the meta
+                      takes a second line rather than losing "Austin, TX" */}
+                  <Text numberOfLines={l.isPhone ? 2 : 1} style={styles.callerMeta}>
                     Returning customer · 3 orders · Austin, TX
                   </Text>
                 </View>
@@ -1697,7 +1700,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     voiceCell: cellBase(voiceColumns),
     voiceCard: { ...cardBase, gap: 12, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
     voiceCardOn: { borderColor: t.brand },
-    voiceHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    // The "Selected" chip wraps under the name rather than squeezing it: at 768
+    // a third of the row is 226px and the chip left "US English · female" 62.
+    voiceHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 11, rowGap: 8 },
     voiceIcon: {
       width: 40,
       height: 40,

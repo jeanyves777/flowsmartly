@@ -1542,7 +1542,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   const figureColumns = columns(1, 3, 3, 3); // 3 figures
   const variantColumns = columns(1, 3, 3, 3);
-  const sourceColumns = columns(1, 5, 5, 5);
+  // Five across needs the laptop width. At 768 each source got 130px, which
+  // left "Openers & clickers" 65 of the 97 it needs, so the tablet lays them
+  // out the way the phone already does — one full-width row each.
+  const sourceColumns = columns(1, 1, 5, 5);
   const perfTileColumns = columns(2, 2, 4, 4);
 
   const cardBase: ViewStyle = {

@@ -1568,7 +1568,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const publisherColumns = l.isPhone ? 2 : 4;
   const duplicateColumns = l.isPhone ? 1 : 2;
   const teamColumns = columns(2, 2, 4, 4);
-  const healthCountColumns = 3;
+  // Three across gives each count 90px on a 390 phone and the tile 68 inside
+  // it, where "Warnings" needs 75. On a phone they run one per line instead,
+  // as a row — count on the left, what it counts on the right.
+  const healthCountRow = l.isPhone;
+  const healthCountColumns = healthCountRow ? 1 : 3;
 
   const twoUp: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
 
@@ -1762,10 +1766,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 10,
       paddingVertical: 10,
-      gap: 2,
+      ...(healthCountRow
+        ? { flexDirection: 'row', alignItems: 'baseline', gap: 8 }
+        : { gap: 2 }),
     },
     healthCountValue: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800' },
-    healthCountLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    healthCountLabel: {
+      ...type.micro,
+      color: t.textSubtle,
+      fontWeight: '700',
+      ...(healthCountRow ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 } : null),
+    },
 
     visibilityCard: { ...innerCard, backgroundColor: t.surfaceMuted },
     cardTitle: { ...type.caption, color: t.text, fontWeight: '800' },

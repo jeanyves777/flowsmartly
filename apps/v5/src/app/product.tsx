@@ -691,7 +691,11 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
             return (
               <View key={stat.key} style={styles.statCell}>
                 <View style={styles.statTile}>
-                  <Text numberOfLines={1} style={styles.statLabel}>
+                  {/* "Revenue influenced" needs 111px and the tile is 129px
+                      wide at 1120, where the hero splits and this grid keeps
+                      four columns — so the label wraps rather than clips, and
+                      the tiles grow together to stay one height. */}
+                  <Text numberOfLines={2} style={styles.statLabel}>
                     {stat.label}
                   </Text>
                   <Text numberOfLines={1} style={styles.statValue}>
@@ -1236,8 +1240,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 11,
       paddingVertical: 11,
       gap: 3,
+      flexGrow: 1,
     },
-    statLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    // grows so the four values sit on one baseline even when a label wraps
+    statLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexGrow: 1 },
     statValue: { fontSize: l.isPhone ? 18 : 21, lineHeight: l.isPhone ? 23 : 26, fontWeight: '800', color: t.text },
     statDeltaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 0 },
     statDeltaIcon: { transform: [{ rotate: '-45deg' }] },
