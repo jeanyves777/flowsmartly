@@ -485,7 +485,6 @@ export default function FlowShopPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <OpenSection aside={{ variant: 'chart', color: t.pink, side: 'left', at: 'bottom' }}>
-        <SectionAside variant="store" color={t.pink} side="left" at="top" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>AI-READY COMMERCE</SectionLabel>

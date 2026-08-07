@@ -1,6 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Fragment, useMemo } from 'react';
+import { Children, Fragment, isValidElement, type ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { trackCta } from '@/lib/analytics';
@@ -134,6 +134,39 @@ export function useOpenSection(): ViewStyle {
   );
 }
 
+/**
+ * The band a `SectionAside` lives in, as extra bottom padding.
+ *
+ * `OpenSection` applies this for you; a section built from a `Reveal` and the
+ * open style has to add it by hand: `style={[open, asideBand]}`. Without it the
+ * illustration is absolutely positioned over whatever the section ends with.
+ */
+export function useAsideBand(): ViewStyle {
+  const l = useLayout();
+  // an empty object rather than null: this is spread into a style array beside
+  // the open style, and RNW's ViewStyle does not accept null in that position
+  return useMemo(
+    () => (l.isStacked ? {} : { paddingBottom: l.sectionSpace + ASIDE_H }),
+    [l],
+  );
+}
+
+/**
+ * Does this subtree place an aside, either through the prop or as a child?
+ *
+ * Both spellings are in use — `aside={{…}}` on the section, and the component
+ * written directly inside it when the section is a `Reveal` — and the section
+ * has to reserve the band either way, so it asks rather than assumes.
+ */
+function hasAside(children: ReactNode, aside?: SectionAsideProps): boolean {
+  if (aside) return true;
+  let found = false;
+  Children.forEach(children, (child) => {
+    if (isValidElement(child) && child.type === SectionAside) found = true;
+  });
+  return found;
+}
+
 export function OpenSection({
   children,
   style,
@@ -148,8 +181,20 @@ export function OpenSection({
   aside?: SectionAsideProps;
 }) {
   const open = useOpenSection();
+  /**
+   * A section that carries an aside reserves the band it lives in.
+   *
+   * The first version trusted the hole a layout leaves — the gap under a copy
+   * column whose neighbouring mockup is taller. Measured against every text run
+   * on all 44 routes, that hole is not reliably there: the illustration landed
+   * on a CTA, a proof row or a hero paragraph on nine routes at once, by 10px
+   * in the best case and 77 in the worst. Trusting it was the mistake, so the
+   * section now *makes* the space instead, and overlap stops being possible.
+   */
+  const band = useAsideBand();
+  const reserve = hasAside(children, aside) ? band : null;
   return (
-    <View style={[open, style]}>
+    <View style={[open, style, reserve]}>
       {art ? <SectionArt {...art} /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}
@@ -568,11 +613,28 @@ const ASIDES: Record<AsideVariant, Aside> = {
   },
 };
 
+/**
+ * The field the twelve compositions are drawn in, and the box they are drawn
+ * into — two different things, and conflating them cut every one of them off.
+ *
+ * `ASIDE_H` is 190, not 300: a hero's copy column ends 100-150px above the
+ * section edge, so a 300px band anchored there reaches back over the proof row
+ * under the buttons. But the coordinates below were authored in a ~320-tall
+ * field, and using the *rendered* height as the viewBox meant the SVG viewport
+ * clipped everything past y=190 — plates sliced flat along their bottom edge,
+ * connectors ending in mid-air. The viewBox is the authored field; the wrap is
+ * sized to that field's ratio so `meet` letterboxes nothing and the icon
+ * overlay, which positions in percentages of the wrap, still lands on its node.
+ */
 const ASIDE_W = 480;
-// 190, not 300. A hero's copy column ends 100-150px above the section edge,
-// so a 300px band anchored there reaches back over the proof row under the
-// buttons. This height keeps it inside the empty band on either end.
-const ASIDE_H = 190;
+const ASIDE_FIELD = 320;
+/**
+ * 156, measured rather than chosen. Anchored to a section's bottom edge, a
+ * 190-tall box reached 10-23px past where the hero's proof row ends on every
+ * route that has one; 156 clears it with room to spare at 1120, 1440 and 1920.
+ */
+const ASIDE_H = 156;
+const ASIDE_DRAWN_W = Math.round(ASIDE_W * (ASIDE_H / ASIDE_FIELD));
 
 /**
  * Drawn, never sourced — this repo does not generate or download images, and a
@@ -609,7 +671,7 @@ export function SectionAside({ variant, color, side = 'right', at = 'top' }: Sec
         // base style would pin this to the wrong end and silently win.
         at === 'bottom' ? { bottom: 0 } : { top: 0 },
       ]}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_H}`} preserveAspectRatio="xMidYMid meet">
+      <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_FIELD}`} preserveAspectRatio="xMidYMid meet">
         {aside.plates?.map(([x, y, w, h, r]) => (
           <Rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx={r} fill={fill} stroke={soft} strokeWidth={1.2} />
         ))}
@@ -631,7 +693,7 @@ export function SectionAside({ variant, color, side = 'right', at = 'top' }: Sec
           key={n.icon}
           style={[
             asideStyles.glyph,
-            { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_H) * 100}%` },
+            { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_FIELD) * 100}%` },
           ]}>
           <FontAwesome6 name={n.icon as never} size={Math.round(n.r * 0.62)} color={mark} />
         </View>
@@ -643,7 +705,7 @@ export function SectionAside({ variant, color, side = 'right', at = 'top' }: Sec
 const asideStyles = StyleSheet.create({
   // Anchored to the top of the section so it sits beside the head, not over
   // the grid that follows it.
-  wrap: { position: 'absolute', width: '38%', height: ASIDE_H },
+  wrap: { position: 'absolute', width: ASIDE_DRAWN_W, height: ASIDE_H },
   glyph: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
 });
 

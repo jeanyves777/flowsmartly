@@ -9,17 +9,18 @@ import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Band,
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
-  Band,
-  OpenSection,
   SectionAside,
   SectionLabel,
+  type TypeScale,
+  useAsideBand,
   useOpenSection,
   useTypeScale,
-  type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { contactHref } from '@/lib/destinations';
@@ -497,6 +498,7 @@ export default function SolutionsPage() {
   const l = useLayout();
   const type = useTypeScale();
   const open = useOpenSection();
+  const asideBand = useAsideBand();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -523,7 +525,7 @@ export default function SolutionsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={open} distance={22}>
+      <Reveal style={[open, asideBand]} distance={22}>
         <SectionAside variant="network" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>

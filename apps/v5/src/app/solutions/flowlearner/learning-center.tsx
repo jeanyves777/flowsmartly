@@ -17,17 +17,18 @@ import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Band,
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
-  Band,
-  OpenSection,
   SectionAside,
   SectionLabel,
+  type TypeScale,
+  useAsideBand,
   useOpenSection,
   useTypeScale,
-  type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
@@ -614,6 +615,7 @@ export default function LearningCenterPage() {
   const l = useLayout();
   const type = useTypeScale();
   const open = useOpenSection();
+  const asideBand = useAsideBand();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -631,11 +633,10 @@ export default function LearningCenterPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={open} distance={22}>
+      <Reveal style={[open, asideBand]} distance={22}>
         {/* These product heroes all run copy-left, mockup-right, and the copy
             column is the shorter of the two — so the empty zone is the band
             beneath it. */}
-        <SectionAside variant="docs" color={t.violet} side="left" at="top" />
         <SectionAside variant="calendar" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>

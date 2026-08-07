@@ -10,17 +10,18 @@ import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Band,
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
-  Band,
-  OpenSection,
   SectionAside,
   SectionLabel,
+  type TypeScale,
+  useAsideBand,
   useOpenSection,
   useTypeScale,
-  type TypeScale,
 } from '@/components/public/ui';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
@@ -548,6 +549,7 @@ export default function EmailSmsPage() {
   const l = useLayout();
   const type = useTypeScale();
   const open = useOpenSection();
+  const asideBand = useAsideBand();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const router = useRouter();
@@ -566,10 +568,9 @@ export default function EmailSmsPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={open} distance={22}>
+      <Reveal style={[open, asideBand]} distance={22}>
         {/* The hero's copy column is shorter than its mockup, so the empty
             zone is at the bottom of that side — measured, not guessed. */}
-        <SectionAside variant="network" color={t.pink} side="left" at="top" />
         <SectionAside variant="waves" color={t.pink} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>

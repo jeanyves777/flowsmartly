@@ -266,7 +266,6 @@ export default function DomainsPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <OpenSection aside={{ variant: 'network', color: t.brand, side: 'left', at: 'bottom' }}>
-        <SectionAside variant="search" color={t.brand} side="left" at="top" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>DOMAINS</SectionLabel>
