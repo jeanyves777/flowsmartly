@@ -146,6 +146,42 @@ const PUBLISH_RIGHTS: { role: string; note: string }[] = [
 
 const ADAPT_TABS = ['instagram', 'facebook', 'tiktok', 'linkedin', 'x'];
 
+/**
+ * One post, three networks, shown side by side.
+ *
+ * This section claims a post adapts to every channel and used to prove it with
+ * a single tall Instagram card — which demonstrated nothing and left the visual
+ * column twice the height of the copy beside it, so the section ended in 300px
+ * of empty page. Three crops in a row is both the argument and a block that
+ * matches the copy's height.
+ */
+const ADAPT_VARIANTS: { channel: string; label: string; ratio: string; aspect: number; media: string; caption: string }[] = [
+  {
+    channel: 'instagram',
+    label: 'Feed',
+    ratio: '4:5',
+    aspect: 4 / 5,
+    media: 'scenes/post-sneakers-white',
+    caption: 'Fresh drop, fresh mornings. #springpair',
+  },
+  {
+    channel: 'linkedin',
+    label: 'Post',
+    ratio: '1.91:1',
+    aspect: 1.91,
+    media: 'scenes/post-sneakers-lifestyle',
+    caption: 'Why we rebuilt the sole after 4,000 customer notes.',
+  },
+  {
+    channel: 'tiktok',
+    label: 'Video cover',
+    ratio: '9:16',
+    aspect: 9 / 16,
+    media: 'scenes/post-apparel-flatlay',
+    caption: 'the fit you asked us to keep 👟',
+  },
+];
+
 const ADAPT_TICKS = [
   'Cropped to 4:5 — the frame Instagram actually shows',
   'Caption trimmed to the 125 characters that stay visible',
@@ -688,6 +724,24 @@ export default function SocialPage() {
               <Tick text="Caption length, hashtags and link placement follow each platform's rules." styles={styles} t={t} />
               <Tick text="Edit any single version without touching the other five." styles={styles} t={t} />
             </View>
+
+            {/* Moved out of the panel and under the copy. It belongs with the
+                argument rather than inside the picture, and it is what closes
+                the height gap between the two columns — the panel was running
+                290px longer than the copy beside it. */}
+            <View style={styles.optimizedList}>
+              {ADAPT_TICKS.map((item) => (
+                <View key={item} style={styles.optimizedRow}>
+                  <View style={styles.optimizedTick}>
+                    <FontAwesome6 name="check" size={9} color={t.green} />
+                  </View>
+                  <Text numberOfLines={2} style={styles.optimizedText}>
+                    {item}
+                  </Text>
+                  <Text style={styles.optimizedTag}>Optimized</Text>
+                </View>
+              ))}
+            </View>
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -700,36 +754,32 @@ export default function SocialPage() {
                 ))}
               </View>
 
-              <View style={styles.adaptCard}>
-                <View style={styles.adaptHead}>
-                  <BrandLogo name="instagram" size={16} />
-                  <Text numberOfLines={1} style={styles.adaptTitle}>
-                    Instagram • Feed
-                  </Text>
-                  <View style={styles.adaptRatio}>
-                    <Text style={styles.adaptRatioText}>4:5</Text>
-                  </View>
-                </View>
-                <Media
-                  name="scenes/post-sneakers-white"
-                  alt="Adapted Instagram post"
-                  style={styles.adaptImage}
-                  radius={12}
-                />
-                <Text style={styles.adaptCaption}>
-                  Fresh drop, fresh mornings. The spring pair is here — soft leather, all-day sole,
-                  and a fit you told us to keep.
-                </Text>
-              </View>
-
-              <View style={styles.optimizedList}>
-                {ADAPT_TICKS.map((item) => (
-                  <View key={item} style={styles.optimizedRow}>
-                    <View style={styles.optimizedTick}>
-                      <FontAwesome6 name="check" size={9} color={t.green} />
+              <View style={styles.adaptRow}>
+                {ADAPT_VARIANTS.map((v) => (
+                  <View key={v.channel} style={styles.adaptCell}>
+                    <View style={styles.adaptCard}>
+                      <View style={styles.adaptHead}>
+                        <BrandLogo name={v.channel} size={14} />
+                        <Text numberOfLines={1} style={styles.adaptTitle}>
+                          {v.label}
+                        </Text>
+                        <View style={styles.adaptRatio}>
+                          <Text style={styles.adaptRatioText}>{v.ratio}</Text>
+                        </View>
+                      </View>
+                      {/* Each crop is the shape that network actually shows — a
+                          single square would be the same mistake in three
+                          places. */}
+                      <Media
+                        name={v.media}
+                        alt={`The same post, cropped for ${v.channel}`}
+                        style={{ width: '100%', aspectRatio: v.aspect }}
+                        radius={10}
+                      />
+                      <Text numberOfLines={2} style={styles.adaptCaption}>
+                        {v.caption}
+                      </Text>
                     </View>
-                    <Text style={styles.optimizedText}>{item}</Text>
-                    <Text style={styles.optimizedTag}>Optimized</Text>
                   </View>
                 ))}
               </View>
@@ -1508,13 +1558,33 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
     },
     tabActive: { borderColor: hexToRgba(t.brand, 0.5), backgroundColor: t.brandSoft },
+    // Three crops in a row. Cells do not grow, so the row keeps its columns
+    // rather than stretching one card when the layout narrows; the cards align
+    // to the top because their images are deliberately different heights —
+    // that difference is the point being made.
+    adaptRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'flex-start',
+      marginHorizontal: -5,
+    },
+    // One per row on phone. Three 390px-wide crops side by side leaves each
+    // about 118px, which truncates the network name to "F…" and the caption to
+    // three words — a squeeze, not a layout.
+    adaptCell: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: l.isPhone ? '100%' : '33.333%',
+      minWidth: 0,
+      padding: 5,
+    },
     adaptCard: {
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 14,
       backgroundColor: t.surfaceRaised,
-      padding: 12,
-      gap: 10,
+      padding: 10,
+      gap: 8,
     },
     adaptHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     adaptTitle: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
