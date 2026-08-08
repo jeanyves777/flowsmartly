@@ -148,15 +148,6 @@ const STORY: { year: string; title: string; lines: [string, string]; icon: strin
   },
 ];
 
-type StatItem = { value: number; decimals: number; prefix: string; suffix: string; label: string };
-
-const STATS: StatItem[] = [
-  { value: 25000, decimals: 0, prefix: '', suffix: '+', label: 'Teams empowered' },
-  { value: 90, decimals: 0, prefix: '', suffix: '+', label: 'Countries served' },
-  { value: 3.2, decimals: 1, prefix: '', suffix: 'M+', label: 'Campaigns launched' },
-  { value: 1.4, decimals: 1, prefix: '$', suffix: 'B+', label: 'Pipeline influenced' },
-  { value: 99.9, decimals: 1, prefix: '', suffix: '%', label: 'Platform uptime' },
-];
 
 /*
  * One entry, because one person has been confirmed. Four invented colleagues
@@ -248,38 +239,6 @@ function FlowTile({
  * paragraph, so they read best as one non-wrapping row separated by rules, and
  * as a label/value list once the row no longer has the width for five.
  */
-function StatFigure({
-  item,
-  compact,
-  styles,
-}: {
-  item: StatItem;
-  compact: boolean;
-  styles: Styles;
-}) {
-  const counter = useCountUp(item.value, { decimals: item.decimals });
-  const shown = counter.value.toLocaleString('en-US', {
-    minimumFractionDigits: item.decimals,
-    maximumFractionDigits: item.decimals,
-  });
-
-  const value = (
-    <Text style={styles.statValue}>
-      {item.prefix}
-      {shown}
-      {item.suffix}
-    </Text>
-  );
-  const label = <Text style={styles.statLabel}>{item.label}</Text>;
-
-  return (
-    <View ref={counter.ref as never} style={styles.statItem}>
-      {compact ? label : value}
-      {compact ? value : label}
-    </View>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* page                                                                */
 /* ------------------------------------------------------------------ */
@@ -435,65 +394,21 @@ export default function AboutPage() {
         </Band>
       </View>
 
-      {/* ------------------------------------------------ story */}
-      <Band tone="brand" art={{ variant: 'people', color: t.brand, side: 'left' }}>
-        <Reveal style={styles.head} distance={16}>
-          <SectionLabel>OUR STORY</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitle]}>
-            Six years of building in the open.
-          </Heading>
-          <Text style={[type.body, styles.headSub]}>
-            Every step came from a customer problem we could not solve with the tools that existed.
-          </Text>
-        </Reveal>
+      {/*
+        No "Our story" timeline and no "Platform impact" band.
 
-        {/*
-          A real rail, drawn once behind the markers, rather than a border per
-          card — so it stays attached when the row reflows to a vertical column.
-        */}
-        <View style={styles.timeline}>
-          <View style={styles.timelineRail} />
-          <View style={styles.timelineTrack}>
-            {STORY.map((step) => {
-              const accent = accentOf(step.accent);
-              return (
-                <View key={step.year} style={styles.timelineItem}>
-                  <View style={[styles.timelineDot, { borderColor: accent }]}>
-                    <FontAwesome6 name={step.icon as never} size={15} color={accent} />
-                  </View>
-                  <View style={styles.timelineCopy}>
-                    <Text style={[styles.timelineYear, { color: accentText(accent, t) }]}>{step.year}</Text>
-                    <Text style={styles.timelineTitle}>{step.title}</Text>
-                    <Text style={styles.timelineLine}>{step.lines[0]}</Text>
-                    <Text style={styles.timelineLine}>{step.lines[1]}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </Band>
+        The timeline ran 2019 to 2024 under "Six years of building in the
+        open", with milestones including "Pipeline influenced passed the first
+        billion". The band claimed 25,000+ teams, 90+ countries, 3.2M+
+        campaigns, $1.4B+ pipeline and 99.9% uptime.
 
-      {/* ------------------------------------------------ impact */}
-      <OpenSection>
-        <Reveal style={styles.head} distance={16}>
-          <SectionLabel>OUR PLATFORM IMPACT</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitle]}>
-            What the platform has added up to.
-          </Heading>
-        </Reveal>
-
-        <View style={styles.statBand}>
-          <View style={styles.statRow}>
-            {STATS.map((item, index) => (
-              <Fragment key={item.label}>
-                {index > 0 ? <View style={styles.statDivider} /> : null}
-                <StatFigure item={item} compact={l.isCompact} styles={styles} />
-              </Fragment>
-            ))}
-          </View>
-        </View>
-      </OpenSection>
+        Neither can be rescued with an "illustrative" label the way a product
+        mock can: a mock demonstrates what the software does, whereas these two
+        sections exist purely to assert a history and a scale. Labelling an
+        invented traction figure as illustrative just prints a number nobody
+        should read. They come back when there is a real history to tell and
+        real numbers to show.
+      */}
 
       {/* ------------------------------------------------ leadership */}
       <Band tone="surface" art={{ variant: 'funnel', color: t.brand, side: 'right' }}>
@@ -654,14 +569,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   // icon-left row card below 1024 rather than a stack of five tall blocks.
   const fiveColumns = l.isCompact ? 1 : 5;
 
-  // The stat band never wraps, so it needs its own measurement: five figures,
-  // four rules and eight gaps out of the content width. Below ~170px a figure
-  // like "25,000+" no longer fits on one line at h2, so it steps down to h3.
-  const bandPad = l.isPhone ? 18 : l.isDesktop ? 28 : 20;
-  const bandGap = l.isDesktop ? 24 : 16;
-  const statItemWidth = (contentWidth - bandPad * 2 - 4 - bandGap * 8) / STATS.length;
-  const statValueType = statItemWidth >= 170 ? type.h2 : type.h3;
-
   const hub = l.isPhone ? 84 : l.isTablet ? 100 : 116;
   // Below 1120 the six timeline steps reflow onto a vertical rail; six across a
   // stacked column would leave each step about 90px wide.
@@ -790,7 +697,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     headSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 680 },
 
     /* -------------------------------------------------- timeline */
-    timeline: { position: 'relative', marginTop: l.isPhone ? 22 : 32 },
     timelineRail: verticalTimeline
       ? {
           position: 'absolute',
@@ -808,11 +714,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
           height: 2,
           backgroundColor: t.divider,
         },
-    timelineTrack: {
-      flexDirection: verticalTimeline ? 'column' : 'row',
-      alignItems: 'stretch',
-      gap: verticalTimeline ? 22 : 0,
-    },
     timelineItem: verticalTimeline
       ? { flexDirection: 'row', alignItems: 'flex-start', gap: 16 }
       : {
@@ -824,49 +725,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
           paddingHorizontal: 8,
           gap: 10,
         },
-    timelineDot: {
-      width: dot,
-      height: dot,
-      flexGrow: 0,
-      flexShrink: 0,
-      borderRadius: dot / 2,
-      borderWidth: 2,
-      backgroundColor: t.surfaceRaised,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...(elevation(t, 1) as object),
-    },
     timelineCopy: verticalTimeline
       ? { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 3, paddingTop: 2 }
       : { alignItems: 'center', gap: 3, alignSelf: 'stretch' },
-    timelineYear: { ...type.bodySm, fontWeight: '800', textAlign: verticalTimeline ? 'left' : 'center' },
-    timelineTitle: {
-      ...type.bodySm,
-      color: t.text,
-      fontWeight: '800',
-      textAlign: verticalTimeline ? 'left' : 'center',
-    },
-    timelineLine: {
-      ...type.micro,
-      color: t.textMuted,
-      textAlign: verticalTimeline ? 'left' : 'center',
-    },
 
     /* -------------------------------------------------- stats */
-    statBand: {
-      marginTop: l.isPhone ? 20 : 28,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 18,
-      backgroundColor: t.surfaceInset,
-      paddingHorizontal: bandPad,
-      paddingVertical: l.isPhone ? 16 : l.isDesktop ? 30 : 24,
-    },
-    statRow: {
-      flexDirection: l.isCompact ? 'column' : 'row',
-      alignItems: 'stretch',
-      gap: l.isCompact ? 14 : bandGap,
-    },
     statItem: l.isCompact
       ? {
           width: '100%',
@@ -880,14 +743,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     statDivider: l.isCompact
       ? { width: '100%', height: 1, backgroundColor: t.divider }
       : { width: 1, alignSelf: 'stretch', flexGrow: 0, flexShrink: 0, backgroundColor: t.divider },
-    statValue: { ...statValueType, color: t.brand, flexGrow: 0, flexShrink: 0 },
-    statLabel: {
-      ...type.caption,
-      color: t.textMuted,
-      fontWeight: '600',
-      flexShrink: 1,
-      minWidth: 0,
-    },
 
     /* -------------------------------------------------- leadership */
     leaderGrid: {
