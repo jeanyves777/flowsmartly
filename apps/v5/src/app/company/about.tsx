@@ -159,7 +159,7 @@ const STATS: StatItem[] = [
 ];
 
 const LEADERS: { media: string; name: string; role: string }[] = [
-  { media: 'people/alex-marshall', name: 'Alex Marshall', role: 'Co-founder & CEO' },
+  { media: 'people/jean-yves-koffi', name: 'Jean-Yves Koffi', role: 'Co-founder & CEO' },
   { media: 'people/lena-park', name: 'Lena Park', role: 'Co-founder & COO' },
   { media: 'people/arjun-patel', name: 'Arjun Patel', role: 'CTO' },
   { media: 'people/maya-thompson', name: 'Maya Thompson', role: 'VP of Product' },

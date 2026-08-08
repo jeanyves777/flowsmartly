@@ -97,7 +97,7 @@ const FACTS: Fact[] = [
   { label: 'Funding', value: '$48M raised to date — Series B, 2023' },
   {
     label: 'Leadership',
-    value: 'Alex Marshall (Co-founder & CEO), Lena Park (Co-founder & COO), Arjun Patel (CTO)',
+    value: 'Jean-Yves Koffi (Co-founder & CEO), Lena Park (Co-founder & COO), Arjun Patel (CTO)',
   },
 ];
 
@@ -156,10 +156,11 @@ type Leader = { media: string; name: string; role: string; bio: string };
 
 const LEADERS: Leader[] = [
   {
-    media: 'people/alex-marshall',
-    name: 'Alex Marshall',
+    media: 'people/jean-yves-koffi',
+    name: 'Jean-Yves Koffi',
     role: 'Co-founder & CEO',
-    bio: 'Ran growth for two small-business brands before deciding the tooling had to be rebuilt.',
+    // A real person's biography is theirs to write, not ours to invent.
+    bio: 'Founder of FlowSmartly.',
   },
   {
     media: 'people/lena-park',
