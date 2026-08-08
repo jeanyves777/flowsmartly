@@ -211,7 +211,7 @@ function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) =
   const router = useRouter();
 
   return (
-    <OpenSection style={styles.heroSection}>
+    <OpenSection style={styles.heroSection} aside={{ variant: 'calendar', color: t.brand, side: 'right', at: 'bottom', height: 200 }}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CHANGELOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

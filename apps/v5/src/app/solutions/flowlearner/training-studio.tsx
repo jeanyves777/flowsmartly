@@ -1526,7 +1526,10 @@ export default function TrainingStudioPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ close */}
-      <Band tone="surface" art={{ variant: 'media', color: t.brand, side: 'right' }}>
+      <Band
+        tone="surface"
+        art={{ variant: 'media', color: t.brand, side: 'right' }}
+        aside={{ variant: 'media', color: t.violet, side: 'left', at: 'bottom', height: 160 }}>
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>

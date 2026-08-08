@@ -382,7 +382,7 @@ function Library() {
   const columns = fitColumns(visible.length, base);
 
   return (
-    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+    <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }} aside={{ variant: 'docs', color: t.violet, side: 'right', at: 'top', height: 200 }}>
       <SectionHead
         title="The template library"
         body="Pick the channel you are working on today. Every template arrives complete — copy, timing, audience and all."

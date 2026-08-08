@@ -1021,7 +1021,7 @@ export default function AgentMarketplacePage() {
       </Band>
 
       {/* ------------------------------------------------ trust */}
-      <Band tone="violet" art={{ variant: 'shield', color: t.violet, side: 'left' }}>
+      <Band tone="violet" art={{ variant: 'shield', color: t.violet, side: 'left' }} aside={{ variant: 'shield', color: t.violet, side: 'left', at: 'bottom', height: 260 }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TRUST & SAFETY</SectionLabel>

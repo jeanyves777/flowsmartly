@@ -963,7 +963,7 @@ export default function EmailSmsPage() {
       </Band>
 
       {/* ------------------------------------------------ 06 consent */}
-      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }}>
+      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }} aside={{ variant: 'shield', color: t.pink, side: 'left', at: 'bottom', height: 180 }}>
         <View style={styles.splitRowFlip}>
           <Reveal style={styles.splitCopy} distance={16}>
             <StepHead

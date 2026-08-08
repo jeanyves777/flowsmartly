@@ -879,7 +879,7 @@ export default function ListSmartlyPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 knowledge profile */}
-      <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
+      <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }} aside={{ variant: 'map', color: t.brand, side: 'right', at: 'bottom', height: 320 }}>
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <NumberedHead

@@ -977,7 +977,7 @@ export default function LearningCenterPage() {
       </Band>
 
       {/* ------------------------------------------------ quizzes */}
-      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }}>
+      <Band tone="violet" art={{ variant: 'palette', color: t.violet, side: 'left' }} aside={{ variant: 'docs', color: t.violet, side: 'right', at: 'top', height: 210 }}>
         <Reveal distance={16}>
           <SectionHead
             eyebrow="QUIZZES & ASSESSMENTS"

@@ -202,6 +202,13 @@ validation. Build, screenshot, and open the image.
       copy — 78px deep in places. Measure at the *tightest* width you support,
       not the roomiest: a hole that is 620x200 at 1440 is smaller at 1120.
 
+      **A page with no hole gets no illustration, and that is the correct
+      result** — not a page waiting to be finished. Dense routes legitimately
+      have nowhere to put one, and adding space to a working layout so that a
+      decoration has somewhere to live is backwards. If a page genuinely needs
+      breathing room, that is a design decision about the layout, taken on its
+      own merits, and the illustration follows it rather than causing it.
+
     Nothing goes behind the content. Real product imagery always wins.
 
     **These are detectors, not opinions.** Intersect every decoration with

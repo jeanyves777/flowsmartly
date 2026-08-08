@@ -425,7 +425,7 @@ export default function PricingPage() {
       </OpenSection>
 
       {/* ------------------------------------------------ credits */}
-      <OpenSection>
+      <OpenSection aside={{ variant: 'chart', color: t.brand, side: 'left', at: 'bottom', height: 220 }}>
         <View style={styles.creditsRow}>
           <Reveal style={styles.creditsPanel} distance={16}>
             <View style={styles.balanceCard}>
