@@ -9,30 +9,6 @@ Delete a row once the file lands.
 
 ---
 
-## `assets/images/v5w/people/jean-yves-koffi.webp` — the founder's portrait
-
-**Status:** referenced by `/company/about` and `/company/press`, not in the
-repo. Until it lands both cards render the branded placeholder, which is the
-correct interim state — the card previously carried a stock portrait of
-somebody else under the CEO's name, and a photograph of one person labelled as
-another is not a placeholder, it is wrong.
-
-**The user has the photo.** It only needs saving into the repo:
-
-    apps/v5/assets/images/v5w/people/jean-yves-koffi.webp
-
-Then one line in `REGISTRY` in `src/components/public/media.tsx`, beside the
-other portraits:
-
-    'people/jean-yves-koffi': require('../../../assets/images/v5w/people/jean-yves-koffi.webp'),
-
-**Format:** WebP, square, to match the rest of the row — the existing
-portraits are ~14KB each, so export at roughly 512x512 rather than the full
-1024. The card crops to a square, so keep the head centred with a little room
-above it.
-
----
-
 ## `public/og-default.png` — the social unfurl card
 
 **Status:** referenced by every page, does not exist. Until it lands, every

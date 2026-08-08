@@ -33,6 +33,7 @@ const REGISTRY: Record<string, number> = {
   'people/daniel-kim': require('../../../assets/images/v5w/people/daniel-kim.webp'),
   'people/david-chen': require('../../../assets/images/v5w/people/david-chen.webp'),
   'people/jordan-lee': require('../../../assets/images/v5w/people/jordan-lee.webp'),
+  'people/jean-yves-koffi': require('../../../assets/images/v5w/people/jean-yves-koffi.webp'),
   'people/lena-park': require('../../../assets/images/v5w/people/lena-park.webp'),
   'people/maya-chen': require('../../../assets/images/v5w/people/maya-chen.webp'),
   'people/maya-patel': require('../../../assets/images/v5w/people/maya-patel.webp'),
