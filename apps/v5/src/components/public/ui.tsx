@@ -284,7 +284,7 @@ export function OpenSection({
   const reserve = hasAside(children, aside) ? band : null;
   return (
     <View style={[open, style, reserve]}>
-      {seam ? <SectionArt {...seam} /> : null}
+      {seam ? <SectionArt {...seam} bleed /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}
     </View>
@@ -449,7 +449,7 @@ const STRIP_H = 150;
  * no layout contribution, and dropped on phone where the gap between sections
  * is too shallow to hold it.
  */
-export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) {
+export function SectionArt({ variant, color, side = 'right', bleed = false }: SectionArtProps & { bleed?: boolean }) {
   const t = useTokens();
   const l = useLayout();
   const strip = STRIPS[variant];
@@ -465,6 +465,15 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
    * that measured clean on all 44 routes at 1120, 1440 and 1920.
    */
   const H = Math.min(STRIP_H, Math.round(l.sectionSpace * 1.5));
+
+  /*
+   * An open section stops at `BP.maxContent`, so `left: 0` stopped there too:
+   * at 1920 the line ran 192..1728 and left a 192px gap at each edge. A band
+   * has already escaped the column with its own negative margin, so it passes
+   * `bleed` false and this stays zero — applying it twice would overshoot the
+   * viewport and give the scroller phantom width.
+   */
+  const escape = bleed ? bandBleed(l.width) : 0;
 
   const dark = t.mode !== 'light';
   // It sits in empty page, so nothing has to read through it — the ceiling
@@ -483,7 +492,11 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
     <View
       pointerEvents="none"
       aria-hidden
-      style={[artStyles.strip, { top: -H / 2, height: H }, flip ? { transform: [...flip] } : null]}>
+      style={[
+        artStyles.strip,
+        { top: -H / 2, height: H, left: -escape, right: -escape },
+        flip ? { transform: [...flip] } : null,
+      ]}>
       {/* The viewBox stays the field the curves were *authored* in. Setting
           it to the rendered height clipped every curve at the new bottom edge:
           the paths dip to y=122 in a 150 field, so a 96-tall viewBox cut whole

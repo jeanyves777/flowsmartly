@@ -184,6 +184,13 @@ validation. Build, screenshot, and open the image.
       *authored* in: setting it to the rendered height clipped every path at
       the new bottom edge and the line came apart.
 
+      **It has to escape `BP.maxContent`.** An open section stops at the
+      content column, so `left: 0` stops there too and at 1920 the line ran
+      192..1728 with a 192px gap at each edge. Pass the measured `bandBleed`
+      — but only from an open section: a band has already escaped with its own
+      negative margin, and applying it twice overshoots the viewport and gives
+      the scroller phantom width.
+
     - **The illustration — a drawing that occupies an empty area *inside* a
       section.** `<SectionAside>`. It has one requirement: be large enough to
       fill the hole it is put in. It has nothing to do with the seam.
