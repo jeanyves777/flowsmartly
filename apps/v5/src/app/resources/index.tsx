@@ -487,7 +487,6 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>LEARN. BUILD. GROW.</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

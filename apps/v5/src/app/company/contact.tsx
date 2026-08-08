@@ -349,7 +349,6 @@ export default function ContactPage() {
       ]}>
       {/* ------------------------------------------------ hero + form */}
       <OpenSection>
-        <SectionAside variant="waves" color={t.orange} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>CONTACT US</SectionLabel>

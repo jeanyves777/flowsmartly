@@ -391,7 +391,6 @@ export default function FlowAiPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <OpenSection>
-        <SectionAside variant="network" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>FLOWAGENT</SectionLabel>

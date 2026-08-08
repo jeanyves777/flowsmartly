@@ -322,7 +322,6 @@ export default function AboutPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <OpenSection>
-        <SectionAside variant="people" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>

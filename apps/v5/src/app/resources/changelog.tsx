@@ -212,7 +212,6 @@ function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) =
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="calendar" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CHANGELOG</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

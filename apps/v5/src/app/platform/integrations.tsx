@@ -506,7 +506,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
   const router = useRouter();
 
   return (
-    <OpenSection aside={{ variant: 'network', color: t.green, side: 'left', at: 'bottom' }}>
+    <OpenSection>
       <SectionHead
         label="TWO WAYS TO CONNECT"
         title="Click it together, or build exactly what you need."

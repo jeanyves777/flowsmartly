@@ -434,27 +434,11 @@ const STRIP_H = 150;
  * up by half its height, it paints after both grounds and reads across the
  * boundary — over both sections, which is the whole point of a separator.
  *
- * These are the plates and extra nodes that make it fill the seam rather than
- * hairline it. They are laid out in fractions of the width, as fixed-size
- * Views: the SVG field is stretched to the page, so anything round drawn
- * inside it would come out an oval.
+ * Keep it simple: a line and a few marks on it. Soft plates and a denser run
+ * of nodes were tried and dropped — the separator is not the illustration,
+ * and dressing it up only made it compete with one.
  */
-const STRIP_STOPS = [
-  { at: 0.07, size: 40, y: 0.72 },
-  { at: 0.28, size: 46, y: 0.3 },
-  { at: 0.43, size: 34, y: 0.74 },
-  { at: 0.57, size: 44, y: 0.28 },
-  { at: 0.72, size: 34, y: 0.72 },
-  { at: 0.93, size: 40, y: 0.32 },
-];
 
-const STRIP_PLATES = [
-  { at: 0.14, w: 96, h: 62, y: 0.1 },
-  { at: 0.35, w: 70, h: 48, y: 0.52 },
-  { at: 0.5, w: 104, h: 66, y: 0.08 },
-  { at: 0.64, w: 74, h: 50, y: 0.5 },
-  { at: 0.85, w: 92, h: 60, y: 0.12 },
-];
 
 /**
  * Drawn, never sourced — this repo does not generate or download images, and a
@@ -494,17 +478,19 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
   // picture repeating down the page.
   const flip = side === 'left' ? ([{ scaleX: -1 }] as const) : undefined;
 
-  const aside = ASIDES[variant as AsideVariant];
-  const icons = [
-    ...new Set([...strip.nodes.map((n) => n.icon), ...(aside ? aside.nodes.map((n) => n.icon) : [])]),
-  ];
 
   return (
     <View
       pointerEvents="none"
       aria-hidden
       style={[artStyles.strip, { top: -H / 2, height: H }, flip ? { transform: [...flip] } : null]}>
-      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${H}`} preserveAspectRatio="none">
+      {/* The viewBox stays the field the curves were *authored* in. Setting
+          it to the rendered height clipped every curve at the new bottom edge:
+          the paths dip to y=122 in a 150 field, so a 96-tall viewBox cut whole
+          stretches of line out and the separator came apart. With
+          `preserveAspectRatio="none"` the field compresses into whatever height
+          the box has, which is the point of stretching it. */}
+      <Svg width="100%" height="100%" viewBox={`0 0 1440 ${STRIP_H}`} preserveAspectRatio="none">
         {strip.lines.map((d, i) => (
           <Path
             key={d}
@@ -521,51 +507,28 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
         ))}
       </Svg>
 
-      {STRIP_PLATES.map((plate) => (
-        <View
-          key={`plate-${plate.at}`}
-          style={[
-            artStyles.plate,
-            {
-              left: `${plate.at * 100}%`,
-              top: plate.y * H,
-              width: plate.w,
-              height: plate.h,
-              backgroundColor: fill,
-              borderColor: soft,
-            },
-          ]}
-        />
-      ))}
-
       {/* Nodes are Views, not SVG: the field is stretched horizontally to the
           page width, which would turn anything drawn inside it into an oval.
           The variant's own icons cycle across the stops, pooling the strip's
           three with the matching aside's, so a seam is not the same two icons
           repeated. */}
-      {STRIP_STOPS.map((stop, index) => (
+      {/* Nodes are Views, not SVG: the field is stretched horizontally to the
+          page width, which would turn anything drawn inside it into an oval. */}
+      {strip.nodes.map((n) => (
         <View
-          key={`stop-${stop.at}`}
+          key={n.icon}
           style={[
             artStyles.node,
             {
-              left: `${stop.at * 100}%`,
-              top: stop.y * H - stop.size / 2,
-              width: stop.size,
-              height: stop.size,
-              borderRadius: stop.size / 2,
-              marginLeft: -stop.size / 2,
+              left: `${n.at * 100}%`,
+              top: n.y * (H / STRIP_H) - 19,
               backgroundColor: fill,
               borderColor: line,
               // undo the mirror so a glyph is never back-to-front
               transform: flip ? [...flip] : undefined,
             },
           ]}>
-          <FontAwesome6
-            name={icons[index % icons.length] as never}
-            size={Math.round(stop.size * 0.4)}
-            color={mark}
-          />
+          <FontAwesome6 name={n.icon as never} size={15} color={mark} />
         </View>
       ))}
     </View>
@@ -574,9 +537,11 @@ export function SectionArt({ variant, color, side = 'right' }: SectionArtProps) 
 
 const artStyles = StyleSheet.create({
   strip: { position: 'absolute', left: 0, right: 0 },
-  plate: { position: 'absolute', borderRadius: 14, borderWidth: 1.2 },
   node: {
     position: 'absolute',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -618,11 +583,13 @@ export type SectionAsideProps = {
   color: string;
   side?: 'left' | 'right';
   /**
-   * Which end of the section the empty space is at. A hero whose copy column
-   * is shorter than its mockup leaves the hole at the *bottom* of the copy
-   * side, not beside the heading — measure before choosing.
+   * Where in the section the hole is. Measure it — a hero whose copy column is
+   * shorter than its mockup leaves the hole at the *bottom* of the copy side,
+   * not beside the heading, and guessing has been wrong more often than right.
    */
-  at?: 'top' | 'bottom';
+  at?: 'top' | 'middle' | 'bottom';
+  /** the measured height of the hole; the width follows the drawing's ratio */
+  height?: number;
 };
 
 type AsideNode = { x: number; y: number; r: number; icon: string };
@@ -787,7 +754,8 @@ const ASIDES: Record<AsideVariant, Aside> = {
  * crossing it looks like a mistake; a line running the width of the page
  * tells a reader one idea ended and the next began.
  */
-const BAND_H = 190;
+const ASIDE_W = 480;
+const ASIDE_FIELD = 320;
 
 /**
  * How far the band hangs past the section's edge, into the next section's top
@@ -832,18 +800,83 @@ const BAND_PLATES = [
  * longer reserves a band for it.
  */
 /**
- * Reserved for the *other* illustration zone: a composition large enough to
- * occupy a genuinely empty area of a layout.
+ * The illustration, which is *not* the separator.
  *
- * That is a different job from the separator, and conflating them is what went
- * wrong — this drew a full-width wave inside a section, which both duplicated
- * the seam below it and read as a separator in the wrong place. The separator
- * is `SectionArt`, on the dividing line. This returns nothing until the empty
- * areas are measured and it is sized to fill one.
+ * The separator is a line on the dividing line between two sections. This is a
+ * drawing that occupies a genuinely empty area *inside* one — the space a
+ * split layout leaves beside its copy, or under a head that does not run the
+ * full width. It only has one requirement: be big enough to fill the hole it
+ * is put in.
+ *
+ * `height` is the hole's height, measured; the width follows the field's own
+ * ratio so nothing is stretched. Anything drawn round stays round.
  */
-export function SectionAside(_props: SectionAsideProps) {
-  return null;
+export function SectionAside({
+  variant,
+  color,
+  side = 'right',
+  at = 'middle',
+  height = 260,
+}: SectionAsideProps) {
+  const t = useTokens();
+  const l = useLayout();
+  const aside = ASIDES[variant];
+
+  // Below the split a section is one column and there is no hole beside it.
+  if (l.isStacked) return null;
+
+  const dark = t.mode !== 'light';
+  const line = hexToRgba(color, dark ? 0.28 : 0.22);
+  const soft = hexToRgba(color, dark ? 0.18 : 0.13);
+  const fill = hexToRgba(color, dark ? 0.12 : 0.075);
+  const mark = hexToRgba(color, dark ? 0.38 : 0.3);
+  const width = Math.round(height * (ASIDE_W / ASIDE_FIELD));
+
+  return (
+    <View
+      pointerEvents="none"
+      aria-hidden
+      style={[
+        { position: 'absolute', width, height },
+        side === 'left' ? { left: 0 } : { right: 0 },
+        // one edge or the other, never both: `undefined` in a later style does
+        // not erase an earlier `top: 0`
+        at === 'top' ? { top: 0 } : at === 'bottom' ? { bottom: 0 } : { top: '50%', marginTop: -height / 2 },
+      ]}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${ASIDE_W} ${ASIDE_FIELD}`} preserveAspectRatio="xMidYMid meet">
+        {aside.plates?.map(([x, y, w, h, r]) => (
+          <Rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx={r} fill={fill} stroke={soft} strokeWidth={1.2} />
+        ))}
+        {aside.links.map((d) => (
+          <Path key={d} d={d} stroke={line} strokeWidth={1.5} strokeDasharray="1 8" strokeLinecap="round" fill="none" />
+        ))}
+        {aside.nodes.map((n) => (
+          <Circle key={`${n.x}-${n.y}`} cx={n.x} cy={n.y} r={n.r} fill={fill} stroke={line} strokeWidth={1.3} />
+        ))}
+        {aside.dots.map(([cx, cy]) => (
+          <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={5} fill={mark} />
+        ))}
+      </Svg>
+
+      {/* Glyphs are Views over the circles: drawn inside the SVG they would
+          scale with the viewBox and lose the icon font. */}
+      {aside.nodes.map((n) => (
+        <View
+          key={n.icon}
+          style={[
+            asideStyles.glyph,
+            { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_FIELD) * 100}%` },
+          ]}>
+          <FontAwesome6 name={n.icon as never} size={Math.round((n.r * 0.62 * height) / ASIDE_FIELD)} color={mark} />
+        </View>
+      ))}
+    </View>
+  );
 }
+
+const asideStyles = StyleSheet.create({
+  glyph: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
+});
 
 /**
  * An open section on a tinted, edge-to-edge ground.

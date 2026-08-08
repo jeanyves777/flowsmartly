@@ -299,7 +299,6 @@ function Hero() {
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="people" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CAREERS AT FLOWSMARTLY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

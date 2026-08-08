@@ -265,7 +265,7 @@ export default function DomainsPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection aside={{ variant: 'network', color: t.brand, side: 'left', at: 'bottom' }}>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>DOMAINS</SectionLabel>

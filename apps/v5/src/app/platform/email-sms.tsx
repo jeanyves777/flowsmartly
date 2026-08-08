@@ -571,7 +571,6 @@ export default function EmailSmsPage() {
       <Reveal style={[open, asideBand]} distance={22}>
         {/* The hero's copy column is shorter than its mockup, so the empty
             zone is at the bottom of that side — measured, not guessed. */}
-        <SectionAside variant="waves" color={t.pink} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>MESSAGING THAT REACHES PEOPLE</SectionLabel>

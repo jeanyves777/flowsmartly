@@ -158,56 +158,50 @@ validation. Build, screenshot, and open the image.
     same gutter as the open section above; a flat overrun would leave the
     scroll container reporting phantom width at every viewport.
 
-    Illustration has exactly **two zones**, and they are different jobs. The
-    mistake worth not repeating is treating them as one:
+    **The line and the illustration are two different elements.** Conflating
+    them is the mistake this section exists to prevent.
 
-    - **The separator, on the dividing line between two sections.**
-      `<SectionArt>`, drawn by the section *below* the seam and pulled up half
-      its own height so it straddles the boundary and reads across both.
+    - **The line — a separator, on the dividing line between two sections.**
+      `<SectionArt>`. Keep it simple: two flowing strokes and three small icon
+      nodes. Plates and a denser run of nodes were tried and dropped; dressing
+      the separator up only makes it compete with the illustration.
 
-      **It has to be drawn by the lower section.** A decoration authored on the
-      upper section and hung downwards is painted before the next section's
-      background, so an opaque ground clips it and half the drawing vanishes —
-      which is exactly what "it must be over both sections, not hidden" means.
+      **It has to be drawn by the section *below* the seam.** A decoration
+      authored on the upper section and hung downwards is painted before the
+      next section's background, so an opaque ground clips it and half the
+      drawing vanishes. Pulled up half its height from the lower section, it
+      straddles the line and reads over both.
 
-      **Every boundary gets one.** `art` used to be opt-in and two boundaries in
-      five had nothing crossing them, which reads as the page having stopped.
-      `SectionSequence` in `PageShell` numbers the top-level sections and each
-      one draws a default separator; a route only writes `art` when it wants a
-      particular variant. Index 0 is skipped — a hero's top edge is the header.
-      Number the sections *by position*, not with a running counter: a hero
-      built from a `Reveal` never goes through `OpenSection`, so a counter left
-      it unnumbered and the section after it silently lost its separator.
+      **Every boundary gets one.** `SectionSequence` in `PageShell` numbers the
+      top-level sections and each draws a default; a route writes `art` only
+      for a particular variant, or `art="none"` when the section *above* is too
+      compact to give one room. Number by position, not with a running counter:
+      a hero built from a `Reveal` never goes through `OpenSection`, so a
+      counter left it unnumbered and the next section silently lost its line.
 
-      **Its height is bounded by the padding on both sides**, not chosen.
-      `1.5 x sectionSpace` is the largest value that measured clean on all 44
-      routes; twice the padding is the theoretical ceiling and grazed copy on
-      nine of them, because sections that override their own padding make the
-      real gap smaller. A section that declares a compact padding skips its
-      separator automatically; the one case a section cannot work out — the
-      section *above* being the compact one — is `art="none"`.
+      **Its height is bounded by the padding on both sides**, not chosen —
+      `1.5 x sectionSpace`. Its viewBox stays the field the curves were
+      *authored* in: setting it to the rendered height clipped every path at
+      the new bottom edge and the line came apart.
 
-    - **A composition filling a genuinely empty area of a layout.** A different
-      job, with nothing to do with the seam: it only has to be large enough to
-      occupy the hole it is placed in. `SectionAside` is the seat for it and
-      currently draws nothing, because the empty areas have not been measured
-      and sized for. Do not let it drift back into being a second separator —
-      that produced a full-width wave inside a section, duplicating the seam
-      below it and marking a boundary in the wrong place.
+    - **The illustration — a drawing that occupies an empty area *inside* a
+      section.** `<SectionAside>`. It has one requirement: be large enough to
+      fill the hole it is put in. It has nothing to do with the seam.
 
-    Nothing goes behind the content. Five earlier attempts did — a composition
-    behind the copy collided with headings; a version keyed to "sections
-    without an `<Image>`" landed on the connector diagrams; an outline tracing
-    each section is a border, not an illustration; `Band` shipped without the
-    reserve `OpenSection` had; and a full-width band anchored inside a section
-    was both clipped by the next ground and duplicated by its strip. Real
-    product imagery always wins.
+      **Only place one in a hole that has been measured.** Rasterise the
+      painted boxes in a section and take the largest empty rectangle; pass its
+      height. Thirty-eight placements were once guessed from "the head is
+      narrow so the right must be free", and every one of them sat on hero
+      copy — 78px deep in places. Measure at the *tightest* width you support,
+      not the roomiest: a hole that is 620x200 at 1440 is smaller at 1120.
+
+    Nothing goes behind the content. Real product imagery always wins.
 
     **These are detectors, not opinions.** Intersect every decoration with
     every text run and image (`no aside sits on content`), and intersect
     decorations with each other (`no seam carries two decorations`). Include
-    full-width decorations in the first one — excluding them by width is why
-    the separators went unchecked for so long. Run both after any change to
+    full-width decorations in the first — excluding them by width is why the
+    separators went unchecked for so long. Run both after any change to
     section padding.
 
 ---

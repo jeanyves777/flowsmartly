@@ -747,7 +747,6 @@ export default function ProductPage() {
       ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={[open, asideBand]} distance={22}>
-        <SectionAside variant="network" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>THE AI BUSINESS OPERATING SYSTEM</SectionLabel>

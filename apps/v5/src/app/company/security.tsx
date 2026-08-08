@@ -296,7 +296,6 @@ function Hero() {
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="shield" color={t.brand} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>TRUST &amp; SECURITY</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

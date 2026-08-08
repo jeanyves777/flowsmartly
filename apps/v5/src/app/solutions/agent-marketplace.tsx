@@ -546,7 +546,7 @@ export default function AgentMarketplacePage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection aside={{ variant: 'network', color: t.violet, side: 'left', at: 'bottom' }}>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>EXPERT HELP INSIDE YOUR WORKSPACE</SectionLabel>

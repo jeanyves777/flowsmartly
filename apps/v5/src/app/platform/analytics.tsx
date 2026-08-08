@@ -816,7 +816,6 @@ export default function AnalyticsPage() {
         {/* These product heroes all run copy-left, mockup-right, and the copy
             column is the shorter of the two — so the empty zone is the band
             beneath it. */}
-        <SectionAside variant="chart" color={t.brand} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ONE VIEW OF WHAT MOVES GROWTH</SectionLabel>
@@ -1535,7 +1534,8 @@ export default function AnalyticsPage() {
       </Band>
 
       {/* ------------------------------------------------ 07 commerce */}
-      <OpenSection>
+      {/* 720x320 of empty page on the left of this section, measured at 1440 */}
+      <OpenSection aside={{ variant: 'chart', color: t.brand, side: 'left', at: 'bottom', height: 300 }}>
         <Reveal distance={16}>
           <NumberedHead
             index="07"

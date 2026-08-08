@@ -484,7 +484,7 @@ export default function FlowShopPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection aside={{ variant: 'chart', color: t.pink, side: 'left', at: 'bottom' }}>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>AI-READY COMMERCE</SectionLabel>
@@ -786,7 +786,12 @@ export default function FlowShopPage() {
       </Band>
 
       {/* ------------------------------------------------ 02 catalog + AI copy */}
-      <Band tone="pink" art={{ variant: 'store', color: t.pink, side: 'left' }}>
+      {/* Empty page on the right of this section: 620x200 at 1440, less at
+          1120 — sized to the tightest of the two, not the roomiest. */}
+      <Band
+        tone="pink"
+        art={{ variant: 'store', color: t.pink, side: 'left' }}
+        aside={{ variant: 'store', color: t.pink, side: 'right', at: 'bottom', height: 150 }}>
         <NumberedHead
           index={2}
           eyebrow="CATALOG & PRODUCT COPY"

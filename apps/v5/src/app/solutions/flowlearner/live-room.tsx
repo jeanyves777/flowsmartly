@@ -486,7 +486,6 @@ export default function LiveRoomPage() {
       <Reveal style={[open, asideBand]} distance={22}>
         {/* The hero's copy column is shorter than its mockup, so the empty
             zone is at the bottom of that side — measured, not guessed. */}
-        <SectionAside variant="calendar" color={t.violet} side="left" at="bottom" />
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>

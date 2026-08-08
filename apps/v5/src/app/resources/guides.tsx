@@ -286,7 +286,6 @@ function Hero() {
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="docs" color={t.violet} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <View style={styles.eyebrowRow}>
           <SectionLabel>GUIDES</SectionLabel>

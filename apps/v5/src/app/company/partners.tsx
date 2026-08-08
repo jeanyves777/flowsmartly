@@ -356,7 +356,6 @@ function Hero() {
 
   return (
     <OpenSection style={styles.heroSection}>
-      <SectionAside variant="network" color={t.green} side="left" at="bottom" />
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>PARTNER PROGRAM</SectionLabel>
         <Heading level={1} style={styles.heroTitle}>

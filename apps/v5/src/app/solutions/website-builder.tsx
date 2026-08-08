@@ -261,7 +261,7 @@ export default function WebsiteBuilderPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <OpenSection aside={{ variant: 'docs', color: t.violet, side: 'left', at: 'bottom' }}>
+      <OpenSection>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>WEBSITE BUILDER</SectionLabel>
