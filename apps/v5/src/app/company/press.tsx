@@ -53,52 +53,34 @@ function accent(t: ThemeTokens, tone: Tone): string {
 /* content                                                             */
 /* ------------------------------------------------------------------ */
 
-type Article = { publication: string; headline: string; date: string };
-
-/**
- * Titles are FlowSmartly's own press log — the outlets are the trade titles we
- * work with, never a borrowed masthead.
+/*
+ * There is no `NEWS` list and no "In the news" section.
+ *
+ * There was one: five headlines attributed to named trade titles, including a
+ * $32M funding announcement. Invented coverage is not the same as an
+ * illustrative product mock — a mock shows what the software does, whereas a
+ * headline under a masthead says a third party published something they did
+ * not. A press page with no coverage section is the ordinary state for a
+ * company that has not been written about yet.
+ *
+ * When real coverage exists, add it back with the outlet, the real headline
+ * and a link to the piece.
  */
-const NEWS: Article[] = [
-  {
-    publication: 'Growth Weekly',
-    headline: 'FlowSmartly raises $32M to put an AI operating partner in every business',
-    date: 'March 4, 2024',
-  },
-  {
-    publication: 'The Operator',
-    headline: 'Inside the platform quietly replacing four tools for 25,000 teams',
-    date: 'February 12, 2024',
-  },
-  {
-    publication: 'SMB Tech Review',
-    headline: 'Call Agent: what happens when every call gets answered in six seconds',
-    date: 'January 23, 2024',
-  },
-  {
-    publication: 'Commerce Daily',
-    headline: 'FlowShop brings local listings into the storefront stack',
-    date: 'December 6, 2023',
-  },
-  {
-    publication: 'AI Business Journal',
-    headline: 'Approval-first automation is how small teams are adopting AI',
-    date: 'November 15, 2023',
-  },
-];
 
 type Fact = { label: string; value: string };
 
+/*
+ * Only what is actually true. This block is presented to journalists as
+ * "cleared for publication", so an invented figure here is quoted as fact —
+ * it previously carried a founding year, a headquarters, a headcount, a
+ * customer count and a Series B, none of which came from anywhere.
+ *
+ * Add each row back as it becomes real.
+ */
 const FACTS: Fact[] = [
-  { label: 'Founded', value: '2019' },
-  { label: 'Headquarters', value: 'Remote-first, registered in Austin, Texas' },
-  { label: 'Team size', value: '120 people across 22 countries' },
-  { label: 'Customers', value: '25,000+ businesses in 90+ countries' },
-  { label: 'Funding', value: '$48M raised to date — Series B, 2023' },
-  {
-    label: 'Leadership',
-    value: 'Jean-Yves Koffi (Co-founder & CEO), Lena Park (Co-founder & COO), Arjun Patel (CTO)',
-  },
+  { label: 'Product', value: 'FlowSmartly — the AI Business Operating System' },
+  { label: 'Leadership', value: 'Jean-Yves Koffi (Co-founder & CEO)' },
+  { label: 'Press contact', value: 'press@flowsmartly.com' },
 ];
 
 type Asset = { name: string; body: string; kind: string; size: string; icon: string; tone: Tone };
@@ -154,6 +136,13 @@ const DONT_RULES = [
 
 type Leader = { media: string; name: string; role: string; bio: string };
 
+/*
+ * One entry, because one person has been confirmed.
+ *
+ * This block sits under "Bios and headshots are cleared for publication", so
+ * an invented colleague here is a journalist's source. Two were listed. Add
+ * each real person as they join, with their own words for the bio.
+ */
 const LEADERS: Leader[] = [
   {
     media: 'people/jean-yves-koffi',
@@ -161,18 +150,6 @@ const LEADERS: Leader[] = [
     role: 'Co-founder & CEO',
     // A real person's biography is theirs to write, not ours to invent.
     bio: 'Founder of FlowSmartly.',
-  },
-  {
-    media: 'people/lena-park',
-    name: 'Lena Park',
-    role: 'Co-founder & COO',
-    bio: 'Spent a decade scaling support and operations teams that customers actually liked talking to.',
-  },
-  {
-    media: 'people/arjun-patel',
-    name: 'Arjun Patel',
-    role: 'Chief Technology Officer',
-    bio: 'Builds the platform the way he wished every vendor had built one for him.',
   },
 ];
 
@@ -277,68 +254,6 @@ function Hero() {
  * looks like a link and goes nowhere is worse than an honest citation, so this
  * is a printed press log — the press desk below is the live destination.
  */
-function NewsItem({ article }: { article: Article }) {
-  const styles = useStyles();
-  const l = useLayout();
-
-  if (l.isCompact) {
-    return (
-      <View style={styles.newsCard}>
-        <View style={styles.newsPill}>
-          <Text style={styles.newsPillText}>{article.publication}</Text>
-        </View>
-        <Text style={styles.newsHeadline}>{article.headline}</Text>
-        <Text style={styles.newsDate}>{article.date}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.newsRow}>
-      <View style={styles.newsRowPublication}>
-        <View style={styles.newsPill}>
-          <Text numberOfLines={1} style={styles.newsPillText}>
-            {article.publication}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.newsRowHeadline}>
-        <Text numberOfLines={2} style={styles.newsHeadline}>
-          {article.headline}
-        </Text>
-      </View>
-      <View style={styles.newsRowDate}>
-        <Text numberOfLines={1} style={styles.newsDate}>
-          {article.date}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function InTheNews() {
-  const t = useTokens();
-  const styles = useStyles();
-
-  return (
-    <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
-      <SectionHead
-        label="IN THE NEWS"
-        title="Recent coverage."
-        body="What has been written about the platform, the funding and the customers using it."
-      />
-
-      <View style={styles.newsList}>
-        {NEWS.map((article, index) => (
-          <Reveal key={article.headline} delay={30 + index * 45} distance={10}>
-            <NewsItem article={article} />
-          </Reveal>
-        ))}
-      </View>
-    </Band>
-  );
-}
-
 function CompanyFacts() {
   const t = useTokens();
   const styles = useStyles();
@@ -503,7 +418,9 @@ function Leadership() {
   const t = useTokens();
   const styles = useStyles();
   const l = useLayout();
-  const columns = l.isPhone ? 1 : 3;
+  // three across was written for three people; with fewer, a card keeps its
+  // width rather than stretching to a third of an empty row
+  const columns = l.isPhone ? 1 : Math.min(Math.max(LEADERS.length, 2), 3);
 
   return (
     <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
@@ -605,7 +522,6 @@ export default function PressPage() {
         ]),
       ]}>
       <Hero />
-      <InTheNews />
       <CompanyFacts />
       <BrandAssets />
       <LogoUsage />
@@ -663,19 +579,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardBody: { ...type.bodySm, color: t.textMuted },
 
     /* in the news -------------------------------------------------- */
-    newsList: { gap: 10, marginTop: l.isPhone ? 18 : 24 },
-    newsRow: {
-      minHeight: 68,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 18,
-      paddingHorizontal: 18,
-      paddingVertical: 14,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: t.border,
-      backgroundColor: t.surfaceMuted,
-    },
     newsRowPublication: { flexGrow: 0.9, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     newsRowHeadline: { flexGrow: 2.6, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     newsRowDate: { flexGrow: 0.9, flexShrink: 1, flexBasis: 0, minWidth: 0 },
@@ -696,8 +599,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.chipBg,
     },
     newsPillText: { ...type.micro, color: t.chipText, fontWeight: '800' },
-    newsHeadline: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    newsDate: { ...type.micro, color: t.textSubtle, fontWeight: '600' },
     newsFooter: {
       flexDirection: 'row',
       alignItems: 'center',

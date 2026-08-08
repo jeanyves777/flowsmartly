@@ -158,12 +158,13 @@ const STATS: StatItem[] = [
   { value: 99.9, decimals: 1, prefix: '', suffix: '%', label: 'Platform uptime' },
 ];
 
+/*
+ * One entry, because one person has been confirmed. Four invented colleagues
+ * beside a real founder read as real staff, which is what a visitor takes a
+ * leadership grid to be. Add each real person as they join.
+ */
 const LEADERS: { media: string; name: string; role: string }[] = [
   { media: 'people/jean-yves-koffi', name: 'Jean-Yves Koffi', role: 'Co-founder & CEO' },
-  { media: 'people/lena-park', name: 'Lena Park', role: 'Co-founder & COO' },
-  { media: 'people/arjun-patel', name: 'Arjun Patel', role: 'CTO' },
-  { media: 'people/maya-thompson', name: 'Maya Thompson', role: 'VP of Product' },
-  { media: 'people/jordan-lee', name: 'Jordan Lee', role: 'VP of Customer Success' },
 ];
 
 const VALUES: { icon: string; title: string; body: string; accent: Accent }[] = [
@@ -899,7 +900,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     leaderCell: {
       flexGrow: 0,
       flexShrink: 0,
-      flexBasis: cellBasis(fiveColumns),
+      // The grid was built for five. With fewer, a cell keeps a sensible width
+      // instead of a lone card taking a fifth of the row (or, at one, all of
+      // it) — the count is the content's, not the layout's, to decide.
+      flexBasis: cellBasis(Math.min(Math.max(LEADERS.length, 3), fiveColumns)),
       minWidth: 0,
       padding: cellPad,
     },
