@@ -276,3 +276,16 @@ layout work:
 - connector wires missing their target or stranding an end dot
 - capture artefacts: `expo-image` lazy-loads, so scroll the page before
   screenshotting or below-the-fold art comes out blank
+- the page scrolls inside a **container**, not the document. `window.scrollTo`
+  silently does nothing; find the child with `overflowY: auto` and set its
+  `scrollTop`, or every capture comes back showing the top of the page
+- the theme is driven by the header control and **is remembered**. A harness
+  that clicks a fixed number of times worked only while the mode always
+  started at light; once the choice persisted, two clicks from grey landed on
+  light and a whole sweep reported "could not switch theme" on every route.
+  Click until the control reports the theme you want
+- a decoration that bleeds past the viewport edge and is clipped by its
+  container is deliberate — the orange swoosh hangs 30px off the right at 390.
+  Only treat element overflow as a fault when the *page* scrolls sideways
+- `/flow-ai` is a redirect stub: little text and no `<h1>` is correct there,
+  so exempt it rather than fixing it
