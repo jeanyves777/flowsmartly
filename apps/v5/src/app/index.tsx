@@ -17,6 +17,7 @@ import {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -36,6 +37,7 @@ import {
   type Link,
 } from "@/components/public/connectors";
 import { ListSmartlySection } from "@/components/public/listsmartly-section";
+import { BrandLogo } from "@/components/public/brand-logo";
 import { ImageAsset, Media } from "@/components/public/media";
 import {
   Animated,
@@ -60,7 +62,7 @@ import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
 import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
 import { contactHref, EXTERNAL } from "@/lib/destinations";
-import { brandColor, elevation, hexToRgba, type ThemeTokens } from "@/theme/tokens";
+import { brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
 import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
 
@@ -583,20 +585,65 @@ function ChannelMap() {
  * Six is what fits either side of the hub without the wires crossing; the rest
  * are named in the connected-systems section further down the page.
  */
-const HERO_SYSTEMS: { key: string; icon: string; label: string; at: 'left' | 'right'; row: 0 | 1 | 2 }[] = [
-  { key: 'website', icon: 'globe', label: 'Website', at: 'left', row: 0 },
-  { key: 'email', icon: 'envelope', label: 'Email & SMS', at: 'left', row: 1 },
-  { key: 'calendar', icon: 'calendar-days', label: 'Calendar', at: 'left', row: 2 },
-  { key: 'store', icon: 'bag-shopping', label: 'Store', at: 'right', row: 0 },
-  { key: 'crm', icon: 'user-group', label: 'CRM', at: 'right', row: 1 },
-  { key: 'payments', icon: 'credit-card', label: 'Payments', at: 'right', row: 2 },
+type HeroAccent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
+
+const HERO_SYSTEMS: { key: string; icon: string; label: string; at: 'left' | 'right'; accent: HeroAccent }[] = [
+  { key: 'website', icon: 'globe', label: 'Website', at: 'left', accent: 'brand' },
+  { key: 'email', icon: 'envelope', label: 'Email & SMS', at: 'left', accent: 'violet' },
+  { key: 'calendar', icon: 'calendar-days', label: 'Calendar', at: 'left', accent: 'green' },
+  { key: 'store', icon: 'bag-shopping', label: 'Store', at: 'right', accent: 'orange' },
+  { key: 'crm', icon: 'user-group', label: 'CRM', at: 'right', accent: 'brand' },
+  { key: 'payments', icon: 'credit-card', label: 'Payments', at: 'right', accent: 'pink' },
 ];
 
+/**
+ * Accents for anything sitting on glass.
+ *
+ * The glass keeps its dark tint in every theme, so the icons on it have to
+ * come from the palette built for a dark ground — the light palette's accents
+ * are deepened for white surfaces (brand #0a63d6, green #0e7b3a) and go nearly
+ * black against it. Reading them from `palettes.dark` keeps them out of the
+ * page as literals while matching the surface they actually sit on.
+ */
+const onGlass: Record<HeroAccent, string> = {
+  brand: palettes.dark.brand,
+  violet: palettes.dark.violet,
+  green: palettes.dark.green,
+  orange: palettes.dark.orange,
+  pink: palettes.dark.pink,
+};
+
 /** What it prepared — the headline types through these, and they arrive as cards. */
-const HERO_PREPARED: { key: string; icon: string; label: string; tail: string }[] = [
-  { key: 'followups', icon: 'file-lines', label: 'Five tax-client follow-ups', tail: 'five tax-client follow-ups.' },
-  { key: 'appointments', icon: 'calendar-check', label: 'Three appointments filled', tail: 'three appointments to fill.' },
-  { key: 'carts', icon: 'cart-shopping', label: '37 abandoned carts recovered', tail: '37 carts worth recovering.' },
+const HERO_PREPARED: { key: string; icon: string; label: string; tail: string; accent: HeroAccent }[] = [
+  { key: 'followups', icon: 'file-lines', label: 'Five tax-client follow-ups', tail: 'five tax-client follow-ups.', accent: 'brand' },
+  { key: 'appointments', icon: 'calendar-check', label: 'Three appointments filled', tail: 'three appointments to fill.', accent: 'green' },
+  { key: 'carts', icon: 'cart-shopping', label: '37 abandoned carts recovered', tail: '37 carts worth recovering.', accent: 'orange' },
+  { key: 'reviews', icon: 'star', label: 'Nine reviews answered', tail: 'nine reviews to answer.', accent: 'pink' },
+  { key: 'report', icon: 'chart-column', label: 'Monthly donor report compiled', tail: 'the monthly donor report.', accent: 'violet' },
+  { key: 'quotes', icon: 'file-invoice-dollar', label: 'Four quotes drafted', tail: 'four quotes to send.', accent: 'brand' },
+  { key: 'callbacks', icon: 'phone', label: 'Six call-backs scheduled', tail: 'six call-backs to make.', accent: 'green' },
+];
+
+/** How many of them are on screen at once. */
+const HERO_DECK = 3;
+
+/**
+ * The software a workspace is usually already running.
+ *
+ * Real marks through `BrandLogo`, which resolves FontAwesome first and
+ * simple-icons after — never a drawn look-alike. The strip is decorative and
+ * duplicated, so it is `aria-hidden`; the integrations page is where these are
+ * actually claimed.
+ *
+ * Only brands that resolve to a real mark are listed. `BrandLogo` falls back
+ * to a labelled monogram for anything neither library carries, which is the
+ * right behaviour and the wrong look here — hubspot, twilio and klaviyo came
+ * through as "H", "Tw" and "K" and were dropped rather than drawn by hand.
+ */
+const HERO_INTEGRATIONS = [
+  'shopify', 'stripe', 'salesforce', 'mailchimp', 'slack', 'zapier', 'notion',
+  'microsoft', 'google', 'wordpress', 'intercom', 'airtable', 'zendesk',
+  'dropbox', 'asana', 'trello', 'github',
 ];
 
 /**
@@ -647,6 +694,85 @@ function useTypedTail(phrases: string[]): string {
   return text;
 }
 
+/**
+ * One prepared item, arriving.
+ *
+ * It fades and lifts each time its slot takes a new item, which is what makes
+ * the block read as work coming in rather than a static list. It mounts fully
+ * visible, so the deck is complete with JavaScript off, and reduced motion
+ * leaves it that way — the shared value simply never moves.
+ */
+function HeroPrepared({
+  item,
+  styles,
+  reduced,
+}: {
+  item: (typeof HERO_PREPARED)[number];
+  styles: Styles;
+  reduced: boolean;
+}) {
+  const enter = useSharedValue(1);
+  useEffect(() => {
+    if (reduced) return;
+    enter.value = 0;
+    enter.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
+  }, [item.key, reduced, enter]);
+  const animated = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateY: (1 - enter.value) * 14 }],
+  }));
+  return (
+    <Animated.View style={[styles.heroCard, animated]}>
+      <FontAwesome6 name={item.icon as never} size={12} color={onGlass[item.accent]} />
+      <Text numberOfLines={1} style={styles.heroCardText}>
+        {item.label}
+      </Text>
+      <Text style={styles.heroCardPill}>Ready</Text>
+    </Animated.View>
+  );
+}
+
+/**
+ * The software a business already runs, drifting past.
+ *
+ * Two copies of the same row translate as one, so when the first has moved its
+ * whole width the second is exactly where it started and the loop is
+ * invisible. Reduced motion leaves the row where it is rather than stopping it
+ * mid-drift.
+ */
+function HeroIntegrations({ styles, reduced }: { styles: Styles; reduced: boolean }) {
+  const [width, setWidth] = useState(0);
+  const shift = useSharedValue(0);
+  useEffect(() => {
+    if (reduced || width <= 0) return;
+    shift.value = 0;
+    // a steady speed rather than a fixed duration, so a longer row is not faster
+    shift.value = withRepeat(withTiming(-width, { duration: width * 26, easing: Easing.linear }), -1, false);
+  }, [reduced, width, shift]);
+  const animated = useAnimatedStyle(() => ({ transform: [{ translateX: shift.value }] }));
+
+  const row = (measured: boolean) => (
+    <View
+      style={styles.heroLogoRow}
+      onLayout={measured ? (event) => setWidth(event.nativeEvent.layout.width) : undefined}>
+      {HERO_INTEGRATIONS.map((name) => (
+        <View key={`${measured ? 'a' : 'b'}-${name}`} style={styles.heroLogo}>
+          <BrandLogo name={name} size={22} />
+        </View>
+      ))}
+    </View>
+  );
+
+  return (
+    <View style={styles.heroLogoStrip} aria-hidden pointerEvents="none">
+      <Animated.View style={[styles.heroLogoTrack, animated]}>
+        {row(true)}
+        {row(false)}
+      </Animated.View>
+    </View>
+  );
+}
+
 /** One system tile on the photograph — glass, so the room reads through it. */
 function HeroSystem({
   system,
@@ -661,7 +787,7 @@ function HeroSystem({
 }) {
   return (
     <View {...field.node(system.key)} style={styles.heroSystem}>
-      <FontAwesome6 name={system.icon as never} size={13} color={t.textOnScrim} />
+      <FontAwesome6 name={system.icon as never} size={13} color={onGlass[system.accent]} />
       <Text numberOfLines={1} style={styles.heroSystemLabel}>
         {system.label}
       </Text>
@@ -680,8 +806,8 @@ function Hero() {
   const prepared = useCountUp(326);
 
   const links = useMemo<Link[]>(
-    () => HERO_SYSTEMS.map((s) => ({ from: s.key, to: 'hub', color: t.brandStrong })),
-    [t],
+    () => HERO_SYSTEMS.map((s) => ({ from: s.key, to: 'hub', color: onGlass[s.accent] })),
+    [],
   );
 
   /*
@@ -689,14 +815,19 @@ function Hero() {
    * block is complete without JavaScript and still under reduced motion — the
    * cycle only moves the highlight.
    */
-  const [lit, setLit] = useState(0);
+  const [offset, setOffset] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const timer = setInterval(() => setLit((n) => (n + 1) % HERO_PREPARED.length), 2600);
+    const timer = setInterval(() => setOffset((n) => (n + 1) % HERO_PREPARED.length), 2600);
     return () => clearInterval(timer);
   }, [reduced]);
+  const deck = Array.from(
+    { length: HERO_DECK },
+    (_, i) => HERO_PREPARED[(offset + i) % HERO_PREPARED.length],
+  );
 
   return (
+    <>
     <View style={styles.heroScene}>
       {/* The photograph is the ground. It is decorative — the headline beside
           it carries the meaning — so it takes an empty alt. */}
@@ -705,10 +836,10 @@ function Hero() {
           photograph is doing; one up from the floor, for the trust strip. */}
       <LinearGradient
         colors={[
-          `rgba(${t.scrimBase},0.95)`,
-          `rgba(${t.scrimBase},0.88)`,
-          `rgba(${t.scrimBase},0.62)`,
-          `rgba(${t.scrimBase},0.42)`,
+          `rgba(${t.scrimBase},${t.scrimVeil[0]})`,
+          `rgba(${t.scrimBase},${t.scrimVeil[1]})`,
+          `rgba(${t.scrimBase},${t.scrimVeil[2]})`,
+          `rgba(${t.scrimBase},${t.scrimVeil[3]})`,
         ]}
         locations={[0, 0.3, 0.6, 1]}
         start={{ x: 0, y: 0 }}
@@ -717,7 +848,7 @@ function Hero() {
         pointerEvents="none"
       />
       <LinearGradient
-        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},0.74)`]}
+        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},${t.scrimVeil[1]})`]}
         locations={[0.68, 1]}
         style={styles.heroScrim}
         pointerEvents="none"
@@ -830,16 +961,10 @@ function Hero() {
           </View>
 
           <View style={styles.heroDeck}>
-            {HERO_PREPARED.map((item, index) => (
-              <View
-                key={item.key}
-                style={[styles.heroCard, index === lit ? styles.heroCardLit : null]}>
-                <FontAwesome6 name={item.icon as never} size={12} color={t.textOnScrim} />
-                <Text numberOfLines={1} style={styles.heroCardText}>
-                  {item.label}
-                </Text>
-                <Text style={styles.heroCardPill}>Ready</Text>
-              </View>
+            {deck.map((item, slot) => (
+              // keyed by slot, not by item: the slot stays mounted and its
+              // contents change, which is what the arrival animation reacts to
+              <HeroPrepared key={`slot-${slot}`} item={item} styles={styles} reduced={reduced} />
             ))}
           </View>
         </ConnectorSurface>
@@ -855,6 +980,8 @@ function Hero() {
         )}
       </View>
     </View>
+    <HeroIntegrations styles={styles} reduced={reduced} />
+    </>
   );
 }
 
@@ -1745,6 +1872,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
       backgroundColor: t.scrimGlass,
+      backdropFilter: t.scrimGlassBlur,
       paddingHorizontal: 13,
       paddingVertical: 7,
     },
@@ -1782,6 +1910,23 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     heroTrustText: { ...ty.caption, color: t.scrimTextFaint },
 
+    /*
+     * The band under the photograph. It was empty page between the hero and
+     * the first section; the software a business already runs belongs there —
+     * it answers "will this fit what I have" before the copy has to.
+     */
+    heroLogoStrip: {
+      marginHorizontal: -heroBleed,
+      paddingVertical: l.isPhone ? 14 : 18,
+      borderBottomWidth: 1,
+      borderBottomColor: t.divider,
+      backgroundColor: t.surfaceMuted,
+      overflow: 'hidden',
+    },
+    heroLogoTrack: { flexDirection: 'row' },
+    heroLogoRow: { flexDirection: 'row', alignItems: 'center', gap: l.isPhone ? 30 : 46, paddingHorizontal: l.isPhone ? 15 : 23 },
+    heroLogo: { opacity: 0.7 },
+
     /* the live system, glass so the room reads through it */
     heroSystemField: stacked
       ? { width: '100%', minWidth: 0, height: 300, marginTop: 8 }
@@ -1803,6 +1948,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
       backgroundColor: t.scrimGlass,
+      backdropFilter: t.scrimGlassBlur,
       paddingHorizontal: 11,
       paddingVertical: 8,
     },
@@ -1816,6 +1962,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
       backgroundColor: t.scrimGlass,
+      backdropFilter: t.scrimGlassBlur,
     },
     heroHubMark: { width: l.isPhone ? 46 : 56, height: l.isPhone ? 46 : 56 },
 
@@ -1832,6 +1979,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
       backgroundColor: t.scrimGlass,
+      backdropFilter: t.scrimGlassBlur,
       paddingHorizontal: 13,
       paddingVertical: 11,
     },

@@ -75,6 +75,15 @@ export type ThemeTokens = {
   scrimTextFaint: string;
   /** the ground a scrim is built from, as rgb triples for gradient stops */
   scrimBase: string;
+  /**
+   * How strongly the veil covers the photograph, across the four gradient
+   * stops. Per theme, because the two grounds do not behave alike: a dark veil
+   * deepens a photograph and it stays crisp, while a light one *milks* it, and
+   * the same opacities that read well in dark left the light hero looking like
+   * a faded print. Light therefore covers hard only where the copy sits and
+   * gets out of the way fast.
+   */
+  scrimVeil: readonly [number, number, number, number];
   /** frosted panel on a photograph */
   scrimGlass: string;
   scrimGlassLine: string;
@@ -85,6 +94,14 @@ export type ThemeTokens = {
   scrimGoodLine: string;
   /** the border on a glass panel the eye is being sent to */
   scrimGlassLit: string;
+  /**
+   * The frost. Without it a glass panel is only a tinted rectangle, so the
+   * tint has to be heavy enough to carry text by itself and stops being
+   * see-through — which is how these shipped first as white pills and then as
+   * dark ones. With the blur the tint drops to 30% and the photograph reads
+   * through properly.
+   */
+  scrimGlassBlur: string;
 
   border: string;
   borderStrong: string;
@@ -145,13 +162,15 @@ const light: ThemeTokens = {
   scrimTextMuted: '#33436c',
   scrimTextFaint: '#4a587c',
   scrimBase: '246, 249, 255',
-  scrimGlass: 'rgba(10, 16, 30, 0.52)',
+  scrimVeil: [0.9, 0.68, 0.24, 0.08],
+  scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
   scrimAccent: '#0a56b8',
   scrimGood: '#4ed67f',
   scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
+  scrimGlassBlur: 'blur(14px) saturate(120%)',
 
   border: '#dfe5f2',
   borderStrong: '#c4cee4',
@@ -217,13 +236,15 @@ const grey: ThemeTokens = {
   scrimTextMuted: '#c8d4ee',
   scrimTextFaint: '#93a4c9',
   scrimBase: '6, 10, 20',
-  scrimGlass: 'rgba(10, 16, 30, 0.55)',
+  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',
   scrimGood: '#4ed67f',
   scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
+  scrimGlassBlur: 'blur(14px) saturate(120%)',
 
   border: '#333941',
   borderStrong: '#48505c',
@@ -279,13 +300,15 @@ const dark: ThemeTokens = {
   scrimTextMuted: '#c8d4ee',
   scrimTextFaint: '#93a4c9',
   scrimBase: '6, 10, 20',
-  scrimGlass: 'rgba(10, 16, 30, 0.55)',
+  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',
   scrimGood: '#4ed67f',
   scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
+  scrimGlassBlur: 'blur(14px) saturate(120%)',
 
   border: '#26304a',
   borderStrong: '#3a4763',
