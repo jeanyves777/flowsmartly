@@ -1,9 +1,11 @@
 # AI usage policy — FlowSmartly
 # Machine-readable companion to /robots.txt and /llms.txt
-# Last updated: 2026-08-04
+# Last updated: 2026-08-09
 
 Site: https://flowsmartly.com
-Owner: FlowSmartly, Inc.
+Owner: General Computing Solutions
+Product: FlowSmartly, a product of General Computing Solutions
+Address: 132 Lincoln St, Pittsfield, MA 01201, USA
 Contact: privacy@flowsmartly.com
 Security-Contact: security@flowsmartly.com
 

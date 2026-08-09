@@ -3,6 +3,8 @@ import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
 import { Reveal } from '@/components/public/motion';
+import { CHANGELOG } from '@/content/changelog.generated';
+import type { ChangelogEntry } from '@/content/types';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
@@ -43,149 +45,31 @@ function kindIcon(kind: Kind): string {
   return kind === 'New' ? 'circle-plus' : kind === 'Improved' ? 'arrow-trend-up' : 'wrench';
 }
 
-type Entry = {
-  month: string;
-  date: string;
-  kind: Kind;
-  title: string;
-  lines: [string, string];
-  /**
-   * Where "Read more" goes. There is no per-release write-up in this app, so
-   * it points at the surface the change landed on — a real page rather than a
-   * link that does nothing.
-   */
-  more?: string;
-};
+/**
+ * Release notes come from `src/content/changelog/*.md`, compiled by
+ * `scripts/build-content.js`.
+ *
+ * They used to be a hardcoded array of invented releases against invented
+ * dates. Deriving the month heading and the short label from one ISO date also
+ * removes the way that list could drift: an entry filed under a month its own
+ * date did not fall in.
+ */
+type Entry = ChangelogEntry;
 
-const ENTRIES: Entry[] = [
-  {
-    month: 'June 2024',
-    date: 'Jun 24',
-    kind: 'New',
-    title: 'FlowAgent weekly growth briefing',
-    lines: [
-      'Every Monday, FlowAgent writes up what moved last week and what it plans to do about it.',
-      'Approve the plan, edit a step, or ignore it entirely — nothing runs without you.',
-    ],
-    more: ROUTES.flowAgent,
-  },
-  {
-    month: 'June 2024',
-    date: 'Jun 18',
-    kind: 'Improved',
-    title: 'Call Agent hands over with the full story',
-    lines: [
-      'When a call escalates, the human picks up with a live summary and the transcript so far.',
-      'Handovers now complete in under a second instead of holding the caller in silence.',
-    ],
-  },
-  {
-    month: 'June 2024',
-    date: 'Jun 11',
-    kind: 'Fixed',
-    title: 'FlowShop shipping rates on mixed carts',
-    lines: [
-      'Carts combining a digital product with a physical one were quoting the digital rate.',
-      'Rates are now calculated per fulfilment group and shown before checkout starts.',
-    ],
-  },
+const ENTRIES: Entry[] = CHANGELOG;
 
-  {
-    month: 'May 2024',
-    date: 'May 28',
-    kind: 'New',
-    title: 'FlowLearner live rooms record themselves',
-    lines: [
-      'Every live session is captured with the whiteboard, the slides and the chat intact.',
-      'The recording lands in the Learning Center as a lesson, ready to assign.',
-    ],
-    more: ROUTES.liveRoom,
-  },
-  {
-    month: 'May 2024',
-    date: 'May 20',
-    kind: 'Improved',
-    title: 'ListSmartly replies in your own voice',
-    lines: [
-      'Review responses now follow the brand voice you set instead of a generic template.',
-      'Bulk-approve a week of replies from one screen, or edit any of them first.',
-    ],
-  },
-  {
-    month: 'May 2024',
-    date: 'May 12',
-    kind: 'New',
-    title: 'Campaign canvas',
-    lines: [
-      'Drag every step of a journey into place and preview the whole thing before it sends.',
-      'Conditions, waits and channel switches are all visible on one board.',
-    ],
-    more: ROUTES.emailSms,
-  },
-  {
-    month: 'May 2024',
-    date: 'May 6',
-    kind: 'Improved',
-    title: 'Faster AI Studio renders',
-    lines: [
-      'Image and video generations return roughly 40% sooner on average.',
-      'Queued jobs now report a real position rather than a spinner.',
-    ],
-  },
-
-  {
-    month: 'April 2024',
-    date: 'Apr 29',
-    kind: 'New',
-    title: 'Search across call transcripts',
-    lines: [
-      'Find any call by keyword, outcome or contact, and jump to the moment it was said.',
-      'Results respect the same permissions as the rest of the customer record.',
-    ],
-  },
-  {
-    month: 'April 2024',
-    date: 'Apr 22',
-    kind: 'Fixed',
-    title: 'Quiet hours on scheduled SMS',
-    lines: [
-      'Scheduled sends now respect each contact’s local quiet hours, not the workspace timezone.',
-      'Anything caught by the rule is held and delivered at the next allowed window.',
-    ],
-  },
-  {
-    month: 'April 2024',
-    date: 'Apr 15',
-    kind: 'Improved',
-    title: 'Analytics attribution windows you control',
-    lines: [
-      'Set the click and view windows per channel instead of accepting one platform default.',
-      'Every report states the window it used, so two dashboards can no longer disagree.',
-    ],
-    more: ROUTES.analytics,
-  },
-
-  {
-    month: 'March 2024',
-    date: 'Mar 27',
-    kind: 'New',
-    title: 'FlowShop bundles and volume pricing',
-    lines: [
-      'Sell products together, or price them by quantity, without a third-party app.',
-      'Bundles carry their own images, inventory rules and campaign links.',
-    ],
-  },
-  {
-    month: 'March 2024',
-    date: 'Mar 19',
-    kind: 'Fixed',
-    title: 'Duplicate contacts on CSV import',
-    lines: [
-      'Imports matching on a secondary email were creating a second contact record.',
-      'Existing duplicates created by the bug can be merged from the contact detail view.',
-    ],
-  },
-];
+/**
+ * "across the last four months" was written into the page, so it could not be
+ * wrong until the entries changed underneath it — and then it was, on a
+ * changelog whose whole history fell inside one month. Derived from the real
+ * first and last entry, it cannot say the wrong thing again.
+ */
+const SPAN: string = (() => {
+  if (ENTRIES.length < 2) return '';
+  const months = new Set(ENTRIES.map((entry) => entry.month));
+  if (months.size === 1) return `in ${ENTRIES[0].month}`;
+  return `from ${ENTRIES[ENTRIES.length - 1].month} to ${ENTRIES[0].month}`;
+})();
 
 /* ------------------------------------------------------------------ */
 /* shared style hook                                                   */
@@ -285,7 +169,7 @@ function Timeline({ filter }: { filter: Filter }) {
           {total === 0
             ? `Nothing tagged ${filter} in this window — try another tag.`
             : `${total} ${total === 1 ? 'change' : 'changes'}${
-                filter === ALL ? ' across the last four months' : ` tagged ${filter}`
+                filter === ALL ? ` ${SPAN}` : ` tagged ${filter}`
               }.`}
         </Text>
       </Reveal>
@@ -326,7 +210,7 @@ function Timeline({ filter }: { filter: Filter }) {
                 <Reveal key={entry.title} style={styles.entryRow} distance={0} delay={index * 60}>
                   {l.isPhone ? null : (
                     <Text style={styles.entryDate} numberOfLines={1}>
-                      {entry.date}
+                      {entry.label}
                     </Text>
                   )}
                   <View style={[styles.dot, { borderColor: color }]}>
@@ -338,7 +222,7 @@ function Timeline({ filter }: { filter: Filter }) {
                       <View style={[styles.chip, { backgroundColor: softFill(color, t) }]}>
                         <Text style={[styles.chipText, { color: accentText(color, t) }]}>{entry.kind}</Text>
                       </View>
-                      {l.isPhone ? <Text style={styles.entryDateInline}>{entry.date}</Text> : null}
+                      {l.isPhone ? <Text style={styles.entryDateInline}>{entry.label}</Text> : null}
                     </View>
 
                     <Text style={styles.entryTitle}>{entry.title}</Text>
@@ -368,7 +252,7 @@ function Timeline({ filter }: { filter: Filter }) {
             <View style={styles.capDotInner} />
           </View>
           <Text style={styles.capText} numberOfLines={1}>
-            Older releases live in the archive.
+            {`That is the full history — ${ENTRIES.length} ${ENTRIES.length === 1 ? 'release' : 'releases'} so far.`}
           </Text>
         </View>
       </View>
@@ -443,7 +327,7 @@ export default function ChangelogPage() {
   return (
     <PageShell
       title="Changelog"
-      description="Every meaningful change we ship to FlowSmartly, in plain language — the new features, improvements and fixes of the last four months."
+      description="Every meaningful change we ship to FlowSmartly, in plain language — the new features, improvements and fixes, newest first."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },

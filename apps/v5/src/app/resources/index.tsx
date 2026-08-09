@@ -18,6 +18,7 @@ import { useAnimatedStyle } from 'react-native-reanimated';
 import { BrandLogo } from '@/components/public/brand-logo';
 import { Media } from '@/components/public/media';
 import { Animated, Reveal, useGrowIn } from '@/components/public/motion';
+import { POST_INDEX } from '@/content/posts.generated';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import {
@@ -79,15 +80,15 @@ const CATEGORIES: Category[] = [
     icon: 'circle-question',
     tone: 'brand',
     href: ROUTES.helpCenter,
-    meta: '240+ articles',
+    meta: 'Product help',
   },
   {
     title: 'Blog',
-    body: 'Ideas and insights for smarter growth, every week.',
+    body: 'How we build it, and what we learned doing it.',
     icon: 'newspaper',
     tone: 'violet',
     href: ROUTES.blog,
-    meta: 'New posts weekly',
+    meta: `${POST_INDEX.length} ${POST_INDEX.length === 1 ? 'article' : 'articles'}`,
   },
   {
     title: 'Guides',
@@ -95,7 +96,7 @@ const CATEGORIES: Category[] = [
     icon: 'book-open',
     tone: 'orange',
     href: ROUTES.guides,
-    meta: '18 playbooks',
+    meta: 'Playbooks',
   },
   {
     title: 'API Docs',
@@ -115,75 +116,28 @@ type Article = {
   chip: string;
   tone: Tone;
   read: string;
-  /**
-   * Individual article pages do not exist yet, so each card opens the product
-   * surface it is about. That is a real destination rather than a dead card.
-   */
+  /** the article's own page */
   href: string;
 };
 
-const ARTICLES: Article[] = [
-  {
-    title: 'Getting started with FlowSmartly',
-    blurb: 'Set up your workspace, connect a channel and send something real on day one.',
-    art: 'editorial/resource-getting-started',
-    alt: 'A new FlowSmartly workspace being set up',
-    chip: 'Getting started',
-    tone: 'brand',
-    read: '7 min read',
-    href: ROUTES.guides,
-  },
-  {
-    title: 'Email deliverability, explained properly',
-    blurb: 'Authentication, warm-up and list hygiene — the three things that decide the inbox.',
-    art: 'editorial/resource-deliverability',
-    alt: 'An email arriving in the primary inbox',
-    chip: 'Email + SMS',
-    tone: 'violet',
-    read: '9 min read',
-    href: ROUTES.emailSms,
-  },
-  {
-    title: 'Make AI conversations sound like you',
-    blurb: 'Give the model your voice, your guardrails and your escalation rules.',
-    art: 'editorial/blog-ai-conversations',
-    alt: 'An AI assistant answering a customer in the brand voice',
-    chip: 'AI Studio',
-    tone: 'orange',
-    read: '6 min read',
-    href: ROUTES.aiStudio,
-  },
-  {
-    title: 'Launch a FlowShop storefront in a weekend',
-    blurb: 'Catalog, checkout, shipping and the first campaign that points at it.',
-    art: 'editorial/resource-storefront',
-    alt: 'A FlowShop storefront ready to launch',
-    chip: 'FlowShop',
-    tone: 'green',
-    read: '11 min read',
-    href: ROUTES.flowshop,
-  },
-  {
-    title: 'Show up in local search, everywhere',
-    blurb: 'Listings, hours and reviews that agree with each other on every map.',
-    art: 'editorial/blog-local-growth',
-    alt: 'A local business ranking on a map',
-    chip: 'ListSmartly',
-    tone: 'pink',
-    read: '8 min read',
-    href: ROUTES.listsmartly,
-  },
-  {
-    title: 'The automations worth building first',
-    blurb: 'Five journeys that pay for themselves before you attempt anything clever.',
-    art: 'editorial/resource-automation',
-    alt: 'An automation journey branching across channels',
-    chip: 'Automation',
-    tone: 'brand',
-    read: '10 min read',
-    href: ROUTES.emailSms,
-  },
-];
+/**
+ * The hub features what has actually been published. It used to hold six
+ * invented articles pointing at product pages, because no article pages
+ * existed to point at; they exist now, so the list comes from the archive and
+ * cannot describe a piece nobody wrote.
+ */
+const ARTICLES: Article[] = POST_INDEX.filter((post) => Boolean(post.art))
+  .slice(0, 6)
+  .map((post) => ({
+    title: post.title,
+    blurb: post.description,
+    art: post.art as string,
+    alt: post.artAlt ?? post.title,
+    chip: post.topic,
+    tone: post.tone,
+    read: `${post.readMinutes} min read`,
+    href: `${ROUTES.blog}/${post.slug}`,
+  }));
 
 type PopularGuide = { title: string; href: string };
 
@@ -711,9 +665,9 @@ function FeaturedArticles() {
   return (
     <OpenSection>
       <SectionHead
-        label="FEATURED ARTICLES"
-        title="What people are reading this month."
-        body="The pieces our team keeps sending to customers, in the order they usually need them."
+        label="FROM THE BLOG"
+        title="How we build it, and what we learned doing it."
+        body="Notes from the team building FlowSmartly — the decisions, the things that broke, and the practices that came out of fixing them."
       />
 
       <View style={styles.grid}>

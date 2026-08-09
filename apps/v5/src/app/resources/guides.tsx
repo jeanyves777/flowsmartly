@@ -67,9 +67,7 @@ const TOPICS = [
 
 type Topic = (typeof TOPICS)[number];
 
-type SortKey = 'latest' | 'popular';
 
-const SORT_LABEL: Record<SortKey, string> = { latest: 'Latest', popular: 'Most popular' };
 
 type Guide = {
   title: string;
@@ -80,8 +78,6 @@ type Guide = {
   read: string;
   /** higher is newer — the "Latest" order */
   published: number;
-  /** downloads to date — the "Most popular" order */
-  downloads: number;
 };
 
 const GUIDES: Guide[] = [
@@ -93,7 +89,6 @@ const GUIDES: Guide[] = [
     blurb: 'Say what you do in one sentence buyers repeat.',
     read: '18 min read',
     published: 5,
-    downloads: 4820,
   },
   {
     title: 'Top-of-Funnel Playbook',
@@ -103,7 +98,6 @@ const GUIDES: Guide[] = [
     blurb: 'Fill the funnel with people who look like your best customers.',
     read: '22 min read',
     published: 4,
-    downloads: 7310,
   },
   {
     title: 'Discovery Calls That Convert',
@@ -113,7 +107,6 @@ const GUIDES: Guide[] = [
     blurb: 'Surface the real problem before pricing ever comes up.',
     read: '15 min read',
     published: 3,
-    downloads: 6140,
   },
   {
     title: 'Onboarding for Long-Term Value',
@@ -123,7 +116,6 @@ const GUIDES: Guide[] = [
     blurb: 'The first two weeks decide the next twelve months.',
     read: '19 min read',
     published: 2,
-    downloads: 5275,
   },
   {
     title: 'Build Scalable Processes',
@@ -133,7 +125,6 @@ const GUIDES: Guide[] = [
     blurb: 'Turn the work you repeat every week into a system.',
     read: '24 min read',
     published: 1,
-    downloads: 3960,
   },
 ];
 
@@ -407,14 +398,11 @@ function Library() {
   const t = useTokens();
   const l = useLayout();
   const [topic, setTopic] = useState<Topic>(ALL);
-  const [sort, setSort] = useState<SortKey>('latest');
 
   const visible = useMemo(() => {
     const filtered = topic === ALL ? GUIDES : GUIDES.filter((guide) => guide.topic === topic);
-    return [...filtered].sort((a, b) =>
-      sort === 'latest' ? b.published - a.published : b.downloads - a.downloads,
-    );
-  }, [topic, sort]);
+    return [...filtered].sort((a, b) => b.published - a.published);
+  }, [topic]);
 
   // Five guides is a prime count: only 1 and 5 divide it, so the grid is either
   // a single column of row-cards or one full row of five. Below 1120 there is
@@ -453,16 +441,6 @@ function Library() {
           })}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Sort by ${SORT_LABEL[sort]}. Press to change.`}
-          onPress={() => setSort((prev) => (prev === 'latest' ? 'popular' : 'latest'))}
-          style={styles.sortControl}>
-          <Text style={styles.sortLabel} numberOfLines={1}>
-            {`Sort by: ${SORT_LABEL[sort]}`}
-          </Text>
-          <FontAwesome6 name="chevron-down" size={11} color={t.textSubtle} />
-        </Pressable>
       </View>
 
       {visible.length === 0 ? (
@@ -739,21 +717,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     filterChipActive: { borderColor: t.brand, backgroundColor: t.brandSoft },
     filterChipText: { ...type.bodySm, color: t.textMuted, fontWeight: '700' },
     filterChipTextActive: { color: t.brand },
-    sortControl: {
-      flexGrow: 0,
-      flexShrink: 0,
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 10,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: t.borderStrong,
-      backgroundColor: t.surfaceMuted,
-    },
-    sortLabel: { ...type.bodySm, color: t.text, fontWeight: '700' },
 
     /* grid --------------------------------------------------------- */
     grid: {

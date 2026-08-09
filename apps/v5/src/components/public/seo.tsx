@@ -98,6 +98,10 @@ export function Seo({ title, description, image, imageAlt, type = 'website', noI
       <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
       <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
       <link rel="manifest" href="/site.webmanifest" />
+      {/* Advertised on every page, not just the blog: a reader, an aggregator
+          and a "new post" automation all look for it in the head of whatever
+          page they were pointed at. */}
+      <link rel="alternate" type="application/rss+xml" title="FlowSmartly Blog" href={`${SITE.origin}/feed.xml`} />
       {/* the page has three themes, so the browser chrome follows the one in use */}
       <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
       <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1020" />
@@ -170,6 +174,10 @@ export function articleJsonLd(input: {
   description: string;
   path: string;
   datePublished: string;
+  /** omit for a piece that has not been revised — never echo `datePublished` */
+  dateModified?: string;
+  /** the topic, as `articleSection` — answer engines use it to place the piece */
+  section?: string;
   author?: string;
   image?: string;
 }) {
@@ -179,7 +187,10 @@ export function articleJsonLd(input: {
     headline: input.headline,
     description: input.description,
     url: `${SITE.origin}${input.path}`,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE.origin}${input.path}` },
     datePublished: input.datePublished,
+    ...(input.dateModified ? { dateModified: input.dateModified } : {}),
+    ...(input.section ? { articleSection: input.section } : {}),
     author: { '@type': input.author ? 'Person' : 'Organization', name: input.author ?? SITE.name },
     publisher: {
       '@type': 'Organization',

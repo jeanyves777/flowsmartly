@@ -5,9 +5,10 @@
  * Produces:
  *   dist/sitemap.xml   every real route, derived from the export itself
  *   dist/llms.txt      the site summary answer engines read
+ *   dist/feed.xml      RSS for the blog, from the same index the site renders
  *
- * Both are generated rather than hand-maintained so they cannot drift from the
- * routes that actually shipped.
+ * All three are generated rather than hand-maintained so they cannot drift from
+ * what actually shipped.
  *
  * It also prunes the dev-only artefacts expo-router emits into the export.
  */
@@ -16,6 +17,41 @@ const path = require('path');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const ORIGIN = 'https://flowsmartly.com';
+const BLOG_BASE = '/resources/blog';
+
+/**
+ * Published posts, written by `scripts/build-content.js` from the same markdown
+ * the site renders. Absent before the first content build, which is not an
+ * error — the site simply has no blog yet.
+ */
+function loadPosts() {
+  const file = path.join(__dirname, '..', 'src', 'content', 'posts.index.json');
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    console.warn('agent-assets: posts.index.json is unreadable — feed and blog section skipped');
+    return [];
+  }
+}
+
+const POSTS = loadPosts();
+const POST_BY_ROUTE = new Map(POSTS.map((post) => [`${BLOG_BASE}/${post.slug}`, post]));
+
+/** RSS dates are RFC 822; posts carry a plain date, so noon UTC avoids a
+ *  timezone rounding the published day backwards for readers west of it. */
+function rfc822(iso) {
+  return new Date(`${iso}T12:00:00Z`).toUTCString();
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 /* ---------- prune dev-only artefacts ---------- */
 
@@ -29,6 +65,21 @@ const ORIGIN = 'https://flowsmartly.com';
  */
 const DEV_ONLY = ['_sitemap.html'];
 
+/**
+ * A dynamic route also leaves its unresolved shell behind.
+ *
+ * `generateStaticParams` writes one real file per post *and* expo-router still
+ * emits the template itself as `[slug].html` — a page with the site chrome, no
+ * article, and the "that post does not exist" branch rendered into it. It is
+ * indexable, it was being listed in the sitemap as
+ * `/resources/blog/[slug]`, and it is exactly the orphan `_sitemap.html` was
+ * deleted for. Matching on the bracket rather than on one filename means the
+ * next dynamic route is covered without anyone remembering to add it.
+ */
+function isRouteTemplate(name) {
+  return name.endsWith('.html') && name.includes('[');
+}
+
 function prune() {
   const removed = [];
   for (const name of DEV_ONLY) {
@@ -38,6 +89,19 @@ function prune() {
       removed.push(name);
     }
   }
+  const walk = (dir, prefix = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name !== '_expo' && entry.name !== 'assets') {
+          walk(path.join(dir, entry.name), `${prefix}/${entry.name}`);
+        }
+      } else if (isRouteTemplate(entry.name)) {
+        fs.rmSync(path.join(dir, entry.name), { force: true });
+        removed.push(`${prefix}/${entry.name}`);
+      }
+    }
+  };
+  walk(DIST);
   return removed;
 }
 
@@ -81,11 +145,19 @@ function changefreqFor(route) {
 
 function writeSitemap(list) {
   const today = new Date().toISOString().slice(0, 10);
+  // A post's lastmod is the day it was published or last revised, not the day
+  // the site happened to be rebuilt. Stamping every URL with today's date tells
+  // a crawler the whole archive changed on every deploy, which is how a sitemap
+  // stops being believed.
+  const lastmodFor = (route) => {
+    const post = POST_BY_ROUTE.get(route);
+    return post ? post.updated || post.date : today;
+  };
   const body = list
     .map(
       (route) =>
         `  <url>\n    <loc>${ORIGIN}${route === '/' ? '/' : route}</loc>\n` +
-        `    <lastmod>${today}</lastmod>\n` +
+        `    <lastmod>${lastmodFor(route)}</lastmod>\n` +
         `    <changefreq>${changefreqFor(route)}</changefreq>\n` +
         `    <priority>${priorityFor(route)}</priority>\n  </url>`,
     )
@@ -119,8 +191,29 @@ function titleFor(route) {
     .join(' ');
 }
 
+/**
+ * The blog gets its own section, written from the post index rather than from
+ * route names.
+ *
+ * A slug turned back into title case gives an assistant "We Deleted Our Own
+ * Numbers" and nothing else. The post's real title and its one-sentence
+ * description are what let it decide whether the piece answers the question in
+ * front of it — which is the entire job of this file.
+ */
+function blogSection() {
+  if (!POSTS.length) return null;
+  const lines = POSTS.map(
+    (post) =>
+      `- [${post.title}](${ORIGIN}${BLOG_BASE}/${post.slug}) — ${post.description} ` +
+      `(${post.topic}, published ${post.date})`,
+  );
+  return `## Blog\n\nWriting from the team building FlowSmartly. Full archive: ${ORIGIN}${BLOG_BASE}\nFeed: ${ORIGIN}/feed.xml\n\n${lines.join('\n')}`;
+}
+
 function writeLlms(list) {
-  const used = new Set();
+  // Post routes are described by `blogSection()`; without this they would also
+  // be listed under Resources as bare slugs, twice, with no summary.
+  const used = new Set(POST_BY_ROUTE.keys());
   const blocks = SECTIONS.map(([name, match]) => {
     const items = list.filter((r) => match.test(r) && !used.has(r));
     items.forEach((r) => used.add(r));
@@ -131,6 +224,9 @@ function writeLlms(list) {
 
   const rest = list.filter((r) => !used.has(r) && r !== '/').sort();
   if (rest.length) blocks.push(`## Other\n\n${rest.map((r) => `- [${titleFor(r)}](${ORIGIN}${r})`).join('\n')}`);
+
+  const blog = blogSection();
+  if (blog) blocks.push(blog);
 
   const text = `# FlowSmartly
 
@@ -177,6 +273,48 @@ ${blocks.join('\n\n')}
 `;
   fs.writeFileSync(path.join(DIST, 'llms.txt'), text);
   return blocks.length;
+}
+
+/* ---------- feed ---------- */
+
+/**
+ * RSS 2.0, because it is what aggregators, readers, syndication bots and every
+ * "new post" automation still speak. It carries the description rather than the
+ * full body on purpose: a feed that ships the whole article invites scrapers to
+ * republish it verbatim, which `ai.txt` explicitly denies.
+ */
+function writeFeed() {
+  if (!POSTS.length) return 0;
+  const items = POSTS.map((post) => {
+    const url = `${ORIGIN}${BLOG_BASE}/${post.slug}`;
+    return (
+      `    <item>\n` +
+      `      <title>${escapeXml(post.title)}</title>\n` +
+      `      <link>${url}</link>\n` +
+      `      <guid isPermaLink="true">${url}</guid>\n` +
+      `      <description>${escapeXml(post.description)}</description>\n` +
+      `      <category>${escapeXml(post.topic)}</category>\n` +
+      `      <pubDate>${rfc822(post.date)}</pubDate>\n` +
+      `    </item>`
+    );
+  }).join('\n');
+
+  const newest = POSTS[0];
+  const xml =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n` +
+    `  <channel>\n` +
+    `    <title>FlowSmartly Blog</title>\n` +
+    `    <link>${ORIGIN}${BLOG_BASE}</link>\n` +
+    `    <description>Notes from building FlowSmartly — the decisions, the things that broke, and the practices that came out of fixing them.</description>\n` +
+    `    <language>en-us</language>\n` +
+    `    <lastBuildDate>${rfc822(newest.updated || newest.date)}</lastBuildDate>\n` +
+    `    <atom:link href="${ORIGIN}/feed.xml" rel="self" type="application/rss+xml"/>\n` +
+    `${items}\n` +
+    `  </channel>\n` +
+    `</rss>\n`;
+  fs.writeFileSync(path.join(DIST, 'feed.xml'), xml);
+  return POSTS.length;
 }
 
 /* ---------- JSON-LD injection ---------- */
@@ -430,9 +568,11 @@ const redirects = writeRedirects();
 const list = routes().sort().filter((route) => !isMoved(route));
 const urls = writeSitemap(list);
 const groups = writeLlms(list);
+const feed = writeFeed();
 const injected = injectJsonLd(list);
 console.log(`pruned: ${pruned.length ? pruned.join(', ') : 'nothing'}`);
 console.log(`redirects: ${redirects}`);
 console.log(`sitemap.xml: ${urls} urls`);
 console.log(`llms.txt: ${groups} sections`);
+console.log(`feed.xml: ${feed} posts`);
 console.log(`json-ld: ${injected} pages`);

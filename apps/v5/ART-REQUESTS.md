@@ -39,6 +39,38 @@ needs changing — the tags already point at it.
 
 ---
 
+## `editorial/blog-three-themes` — blog lead image
+
+**Route:** `/resources/blog/three-themes-and-unreadable-white`, and the card for
+it on `/resources/blog` and `/resources`.
+
+Referenced but not registered, so it renders the branded placeholder until the
+file lands. Everything around it is finished; this is the only gap.
+
+**Brief:** the same interface shown three times — light, charcoal grey, and
+near-black navy — as three overlapping panels, so the point of the piece (one
+design, three shipping states) is legible at card size. The article is about a
+button label going unreadable, so give one panel a visible primary button.
+Abstract product surface rather than a real screenshot: it sits beside real
+screenshots elsewhere and must not be mistaken for one.
+
+**Prompt, if generated:** *Three overlapping abstract app panels fanned left to
+right, the first on a white ground, the second on a neutral dark charcoal, the
+third on a near-black navy, each showing the same simplified card layout with a
+single blue primary button. Clean vector illustration, soft shadows, generous
+margins, no text, no photograph.*
+
+**When it arrives:** drop it at
+`assets/images/v5w/editorial/blog-three-themes.webp` and add the one line to
+`REGISTRY` in `media.tsx`. Nothing else changes — the post already names it.
+
+The other three launch posts reuse art that already exists
+(`editorial/press-kit`, `editorial/blog-ai-conversations`,
+`editorial/guide-playbook-spread`). As the archive grows, each new post either
+picks a fitting existing piece or gets an entry here.
+
+---
+
 ## Per-page unfurl cards — optional, later
 
 `Seo` takes `image` and `imageAlt`, so any route can override the default card
