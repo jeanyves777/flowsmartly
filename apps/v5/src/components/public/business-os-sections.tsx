@@ -236,7 +236,10 @@ export function IndustriesSection() {
   const columns = l.gridColumns(3);
 
   return (
-    <OpenSection>
+    // No seam above this one. The hero is a photograph with a hard bottom
+    // edge, and a separator hanging up into it crosses the image and the trust
+    // strip — the photograph's own edge is the boundary.
+    <OpenSection art="none">
       <SectionHead
         label="BUILT FOR YOUR ORGANIZATION"
         title="Built for the way your organization actually works"

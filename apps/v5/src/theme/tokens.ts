@@ -51,6 +51,40 @@ export type ThemeTokens = {
    * `textOnBrand` must not be used for now that it inverts.
    */
   textOnScrim: string;
+  /**
+   * Ink and glass for content sitting on a photograph.
+   *
+   * These **do** follow the theme. The first version of the photo hero was
+   * hardcoded dark in all three, on the argument that a scrim carrying AA text
+   * cannot also be a light surface — which is only true if the scrim has to be
+   * dark. It does not: in light the photograph takes a near-white veil and the
+   * copy stays navy, in grey and dark it takes the near-black one and the copy
+   * goes white. Same photograph, three grounds, the theme switch still means
+   * something on the first screen of the site.
+   */
+  /**
+   * The ink on the *veil* — dark on a light one, white on a dark one.
+   *
+   * Ink on **glass** is a different thing and stays `textOnScrim`: a frosted
+   * chip over a photograph is a window onto it, so it keeps its dark tint in
+   * every theme rather than turning into a white pill in light mode, and
+   * anything written on it is therefore always white.
+   */
+  scrimText: string;
+  scrimTextMuted: string;
+  scrimTextFaint: string;
+  /** the ground a scrim is built from, as rgb triples for gradient stops */
+  scrimBase: string;
+  /** frosted panel on a photograph */
+  scrimGlass: string;
+  scrimGlassLine: string;
+  /** accents that stay legible on a dark photograph */
+  scrimAccent: string;
+  scrimGood: string;
+  scrimGoodBg: string;
+  scrimGoodLine: string;
+  /** the border on a glass panel the eye is being sent to */
+  scrimGlassLit: string;
 
   border: string;
   borderStrong: string;
@@ -107,6 +141,17 @@ const light: ThemeTokens = {
   textSubtle: '#59647f',
   textOnBrand: '#ffffff',
   textOnScrim: '#ffffff',
+  scrimText: '#071449',
+  scrimTextMuted: '#33436c',
+  scrimTextFaint: '#4a587c',
+  scrimBase: '246, 249, 255',
+  scrimGlass: 'rgba(10, 16, 30, 0.52)',
+  scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
+  scrimAccent: '#0a56b8',
+  scrimGood: '#4ed67f',
+  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
+  scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
+  scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
 
   border: '#dfe5f2',
   borderStrong: '#c4cee4',
@@ -168,6 +213,17 @@ const grey: ThemeTokens = {
   // 8.86 brandStrong, 6.99 violet, 9.33 green, 9.40 orange, 6.50 pink.
   textOnBrand: '#101317',
   textOnScrim: '#ffffff',
+  scrimText: '#ffffff',
+  scrimTextMuted: '#c8d4ee',
+  scrimTextFaint: '#93a4c9',
+  scrimBase: '6, 10, 20',
+  scrimGlass: 'rgba(10, 16, 30, 0.55)',
+  scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
+  scrimAccent: '#7cb6ff',
+  scrimGood: '#4ed67f',
+  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
+  scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
+  scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
 
   border: '#333941',
   borderStrong: '#48505c',
@@ -219,6 +275,17 @@ const dark: ThemeTokens = {
   // 8.91 brandStrong, 7.03 violet, 9.38 green, 9.45 orange, 6.53 pink.
   textOnBrand: '#0b1220',
   textOnScrim: '#ffffff',
+  scrimText: '#ffffff',
+  scrimTextMuted: '#c8d4ee',
+  scrimTextFaint: '#93a4c9',
+  scrimBase: '6, 10, 20',
+  scrimGlass: 'rgba(10, 16, 30, 0.55)',
+  scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
+  scrimAccent: '#7cb6ff',
+  scrimGood: '#4ed67f',
+  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
+  scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
+  scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
 
   border: '#26304a',
   borderStrong: '#3a4763',

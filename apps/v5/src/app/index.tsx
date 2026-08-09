@@ -2,7 +2,7 @@ import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Fragment, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Linking,
   StyleSheet,
@@ -36,6 +36,7 @@ import {
   type Link,
 } from "@/components/public/connectors";
 import { ListSmartlySection } from "@/components/public/listsmartly-section";
+import { ImageAsset, Media } from "@/components/public/media";
 import {
   Animated,
   Reveal,
@@ -60,7 +61,7 @@ import { PageShell } from "@/components/public/page-shell";
 import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
 import { contactHref, EXTERNAL } from "@/lib/destinations";
 import { brandColor, elevation, hexToRgba, type ThemeTokens } from "@/theme/tokens";
-import { useLayout, type Layout } from "@/theme/use-responsive";
+import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
 
 /* ------------------------------------------------------------------ */
@@ -576,29 +577,191 @@ function ChannelMap() {
 /* hero                                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The systems FlowAgent works across, drawn around it.
+ *
+ * Six is what fits either side of the hub without the wires crossing; the rest
+ * are named in the connected-systems section further down the page.
+ */
+const HERO_SYSTEMS: { key: string; icon: string; label: string; at: 'left' | 'right'; row: 0 | 1 | 2 }[] = [
+  { key: 'website', icon: 'globe', label: 'Website', at: 'left', row: 0 },
+  { key: 'email', icon: 'envelope', label: 'Email & SMS', at: 'left', row: 1 },
+  { key: 'calendar', icon: 'calendar-days', label: 'Calendar', at: 'left', row: 2 },
+  { key: 'store', icon: 'bag-shopping', label: 'Store', at: 'right', row: 0 },
+  { key: 'crm', icon: 'user-group', label: 'CRM', at: 'right', row: 1 },
+  { key: 'payments', icon: 'credit-card', label: 'Payments', at: 'right', row: 2 },
+];
+
+/** What it prepared — the headline types through these, and they arrive as cards. */
+const HERO_PREPARED: { key: string; icon: string; label: string; tail: string }[] = [
+  { key: 'followups', icon: 'file-lines', label: 'Five tax-client follow-ups', tail: 'five tax-client follow-ups.' },
+  { key: 'appointments', icon: 'calendar-check', label: 'Three appointments filled', tail: 'three appointments to fill.' },
+  { key: 'carts', icon: 'cart-shopping', label: '37 abandoned carts recovered', tail: '37 carts worth recovering.' },
+];
+
+/**
+ * The typed tail of the headline.
+ *
+ * Renders the *finished* first phrase on the server and on the first client
+ * pass, then starts typing — the page has to read completely with JavaScript
+ * off, and a headline that begins empty is the one element that would break
+ * that outright. Reduced motion keeps the finished phrase and never moves.
+ */
+function useTypedTail(phrases: string[]): string {
+  const reduced = useReducedMotion();
+  const [text, setText] = useState(phrases[0]);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    if (reduced) return;
+    // one frame after mount, so the served markup is what a crawler reads
+    const kick = setTimeout(() => setStarted(true), 900);
+    return () => clearTimeout(kick);
+  }, [reduced]);
+
+  useEffect(() => {
+    if (!started || reduced) return;
+    let index = 0;
+    let cut = phrases[0].length;
+    let deleting = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const phrase = phrases[index % phrases.length];
+      cut = deleting ? cut - 1 : cut + 1;
+      setText(phrase.slice(0, cut));
+      if (!deleting && cut === phrase.length) {
+        deleting = true;
+        timer = setTimeout(tick, 1900);
+        return;
+      }
+      if (deleting && cut === 0) {
+        deleting = false;
+        index += 1;
+      }
+      timer = setTimeout(tick, deleting ? 26 : 58);
+    };
+    timer = setTimeout(tick, 400);
+    return () => clearTimeout(timer);
+  }, [started, reduced, phrases]);
+
+  return text;
+}
+
+/** One system tile on the photograph — glass, so the room reads through it. */
+function HeroSystem({
+  system,
+  field,
+  styles,
+  t,
+}: {
+  system: (typeof HERO_SYSTEMS)[number];
+  field: ReturnType<typeof useConnectorField>;
+  styles: Styles;
+  t: ThemeTokens;
+}) {
+  return (
+    <View {...field.node(system.key)} style={styles.heroSystem}>
+      <FontAwesome6 name={system.icon as never} size={13} color={t.textOnScrim} />
+      <Text numberOfLines={1} style={styles.heroSystemLabel}>
+        {system.label}
+      </Text>
+    </View>
+  );
+}
+
 function Hero() {
   const styles = useStyles();
   const l = useLayout();
+  const t = useTokens();
   const router = useRouter();
+  const field = useConnectorField();
+  const reduced = useReducedMotion();
+  const tail = useTypedTail(useMemo(() => HERO_PREPARED.map((p) => p.tail), []));
+  const prepared = useCountUp(326);
+
+  const links = useMemo<Link[]>(
+    () => HERO_SYSTEMS.map((s) => ({ from: s.key, to: 'hub', color: t.brandStrong })),
+    [t],
+  );
+
+  /*
+   * Which prepared item is lit. All three are rendered at full opacity, so the
+   * block is complete without JavaScript and still under reduced motion — the
+   * cycle only moves the highlight.
+   */
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    if (reduced) return;
+    const timer = setInterval(() => setLit((n) => (n + 1) % HERO_PREPARED.length), 2600);
+    return () => clearInterval(timer);
+  }, [reduced]);
+
   return (
-    <View style={styles.hero}>
+    <View style={styles.heroScene}>
+      {/* The photograph is the ground. It is decorative — the headline beside
+          it carries the meaning — so it takes an empty alt. */}
+      <Media name="scenes/careers-team" alt="" radius={0} style={styles.heroPhoto} />
+      {/* Two scrims: one across, so the copy has contrast over whatever the
+          photograph is doing; one up from the floor, for the trust strip. */}
+      <LinearGradient
+        colors={[
+          `rgba(${t.scrimBase},0.95)`,
+          `rgba(${t.scrimBase},0.88)`,
+          `rgba(${t.scrimBase},0.62)`,
+          `rgba(${t.scrimBase},0.42)`,
+        ]}
+        locations={[0, 0.3, 0.6, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.heroScrim}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},0.74)`]}
+        locations={[0.68, 1]}
+        style={styles.heroScrim}
+        pointerEvents="none"
+      />
+
       <View style={styles.heroTop}>
         <View style={styles.heroCopy}>
-          {/* Above the fold, so this runs on mount rather than on scroll.
-              Eyebrow → headline → body → CTAs → proof, 75ms apart. */}
           <Stagger mode="enter" step={75} distance={16}>
             {[
-              <SectionLabel key="eyebrow">THE AI BUSINESS OPERATING SYSTEM</SectionLabel>,
+              <View key="eyebrow" style={styles.heroBadge}>
+                <View style={styles.heroLiveDot} />
+                <Text style={styles.heroBadgeText}>THE AI BUSINESS OPERATING SYSTEM</Text>
+              </View>,
               // The one h1 on the site root. react-native-web renders every
               // Text as a div, so without this the page ships no heading at all.
-              <Heading key="title" level={1} style={styles.heroTitle}>
-                One intelligent platform to run, connect, and grow your business.
-              </Heading>,
+              /*
+               * The typing must not shove the page around. A ghost copy of the
+               * longest phrase holds the block open at exactly the height the
+               * live headline can ever need, and the live one is laid over it —
+               * so letters appear and disappear inside a box that never
+               * changes size. Reserving a guessed `minHeight` instead would be
+               * wrong at one type scale out of four.
+               */
+              <View key="title" style={styles.heroTitleWrap}>
+                <Text aria-hidden style={[styles.heroTitle, styles.heroTitleGhost]}>
+                  {`${HERO_TITLE_LEAD} ${HERO_LONGEST_TAIL}`}
+                </Text>
+                <Heading level={1} style={[styles.heroTitle, styles.heroTitleLive]}>
+                  {HERO_TITLE_LEAD}{' '}
+                  <Text style={styles.heroTitleTail}>{tail}</Text>
+                </Heading>
+              </View>,
               <Text key="body" style={styles.heroBody}>
-                FlowSmartly helps small and midsize businesses manage their digital presence, automate daily work,
-                serve customers, create content, sell products and services, train teams, and make better
-                decisions — with a secure AI partner working alongside them.
+                One platform to run, connect and grow your business — working across everything you
+                already use, and waiting for your approval before anything leaves.
               </Text>,
+              <View key="metric" style={styles.heroMetric}>
+                <Text ref={prepared.ref as never} style={styles.heroMetricValue}>
+                  {Math.round(prepared.value).toLocaleString('en-US')}
+                </Text>
+                <Text style={styles.heroMetricLabel}>
+                  actions prepared this week · nothing sent without you
+                </Text>
+              </View>,
               <View key="cta" style={styles.heroActions}>
                 <ButtonRow>
                   {/* full-width on phone so every CTA down the page shares one edge */}
@@ -621,25 +784,89 @@ function Hero() {
                   />
                 </ButtonRow>
               </View>,
-              <Text key="proof" style={styles.proof}>
-                Human-approved automation · Secure integrations · Role-based access · Built for real businesses
-              </Text>,
             ]}
           </Stagger>
         </View>
-        {/* One reveal for the whole visual column — the connector overlay
-            measures the hub and the tiles against each other, so nothing may
-            transform *between* the surface and its nodes. A shared translate on
-            the ancestor moves every node by the same amount, which the wires
-            never see; a scale would distort them, so there is none here. */}
-        <Reveal mode="enter" delay={300} distance={18} style={styles.heroVisual}>
-          <FlowAiCard />
-          <ChannelMap />
-        </Reveal>
+
+        {/* The live system, over the photograph. Nothing may transform between
+            the surface and its nodes — the overlay measures them against each
+            other with getBoundingClientRect, so a per-tile reveal or a scale
+            here would detach every wire. */}
+        <ConnectorSurface field={field} style={styles.heroSystemField}>
+          <Connectors
+            field={field}
+            links={links}
+            color={t.brandStrong}
+            circular={HERO_HUB}
+            strokeWidth={1.8}
+            dash="5 9"
+            flow={!reduced}
+            endDots={false}
+          />
+          <View style={styles.heroSystemRow}>
+            <View style={styles.heroSystemColumn}>
+              {HERO_SYSTEMS.filter((s) => s.at === 'left').map((s) => (
+                <HeroSystem key={s.key} system={s} field={field} styles={styles} t={t} />
+              ))}
+            </View>
+            {/* Rule 7 keeps the logo out of content sections, and the channels
+                diagram already carries the documented exception: the mark is
+                the only thing naming a centre node when every other node in the
+                picture wears a text label. A word set in a blue circle is not
+                the brand — this is. */}
+            <View {...field.node('hub')} style={styles.heroHub}>
+              <ImageAsset
+                source={require("../../assets/images/v5/flowsmartly-mark.png")}
+                style={styles.heroHubMark}
+                contentFit="contain"
+                alt="FlowSmartly"
+              />
+            </View>
+            <View style={styles.heroSystemColumn}>
+              {HERO_SYSTEMS.filter((s) => s.at === 'right').map((s) => (
+                <HeroSystem key={s.key} system={s} field={field} styles={styles} t={t} />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.heroDeck}>
+            {HERO_PREPARED.map((item, index) => (
+              <View
+                key={item.key}
+                style={[styles.heroCard, index === lit ? styles.heroCardLit : null]}>
+                <FontAwesome6 name={item.icon as never} size={12} color={t.textOnScrim} />
+                <Text numberOfLines={1} style={styles.heroCardText}>
+                  {item.label}
+                </Text>
+                <Text style={styles.heroCardPill}>Ready</Text>
+              </View>
+            ))}
+          </View>
+        </ConnectorSurface>
+      </View>
+
+      <View style={styles.heroTrust}>
+        {['Human-approved automation', 'Secure integrations', 'Role-based access', 'Built for real businesses'].map(
+          (line) => (
+            <Text key={line} style={styles.heroTrustText}>
+              {line}
+            </Text>
+          ),
+        )}
       </View>
     </View>
   );
 }
+
+/** The hub is the only round node, so the wires stop at its edge not its box. */
+const HERO_HUB = ['hub'];
+
+const HERO_TITLE_LEAD = 'While you were away, FlowAgent prepared';
+/** The tallest the headline can render — what the ghost copy reserves. */
+const HERO_LONGEST_TAIL = HERO_PREPARED.reduce(
+  (longest, item) => (item.tail.length > longest.length ? item.tail : longest),
+  '',
+);
 
 /* ------------------------------------------------------------------ */
 /* growth command center                                               */
@@ -1432,6 +1659,12 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
    * 460px cap here and left 270px of the row empty at 1100.
    */
   const heroFill = stacked && !l.isPhone;
+  /**
+   * How far the hero scene reaches past the content column, so the photograph
+   * touches both viewport edges. Measured, like every other full-bleed band —
+   * a flat overrun leaves the scroll container reporting phantom width.
+   */
+  const heroBleed = Math.max(0, Math.round((l.width - BP.maxContent) / 2));
   const card = elevation(t, 1) as ViewStyle;
   const panelPad = l.isPhone ? 12 : 14;
   const gridGap = l.isPhone ? 10 : 12;
@@ -1473,12 +1706,158 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingTop: l.isPhone ? 20 : 28,
       paddingBottom: l.sectionSpace,
     },
+
+    /* ---------------------------------------------------------------- */
+    /* hero: the photograph, and the system running over it              */
+    /* ---------------------------------------------------------------- */
+
+    /*
+     * The scene escapes the content column so the photograph reaches both
+     * viewport edges — the same measured negative margin a tinted band uses.
+     * A flat overrun would leave the scroller reporting phantom width.
+     */
+    heroScene: {
+      position: 'relative',
+      overflow: 'hidden',
+      marginHorizontal: -heroBleed,
+      paddingHorizontal: heroBleed + l.gutter,
+      paddingTop: l.isPhone ? 34 : 52,
+      paddingBottom: l.isPhone ? 74 : 84,
+      justifyContent: 'center',
+      // the photograph's own ground, for the moment before it decodes
+      backgroundColor: `rgb(${t.scrimBase})`,
+    },
+    heroPhoto: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
+    heroScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as ViewStyle,
+
+    /*
+     * On the photograph the ink is fixed, whatever the site theme is doing: a
+     * scrim dark enough to carry AA text cannot also be a light surface. These
+     * are the only values on the page that do not follow the theme, for the
+     * same reason the logo and the growth swoosh do not.
+     */
+    heroBadge: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.scrimGlassLine,
+      backgroundColor: t.scrimGlass,
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+    },
+    heroLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.scrimGood },
+    heroBadgeText: {
+      ...ty.micro,
+      color: t.textOnScrim,
+      fontWeight: '800',
+      letterSpacing: 1.1,
+    },
+    heroTitleWrap: { position: 'relative', alignSelf: 'stretch' },
+    // holds the block open; never read, never seen
+    heroTitleGhost: { opacity: 0 },
+    heroTitleLive: { position: 'absolute', top: 0, left: 0, right: 0 },
+    heroTitleTail: { color: t.scrimAccent },
+    heroMetric: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
+    heroMetricValue: {
+      ...ty.h3,
+      color: t.scrimText,
+      fontVariant: ['tabular-nums'],
+    },
+    heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint },
+    heroTrust: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: l.isPhone ? 12 : 26,
+      paddingHorizontal: heroBleed + l.gutter,
+      paddingVertical: 14,
+      borderTopWidth: 1,
+      borderTopColor: t.scrimGlassLine,
+    },
+    heroTrustText: { ...ty.caption, color: t.scrimTextFaint },
+
+    /* the live system, glass so the room reads through it */
+    heroSystemField: stacked
+      ? { width: '100%', minWidth: 0, height: 300, marginTop: 8 }
+      : { ...fluid, flexGrow: 1, height: 380, alignSelf: 'flex-end', marginBottom: 4 },
+    heroSystemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+    },
+    heroSystemColumn: { gap: l.isPhone ? 14 : 26, alignItems: 'stretch' },
+    heroSystem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: t.scrimGlassLine,
+      backgroundColor: t.scrimGlass,
+      paddingHorizontal: 11,
+      paddingVertical: 8,
+    },
+    heroSystemLabel: { ...ty.micro, color: t.textOnScrim, fontWeight: '700' },
+    heroHub: {
+      width: l.isPhone ? 88 : 108,
+      height: l.isPhone ? 88 : 108,
+      borderRadius: l.isPhone ? 44 : 54,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: t.scrimGlassLine,
+      backgroundColor: t.scrimGlass,
+    },
+    heroHubMark: { width: l.isPhone ? 46 : 56, height: l.isPhone ? 46 : 56 },
+
+    // In flow under the wires, not floating over them: absolutely positioned
+    // it landed across the hub and both bottom systems.
+    heroDeck: { gap: 8, alignItems: 'center', flexGrow: 0, flexShrink: 0 },
+    heroCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      width: '100%',
+      maxWidth: 330,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: t.scrimGlassLine,
+      backgroundColor: t.scrimGlass,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
+    },
+    // the highlight is the only thing the cycle moves; every card is legible
+    // without it, so the block is complete with JavaScript off
+    heroCardLit: { borderColor: t.scrimGlassLit, backgroundColor: t.scrimGlass },
+    heroCardText: { ...ty.micro, color: t.textOnScrim, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    heroCardPill: {
+      ...ty.micro,
+      color: t.scrimGood,
+      fontWeight: '800',
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.scrimGoodLine,
+      backgroundColor: t.scrimGoodBg,
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+    },
     heroTop: stacked
       ? { flexDirection: "column", alignItems: "stretch", gap: 28 }
       : { flexDirection: "row", alignItems: "center", gap: 34 },
     heroCopy: stacked ? { ...stackedItem, gap: 14 } : { ...fluid, flexGrow: 0.95, gap: 16 },
-    heroTitle: { ...ty.display, color: t.text, marginTop: 4, maxWidth: 640 },
-    heroBody: { ...ty.body, color: t.textMuted, maxWidth: 620 },
+    // On the photograph, not on the page ground: these two are white and
+    // near-white by necessity, like the badge above them.
+    heroTitle: { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: 640 },
+    heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: 620 },
     heroActions: { marginTop: 4 },
     proof: { ...ty.caption, color: t.textSubtle },
     // The proof card and the channel map stay side by side at every width down

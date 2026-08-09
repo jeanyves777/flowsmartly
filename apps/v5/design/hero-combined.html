@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V5 hero — scene + live system</title>
+<style>
+  :root{
+    --bg:#f3f6fc; --surface:#fff; --raised:#fff; --muted:#f7f9fe; --border:#dfe5f2;
+    --text:#071449; --textMuted:#42527a; --textSubtle:#59647f; --onBrand:#fff;
+    --brand:#0a63d6; --chipBg:#edf3ff; --chipText:#0a56b8;
+  }
+  [data-theme="dark"]{
+    --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --border:#26304a;
+    --text:#f5f8ff; --textMuted:#a9b6d2; --textSubtle:#8b98b8; --onBrand:#0b1220;
+    --brand:#4f9dff; --chipBg:#17264a; --chipText:#8ab8ff;
+  }
+  /* On the photograph the palette is fixed, whatever the site theme is doing:
+     a scrim dark enough for AA text cannot also be a light surface. */
+  .onPhoto{
+    --ink:#ffffff; --inkMuted:#c8d4ee; --inkFaint:#93a4c9;
+    --glass:rgba(10,16,30,.52); --glassLine:rgba(255,255,255,.18);
+    --live:#7cb6ff; --good:#4ed67f;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .bar{position:sticky;top:0;z-index:40;display:flex;gap:10px;align-items:center;
+    padding:12px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .bar h1{font-size:14px;margin:0;font-weight:800}
+  .bar .sp{flex:1}
+  .bar button{font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:7px 13px;
+    border-radius:9px;border:1px solid var(--border);background:var(--muted);color:var(--text)}
+  .bar button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--onBrand)}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 26px 60px}
+  .note{color:var(--textMuted);font-size:14px;line-height:1.65;margin:14px 0 0}
+  .note b{color:var(--text)}
+  h2.sec{font-size:19px;margin:34px 0 0;font-weight:800}
+  .frame{border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:14px;background:#0b1220}
+  .chrome{display:flex;align-items:center;gap:9px;padding:10px 14px;background:var(--surface);
+    border-bottom:1px solid var(--border)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#c4cee4}
+  .chrome span{font-size:11px;color:var(--textSubtle);margin-left:6px}
+
+  /* ================= the hero ================= */
+  .hero{position:relative;min-height:600px;overflow:hidden;display:flex;align-items:center}
+  .hero .shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    animation:drift 30s ease-in-out infinite alternate}
+  @keyframes drift{from{transform:scale(1.05)}to{transform:scale(1.14) translate3d(-1.5%,-1%,0)}}
+  /* Two scrims: one horizontal so the copy has contrast, one from the bottom so
+     the trust strip reads over whatever the photograph is doing down there. */
+  .hero .scrimA{position:absolute;inset:0;
+    background:linear-gradient(90deg,rgba(6,10,20,.92) 0%,rgba(6,10,20,.78) 30%,rgba(6,10,20,.40) 58%,rgba(6,10,20,.22) 100%)}
+  .hero .scrimB{position:absolute;inset:0;
+    background:linear-gradient(0deg,rgba(6,10,20,.72) 0%,transparent 30%)}
+
+  .heroGrid{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:30px;width:100%;padding:52px 46px 96px;align-items:center}
+
+  .badge{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:1.1px;
+    color:var(--inkMuted);border:1px solid var(--glassLine);border-radius:999px;padding:7px 13px;
+    background:rgba(255,255,255,.07)}
+  .liveDot{width:7px;height:7px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 0 0 rgba(78,214,127,.6);animation:beat 2.4s infinite}
+  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(78,214,127,.55)}70%{box-shadow:0 0 0 9px rgba(78,214,127,0)}100%{box-shadow:0 0 0 0 rgba(78,214,127,0)}}
+
+  .hero h3{color:var(--ink);font-size:46px;font-weight:800;letter-spacing:-1.7px;line-height:1.08;
+    margin:18px 0 0;min-height:2.3em}
+  .typed{color:var(--live)}
+  .caret{display:inline-block;width:2px;height:.88em;background:var(--live);vertical-align:-.06em;
+    margin-left:3px;animation:caret 1s steps(1) infinite}
+  @keyframes caret{50%{opacity:0}}
+  .hero .lede{color:var(--inkMuted);font-size:16px;line-height:1.62;margin:16px 0 0;max-width:46ch}
+  .metric{display:flex;align-items:baseline;gap:10px;margin-top:20px;color:var(--inkFaint);font-size:13px}
+  .metric b{color:var(--ink);font-size:26px;font-variant-numeric:tabular-nums;letter-spacing:-.6px}
+  .cta{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap;align-items:center}
+  .cta .g{background:#fff;color:#0b1220;font-weight:800;font-size:14px;padding:13px 21px;border-radius:12px}
+  .cta .o{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:14px;
+    border:1px solid rgba(255,255,255,.42);padding:12px 18px;border-radius:12px}
+  .playRing{width:26px;height:26px;border-radius:50%;border:1.4px solid rgba(255,255,255,.55);
+    display:grid;place-items:center;position:relative;font-size:9px}
+  .playRing::after{content:"";position:absolute;inset:-2px;border-radius:50%;
+    border:1.4px solid rgba(255,255,255,.5);animation:ring 2.8s ease-out infinite}
+  @keyframes ring{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.55);opacity:0}}
+
+  /* ---- the live system, floating over the photograph ---- */
+  .system{position:relative;height:330px;align-self:end;margin-bottom:6px}
+  .system svg{position:absolute;inset:0;width:100%;height:100%;color:var(--live)}
+  .flow{stroke:currentColor;stroke-width:1.8;fill:none;opacity:.55;stroke-dasharray:5 9;
+    animation:dash 2.6s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-28}}
+  .sys{position:absolute;transform:translate(-50%,-50%);z-index:2;white-space:nowrap;
+    display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--ink);
+    background:var(--glass);border:1px solid var(--glassLine);border-radius:11px;padding:8px 12px;
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+  .core{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:2;
+    width:112px;height:112px;border-radius:50%;display:grid;place-items:center;text-align:center;
+    color:#fff;font-weight:800;font-size:12.5px;line-height:1.25;
+    background:linear-gradient(160deg,#1f7bff,#0a56b8);box-shadow:0 20px 50px -18px rgba(10,86,184,.9)}
+  .core::after{content:"";position:absolute;inset:-12px;border-radius:50%;
+    border:1.5px solid rgba(124,182,255,.7);animation:pulse 3s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.4);opacity:0}}
+
+  .deck{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);width:330px;z-index:3}
+  .card{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12.5px;color:var(--ink);
+    background:var(--glass);border:1px solid var(--glassLine);border-radius:12px;padding:11px 13px;
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+    opacity:0;animation:deal 9.6s ease-in-out infinite}
+  .card:nth-child(1){animation-delay:0s}
+  .card:nth-child(2){animation-delay:1.2s}
+  .card:nth-child(3){animation-delay:2.4s}
+  @keyframes deal{0%{opacity:0;transform:translateY(15px)}
+    7%,29%{opacity:1;transform:translateY(0)}38%,100%{opacity:0;transform:translateY(-9px)}}
+  .ok{margin-left:auto;font-size:10px;font-weight:800;padding:3px 9px;border-radius:999px;
+    background:rgba(78,214,127,.16);color:var(--good);border:1px solid rgba(78,214,127,.3)}
+
+  .trust{position:absolute;left:0;right:0;bottom:0;z-index:4;display:flex;gap:26px;flex-wrap:wrap;
+    padding:14px 46px;color:var(--inkFaint);font-size:12.5px;
+    background:rgba(255,255,255,.05);border-top:1px solid rgba(255,255,255,.12);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+
+  /* ================= phone rendition ================= */
+  .phones{display:flex;gap:26px;flex-wrap:wrap;margin-top:16px}
+  .phone{width:390px;border:1px solid var(--border);border-radius:22px;overflow:hidden;background:#0b1220}
+  .phone .hero{min-height:0}
+  .phone .heroGrid{grid-template-columns:1fr;padding:30px 22px 74px;gap:18px}
+  .phone h3{font-size:29px;min-height:3.2em}
+  .phone .lede{font-size:14.5px}
+  .phone .system{height:210px}
+  .phone .core{width:84px;height:84px;font-size:11px;top:40%}
+  .phone .sys{font-size:10.5px;padding:6px 9px}
+  .phone .deck{width:250px}
+  .phone .card{font-size:11px;padding:9px 10px}
+  .phone .trust{padding:11px 22px;gap:12px;font-size:11px}
+  .phone .cta .g,.phone .cta .o{font-size:13px;padding:11px 16px}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::after,*::before{animation:none !important}
+    .card{opacity:1}
+  }
+  @media (max-width:980px){
+    .heroGrid{grid-template-columns:1fr;padding:40px 26px 92px}
+    .hero h3{font-size:33px}
+    .hero .scrimA{background:linear-gradient(180deg,rgba(6,10,20,.9),rgba(6,10,20,.72))}
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>V5 hero — kind 2 + kind 7 combined</h1>
+  <div class="sp"></div>
+  <button id="tLight" aria-pressed="true">Light</button>
+  <button id="tDark" aria-pressed="false">Dark</button>
+</div>
+
+<div class="wrap">
+  <p class="note">
+    The photograph is the ground; the live system runs on top of it. The team is doing the work on the
+    left of frame, FlowAgent is visibly working on the right — <b>the software running over a real
+    business</b>, rather than a screenshot beside a claim.
+  </p>
+
+  <h2 class="sec">Desktop</h2>
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>flowsmartly.com</span></div>
+    <div class="hero onPhoto">
+      <img class="shot" src="/assets/assets/images/v5w/scenes/careers-team.6ca136b6f47125bfbcf382051f131bb5.webp" alt="" />
+      <div class="scrimA"></div><div class="scrimB"></div>
+
+      <div class="heroGrid">
+        <div>
+          <span class="badge"><i class="liveDot"></i> THE AI BUSINESS OPERATING SYSTEM</span>
+          <h3>While you were away, FlowAgent prepared <span class="typed" id="typed"></span><i class="caret"></i></h3>
+          <p class="lede">One platform to run, connect and grow your business — working across
+            everything you already use, and waiting for your approval before anything leaves.</p>
+          <p class="metric"><b id="count">0</b> actions prepared this week · nothing sent without you</p>
+          <div class="cta">
+            <span class="g">Start building your workspace</span>
+            <span class="o"><i class="playRing">&#9654;</i> See FlowAgent in action</span>
+          </div>
+        </div>
+
+        <div class="system">
+          <svg viewBox="0 0 460 330" preserveAspectRatio="none">
+            <path class="flow" d="M64 24 C 168 24 190 120 230 148"/>
+            <path class="flow" d="M52 148 C 150 148 192 150 230 152" style="animation-delay:-.9s"/>
+            <path class="flow" d="M64 272 C 168 272 190 196 230 158" style="animation-delay:-1.7s"/>
+            <path class="flow" d="M396 24 C 292 24 270 120 230 148" style="animation-delay:-.45s"/>
+            <path class="flow" d="M408 148 C 310 148 268 150 230 152" style="animation-delay:-1.3s"/>
+            <path class="flow" d="M396 272 C 292 272 270 196 230 158" style="animation-delay:-2.1s"/>
+          </svg>
+          <div class="sys" style="left:16%;top:6%">&#127760; Website</div>
+          <div class="sys" style="left:12%;top:44%">&#9993; Email &amp; SMS</div>
+          <div class="sys" style="left:16%;top:82%">&#128197; Calendar</div>
+          <div class="sys" style="left:84%;top:6%">&#128717; Store</div>
+          <div class="sys" style="left:88%;top:44%">&#128101; CRM</div>
+          <div class="sys" style="left:84%;top:82%">&#128179; Payments</div>
+          <div class="core">FlowAgent</div>
+          <div class="deck">
+            <div class="card">&#128196; Five tax-client follow-ups <span class="ok">Ready</span></div>
+            <div class="card">&#128722; 37 abandoned carts recovered <span class="ok">Ready</span></div>
+            <div class="card">&#128197; Three appointments filled <span class="ok">Ready</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trust">
+        <span>Human-approved automation</span><span>Secure integrations</span>
+        <span>Role-based access</span><span>Built for real businesses</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><b>Why the two go together:</b> kind 2 alone sells warmth but says nothing about the
+  product; kind 7 alone proves the product but floats in the abstract. Together the photograph answers
+  "who is this for" and the animation answers "what does it do", in one screen.</p>
+
+  <h2 class="sec">Phone — 390</h2>
+  <p class="note">A photo hero plus animation is where mobile usually falls apart, so here it is at
+  390 rather than promised: the scrim turns vertical, the copy stacks above a shortened system, and
+  the wires thin out. On a real build the loop is dropped for a still below the split point.</p>
+
+  <div class="phones">
+    <div class="phone">
+      <div class="hero onPhoto">
+        <img class="shot" src="/assets/assets/images/v5w/scenes/careers-team.6ca136b6f47125bfbcf382051f131bb5.webp" alt="" />
+        <div class="scrimA"></div><div class="scrimB"></div>
+        <div class="heroGrid">
+          <div>
+            <span class="badge"><i class="liveDot"></i> THE AI BUSINESS OPERATING SYSTEM</span>
+            <h3>While you were away, FlowAgent prepared <span class="typed" id="typed2"></span><i class="caret"></i></h3>
+            <p class="lede">One platform to run, connect and grow your business.</p>
+            <div class="cta"><span class="g">Start building your workspace</span></div>
+          </div>
+          <div class="system">
+            <svg viewBox="0 0 300 210" preserveAspectRatio="none">
+              <path class="flow" d="M40 34 C 110 34 130 88 150 96"/>
+              <path class="flow" d="M36 104 C 100 104 128 100 150 100" style="animation-delay:-.8s"/>
+              <path class="flow" d="M40 172 C 110 172 130 118 150 106" style="animation-delay:-1.5s"/>
+              <path class="flow" d="M260 34 C 190 34 170 88 150 96" style="animation-delay:-.4s"/>
+              <path class="flow" d="M264 104 C 200 104 172 100 150 100" style="animation-delay:-1.2s"/>
+              <path class="flow" d="M260 172 C 190 172 170 118 150 106" style="animation-delay:-2s"/>
+            </svg>
+            <div class="sys" style="left:16%;top:16%">&#127760;</div>
+            <div class="sys" style="left:13%;top:48%">&#9993;</div>
+            <div class="sys" style="left:16%;top:80%">&#128197;</div>
+            <div class="sys" style="left:84%;top:16%">&#128717;</div>
+            <div class="sys" style="left:87%;top:48%">&#128101;</div>
+            <div class="sys" style="left:84%;top:80%">&#128179;</div>
+            <div class="core">FlowAgent</div>
+            <div class="deck">
+              <div class="card">&#128196; Five follow-ups <span class="ok">Ready</span></div>
+              <div class="card">&#128722; 37 carts <span class="ok">Ready</span></div>
+              <div class="card">&#128197; Three bookings <span class="ok">Ready</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="trust"><span>Human-approved</span><span>Secure</span><span>Role-based access</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:26px"><b>What this needs from you:</b> the photograph. The frame
+  here is from the existing library and is a stand-in — a hero photo wants room on the left for the
+  copy, faces off-centre, and a background quiet enough on the right for the system to sit on.
+  Video works in the same slot if you have footage; the still is the poster frame either way.
+  <br /><b>What it needs from the build:</b> the whole hero must still read with
+  <code>prefers-reduced-motion</code> and with JavaScript off — the mock honours the first, and V5's
+  motion module is built for the second.</p>
+</div>
+
+<script>
+  const L=document.getElementById('tLight'), D=document.getElementById('tDark');
+  const set=(d)=>{document.documentElement.setAttribute('data-theme',d?'dark':'light');
+    L.setAttribute('aria-pressed',String(!d)); D.setAttribute('aria-pressed',String(d));};
+  L.onclick=()=>set(false); D.onclick=()=>set(true);
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const words = [
+    'five tax-client follow-ups.',
+    'three appointments to fill.',
+    '37 carts worth recovering.',
+    'the monthly donor report.',
+  ];
+  document.querySelectorAll('.typed').forEach((out, i) => {
+    if (reduce) { out.textContent = words[0]; return; }
+    let wi = i, ci = 0, deleting = false;
+    (function tick(){
+      const w = words[wi % words.length];
+      out.textContent = deleting ? w.slice(0, --ci) : w.slice(0, ++ci);
+      if (!deleting && ci === w.length) { deleting = true; return setTimeout(tick, 1700); }
+      if (deleting && ci === 0) { deleting = false; wi += 1; }
+      setTimeout(tick, deleting ? 24 : 55);
+    })();
+  });
+  const c = document.getElementById('count');
+  if (c) {
+    if (reduce) { c.textContent = '326'; }
+    else { let n = 0; const t = setInterval(() => { n += 6; if (n >= 326) { n = 326; clearInterval(t); } c.textContent = n; }, 24); }
+  }
+</script>
+</body>
+</html>
