@@ -19,7 +19,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: Node's test runner only accepts glob patterns for
+          # `--test` from 22 onward, and 20 answers "Could not find
+          # 'src/**/*.test.ts'" and exits 1.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -56,7 +59,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
