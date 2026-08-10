@@ -42,6 +42,7 @@ export type ContactTopic =
   | 'support'
   | 'partnership'
   | 'demo'
+  | 'custom-automation'
   | 'updates'
   | 'press-kit'
   | 'security-overview'
@@ -62,6 +63,7 @@ export const CONTACT_TOPIC_LABEL: Record<ContactTopic, string> = {
   support: 'Get support',
   partnership: 'Partnership enquiry',
   demo: 'Book a product demo',
+  'custom-automation': 'Request a custom automation demo',
   updates: 'Subscribe to product updates',
   'press-kit': 'Request the press kit',
   'security-overview': 'Request the security overview',

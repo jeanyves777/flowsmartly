@@ -35,6 +35,7 @@ export const ROUTES = {
   websiteBuilder: '/solutions/website-builder',
   domains: '/solutions/domains',
   videoStudio: '/solutions/video-studio',
+  customAutomation: '/solutions/custom-automation',
 
   aiStudio: '/platform/ai-studio',
   social: '/platform/social',
@@ -104,6 +105,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
     { label: 'Domains', href: ROUTES.domains, icon: 'globe', description: 'Search, register and connect a name' },
     { label: 'Video & Voice Studio', href: ROUTES.videoStudio, icon: 'clapperboard', description: 'Films, UGC, product ads and voiceover' },
+    { label: 'Custom AI Automation', href: ROUTES.customAutomation, icon: 'screwdriver-wrench', description: 'Built one-to-one around how you operate' },
   ],
 };
 
