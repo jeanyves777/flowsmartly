@@ -60,6 +60,11 @@ const SI_BRANDS: Record<string, string> = {
   zoho: 'siZoho',
   airtable: 'siAirtable',
   googledrive: 'siGoogledrive',
+  gmail: 'siGmail',
+  googlesheets: 'siGooglesheets',
+  hubspot: 'siHubspot',
+  waze: 'siWaze',
+  yelp: 'siYelp',
   copilot: 'siGithubcopilot',
   githubcopilot: 'siGithubcopilot',
   gemini: 'siGooglegemini',
@@ -69,11 +74,16 @@ const SI_BRANDS: Record<string, string> = {
 };
 
 /**
- * Marks neither source carries. simple-icons removed several on trademark
- * request (Salesforce, Slack, LinkedIn — all still in FontAwesome) and never
- * carried others (ChatGPT, Bing, Klaviyo, Twilio, Pipedrive). Rather than draw
- * a look-alike, these render as a labelled monogram so the tile reads as a
- * brand we name rather than a broken image.
+ * Marks neither source carries — checked against the installed `simple-icons`
+ * rather than assumed: ChatGPT/OpenAI, Bing, Klaviyo, Twilio, Pipedrive and
+ * SendGrid have no CC0 mark. Rather than draw a look-alike, these render as a
+ * labelled monogram so the tile reads as a brand we name rather than a broken
+ * image.
+ *
+ * Anything the sources *do* carry belongs in `FA_BRANDS`/`SI_BRANDS` instead: a
+ * monogram here would shadow nothing (both lookups run first) while implying
+ * the real mark is unavailable. Gmail, Google Sheets, HubSpot, Waze, Yelp and
+ * Zendesk all sat in that state and showed initials on the built site.
  */
 const MONOGRAMS: Record<string, string> = {
   chatgpt: 'GPT',
@@ -83,8 +93,6 @@ const MONOGRAMS: Record<string, string> = {
   twilio: 'Tw',
   pipedrive: 'P',
   sendgrid: 'SG',
-  zendesk: 'Z',
-  hubspot: 'H',
 };
 
 export type BrandLogoProps = {
