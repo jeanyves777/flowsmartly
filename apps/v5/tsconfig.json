@@ -22,6 +22,7 @@
     "src/theme/**/*.ts",
     "src/theme/**/*.tsx",
     ".expo/types/**/*.ts",
+    "types/**/*.d.ts",
     "expo-env.d.ts"
   ],
   "exclude": [
