@@ -6,6 +6,7 @@ import {
   describeMissingRegistrant,
   resolveRegistrantContact,
   type MissingRegistrantField,
+  type ResolvedRegistrantContact,
 } from "./registrant";
 import { searchDomain, registerDomain, getDomainInfo, setNameservers, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
 import { searchDomainsRdap } from "./rdap-client";
@@ -49,7 +50,6 @@ export interface PurchaseDomainParams {
   domainName: string;
   tld: string;
   isFree: boolean;
-  contact?: DomainContact;
 }
 
 export interface ConnectDomainParams {
@@ -150,22 +150,18 @@ function generateRegCredentials(storeId: string, userId: string) {
 /**
  * The registrant contact for a user, or a refusal naming what is missing.
  *
- * Delegates to the single authority in `./registrant`. Nothing in this file
- * assembles a contact any more: the previous version derived a person's first
- * and last name by splitting the *business* name, and turned a bare phone
- * number into `+1.` on the assumption that anything without a country code is
- * North American. Both were inventions, and both satisfied the completeness
- * guard that was supposed to catch exactly this.
+ * **No caller-supplied override.** There used to be one, and it was the whole
+ * boundary: `purchaseDomain({ contact })` handed any object of the right shape
+ * straight through, so `{ first_name: "Domain", city: "New York" }` still
+ * compiled and still reached the registrar. The single authority was a
+ * convention the type system knew nothing about.
+ *
+ * Now the only way to obtain a contact is to resolve one, and the result is a
+ * branded type nothing outside `./registrant` can construct.
  */
 export async function getRegistrantContactForUser(
-  userId: string,
-  providedContact?: DomainContact
-): Promise<DomainContact> {
-  // A caller may pass a contact it has already resolved through the authority.
-  // It may not pass one it assembled itself — `assertCompleteRegistrant` in the
-  // OpenSRS client is the backstop for that, and it refuses on any empty field.
-  if (providedContact) return providedContact;
-
+  userId: string
+): Promise<ResolvedRegistrantContact> {
   const resolved = await resolveRegistrantContact(userId);
   if (!resolved.ok) {
     throw new RegistrantIncompleteError(resolved.missing);
@@ -294,7 +290,7 @@ export type DomainPurchaseOutcome =
 type StoreDomainRecord = Awaited<ReturnType<typeof prisma.storeDomain.create>>;
 
 export async function purchaseDomain(params: PurchaseDomainParams): Promise<DomainPurchaseOutcome> {
-  const { storeId, userId, domainName, tld, isFree, contact } = params;
+  const { storeId, userId, domainName, tld, isFree } = params;
   const fullDomain = `${domainName}.${tld}`;
 
   // Step 1: Validate availability (try OpenSRS, fall back to RDAP)
@@ -329,7 +325,7 @@ export async function purchaseDomain(params: PurchaseDomainParams): Promise<Doma
   let orderId: string | null = null;
   let registrarStatus = "pending";
   let registrationError: string | null = null;
-  const registrantContact = await getRegistrantContactForUser(userId, contact);
+  const registrantContact = await getRegistrantContactForUser(userId);
 
   if (isOpenSrsAvailable()) {
     try {

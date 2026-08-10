@@ -200,7 +200,6 @@ export async function POST(request: NextRequest) {
       domainName: domain,
       tld,
       isFree: true,
-      contact,
     });
 
     // A registrar refusal is not a purchase. This route used to answer

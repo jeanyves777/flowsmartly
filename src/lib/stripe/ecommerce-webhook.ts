@@ -67,7 +67,6 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
         domainName: sld,
         tld,
         isFree: false,
-        contact: resolved.contact,
       });
 
       // **The registrar's answer decides what happens next.** This used to read
@@ -141,8 +140,18 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
       }
     } catch (error: any) {
       console.error(`Failed to register domain ${domainName} after payment:`, error);
-      const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
-      if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
+      try {
+        const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
+        if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
+      } catch (notifyError) {
+        console.error("[Webhook:DomainPurchase] Could not notify the owner:", notifyError);
+      }
+      // **Rethrown.** Money changed hands here. Returning normally tells Stripe
+      // the event was handled and it is never sent again — so an unrecorded
+      // failure would become permanent silence. Failing the endpoint asks for
+      // a redelivery instead, and the paid-but-unsettled write is idempotent
+      // on the domain name.
+      throw error;
     }
     return;
   }
@@ -524,40 +533,49 @@ async function recordPaidButUnsettled(params: {
 }) {
   const { userId, domainName, paymentIntentId, amountCents, reason, domainId } = params;
 
-  try {
-    if (domainId) {
-      await prisma.storeDomain.update({
-        where: { id: domainId },
-        data: { registrarStatus: "paid_registration_unsettled", registrarVerificationError: reason },
-      });
-    } else {
-      // No row yet — the refusal happened before anything was created. One is
-      // made here so the payment is not the only trace that this ever happened.
-      await prisma.storeDomain.create({
-        data: {
-          storeId: params.storeId,
-          userId,
-          domainName,
-          tld: params.tld,
-          registrarStatus: "paid_registration_unsettled",
-          registrarVerificationError: reason,
-          isFree: false,
-          purchasePriceCents: amountCents,
-          whoisPrivacy: true,
-          autoRenew: false,
-          verificationStatus: "pending",
-          isConnected: false,
-        },
-      });
-    }
-  } catch (e) {
-    console.error("[Webhook:DomainPurchase] Could not record the unsettled state:", e);
+  // **Not caught.** If this write fails there is no durable record that money
+  // was taken and nothing was registered, and swallowing the error would let
+  // the webhook return normally — Stripe would mark the event handled and never
+  // send it again, leaving a server log as the only evidence a customer paid
+  // for something they did not get. Throwing makes the endpoint fail, which
+  // makes Stripe redeliver, which is exactly what should happen.
+  if (domainId) {
+    await prisma.storeDomain.update({
+      where: { id: domainId },
+      data: {
+        registrarStatus: "paid_registration_unsettled",
+        registrarVerificationError: reason,
+        purchasePaymentIntentId: paymentIntentId,
+      },
+    });
+  } else {
+    // No row yet — the refusal happened before anything was created. One is
+    // made here so the payment is not the only trace that this ever happened.
+    await prisma.storeDomain.create({
+      data: {
+        storeId: params.storeId,
+        userId,
+        domainName,
+        tld: params.tld,
+        registrarStatus: "paid_registration_unsettled",
+        registrarVerificationError: reason,
+        purchasePaymentIntentId: paymentIntentId,
+        isFree: false,
+        purchasePriceCents: amountCents,
+        whoisPrivacy: true,
+        autoRenew: false,
+        verificationStatus: "pending",
+        isConnected: false,
+      },
+    });
   }
 
   console.error(
     `[Webhook:DomainPurchase] PAID BUT UNSETTLED — ${domainName}, payment ${paymentIntentId}, ${amountCents} cents: ${reason}`
   );
 
+  // The notification is a courtesy on top of a fact that is already durable, so
+  // this one may fail without losing anything that cannot be recovered.
   try {
     const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
     await notifyDomainRegistrationFailed(userId, domainName, reason);

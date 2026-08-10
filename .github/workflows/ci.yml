@@ -35,3 +35,33 @@ jobs:
         env:
           # Big repo — give tsc room so it never OOMs on the runner.
           NODE_OPTIONS: --max-old-space-size=8192
+
+      # Unit tests, on Node's own runner via tsx — no test framework to install.
+      # These are the plants for anything that files data with a regulator or
+      # moves money, where "the code looks right" has repeatedly not been enough.
+      - name: Unit tests
+        run: npm test
+
+  # `apps/v5` is a separate Expo application. The root gate excludes it, so it
+  # gets its own — excluding it alone would make CI green by no longer checking
+  # V5 rather than by V5 being correct.
+  v5-type-check:
+    name: Type check (apps/v5)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Type check
+        run: npx tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
