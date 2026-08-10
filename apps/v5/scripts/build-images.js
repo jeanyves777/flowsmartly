@@ -14,7 +14,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const sharp = require('d:/Flowsmartly/flowsmartly/node_modules/sharp');
+const sharp = require('sharp');
 
 const SRC = path.join(__dirname, '..', 'assets', 'images', 'v5');
 /** Backdrop-free versions written by scripts/cutouts.py, preferred when present. */
