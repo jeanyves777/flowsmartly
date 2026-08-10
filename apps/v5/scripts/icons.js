@@ -18,7 +18,14 @@ const sharp = require('sharp');
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const SOURCE = path.join(ROOT, 'assets', 'images', 'icon.png');
+/*
+ * The F swoosh, which is what the live site shows in a tab — not the blue
+ * rounded-square app icon. They are two different marks and the tab is the one
+ * people recognise the site by, so every icon here derives from the same one.
+ */
+const SOURCE = path.join(ROOT, 'assets', 'images', 'favicon-mark.png');
+/** the app icon still wants a solid ground behind the mark */
+const PLATED = path.join(ROOT, 'assets', 'images', 'icon.png');
 
 /** the brand blue the icon is built on — also the PWA/browser chrome colour */
 const BRAND = '#1f6fe5';
@@ -35,8 +42,8 @@ const SIZES = [
 ];
 
 async function build() {
-  if (!fs.existsSync(SOURCE)) {
-    console.error(`icons: ${path.relative(ROOT, SOURCE)} is missing — nothing to resize`);
+  if (!fs.existsSync(SOURCE) || !fs.existsSync(PLATED)) {
+    console.error('icons: a source mark is missing — nothing to resize');
     process.exitCode = 1;
     return;
   }
@@ -47,7 +54,14 @@ async function build() {
   }
 
   for (const { name, size } of SIZES) {
-    await sharp(SOURCE).resize(size, size, { fit: 'cover' }).png().toFile(path.join(DIST, name));
+    // The tab and the Organization logo take the mark on transparency; the
+    // installed-app icons take the plated one, because a home screen shows it
+    // against wallpaper and a transparent glyph disappears there.
+    const plated = name.startsWith('icon-') || name === 'apple-touch-icon.png';
+    await sharp(plated ? PLATED : SOURCE)
+      .resize(size, size, { fit: 'contain', background: plated ? BRAND : { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toFile(path.join(DIST, name));
   }
 
   /*
@@ -59,8 +73,8 @@ async function build() {
   const inner = Math.round(512 * 0.8);
   // The ground is the icon's own blur, not a flat brand fill: the source is a
   // gradient, so any single colour seams against it along two edges.
-  const ground = await sharp(SOURCE).resize(512, 512, { fit: 'cover' }).blur(40).png().toBuffer();
-  const scaled = await sharp(SOURCE).resize(inner, inner, { fit: 'cover' }).png().toBuffer();
+  const ground = await sharp(PLATED).resize(512, 512, { fit: 'cover' }).blur(40).png().toBuffer();
+  const scaled = await sharp(PLATED).resize(inner, inner, { fit: 'cover' }).png().toBuffer();
   await sharp(ground)
     .composite([{ input: scaled, gravity: 'center' }])
     .png()
