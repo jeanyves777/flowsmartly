@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
+  LEGAL_ENTITY,
+  REGISTERED_ADDRESS,
   AsideCard,
   LegalBullets,
   LegalCallout,
@@ -21,11 +23,6 @@ import { softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
-/**
- * One authoritative postal address for the entity, printed identically on every
- * legal page. See the note in privacy.tsx.
- */
-const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'role', title: 'Our Role' },
@@ -149,7 +146,7 @@ export default function GdprPage() {
             Policy, and we answer those requests directly.
           </LegalText>
           <LegalText>
-            The controller in that second case is FlowSmartly, Inc., {REGISTERED_ADDRESS}. Data
+            The controller in that second case is {LEGAL_ENTITY}, {REGISTERED_ADDRESS}. Data
             protection questions and requests go to privacy@flowsmartly.com.
           </LegalText>
         </LegalSection>
@@ -301,7 +298,7 @@ export default function GdprPage() {
           <LegalContactCard
             name="Data Protection Team"
             email="privacy@flowsmartly.com"
-            detail={`FlowSmartly, Inc., ${REGISTERED_ADDRESS} — we acknowledge within 2 business days and answer within one month.`}
+            detail={`${LEGAL_ENTITY}, ${REGISTERED_ADDRESS} — we acknowledge within 2 business days and answer within one month.`}
           />
         </LegalSection>
       </LegalLayout>

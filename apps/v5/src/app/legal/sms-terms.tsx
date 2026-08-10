@@ -1,5 +1,7 @@
 import { useRouter } from 'expo-router';
 import {
+  LEGAL_ENTITY,
+  REGISTERED_ADDRESS,
   AsideCard,
   AsideChecklist,
   LegalContactCard,
@@ -12,11 +14,6 @@ import { PageShell } from '@/components/public/page-shell';
 import { SecondaryButton } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
 
-/**
- * One authoritative postal address for the entity, printed identically on every
- * legal page. See the note in privacy.tsx.
- */
-const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'consent', title: 'Consent and Enrollment' },
@@ -180,7 +177,7 @@ export default function SmsTermsPage() {
           <LegalContactCard
             name="FlowSmartly Compliance Team"
             email="compliance@flowsmartly.com"
-            detail={`FlowSmartly, Inc., ${REGISTERED_ADDRESS} — we reply within 2 business days.`}
+            detail={`${LEGAL_ENTITY}, ${REGISTERED_ADDRESS} — we reply within 2 business days.`}
           />
           <SecondaryButton
             label="Contact the compliance team"

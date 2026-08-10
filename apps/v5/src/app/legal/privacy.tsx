@@ -1,4 +1,6 @@
 import {
+  LEGAL_ENTITY,
+  REGISTERED_ADDRESS,
   AsideCard,
   LegalBullets,
   LegalCallout,
@@ -10,17 +12,6 @@ import {
 } from '@/components/public/legal-page';
 import { PageShell } from '@/components/public/page-shell';
 
-/**
- * The single authoritative postal address for the legal entity.
- *
- * It used to differ between this page and the Terms (a Delaware
- * registered-agent address), which reads as two different companies. Delaware
- * is where FlowSmartly, Inc. is incorporated — a fact about the entity, not a
- * second postal address — so every legal page now prints this one string.
- * Deliberately repeated per page rather than imported: a route file importing
- * another route file is not a module boundary worth creating.
- */
-const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'overview', title: 'Overview and Who We Are' },
@@ -195,9 +186,9 @@ export default function PrivacyPolicyPage() {
         }>
         <LegalSection number={1} title="Overview and Who We Are">
           <LegalText>
-            The controller of the personal data described in this policy is FlowSmartly, Inc., a
-            Delaware corporation with its principal place of business at {REGISTERED_ADDRESS}. This
-            policy applies to FlowSmartly and its affiliates (&ldquo;FlowSmartly&rdquo;,
+            The controller of the personal data described in this policy is {LEGAL_ENTITY}, the
+            company that provides FlowSmartly, with its principal place of business at{' '}
+            {REGISTERED_ADDRESS}. This policy covers FlowSmartly (&ldquo;FlowSmartly&rdquo;,
             &ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;), and describes how we handle
             information when you visit our website, use our platform, attend our events, or
             communicate with us.
@@ -369,7 +360,7 @@ export default function PrivacyPolicyPage() {
             For questions about this Privacy Policy or our privacy practices, reach out to us:
           </LegalText>
           <LegalContactCard
-            name="FlowSmartly, Inc."
+            name={LEGAL_ENTITY}
             email="privacy@flowsmartly.com"
             detail={`${REGISTERED_ADDRESS} — we answer privacy requests within one month.`}
           />

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
+  LEGAL_ENTITY,
+  REGISTERED_ADDRESS,
   AsideCard,
   LegalBullets,
   LegalCallout,
@@ -17,11 +19,6 @@ import type { ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
-/**
- * One authoritative postal address for the entity, printed identically on every
- * legal page. See the note in privacy.tsx.
- */
-const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'what', title: 'What Cookies Are' },
@@ -396,7 +393,7 @@ export default function CookiesPage() {
           <LegalContactCard
             name="FlowSmartly Privacy Team"
             email="privacy@flowsmartly.com"
-            detail={`FlowSmartly, Inc., ${REGISTERED_ADDRESS} — we typically respond within 2 business days.`}
+            detail={`${LEGAL_ENTITY}, ${REGISTERED_ADDRESS} — we typically respond within 2 business days.`}
           />
         </LegalSection>
       </LegalLayout>

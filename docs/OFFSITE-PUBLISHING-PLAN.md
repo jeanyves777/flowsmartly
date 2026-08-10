@@ -67,7 +67,7 @@ three.
 
 **Why Substack over the others:** it is the only one that is simultaneously a
 blog, a newsletter and an owned list. The list is the one asset no platform
-change can take from you, and `apps/v5/src/app/resources/blog.tsx:433-445`
+change can take from you, and `apps/v5/src/app/resources/blog/index.tsx`
 currently has a Subscribe button with nothing behind it — Substack closes that
 gap on day one instead of in Phase 4. It exports cleanly, so migrating to
 flowsmartly.com later is a real option, not a trap.
@@ -163,51 +163,32 @@ That distinction decides how every property in §3 gets filled in:
 | Substack / dev.to / social | **FlowSmartly** | Audience-facing brand |
 | Terms, Privacy, SMS sender, domain registrant | **the legal entity** — see 4.2 | Contract and compliance, not marketing |
 
-### 4.2 ⚠ The site names a company that does not exist
+### 4.2 The entity, settled
 
-**Confirmed: General Computing Solutions is the only company.** There is no
-"FlowSmartly, Inc." The V5 legal pages declare a contracting party and a data
-controller that do not exist:
+**General Computing Solutions is the only company; FlowSmartly is its product.**
+There is no "FlowSmartly, Inc."
 
-- `apps/v5/src/app/legal/terms.tsx:56` — "These Terms form a binding agreement
-  between you and **FlowSmartly, Inc., a Delaware corporation**"
-- `apps/v5/src/app/legal/privacy.tsx:198` and `gdpr.tsx:152` — names
-  **FlowSmartly, Inc.** as the GDPR data controller
-- `cookies.tsx:24`, `gdpr.tsx:28` and three sibling files hardcode
-  `REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104'` — a
-  virtual-mailbox address, not 132 Lincoln St
-- `apps/v5/public/ai.txt:6` — `Owner: FlowSmartly, Inc.`
-- `src/lib/domains/opensrs-client.ts:31` — domains are registered to
-  `org_name: "FlowSmartly Inc"`
+The site now says so. The five V5 legal pages name General Computing Solutions
+as the contracting party and data controller, at 132 Lincoln St, Pittsfield, MA
+01201, from one shared constant rather than five copies of a San Francisco
+virtual-mailbox address; governing law moved from Delaware to Massachusetts;
+and `ai.txt` carries the real owner.
 
-Meanwhile `src/components/agent-home/focused/sms-verify.tsx:171` uses
-"General Computing Solutions" as the legal-business-name placeholder, which
-matches what you told me.
+The shape is Claude and Anthropic — the product is what the interface is about,
+and the parent is named only where it legally must be. GCS appears in the legal
+pages and `ai.txt` and nowhere else in the app, which is also why §4.1's split
+matters: registrations, not the interface, are where the company name belongs.
 
-**This has to be resolved before §6 Week 1, not after.** Not for tidiness:
+Also fixed, same falsehood: the domain registrar was filing customer domains
+under "FlowSmartly Inc, 123 Main Street, New York" whenever a customer's
+details were incomplete. It now refuses rather than inventing a registrant.
+Details in `apps/v5/CONTENT-GAPS.md`.
 
-- **GBP verification** checks the real business at the real address. A profile
-  filed under a name that does not match the registration fails, and a failed or
-  suspended profile is painful to recover.
-- **Directory submissions are permanent public records.** Submitting 20
-  listings under the wrong entity means 20 corrections later, and a
-  half-corrected citation set is worse for the entity graph than none.
-- **A2P 10DLC brand registration** keys off the legal business name and EIN. The
-  SMS work is already blocked behind this; registering the wrong brand wastes
-  the cycle.
-- **Terms name the contracting party and Privacy names the data controller.** If
-  "FlowSmartly, Inc." is not a real entity, those documents identify a party
-  that cannot hold the contract or answer a GDPR request.
-
-`public/ai.txt` is corrected. The legal pages are a single pass once two things
-are decided — the entity descriptor that replaces "a Delaware corporation", and
-whether governing law moves from Delaware to Massachusetts. The full file-by-file
-list is in `apps/v5/CONTENT-GAPS.md`.
-
-**Every marketing property in §3 is blocked on nothing.** GCS at 132 Lincoln St
-is confirmed, so Week 1 can start now — GBP, Search Console, Crunchbase,
-LinkedIn and the directory set all register against facts that are already
-settled. Only the legal text waits.
+**Nothing in §3 is blocked.** Week 1 can start — GBP, Search Console,
+Crunchbase, LinkedIn and the directory set all register against settled facts.
+Two things are still worth a lawyer's eye rather than mine: whether Massachusetts
+is the venue you want, and the entity descriptor (LLC? corporation? formed
+where?) that the terms currently, and truthfully, omit.
 
 ### 4.3 The block to write once
 
@@ -261,10 +242,6 @@ newsletter that mails it out.
 ## 6. Launch sequence
 
 Six weeks, and the first four need no new code.
-
-**Week 0 — Settle the entity (§4.2).** Which company is the legal party, and
-does the site agree? Everything downstream is a permanent public record, so this
-is genuinely first.
 
 **Week 1 — Identity.** Write the §4.3 block. Claim **Google Business Profile**
 as General Computing Solutions. Verify Google Search Console. Create Substack,
@@ -359,11 +336,11 @@ manual submissions.
    current site?
 4. **Do we build §8 items 1–2 now** (they help customers too), or run the first
    six weeks manually and build after?
-5. ~~Which company is the legal entity?~~ **Answered: General Computing
-   Solutions, 132 Lincoln St, Pittsfield MA 01201, is the only one.** Two
-   sub-questions remain before the legal pages can be rewritten — the entity
-   descriptor ("a Massachusetts LLC"? a corporation? formed where?) and whether
-   governing law moves from Delaware to Massachusetts.
+5. ~~Which company is the legal entity?~~ **Settled and shipped** — General
+   Computing Solutions, 132 Lincoln St, Pittsfield MA 01201, named throughout
+   the legal pages. Two items remain for counsel rather than for the site:
+   whether Massachusetts is the venue you want, and the entity descriptor the
+   terms currently omit.
 6. **Do we run General Computing Solutions' own listings through ListSmartly**
    as the first real case study? Real company, real numbers, and the site
    currently has no proof at all.

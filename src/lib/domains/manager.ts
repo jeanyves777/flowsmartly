@@ -27,7 +27,8 @@ export interface DomainSearchItem {
 export interface DomainContact {
   first_name: string;
   last_name: string;
-  org_name: string;
+  /** optional: an individual registrant legitimately has no organisation */
+  org_name?: string;
   address1: string;
   city: string;
   state: string;
@@ -154,27 +155,35 @@ function contactFromBrandKit(
   } | null,
   user: { name: string | null; email: string }
 ): DomainContact {
-  const displayName = (brandKit?.name || user.name || "Domain Owner").trim();
+  const displayName = (brandKit?.name || user.name || "").trim();
   const nameParts = displayName.split(/\s+/).filter(Boolean);
   const phoneDigits = (brandKit?.phone || "").replace(/\D/g, "");
 
+  // Nothing here is invented. A missing field stays missing and
+  // `assertCompleteRegistrant` refuses the registration naming it, because
+  // every one of these values is filed in a public WHOIS record that ICANN
+  // requires to be accurate. The previous version substituted "123 Main
+  // Street, New York, NY 10001" and a placeholder phone number, which read as
+  // a successful registration and was a false public filing.
   return {
-    first_name: nameParts[0] || "Domain",
-    last_name: nameParts.slice(1).join(" ") || "Owner",
-    org_name: displayName,
-    address1: brandKit?.address || "123 Main Street",
-    city: brandKit?.city || "New York",
-    state: brandKit?.state || "NY",
-    postal_code: brandKit?.zip || "10001",
-    country: brandKit?.country?.length === 2 ? brandKit.country : "US",
+    first_name: nameParts[0] || "",
+    last_name: nameParts.slice(1).join(" ") || "",
+    org_name: displayName || undefined,
+    address1: brandKit?.address || "",
+    city: brandKit?.city || "",
+    state: brandKit?.state || "",
+    postal_code: brandKit?.zip || "",
+    country: brandKit?.country?.length === 2 ? brandKit.country : "",
     phone: brandKit?.phone?.startsWith("+")
       ? brandKit.phone
-      : `+1.${phoneDigits || "2125551234"}`,
+      : phoneDigits
+        ? `+1.${phoneDigits}`
+        : "",
     email: brandKit?.email || user.email,
   };
 }
 
-async function getRegistrantContactForUser(
+export async function getRegistrantContactForUser(
   userId: string,
   providedContact?: DomainContact
 ) {

@@ -43,67 +43,72 @@ are stock portraits with words put in their mouths.
 
 ---
 
-## The legal pages name a company that does not exist
+## The legal pages named a company that does not exist — fixed
 
-**Status:** confirmed wrong. `public/ai.txt` corrected; the legal pages are
-waiting on two answers (below), then they get fixed in one pass.
+**Status:** resolved. One item below is worth a lawyer's eye; nothing is untrue
+any more.
 
 **General Computing Solutions**, 132 Lincoln St, Pittsfield, MA 01201, is the
-only company. FlowSmartly is its product — there is no "FlowSmartly, Inc." The
-legal pages say otherwise:
+only company. FlowSmartly is its product. There is no "FlowSmartly, Inc."
 
-- `legal/terms.tsx:56` — "a binding agreement between you and **FlowSmartly,
-  Inc., a Delaware corporation**"
-- `legal/privacy.tsx:198`, `legal/gdpr.tsx:152` — names FlowSmartly, Inc. as the
-  GDPR **data controller**
-- `cookies.tsx:24`, `gdpr.tsx:28` + three siblings —
-  `REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104'`, a
-  virtual mailbox rather than 132 Lincoln St
-- `public/ai.txt:6` — `Owner: FlowSmartly, Inc.`
-- (root app) `src/lib/domains/opensrs-client.ts:31` — domains registered to
-  `org_name: "FlowSmartly Inc"`
+The model is Claude and Anthropic: the product is what the interface is about,
+and the company is named where it legally has to be — the contracting party,
+the data controller, the address on a contact card — and nowhere else. GCS
+appears in exactly two places in this app now:
+`components/public/legal-page.tsx` (one shared definition the five legal pages
+import) and `public/ai.txt` (the machine-readable ownership record). It is
+deliberately absent from the header, the footer, the company pages and every
+product surface.
 
-**Why it matters more than the fabricated marketing copy above:** Terms identify
-the party that holds the contract, and Privacy/GDPR identify the party that must
-answer a data-subject request. If that entity does not exist, neither document
-names anyone who can. It also blocks three concrete things — Google Business
-Profile verification, A2P 10DLC brand registration, and every permanent
-directory listing — all of which key off the real legal name and address.
+**What changed:**
 
-**The fix**, in one pass, once the two open questions below are answered:
-
-| File | Change |
+| Was | Now |
 | --- | --- |
-| `public/ai.txt` | ✅ done — Owner is General Computing Solutions, with the Pittsfield address and FlowSmartly named as the product |
-| `legal/terms.tsx:56,177` + header comment `:13-14` | Contracting party → General Computing Solutions |
-| `legal/privacy.tsx:198-199,372` + header comment `:16-18` | Data controller → General Computing Solutions |
-| `legal/gdpr.tsx:152,304` | Controller and DSR contact |
-| `legal/cookies.tsx:399`, `legal/sms-terms.tsx:183` | Contact entity |
-| `REGISTERED_ADDRESS` in all five legal files | → `132 Lincoln St, Pittsfield, MA 01201, USA`. Five copies of one constant is why they could drift; it should be one shared constant |
-| `legal/terms.tsx:167-169` | Governing law and venue — **needs a decision**, see below |
+| "a binding agreement between you and **FlowSmartly, Inc., a Delaware corporation**" | "…between you and **General Computing Solutions**, the company that provides FlowSmartly" |
+| **FlowSmartly, Inc.** as GDPR data controller (`privacy`, `gdpr`) | General Computing Solutions |
+| Privacy covered "FlowSmartly **and its affiliates**" | just FlowSmartly — there is no group |
+| `REGISTERED_ADDRESS` = `548 Market St, PMB 72224, San Francisco` — **five separate copies**, one per route | `132 Lincoln St, Pittsfield, MA 01201, USA` — **one** exported constant. Five copies is precisely how they were free to drift |
+| Delaware law, courts of New Castle County | the Commonwealth of Massachusetts, and courts in Massachusetts |
+| `public/ai.txt` owner | General Computing Solutions, with the address, FlowSmartly named as the product |
 
-**Still open — neither is a find-and-replace:**
+**The one item worth confirming with counsel:** the governing-law and venue
+change in `legal/terms.tsx` §12. Delaware was chosen there *because* the
+fictional entity was said to be incorporated there; with a Massachusetts company
+that reasoning is gone, so it now points at Massachusetts. That is a defensible
+default, not a legal opinion. Note the live root app's terms
+(`src/app/(public)/terms/page.tsx:770,774`) still choose Delaware — the two
+should agree.
 
-1. **The entity descriptor.** Terms currently read "a Delaware corporation".
-   What replaces it — a Massachusetts LLC? A corporation? Formed in which state?
-   The sentence cannot be written without it.
-2. **Governing law and venue.** Terms §12 chooses Delaware law and New Castle
-   County courts because that is where the fictional entity was incorporated.
-   With a Massachusetts company that reasoning is gone. The live root app's
-   terms (`src/app/(public)/terms/page.tsx:770,774`) choose Delaware too, so
-   whatever is decided applies in both places.
+The terms deliberately do **not** state an entity type or state of formation.
+"General Computing Solutions, the company that provides FlowSmartly, with its
+principal place of business at 132 Lincoln St" is complete and true without
+asserting a corporate form nobody has confirmed. Add the descriptor when it is
+known; nothing else has to change.
 
-**Also found, different problem, recorded so it is not lost:**
-`src/lib/domains/opensrs-client.ts:27-38` registers customer domains with a
-fallback WHOIS contact of "FlowSmartly Inc, 123 Main Street, New York, NY 10001,
-+1.2125551234" whenever a customer's Brand Identity is incomplete. That is
-fabricated registrant data on a real domain registration. Substituting the real
-GCS address would be worse, not better — it would put GCS's name on customers'
-domains. The fix is to refuse the registration until the customer's own details
-are complete.
+---
 
-Distribution consequences are worked through in `docs/OFFSITE-PUBLISHING-PLAN.md`
-§4.
+## Domain registrations were filed under the same fictional company — fixed
+
+**Status:** resolved, and it changes product behaviour. Worth knowing about.
+
+`src/lib/domains/opensrs-client.ts` carried a `DEFAULT_CONTACT` that every
+missing registrant field silently fell back to: **"FlowSmartly Inc, 123 Main
+Street, New York, NY 10001, +1.2125551234"**. `src/lib/domains/renewal.ts`
+passed no contact at all, so every retried registration went in under it, and
+`contactFromBrandKit` invented the same address for anyone whose Brand Identity
+was incomplete.
+
+That is fabricated data in a public WHOIS record. Substituting the real company
+would have been worse — it is the customer's domain, so the registrant is the
+customer, never us. ICANN requires registrant data to be accurate, and a domain
+registered with invented details can be suspended, which loses the customer the
+domain they paid for.
+
+There is no fallback now. `assertCompleteRegistrant` refuses the call and names
+the missing fields in language the person who has to fix it can act on, and the
+retry path looks up the owner's real details. **A registration that previously
+"succeeded" with invented details will now fail with a clear message** — which
+is the correct outcome, and the reason it is recorded here.
 
 ---
 

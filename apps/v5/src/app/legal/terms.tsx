@@ -1,4 +1,6 @@
 import {
+  LEGAL_ENTITY,
+  REGISTERED_ADDRESS,
   AsideCard,
   LegalContactCard,
   LegalLayout,
@@ -8,13 +10,6 @@ import {
 } from '@/components/public/legal-page';
 import { PageShell } from '@/components/public/page-shell';
 
-/**
- * One authoritative postal address for the entity, printed identically on every
- * legal page. Delaware is where FlowSmartly, Inc. is incorporated — which is why
- * section 12 chooses Delaware law — but the company's address is the one below;
- * printing a registered-agent address here read as a second company.
- */
-const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'agreement', title: 'Agreement' },
@@ -53,11 +48,11 @@ export default function TermsOfServicePage() {
         }>
         <LegalSection number={1} title="Agreement">
           <LegalText>
-            These Terms form a binding agreement between you and FlowSmartly, Inc., a Delaware
-            corporation with its principal place of business at {REGISTERED_ADDRESS}. If you use the
-            Services on behalf of a company, you confirm that you have the authority to bind that
-            company, and &ldquo;you&rdquo; refers to that company. If you do not agree to these Terms,
-            do not use the Services.
+            These Terms form a binding agreement between you and {LEGAL_ENTITY}, the company that
+            provides FlowSmartly, with its principal place of business at {REGISTERED_ADDRESS}. If
+            you use the Services on behalf of a company, you confirm that you have the authority to
+            bind that company, and &ldquo;you&rdquo; refers to that company. If you do not agree to
+            these Terms, do not use the Services.
           </LegalText>
           <LegalText>
             How we handle personal data is governed by our Privacy Policy, and — where we process
@@ -164,9 +159,9 @@ export default function TermsOfServicePage() {
 
         <LegalSection number={12} title="Disputes">
           <LegalText>
-            These Terms are governed by the laws of the State of Delaware, without regard to its
-            conflict-of-laws rules. Any dispute will be brought exclusively in the state or federal
-            courts located in New Castle County, Delaware, and both parties consent to that
+            These Terms are governed by the laws of the Commonwealth of Massachusetts, without
+            regard to its conflict-of-laws rules. Any dispute will be brought exclusively in the
+            state or federal courts located in Massachusetts, and both parties consent to that
             jurisdiction. Please contact us first — most issues are resolved faster that way.
           </LegalText>
         </LegalSection>
@@ -174,7 +169,7 @@ export default function TermsOfServicePage() {
         <LegalSection number={13} title="Contact">
           <LegalText>For questions about these Terms, reach out to us:</LegalText>
           <LegalContactCard
-            name="FlowSmartly, Inc."
+            name={LEGAL_ENTITY}
             email="legal@flowsmartly.com"
             detail={REGISTERED_ADDRESS}
           />

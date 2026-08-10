@@ -7,6 +7,22 @@ import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
 import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } from './ui';
 
+/**
+ * The company behind FlowSmartly.
+ *
+ * FlowSmartly is the product; General Computing Solutions is the entity that
+ * provides it. The distinction surfaces only where it legally has to — the
+ * contracting party, the data controller, the address on a contact card.
+ * Everywhere else on the site the product is what a visitor is dealing with,
+ * and naming the parent in the interface would be noise rather than clarity.
+ *
+ * One definition, imported by all five legal pages. It used to be the same
+ * string copied into five route files, which is precisely how they were free to
+ * drift apart from each other — and did.
+ */
+export const LEGAL_ENTITY = 'General Computing Solutions';
+export const REGISTERED_ADDRESS = '132 Lincoln St, Pittsfield, MA 01201, USA';
+
 export type DocSection = { id: string; title: string };
 
 /* ------------------------------------------------------------------ */
