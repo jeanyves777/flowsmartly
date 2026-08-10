@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getOrCreateStripeCustomer } from "@/lib/stripe";
 import { createDomainPaymentIntent } from "@/lib/stripe/ecommerce";
-import { purchaseDomain } from "@/lib/domains/manager";
+import { resolveRegistrantContact, describeMissingRegistrant } from "@/lib/domains/registrant";
+import { purchaseDomain, RegistrantIncompleteError } from "@/lib/domains/manager";
 import { isFreeDomainEligible, getDomainRetailPrice } from "@/lib/domains/pricing";
 
 /**
@@ -119,45 +120,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Require complete contact info for domain registration
-    const missingFields: string[] = [];
-    if (!brandKit?.name) missingFields.push("Business Name");
-    if (!brandKit?.email) missingFields.push("Email");
-    if (!brandKit?.phone) missingFields.push("Phone");
-    if (!brandKit?.address) missingFields.push("Address");
-    if (!brandKit?.city) missingFields.push("City");
-    if (!brandKit?.state) missingFields.push("State");
-    if (!brandKit?.zip) missingFields.push("Zip Code");
-    if (!brandKit?.country) missingFields.push("Country");
-
-    if (missingFields.length > 0) {
+    // The registrant contact, from the one place that assembles one. This
+    // route used to build it here — splitting the business name into a first
+    // and last name, and turning a bare phone number into `+1.` — which is
+    // exactly the pattern the completeness guard in the OpenSRS client cannot
+    // catch, because the caller had already supplied the missing facts.
+    const resolved = await resolveRegistrantContact(session.userId);
+    if (!resolved.ok) {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: "INCOMPLETE_BRAND_IDENTITY",
-            message: `Please complete your Brand Identity before purchasing a domain. Missing: ${missingFields.join(", ")}`,
-            missingFields,
+            code: "INCOMPLETE_REGISTRANT",
+            message: describeMissingRegistrant(resolved.missing),
+            missingFields: resolved.missing.map((m) => m.label),
+            missing: resolved.missing,
           },
         },
         { status: 400 }
       );
     }
-
-    // Build contact from Brand Identity
-    const nameParts = brandKit!.name!.trim().split(/\s+/);
-    const contact = {
-      first_name: nameParts[0] || "Domain",
-      last_name: nameParts.slice(1).join(" ") || "Owner",
-      org_name: brandKit!.name!,
-      address1: brandKit!.address!,
-      city: brandKit!.city!,
-      state: brandKit!.state!,
-      postal_code: brandKit!.zip!,
-      country: brandKit!.country!.length === 2 ? brandKit!.country! : "US",
-      phone: brandKit!.phone!.startsWith("+") ? brandKit!.phone! : `+1.${brandKit!.phone!.replace(/\D/g, "")}`,
-      email: brandKit!.email!,
-    };
+    const contact = resolved.contact;
 
     // For PAID domains: create PaymentIntent only, don't register yet.
     // Domain will be registered in the Stripe webhook after payment succeeds.
@@ -211,7 +194,7 @@ export async function POST(request: NextRequest) {
     }
 
     // For FREE domains (Pro plan): register immediately
-    const result = await purchaseDomain({
+    const outcome = await purchaseDomain({
       storeId: store!.id,
       userId: session.userId,
       domainName: domain,
@@ -220,6 +203,25 @@ export async function POST(request: NextRequest) {
       contact,
     });
 
+    // A registrar refusal is not a purchase. This route used to answer
+    // `{ success: true, status: "registration_failed" }`, which is a sentence
+    // that cannot be true, and the caller drew the domain as if it were live.
+    if (outcome.status === "registration_failed") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "REGISTRATION_FAILED",
+            message: outcome.error,
+            // The row exists so the owner can retry without losing the name.
+            domainId: outcome.domain.id,
+            domainName: outcome.domain.domainName,
+          },
+        },
+        { status: 502 }
+      );
+    }
+
     // Mark the store as having pending changes (user will publish when ready)
     const { markStoreAsPending } = await import("@/lib/store-builder/pending-changes");
     markStoreAsPending(store!.id).catch(() => {});
@@ -227,12 +229,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        domainId: result.id,
-        domainName: result.domainName,
-        status: result.registrarStatus,
+        domainId: outcome.domain.id,
+        domainName: outcome.domain.domainName,
+        // "registered" or "pending_registration" — never a failure, and never
+        // a word that implies the registrar said yes when it has not been asked.
+        status: outcome.status,
       },
     });
   } catch (error) {
+    // An owner who has not finished their details is not a server fault, and
+    // telling them "try again" would send them round a loop that cannot end.
+    if (error instanceof RegistrantIncompleteError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "INCOMPLETE_REGISTRANT",
+            message: error.message,
+            missingFields: error.missing.map((m) => m.label),
+            missing: error.missing,
+          },
+        },
+        { status: 400 }
+      );
+    }
     console.error("Domain purchase error:", error);
     const message = error instanceof Error ? error.message : "Failed to purchase domain";
     return NextResponse.json(

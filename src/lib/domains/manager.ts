@@ -2,6 +2,11 @@
  * Domain Manager — orchestrates OpenSRS, Cloudflare, and Prisma for domain operations.
  */
 import { prisma } from "@/lib/db/client";
+import {
+  describeMissingRegistrant,
+  resolveRegistrantContact,
+  type MissingRegistrantField,
+} from "./registrant";
 import { searchDomain, registerDomain, getDomainInfo, setNameservers, isAvailable as isOpenSrsAvailable } from "./opensrs-client";
 import { searchDomainsRdap } from "./rdap-client";
 import { createZone, configureStoreDns, configureZoneSecurity, getZone, getSslStatus, deleteZone } from "./cloudflare-client";
@@ -142,78 +147,48 @@ function generateRegCredentials(storeId: string, userId: string) {
   };
 }
 
-function contactFromBrandKit(
-  brandKit: {
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    zip: string | null;
-    country: string | null;
-  } | null,
-  user: { name: string | null; email: string }
-): DomainContact {
-  const displayName = (brandKit?.name || user.name || "").trim();
-  const nameParts = displayName.split(/\s+/).filter(Boolean);
-  const phoneDigits = (brandKit?.phone || "").replace(/\D/g, "");
-
-  // Nothing here is invented. A missing field stays missing and
-  // `assertCompleteRegistrant` refuses the registration naming it, because
-  // every one of these values is filed in a public WHOIS record that ICANN
-  // requires to be accurate. The previous version substituted "123 Main
-  // Street, New York, NY 10001" and a placeholder phone number, which read as
-  // a successful registration and was a false public filing.
-  return {
-    first_name: nameParts[0] || "",
-    last_name: nameParts.slice(1).join(" ") || "",
-    org_name: displayName || undefined,
-    address1: brandKit?.address || "",
-    city: brandKit?.city || "",
-    state: brandKit?.state || "",
-    postal_code: brandKit?.zip || "",
-    country: brandKit?.country?.length === 2 ? brandKit.country : "",
-    phone: brandKit?.phone?.startsWith("+")
-      ? brandKit.phone
-      : phoneDigits
-        ? `+1.${phoneDigits}`
-        : "",
-    email: brandKit?.email || user.email,
-  };
-}
-
+/**
+ * The registrant contact for a user, or a refusal naming what is missing.
+ *
+ * Delegates to the single authority in `./registrant`. Nothing in this file
+ * assembles a contact any more: the previous version derived a person's first
+ * and last name by splitting the *business* name, and turned a bare phone
+ * number into `+1.` on the assumption that anything without a country code is
+ * North American. Both were inventions, and both satisfied the completeness
+ * guard that was supposed to catch exactly this.
+ */
 export async function getRegistrantContactForUser(
   userId: string,
   providedContact?: DomainContact
-) {
-  if (providedContact?.email) return providedContact;
+): Promise<DomainContact> {
+  // A caller may pass a contact it has already resolved through the authority.
+  // It may not pass one it assembled itself — `assertCompleteRegistrant` in the
+  // OpenSRS client is the backstop for that, and it refuses on any empty field.
+  if (providedContact) return providedContact;
 
-  const [brandKit, user] = await Promise.all([
-    prisma.brandKit.findFirst({
-      where: { userId },
-      select: {
-        name: true,
-        email: true,
-        phone: true,
-        address: true,
-        city: true,
-        state: true,
-        zip: true,
-        country: true,
-      },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true },
-    }),
-  ]);
-
-  if (!user) {
-    throw new Error("User not found for domain registration contact");
+  const resolved = await resolveRegistrantContact(userId);
+  if (!resolved.ok) {
+    throw new RegistrantIncompleteError(resolved.missing);
   }
+  return resolved.contact;
+}
 
-  return contactFromBrandKit(brandKit, user);
+/**
+ * The owner has not told us who they are yet.
+ *
+ * Its own type because every caller has to distinguish it from a registrar
+ * outage: this one is fixed by the owner filling in a form, and saying "domain
+ * registration failed, try again" would send them round a loop that cannot
+ * terminate.
+ */
+export class RegistrantIncompleteError extends Error {
+  readonly missing: MissingRegistrantField[];
+
+  constructor(missing: MissingRegistrantField[]) {
+    super(describeMissingRegistrant(missing));
+    this.name = 'RegistrantIncompleteError';
+    this.missing = missing;
+  }
 }
 
 // ── Public API ──
@@ -289,7 +264,36 @@ export async function searchDomains(
  * If registration succeeds but Cloudflare fails, the domain record is still
  * saved with pending Cloudflare status so it can be retried.
  */
-export async function purchaseDomain(params: PurchaseDomainParams) {
+/**
+ * What a purchase attempt actually did.
+ *
+ * A discriminated result rather than a row, because the row was the bug. The
+ * registrar refusal was caught, written to `registrarStatus` and then the
+ * function returned normally — so every caller read "it returned" as "it
+ * worked". A free-domain request could answer `{ success: true, status:
+ * "registration_failed" }`, and the paid webhook logged "Domain registered",
+ * raised a registration invoice and sent a "your domain is registered" email
+ * for a domain the registrar had rejected.
+ *
+ * The failed row is still worth keeping — it is how a retry finds the domain.
+ * What may never happen is a refusal travelling back through the success
+ * channel.
+ *
+ *   > A registrar refusal may create a durable failed or pending recovery
+ *   > record, but it can never return through the success channel or trigger
+ *   > any artifact that claims registration succeeded.
+ */
+export type DomainPurchaseOutcome =
+  /** The registrar accepted it. Only this may be described as registered. */
+  | { status: "registered"; domain: StoreDomainRecord }
+  /** The registrar rejected it. The row exists so a retry can find it. */
+  | { status: "registration_failed"; domain: StoreDomainRecord; error: string }
+  /** No registrar is configured here. Not a refusal, and not a registration. */
+  | { status: "pending_registration"; domain: StoreDomainRecord };
+
+type StoreDomainRecord = Awaited<ReturnType<typeof prisma.storeDomain.create>>;
+
+export async function purchaseDomain(params: PurchaseDomainParams): Promise<DomainPurchaseOutcome> {
   const { storeId, userId, domainName, tld, isFree, contact } = params;
   const fullDomain = `${domainName}.${tld}`;
 
@@ -324,6 +328,7 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
   const { regUsername, regPassword } = generateRegCredentials(storeId || "standalone", userId);
   let orderId: string | null = null;
   let registrarStatus = "pending";
+  let registrationError: string | null = null;
   const registrantContact = await getRegistrantContactForUser(userId, contact);
 
   if (isOpenSrsAvailable()) {
@@ -340,8 +345,11 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
       orderId = regResult.orderId;
       registrarStatus = "active";
     } catch (error) {
-      console.error("OpenSRS registration failed (will still create DNS + DB record):", error);
+      // The record is still created, because a retry needs something to find.
+      // What changes is that this no longer leaves through the success channel.
+      console.error("OpenSRS registration failed (record kept for retry):", error);
       registrarStatus = "registration_failed";
+      registrationError = error instanceof Error ? error.message : String(error);
     }
   } else {
     console.warn("OpenSRS not configured — skipping domain registration, creating DNS + DB record only");
@@ -450,7 +458,19 @@ export async function purchaseDomain(params: PurchaseDomainParams) {
     }
   }
 
-  return storeDomain;
+  // The outcome, not the row. A caller that wants to say "registered" now has
+  // to look at what the registrar actually did.
+  if (registrarStatus === "active") {
+    return { status: "registered", domain: storeDomain };
+  }
+  if (registrarStatus === "registration_failed") {
+    return {
+      status: "registration_failed",
+      domain: storeDomain,
+      error: registrationError ?? "The registrar rejected this registration.",
+    };
+  }
+  return { status: "pending_registration", domain: storeDomain };
 }
 
 /**
