@@ -53,8 +53,9 @@ export async function POST(
           firstName,
           lastName,
           phone: storeCustomer.phone ?? undefined,
-          emailOptedIn: true,
-          emailOptedInAt: new Date(),
+          // "Add customer to contacts" is the OWNER's filing action, not the
+          // customer's. Creating contact data and authorising marketing are
+          // separate operations, and a transaction is not a subscription.
           status: "ACTIVE",
         },
         select: { id: true },

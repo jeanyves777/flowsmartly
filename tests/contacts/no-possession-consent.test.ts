@@ -91,15 +91,21 @@ const MAY_WRITE_CONSENT: Record<string, string> = {
   // Writes false, which is always safe.
   "lib/voice-agent/call-tools.ts": "creates callers with both flags false",
 
-  // Corrected elsewhere or awaiting their own decision — see the PR body.
+  // Corrected elsewhere.
   "app/api/data-forms/[id]/sync-contacts/route.ts": "corrected on #534, which owns this file",
-  "app/api/landing-pages/[id]/submit/route.ts":
-    "REPORT ONLY, and the worst of them: it flips an EXISTING contact to opted-in, overwriting a state someone may have deliberately set",
-  "app/api/ecommerce/customers/[customerId]/add-to-contacts/route.ts":
-    "REPORT ONLY: relies on 'placed an order' as consent",
-  "app/api/events/public/[slug]/route.ts": "REPORT ONLY: relies on 'registered for an event' as consent",
-  "app/api/payments/webhook/route.ts": "REPORT ONLY: relies on 'bought a ticket' as consent",
 };
+
+// Removed from the list above, and no longer permitted to write consent:
+//
+//   landing-pages/[id]/submit          submitting a form is not agreement
+//   ecommerce/.../add-to-contacts      the owner's filing action, not the customer's
+//   events/public/[slug]               registration is scoped to an event; this flag is global
+//   payments/webhook                   evidence of payment, nothing more
+//
+// Each is now covered by the test below: if any of them starts writing consent
+// again, it is not on the list, and the build fails. Dropping a site from the
+// list in the same change that stops it writing is the point — a site that
+// stops writing but keeps its permission is a regression waiting to happen.
 
 const BLOCK_KEYWORD =
   /(\bdata\s*:|\bcreate\s*:|\bupdate\s*:|\bwhere\s*:|\bselect\s*:|NextResponse\.json|\breturn\s*\{|\binterface\b|\btype\s+\w+\s*=)/;
@@ -232,6 +238,51 @@ test("the agent CSV import behaves identically to the governed route", () => {
     !MAY_WRITE_CONSENT["lib/ai/flow-agent/tools/import-contacts-csv.ts"],
     "the agent import must never be granted permission to write consent"
   );
+});
+
+test("activity does not grant consent", () => {
+  // Consent may be granted only by an affirmative act specifically asking for
+  // it. These four sites each relied on unrelated activity — a form submitted,
+  // an order filed, an event registered for, a payment received — and none of
+  // those is a person agreeing to be marketed to.
+  const mustNotGrant: [string, string][] = [
+    ["app/api/landing-pages/[id]/submit/route.ts", "submitting a landing page"],
+    [
+      "app/api/ecommerce/customers/[customerId]/add-to-contacts/route.ts",
+      "the owner filing a customer",
+    ],
+    ["app/api/events/public/[slug]/route.ts", "registering for an event"],
+    ["app/api/payments/webhook/route.ts", "a payment webhook"],
+  ];
+
+  for (const [rel, act] of mustNotGrant) {
+    const source = readFileSync(join(SRC, ...rel.split("/")), "utf8");
+
+    for (const column of CONSENT_COLUMNS) {
+      const writes = source
+        .split("\n")
+        .filter(
+          (line) =>
+            new RegExp(`\\b${column}\\s*:`).test(line) && !line.trim().startsWith("//")
+        );
+      assert.deepEqual(writes, [], `${rel} still writes ${column} — ${act} is not consent`);
+    }
+
+    assert.ok(
+      !MAY_WRITE_CONSENT[rel],
+      `${rel} stopped writing consent but kept permission to; take it off the list`
+    );
+  }
+});
+
+test("the recipient's own affirmative acts still grant consent", () => {
+  // The other side of the invariant: this lane must not make consent
+  // ungrantable. These two are the recipient acting for themselves.
+  for (const rel of ["app/api/optin/[slug]/route.ts", "app/api/sms/webhook/route.ts"]) {
+    assert.ok(MAY_WRITE_CONSENT[rel], `${rel} must remain able to record consent`);
+    const source = readFileSync(join(SRC, ...rel.split("/")), "utf8");
+    assert.ok(/smsOptedIn\s*:\s*true/.test(source), `${rel} no longer grants consent at all`);
+  }
 });
 
 // ── Guarding the guard ───────────────────────────────────────────────

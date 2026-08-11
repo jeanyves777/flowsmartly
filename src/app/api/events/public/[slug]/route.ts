@@ -286,8 +286,10 @@ export async function POST(
             phone: phone?.trim() || null,
             firstName,
             lastName,
-            emailOptedIn: true,
-            emailOptedInAt: new Date(),
+            // Registering may well authorise operational messages about THIS
+            // event — but emailOptedIn is global and cannot express that scope,
+            // so it would silently become blanket marketing consent. Until
+            // scoped preference evidence exists, registration grants nothing.
             status: "ACTIVE",
           },
         });
