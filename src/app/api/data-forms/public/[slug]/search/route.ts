@@ -1,70 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/client";
+import { NextResponse } from "next/server";
 
-// GET /api/data-forms/public/[slug]/search?q=name
-// Searches ALL contacts for this user by first name
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
-  try {
-    const { slug } = await params;
-    const q = request.nextUrl.searchParams.get("q")?.trim();
-
-    if (!q || q.length < 2) {
-      return NextResponse.json({ success: true, data: [] });
-    }
-
-    const form = await prisma.dataForm.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        type: true,
-        status: true,
-        contactListId: true,
-        userId: true,
+// GET /api/data-forms/public/[slug]/search — DISABLED (fail closed).
+//
+// This endpoint had no authentication of any kind. The only gate was the form
+// slug, which is designed to be shared publicly, and the query was scoped to
+// the form owner rather than to the form's contact list — so it returned the
+// owner's entire contact book (first name, last name, birthday) on a
+// two-character prefix, ten at a time, enumerable by walking the alphabet.
+//
+// Looking a person up by name cannot be made safe by narrowing the match: a
+// name is not a credential, and anything this endpoint returns is returned to
+// whoever typed the name. It stays closed until the flow is rebuilt behind a
+// real proof-of-possession challenge.
+//
+// It returns no data, touches no database, and reveals nothing about whether
+// the slug exists.
+export async function GET() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        message: "Looking yourself up is no longer available. Please enter your details below.",
       },
-    });
-
-    if (!form || form.status !== "ACTIVE" || !['SMART_COLLECT','ATTENDANCE'].includes(form.type)) {
-      return NextResponse.json(
-        { success: false, error: { message: "Form not found or not configured" } },
-        { status: 404 }
-      );
-    }
-
-    // Search ALL contacts for this user (case-insensitive on Postgres; the
-    // `any`-typed where mirrors the submissions route so `mode` type-checks
-    // against the local SQLite client while staying correct in production).
-    const where: any = {
-      userId: form.userId,
-      status: "ACTIVE",
-      firstName: { contains: q, mode: "insensitive" },
-    };
-    const contacts = await prisma.contact.findMany({
-      where,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        birthday: true,
-      },
-      take: 10,
-    });
-
-    const results = contacts.map((c) => ({
-      id: c.id,
-      firstName: c.firstName,
-      lastName: c.lastName,
-      birthday: c.birthday,
-    }));
-
-    return NextResponse.json({ success: true, data: results });
-  } catch (error) {
-    console.error("Smart collect search error:", error);
-    return NextResponse.json(
-      { success: false, error: { message: "Search failed" } },
-      { status: 500 }
-    );
-  }
+    },
+    { status: 410 }
+  );
 }

@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Send, AlertCircle, Search, UserCheck, Sparkles, Camera } from "lucide-react";
+import { Check, Send, AlertCircle, UserCheck, Camera } from "lucide-react";
 import type { DataFormField, DataFormType } from "@/types/data-form";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -25,26 +25,6 @@ interface FormPageData {
   fields: DataFormField[];
   thankYouMessage: string;
   brand: BrandInfo | null;
-}
-
-interface SearchResult {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  birthday: string | null;
-}
-
-interface MissingFieldInfo {
-  key: string;
-  label: string;
-  type: string;
-}
-
-interface ExistingFieldInfo {
-  key: string;
-  label: string;
-  value: string;
-  fromSibling?: boolean;
 }
 
 // ─── STANDARD FORM ───────────────────────────────────────────────────
@@ -214,17 +194,35 @@ function StandardForm({
   );
 }
 
-// ─── SMART COLLECT FORM ──────────────────────────────────────────────
-type SmartStep = "detecting" | "welcome_back" | "search" | "loading" | "confirm" | "form" | "complete" | "already_complete";
+// ─── SELF-ENTRY FORM (Smart Collect / Attendance) ────────────────────
+// This form used to look the respondent up by name and prefill their stored
+// details. That lookup handed the form owner's contact records to anyone who
+// could type a name, so it is closed. Respondents now type their own details.
+//
+// What they type is stored as a form submission and touches no contact record.
+// The owner turns submissions into contacts from the back office, where the
+// request is authenticated and reviewed.
 
-interface SiblingInfo {
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  phone: string | null;
+interface SelfEntryField {
+  key: string;
+  label: string;
+  type: "text" | "email" | "tel";
+  placeholder?: string;
+  required?: boolean;
 }
 
-function SmartCollectForm({
+const SELF_ENTRY_FIELDS: SelfEntryField[] = [
+  { key: "firstName", label: "First name", type: "text", required: true },
+  { key: "lastName", label: "Last name", type: "text", required: true },
+  { key: "email", label: "Email", type: "email" },
+  { key: "phone", label: "Phone", type: "tel" },
+  { key: "birthday", label: "Birthday", type: "text", placeholder: "MM-DD (e.g. 08-15)" },
+  { key: "address", label: "Address", type: "text" },
+  { key: "city", label: "City", type: "text" },
+  { key: "state", label: "State", type: "text" },
+];
+
+function SelfEntryForm({
   formData,
   slug,
   primaryColor,
@@ -233,155 +231,96 @@ function SmartCollectForm({
   slug: string;
   primaryColor: string;
 }) {
-  const [step, setStep] = useState<SmartStep>("detecting");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<SearchResult | null>(null);
-  const [missingFields, setMissingFields] = useState<MissingFieldInfo[]>([]);
-  const [existingFields, setExistingFields] = useState<ExistingFieldInfo[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [siblingInfo, setSiblingInfo] = useState<SiblingInfo[]>([]);
+  const [submitted, setSubmitted] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [deviceFP, setDeviceFP] = useState<{ hash: string; deviceLabel: string } | null>(null);
-  const [detectedContact, setDetectedContact] = useState<{ id: string; firstName: string | null; lastName: string | null; imageUrl: string | null } | null>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-detect returning user on mount
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { generateFingerprint } = await import("@/lib/utils/device-fingerprint");
-        const fp = await generateFingerprint();
-        if (cancelled) return;
-        setDeviceFP(fp);
+  const setValue = (key: string, value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
 
-        const res = await fetch(`/api/data-forms/public/${slug}/detect`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fingerprint: fp.hash }),
-        });
-        const json = await res.json();
-        if (cancelled) return;
-
-        if (json.success && json.data?.detected) {
-          setDetectedContact(json.data.contact);
-          setStep("welcome_back");
-        } else {
-          setStep("search");
-        }
-      } catch {
-        if (!cancelled) setStep("search");
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [slug]);
-
-  // Debounced search
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, imageUrl: "Photo must be under 5MB" }));
       return;
     }
-    setSearching(true);
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/data-forms/public/${slug}/search?q=${encodeURIComponent(query.trim())}`);
-        const json = await res.json();
-        if (json.success) setResults(json.data);
-        else setResults([]);
-      } catch {
-        setResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
-  }, [query, slug]);
-
-  const handleSelectContact = async (contact: SearchResult) => {
-    setSelectedContact(contact);
-    setStep("loading");
+    setUploadingPhoto(true);
     try {
-      const res = await fetch(`/api/data-forms/public/${slug}/complete?contactId=${contact.id}`);
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/data-forms/public/${slug}/upload`, { method: "POST", body: fd });
       const json = await res.json();
-      if (json.success) {
-        if (json.data.isComplete) {
-          setStep("already_complete");
-        } else {
-          setMissingFields(json.data.missingFields);
-          setExistingFields(json.data.existingFields);
-          // Auto-fill existing values into the form
-          const prefilled: Record<string, string> = {};
-          for (const f of json.data.existingFields) {
-            prefilled[f.key] = f.value;
-          }
-          setValues(prefilled);
-          // If sibling data was merged, show confirmation first
-          if (json.data.hasSiblingData) {
-            setSiblingInfo(json.data.siblingInfo || []);
-            setStep("confirm");
-          } else {
-            setStep("form");
-          }
-        }
-      } else {
-        setSubmitError("Could not load your information. Please try again.");
-        setStep("search");
-      }
+      if (json.success) setValue("imageUrl", json.data.url);
+      else setErrors((prev) => ({ ...prev, imageUrl: json.error?.message || "Upload failed" }));
     } catch {
-      setSubmitError("Something went wrong. Please try again.");
-      setStep("search");
+      setErrors((prev) => ({ ...prev, imageUrl: "Upload failed" }));
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedContact) return;
 
-    // Validate missing fields — all required except photo
-    const newErrors: Record<string, string> = {};
-    for (const field of missingFields) {
-      if (field.key === "imageUrl") continue; // photo is optional
-      const val = values[field.key]?.trim();
-      if (!val) {
-        newErrors[field.key] = `${field.label} is required`;
-      }
-      if (val && field.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-        newErrors[field.key] = "Please enter a valid email";
-      }
-      if (val && field.key === "birthday" && !/^\d{2}-\d{2}$/.test(val)) {
-        newErrors[field.key] = "Format: MM-DD (e.g. 03-14)";
-      }
+    const firstName = (values.firstName || "").trim();
+    const lastName = (values.lastName || "").trim();
+    const email = (values.email || "").trim();
+    const phone = (values.phone || "").trim();
+    const birthday = (values.birthday || "").trim();
+
+    const nextErrors: Record<string, string> = {};
+    if (!firstName) nextErrors.firstName = "First name is required";
+    if (!lastName) nextErrors.lastName = "Last name is required";
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      nextErrors.email = "Please enter a valid email";
     }
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    if (birthday && !/^\d{2}-\d{2}$/.test(birthday)) {
+      nextErrors.birthday = "Format: MM-DD (e.g. 03-14)";
+    }
+    // One reachable channel, so the submission is usable to the form owner.
+    if (!email && !phone) {
+      nextErrors.email = nextErrors.email || "Enter an email or a phone number";
+      nextErrors.phone = "Enter an email or a phone number";
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`/api/data-forms/public/${slug}/complete`, {
+      const data: Record<string, string> = {};
+      for (const field of SELF_ENTRY_FIELDS) {
+        const value = (values[field.key] || "").trim();
+        if (value) data[field.key] = value;
+      }
+      if (values.imageUrl) data.imageUrl = values.imageUrl;
+
+      const res = await fetch(`/api/data-forms/public/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contactId: selectedContact.id,
-          data: values,
-          fingerprint: deviceFP?.hash,
-          deviceLabel: deviceFP?.deviceLabel,
+          data,
+          respondentName: `${firstName} ${lastName}`.trim(),
+          respondentEmail: email || undefined,
+          respondentPhone: phone || undefined,
         }),
       });
       const json = await res.json();
-      if (json.success) {
-        setStep("complete");
-      } else {
-        setSubmitError(json.error?.message || "Failed to save. Please try again.");
-      }
+      if (json.success) setSubmitted(true);
+      else setSubmitError(json.error?.message || "Failed to submit. Please try again.");
     } catch {
       setSubmitError("Something went wrong. Please try again.");
     } finally {
@@ -389,303 +328,7 @@ function SmartCollectForm({
     }
   };
 
-  // ── DETECTING STEP ──
-  if (step === "detecting") {
-    return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-        <AISpinner className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
-        <p className="text-gray-400 text-sm">Checking this device...</p>
-      </motion.div>
-    );
-  }
-
-  // ── WELCOME BACK STEP ──
-  if (step === "welcome_back" && detectedContact) {
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="text-center mb-4">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", delay: 0.1 }}
-            className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-white dark:border-gray-800 shadow-lg"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {detectedContact.imageUrl ? (
-              <img src={detectedContact.imageUrl} alt="" className="w-20 h-20 object-cover" />
-            ) : (
-              <span className="text-white font-bold text-3xl">
-                {(detectedContact.firstName || "?")[0].toUpperCase()}
-              </span>
-            )}
-          </motion.div>
-          <motion.h2
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-2xl font-bold mb-1"
-          >
-            Welcome back, {detectedContact.firstName}!
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-gray-500 text-sm"
-          >
-            We recognized this device. Is this you?
-          </motion.p>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-5 text-center"
-        >
-          <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            {detectedContact.firstName} {detectedContact.lastName || ""}
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="flex gap-3"
-        >
-          <button
-            onClick={() => {
-              // Treat as if they selected this contact from search
-              handleSelectContact({
-                id: detectedContact.id,
-                firstName: detectedContact.firstName,
-                lastName: detectedContact.lastName,
-                birthday: null,
-              });
-            }}
-            className="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 flex items-center justify-center gap-2"
-            style={{ backgroundColor: primaryColor }}
-          >
-            <Check className="h-5 w-5" /> Yes, that&apos;s me
-          </button>
-          <button
-            onClick={() => {
-              setDetectedContact(null);
-              setStep("search");
-            }}
-            className="flex-1 py-3.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-base text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
-          >
-            Not me
-          </button>
-        </motion.div>
-      </motion.div>
-    );
-  }
-
-  // ── SEARCH STEP ──
-  if (step === "search") {
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", delay: 0.1 }}
-            className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-            style={{ backgroundColor: primaryColor + "15" }}
-          >
-            <Search className="h-8 w-8" style={{ color: primaryColor }} />
-          </motion.div>
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">{formData.title}</h1>
-          {formData.description && <p className="text-gray-500 text-base">{formData.description}</p>}
-        </div>
-
-        <div className="relative">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Start typing your first name..."
-              autoFocus
-              className="w-full pl-12 pr-4 py-4 text-lg rounded-2xl border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white dark:bg-gray-900 transition-all outline-none"
-              style={{ borderColor: query.length >= 2 ? primaryColor + "60" : undefined }}
-            />
-            {searching && (
-              <AISpinner className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
-            )}
-          </div>
-
-          {/* Results dropdown */}
-          <AnimatePresence>
-            {query.length >= 2 && !searching && results.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden"
-              >
-                {results.map((contact, i) => (
-                  <motion.button
-                    key={contact.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => handleSelectContact(contact)}
-                    className="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-100 dark:border-gray-800 last:border-0"
-                  >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: primaryColor }}>
-                      {(contact.firstName || "?")[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {contact.firstName} {contact.lastName || ""}
-                      </p>
-                      {contact.birthday && (
-                        <p className="text-sm text-gray-400">Birthday: {contact.birthday}</p>
-                      )}
-                    </div>
-                    <UserCheck className="h-5 w-5 text-gray-300 flex-shrink-0" />
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* No results */}
-          {query.length >= 2 && !searching && results.length === 0 && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center text-gray-400 mt-4 text-sm"
-            >
-              No contacts found for &quot;{query}&quot;. Please check the spelling and try again.
-            </motion.p>
-          )}
-        </div>
-
-        {submitError && (
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 text-center flex items-center justify-center gap-1">
-            <AlertCircle className="h-3 w-3" /> {submitError}
-          </motion.p>
-        )}
-      </motion.div>
-    );
-  }
-
-  // ── LOADING STEP ──
-  if (step === "loading") {
-    return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-        <AISpinner className="h-10 w-10 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
-        <p className="text-gray-500 font-medium">Checking your info, {selectedContact?.firstName}...</p>
-      </motion.div>
-    );
-  }
-
-  // ── CONFIRM STEP — verify sibling data belongs to this person ──
-  if (step === "confirm") {
-    const siblingFields = existingFields.filter((f) => f.fromSibling && f.key !== "imageUrl");
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="text-center mb-2">
-          <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: primaryColor }}>
-            {(selectedContact?.firstName || "?")[0].toUpperCase()}
-          </div>
-          <h2 className="text-xl font-bold">
-            Hi {selectedContact?.firstName}!
-          </h2>
-          <p className="text-gray-500 text-sm mt-1">
-            We found additional info that might be yours. Please confirm.
-          </p>
-        </div>
-
-        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 space-y-3">
-          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Is this information yours?</p>
-          {siblingFields.map((f) => (
-            <div key={f.key} className="flex items-center justify-between text-sm">
-              <span className="text-blue-600 dark:text-blue-400">{f.label}</span>
-              <span className="font-medium text-blue-900 dark:text-blue-200">{f.value}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => setStep("form")}
-            className="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 flex items-center justify-center gap-2"
-            style={{ backgroundColor: primaryColor }}
-          >
-            <Check className="h-5 w-5" /> Yes, that&apos;s me
-          </button>
-          <button
-            onClick={() => {
-              // Remove sibling data — keep only own data
-              const ownOnly: Record<string, string> = {};
-              const ownExisting: ExistingFieldInfo[] = [];
-              const newMissing: MissingFieldInfo[] = [];
-              for (const f of existingFields) {
-                if (!f.fromSibling) {
-                  ownOnly[f.key] = f.value;
-                  ownExisting.push(f);
-                } else {
-                  newMissing.push({ key: f.key, label: f.label, type: "text" });
-                }
-              }
-              setExistingFields(ownExisting);
-              setMissingFields([...missingFields, ...newMissing]);
-              setValues(ownOnly);
-              setSiblingInfo([]);
-              setStep("form");
-            }}
-            className="flex-1 py-3.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-base text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
-          >
-            No, not me
-          </button>
-        </div>
-
-        <button
-          onClick={() => { setStep("search"); setSelectedContact(null); setQuery(""); setResults([]); setMissingFields([]); setExistingFields([]); setValues({}); setSiblingInfo([]); }}
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors mx-auto block"
-        >
-          Search again
-        </button>
-      </motion.div>
-    );
-  }
-
-  // ── ALREADY COMPLETE STEP ──
-  if (step === "already_complete") {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: "spring", duration: 0.5 }}
-        className="text-center py-16"
-      >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.2 }}
-          className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
-          style={{ backgroundColor: primaryColor + "20" }}
-        >
-          <Sparkles className="h-10 w-10" style={{ color: primaryColor }} />
-        </motion.div>
-        <h2 className="text-2xl font-bold mb-3">
-          You&apos;re all set, {selectedContact?.firstName}!
-        </h2>
-        <p className="text-gray-500 text-base">
-          Your contact information is already complete. Thank you!
-        </p>
-      </motion.div>
-    );
-  }
-
-  // ── COMPLETE (AFTER SUBMIT) STEP ──
-  if (step === "complete") {
+  if (submitted) {
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -704,81 +347,36 @@ function SmartCollectForm({
         </motion.div>
         <h2 className="text-2xl font-bold mb-3">{formData.thankYouMessage}</h2>
         <p className="text-gray-500 text-base">
-          Thanks {selectedContact?.firstName}, your information has been updated!
+          Thanks {(values.firstName || "").trim()}, your details have been sent.
         </p>
       </motion.div>
     );
   }
 
-  // ── FORM STEP — unified form with auto-filled existing + editable missing ──
-  const baseInputClass = "w-full px-4 py-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-base";
-  const filledInputClass = "w-full px-4 py-3 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-base text-gray-700 dark:text-gray-300 cursor-not-allowed";
-
-  const allFields = [
-    ...existingFields.map((f) => ({ key: f.key, label: f.label, type: "text", filled: true })),
-    ...missingFields.map((f) => ({ key: f.key, label: f.label, type: f.type, filled: false })),
-  ];
-  // Sort by the SMART_COLLECT_FIELDS order, photo first
-  const fieldOrder = ["imageUrl", "lastName", "email", "phone", "birthday", "address", "city", "state"];
-  allFields.sort((a, b) => fieldOrder.indexOf(a.key) - fieldOrder.indexOf(b.key));
-
-  // Photo upload handler
-  const handlePhotoUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, imageUrl: "Photo must be under 5MB" }));
-      return;
-    }
-    setUploadingPhoto(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/data-forms/public/${slug}/upload`, { method: "POST", body: fd });
-      const json = await res.json();
-      if (json.success) {
-        setValues((prev) => ({ ...prev, imageUrl: json.data.url }));
-        if (errors.imageUrl) setErrors((prev) => { const n = { ...prev }; delete n.imageUrl; return n; });
-      } else {
-        setErrors((prev) => ({ ...prev, imageUrl: json.error?.message || "Upload failed" }));
-      }
-    } catch {
-      setErrors((prev) => ({ ...prev, imageUrl: "Upload failed" }));
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
-  // Existing photo URL (from contact or sibling)
-  const currentPhotoUrl = values.imageUrl || "";
-  const photoField = allFields.find((f) => f.key === "imageUrl");
-  const textFields = allFields.filter((f) => f.key !== "imageUrl");
+  const photoUrl = values.imageUrl || "";
+  const inputClass =
+    "w-full px-4 py-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-base";
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      {/* Greeting */}
       <div className="text-center mb-2">
-        <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-2xl" style={{ backgroundColor: primaryColor }}>
-          {currentPhotoUrl ? (
-            <img src={currentPhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
-          ) : (
-            (selectedContact?.firstName || "?")[0].toUpperCase()
-          )}
-        </div>
-        <h2 className="text-xl font-bold">
-          Hi {selectedContact?.firstName}!
-        </h2>
-        <p className="text-gray-500 text-sm mt-1">
-          {missingFields.filter(f => f.key !== "imageUrl").length > 0
-            ? "Please verify your info and fill in any missing details."
-            : "Your contact information is complete!"}
-        </p>
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", delay: 0.1 }}
+          className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+          style={{ backgroundColor: primaryColor + "15" }}
+        >
+          <UserCheck className="h-8 w-8" style={{ color: primaryColor }} />
+        </motion.div>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{formData.title}</h1>
+        {formData.description && <p className="text-gray-500 text-base">{formData.description}</p>}
       </div>
 
-      {/* Hidden file input */}
       <input
         ref={photoInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,image/webp"
+        accept="image/*"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -787,140 +385,81 @@ function SmartCollectForm({
         }}
       />
 
-      {/* Unified form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Profile Photo — first field */}
-        {photoField && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="space-y-1.5"
-          >
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
-              Profile Photo
-              {photoField.filled ? (
-                <Check className="h-3.5 w-3.5 text-emerald-500" />
-              ) : (
-                <span className="text-gray-400 text-xs font-normal">(optional)</span>
-              )}
-            </label>
-            {currentPhotoUrl ? (
-              <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20">
-                <img src={currentPhotoUrl} alt="Your photo" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                    <Check className="h-4 w-4" /> Photo uploaded
-                  </p>
-                  {!photoField.filled && (
-                    <button type="button" onClick={() => photoInputRef.current?.click()} className="text-xs text-emerald-600 dark:text-emerald-400 underline mt-1">
-                      Change photo
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                disabled={uploadingPhoto}
-                className="w-full p-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-gray-800/50 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all flex items-center gap-4"
-              >
-                {uploadingPhoto ? (
-                  <>
-                    <AISpinner className="h-10 w-10 animate-spin text-blue-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-500">Uploading...</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                      <Camera className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <div className="text-left">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-300 block">Tap to upload your photo</span>
-                      <span className="text-xs text-gray-400">PNG, JPG or WebP, max 5MB</span>
-                    </div>
-                  </>
-                )}
-              </button>
-            )}
-            {errors.imageUrl && (
-              <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {errors.imageUrl}</p>
-            )}
-          </motion.div>
-        )}
-
-        {/* Text fields */}
-        {textFields.map((field, i) => (
-          <motion.div
-            key={field.key}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.04 }}
-            className="space-y-1.5"
-          >
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
-              {field.label}
-              {field.filled ? (
-                <Check className="h-3.5 w-3.5 text-emerald-500" />
-              ) : (
-                <span className="text-red-500">*</span>
-              )}
-            </label>
-            <input
-              type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
-              value={values[field.key] || ""}
-              disabled={field.filled}
-              onChange={(e) => {
-                if (field.filled) return;
-                setValues((prev) => ({ ...prev, [field.key]: e.target.value }));
-                if (errors[field.key]) setErrors((prev) => { const n = { ...prev }; delete n[field.key]; return n; });
-              }}
-              placeholder={field.key === "birthday" ? "MM-DD (e.g. 08-15)" : `Enter your ${field.label.toLowerCase()}`}
-              className={field.filled ? filledInputClass : baseInputClass}
-            />
-            {errors[field.key] && (
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {errors[field.key]}
-              </motion.p>
-            )}
-          </motion.div>
-        ))}
-
-        {submitError && (
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 text-center flex items-center justify-center gap-1">
-            <AlertCircle className="h-3 w-3" /> {submitError}
-          </motion.p>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.15 + missingFields.length * 0.06 }}
-          className="pt-2"
-        >
+        {/* Optional photo */}
+        <div className="flex flex-col items-center gap-2">
           <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{ backgroundColor: primaryColor }}
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 transition-colors disabled:opacity-60"
+            style={photoUrl ? { borderStyle: "solid", borderColor: primaryColor } : undefined}
           >
-            {submitting ? (
-              <><AISpinner className="h-5 w-5 animate-spin" /> Saving...</>
+            {uploadingPhoto ? (
+              <AISpinner className="h-6 w-6 animate-spin text-gray-400" />
+            ) : photoUrl ? (
+              <img src={photoUrl} alt="" className="w-20 h-20 object-cover" />
             ) : (
-              <><Check className="h-5 w-5" /> Complete My Info</>
+              <Camera className="h-6 w-6 text-gray-400" />
             )}
           </button>
-        </motion.div>
-      </form>
+          <span className="text-xs text-gray-400">Photo (optional)</span>
+          {errors.imageUrl && (
+            <span className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" /> {errors.imageUrl}
+            </span>
+          )}
+        </div>
 
-      {/* Back link */}
-      <button
-        onClick={() => { setStep("search"); setSelectedContact(null); setQuery(""); setResults([]); setMissingFields([]); setExistingFields([]); setValues({}); setErrors({}); setSubmitError(null); }}
-        className="text-sm text-gray-400 hover:text-gray-600 transition-colors mx-auto block"
-      >
-        Not you? Search again
-      </button>
+        {SELF_ENTRY_FIELDS.map((field) => (
+          <div key={field.key}>
+            <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <input
+              type={field.type}
+              value={values[field.key] || ""}
+              onChange={(e) => setValue(field.key, e.target.value)}
+              placeholder={field.placeholder}
+              className={inputClass}
+              style={errors[field.key] ? { borderColor: "#ef4444" } : undefined}
+            />
+            {errors[field.key] && (
+              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {errors[field.key]}
+              </p>
+            )}
+          </div>
+        ))}
+
+        <p className="text-xs text-gray-400">
+          Please give us an email address or a phone number so we can reach you.
+        </p>
+
+        {submitError && (
+          <p className="text-sm text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" /> {submitError}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting || uploadingPhoto}
+          className="w-full py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
+          style={{ backgroundColor: primaryColor }}
+        >
+          {submitting ? (
+            <>
+              <AISpinner className="h-5 w-5 animate-spin" /> Sending...
+            </>
+          ) : (
+            <>
+              <Send className="h-5 w-5" /> Submit
+            </>
+          )}
+        </button>
+      </form>
     </motion.div>
   );
 }
@@ -985,8 +524,12 @@ function PublicFormClient({ slug }: { slug: string }) {
       {/* Form content */}
       <div className="max-w-2xl mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
-          {(formData.type === "SMART_COLLECT" || formData.type === "ATTENDANCE") ? (
-            <SmartCollectForm key="smart" formData={formData} slug={slug} primaryColor={primaryColor} />
+          {(formData.type === "SMART_COLLECT" || formData.type === "ATTENDANCE") &&
+          formData.fields.length === 0 ? (
+            // Smart Collect / Attendance forms carry no field definitions of
+            // their own — they collect a fixed set of contact details, which
+            // the respondent now types themselves.
+            <SelfEntryForm key="self" formData={formData} slug={slug} primaryColor={primaryColor} />
           ) : (
             <StandardForm key="standard" formData={formData} slug={slug} primaryColor={primaryColor} />
           )}
