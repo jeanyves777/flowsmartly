@@ -26,7 +26,7 @@ const BASE_DELAY_MS = 1000;
 // ── Registrant contact ──
 
 /**
- * WHOIS registrant details. Every field here ends up in a public record.
+ * The registrant details filed with the registrar.
  *
  * This used to be a `DEFAULT_CONTACT` object that any missing field silently
  * fell back to — "FlowSmartly Inc, 123 Main Street, New York, NY 10001,
@@ -34,11 +34,19 @@ const BASE_DELAY_MS = 1000;
  * not exist (the company is General Computing Solutions, and in any case the
  * registrant of a customer's domain is the customer, never us), and ICANN
  * requires registrant data to be accurate — a domain registered with invented
- * details can be suspended, which loses the customer the domain they paid for.
+ * details can be suspended or cancelled, which loses the customer the domain
+ * they paid for.
  *
- * So there is no fallback any more. Incomplete details fail the call with a
- * message naming exactly what is missing, and the caller asks the customer for
- * it. An honest failure beats a confident falsehood filed in public.
+ * Note what the objection is **not**. Since ICANN's Registration Data Policy
+ * took effect in 2025, personal registration data is redacted from public RDDS
+ * output by default, so this is not "it will be published". It is that filing
+ * something untrue with a registrar risks the customer's domain. That is
+ * enough, and it is what we tell them — promising that their home address goes
+ * on a public record would be its own inaccuracy.
+ *
+ * So there is no fallback any more, here or upstream: `lib/domains/registrant`
+ * is the only thing that assembles one of these, and a missing field stays
+ * missing all the way to a refusal that names it.
  */
 export type DomainRegistrantContact = {
   first_name: string;
@@ -91,7 +99,7 @@ function assertCompleteRegistrant(
       `Cannot register ${domain}: the domain owner's ${missing
         .map((field) => FIELD_LABELS[field] ?? field)
         .join(", ")} ${missing.length === 1 ? "is" : "are"} missing. ` +
-        "Add these under Brand Identity — domain registrations are public records and the details have to be real."
+        "Add these under Brand Identity — domain registrars require accurate owner contact details, and a registration filed with invented ones can be suspended."
     );
   }
   return contact as DomainRegistrantContact;
