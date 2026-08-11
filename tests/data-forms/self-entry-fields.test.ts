@@ -2,10 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  hasConsentEvidence,
+  hasEmailConsent,
+  hasSmsConsent,
   SELF_ENTRY_CONSENT_EMAIL_ID,
   SELF_ENTRY_CONSENT_SMS_ID,
+  SELF_ENTRY_EMAIL_CONSENT_VALUE,
   SELF_ENTRY_FORM_FIELDS,
+  SELF_ENTRY_SMS_CONSENT_VALUE,
   SMART_COLLECT_FIELDS,
 } from "../../src/types/data-form";
 
@@ -15,38 +18,52 @@ import {
 
 test("supplying an address is not consent", () => {
   const data = { email: "someone@example.com", phone: "+15551234567" };
-  assert.equal(hasConsentEvidence(data, SELF_ENTRY_CONSENT_EMAIL_ID), false);
-  assert.equal(hasConsentEvidence(data, SELF_ENTRY_CONSENT_SMS_ID), false);
+  assert.equal(hasEmailConsent(data), false);
+  assert.equal(hasSmsConsent(data), false);
 });
 
-test("an unticked box is not consent", () => {
-  for (const value of [[], "", null, undefined, false, 0]) {
+test("only the exact affirmative counts", () => {
+  for (const value of [[], [""], ["No"], ["no"], ["garbage"], ["banana"], ["yes"], true, "x", null]) {
     assert.equal(
-      hasConsentEvidence({ [SELF_ENTRY_CONSENT_EMAIL_ID]: value }, SELF_ENTRY_CONSENT_EMAIL_ID),
+      hasEmailConsent({ [SELF_ENTRY_CONSENT_EMAIL_ID]: value }),
       false,
       `expected no consent for ${JSON.stringify(value)}`
     );
   }
-});
-
-test("a ticked box is consent", () => {
   assert.equal(
-    hasConsentEvidence(
-      { [SELF_ENTRY_CONSENT_EMAIL_ID]: ["Yes, send me email updates"] },
-      SELF_ENTRY_CONSENT_EMAIL_ID
-    ),
+    hasEmailConsent({ [SELF_ENTRY_CONSENT_EMAIL_ID]: [SELF_ENTRY_EMAIL_CONSENT_VALUE] }),
     true
   );
   assert.equal(
-    hasConsentEvidence({ [SELF_ENTRY_CONSENT_SMS_ID]: true }, SELF_ENTRY_CONSENT_SMS_ID),
+    hasSmsConsent({ [SELF_ENTRY_CONSENT_SMS_ID]: [SELF_ENTRY_SMS_CONSENT_VALUE] }),
     true
+  );
+});
+
+test("an affirmative under the wrong field proves nothing", () => {
+  // Evidence must prove the specific claim, not merely be present.
+  assert.equal(
+    hasSmsConsent({ [SELF_ENTRY_CONSENT_SMS_ID]: [SELF_ENTRY_EMAIL_CONSENT_VALUE] }),
+    false
+  );
+  assert.equal(
+    hasEmailConsent({ [SELF_ENTRY_CONSENT_SMS_ID]: [SELF_ENTRY_EMAIL_CONSENT_VALUE] }),
+    false
   );
 });
 
 test("email consent and sms consent are independent", () => {
-  const data = { [SELF_ENTRY_CONSENT_EMAIL_ID]: ["Yes, send me email updates"] };
-  assert.equal(hasConsentEvidence(data, SELF_ENTRY_CONSENT_EMAIL_ID), true);
-  assert.equal(hasConsentEvidence(data, SELF_ENTRY_CONSENT_SMS_ID), false);
+  const data = { [SELF_ENTRY_CONSENT_EMAIL_ID]: [SELF_ENTRY_EMAIL_CONSENT_VALUE] };
+  assert.equal(hasEmailConsent(data), true);
+  assert.equal(hasSmsConsent(data), false);
+});
+
+test("the canonical values are what the form actually offers", () => {
+  // If the copy is edited, the evidence check must be edited with it.
+  const emailField = SELF_ENTRY_FORM_FIELDS.find((f) => f.id === SELF_ENTRY_CONSENT_EMAIL_ID);
+  const smsField = SELF_ENTRY_FORM_FIELDS.find((f) => f.id === SELF_ENTRY_CONSENT_SMS_ID);
+  assert.deepEqual(emailField?.options, [SELF_ENTRY_EMAIL_CONSENT_VALUE]);
+  assert.deepEqual(smsField?.options, [SELF_ENTRY_SMS_CONSENT_VALUE]);
 });
 
 // The owner's submissions view renders answers by iterating form.fields, so a

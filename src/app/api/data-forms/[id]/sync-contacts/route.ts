@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import {
-  hasConsentEvidence,
-  SELF_ENTRY_CONSENT_EMAIL_ID,
-  SELF_ENTRY_CONSENT_SMS_ID,
-} from "@/types/data-form";
+  buildConsentDelta,
+  buildContactFillDelta,
+  initialConsentFields,
+  submittedValue,
+} from "@/lib/data-forms/contact-sync";
 
 export async function POST(
   request: NextRequest,
@@ -64,6 +65,11 @@ export async function POST(
     let created = 0;
     let linked = 0;
     let skipped = 0;
+    // Existing contacts whose gaps this sync closed.
+    let filled = 0;
+    // SMS boxes ticked but not promoted to an opt-in — see
+    // SMS_CONSENT_IS_AUTHORITATIVE. The answer stays on the submission.
+    let smsConsentPending = 0;
 
     for (const submission of submissions) {
       const data = JSON.parse(submission.data || "{}");
@@ -93,10 +99,7 @@ export async function POST(
       // so take them directly rather than inferring from field type — the
       // heuristics above find "First name" and drop the surname entirely, and
       // never carry birthday, address, city or state at all.
-      const direct = (key: string): string | null => {
-        const value = data[key];
-        return typeof value === "string" && value.trim() ? value.trim() : null;
-      };
+      const direct = (key: string) => submittedValue(data, key);
       const directFirstName = direct("firstName");
       const directLastName = direct("lastName");
       if (directFirstName || directLastName) {
@@ -127,6 +130,37 @@ export async function POST(
       }
 
       if (contact) {
+        // Fill the gaps this respondent just closed. Never overwrite a value
+        // the owner already holds because a submission disagrees with it.
+        const fillDelta = buildContactFillDelta(contact, data);
+        const consentDelta = buildConsentDelta(contact, data);
+        const { smsConsentWithheld, ...consentFields } = consentDelta;
+        if (smsConsentWithheld) smsConsentPending++;
+
+        const contactUpdate: Record<string, unknown> = { ...fillDelta, ...consentFields };
+
+        // email and phone are unique per owner, so they may only be filled when
+        // absent AND unclaimed by another contact.
+        if (!contact.email && email) {
+          const clash = await prisma.contact.findFirst({
+            where: { userId: session.userId, email, id: { not: contact.id } },
+            select: { id: true },
+          });
+          if (!clash) contactUpdate.email = email;
+        }
+        if (!contact.phone && phone) {
+          const clash = await prisma.contact.findFirst({
+            where: { userId: session.userId, phone, id: { not: contact.id } },
+            select: { id: true },
+          });
+          if (!clash) contactUpdate.phone = phone;
+        }
+
+        if (Object.keys(contactUpdate).length > 0) {
+          await prisma.contact.update({ where: { id: contact.id }, data: contactUpdate });
+          filled++;
+        }
+
         if (listId) {
           const alreadyInList = await prisma.contactListMember.findUnique({
             where: {
@@ -157,9 +191,6 @@ export async function POST(
       // Consent is what the respondent agreed to, never what they supplied.
       // Having someone's address is not permission to market to them, and an
       // owner clicking Sync does not turn contact information into consent.
-      const emailConsent = hasConsentEvidence(data, SELF_ENTRY_CONSENT_EMAIL_ID);
-      const smsConsent = hasConsentEvidence(data, SELF_ENTRY_CONSENT_SMS_ID);
-
       const newContact = await prisma.contact.create({
         data: {
           userId: session.userId,
@@ -171,10 +202,7 @@ export async function POST(
           address: direct("address"),
           city: direct("city"),
           state: direct("state"),
-          emailOptedIn: !!email && emailConsent,
-          emailOptedInAt: email && emailConsent ? new Date() : null,
-          smsOptedIn: !!phone && smsConsent,
-          smsOptedInAt: phone && smsConsent ? new Date() : null,
+          ...initialConsentFields(data, email, phone),
         },
       });
 
@@ -197,9 +225,11 @@ export async function POST(
         created,
         linked,
         skipped,
+        filled,
+        smsConsentPending,
         total: submissions.length,
         listId: listId || null,
-        message: `Synced ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
+        message: `Synced ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${filled > 0 ? `, filled gaps on ${filled}` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
       },
     });
   } catch (error) {
