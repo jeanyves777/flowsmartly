@@ -89,3 +89,69 @@ export interface DataFormSubmissionData {
   respondentPhone: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Self-entry forms (Smart Collect / Attendance)
+// ---------------------------------------------------------------------------
+// These forms used to carry no field definitions at all: the public page looked
+// the respondent up by name and prefilled from the owner's contact records.
+// That lookup is closed, so respondents type their own details — and the
+// details have to be REAL form fields, because the owner's submissions view
+// renders answers by iterating `form.fields`. A form with no definitions shows
+// no answers, however much was collected.
+//
+// The ids deliberately match Contact columns so a submission maps into a
+// contact without guesswork.
+//
+// The two consent fields are the only basis on which a marketing opt-in may be
+// set. Handing over an address is not agreement to be marketed to; ticking a
+// box that says so is. Nothing infers consent from the presence of a value.
+export const SELF_ENTRY_CONSENT_EMAIL_ID = "consent_email";
+export const SELF_ENTRY_CONSENT_SMS_ID = "consent_sms";
+
+export const SELF_ENTRY_FORM_FIELDS: DataFormField[] = [
+  { id: "firstName", type: "text", label: "First name", required: true },
+  { id: "lastName", type: "text", label: "Last name", required: true },
+  {
+    id: "email",
+    type: "email",
+    label: "Email",
+    required: false,
+    helpText: "So we can reach you. Enter an email or a phone number.",
+  },
+  { id: "phone", type: "phone", label: "Phone", required: false },
+  {
+    id: "birthday",
+    type: "text",
+    label: "Birthday",
+    required: false,
+    placeholder: "MM-DD (e.g. 08-15)",
+  },
+  { id: "address", type: "text", label: "Address", required: false },
+  { id: "city", type: "text", label: "City", required: false },
+  { id: "state", type: "text", label: "State", required: false },
+  {
+    id: SELF_ENTRY_CONSENT_EMAIL_ID,
+    type: "checkbox",
+    label: "Email updates",
+    required: false,
+    options: ["Yes, send me email updates"],
+  },
+  {
+    id: SELF_ENTRY_CONSENT_SMS_ID,
+    type: "checkbox",
+    label: "Text updates",
+    required: false,
+    options: ["Yes, send me text updates"],
+  },
+];
+
+/** True only when the respondent actually ticked the box. */
+export function hasConsentEvidence(
+  data: Record<string, unknown>,
+  fieldId: string
+): boolean {
+  const value = data[fieldId];
+  if (Array.isArray(value)) return value.length > 0;
+  return value === true;
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { ensureSelfEntryFields } from "@/lib/data-forms/self-entry-fields";
 
 // GET /api/data-forms/[id] — Get data form details
 export async function GET(
@@ -22,11 +23,20 @@ export async function GET(
       return NextResponse.json({ success: false, error: { message: "Data form not found" } }, { status: 404 });
     }
 
+    // A self-entry form created before the lookup was closed has no field
+    // definitions. Backfill on read so the builder and the submissions view
+    // both show the questions respondents are actually being asked.
+    const fields = await ensureSelfEntryFields({
+      id: dataForm.id,
+      type: dataForm.type,
+      fields: dataForm.fields,
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         ...dataForm,
-        fields: JSON.parse(dataForm.fields || "[]"),
+        fields,
         settings: JSON.parse(dataForm.settings || "{}"),
         contactListName: dataForm.contactList?.name || null,
       },

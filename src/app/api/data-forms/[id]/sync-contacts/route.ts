@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import {
+  hasConsentEvidence,
+  SELF_ENTRY_CONSENT_EMAIL_ID,
+  SELF_ENTRY_CONSENT_SMS_ID,
+} from "@/types/data-form";
 
 export async function POST(
   request: NextRequest,
@@ -84,6 +89,22 @@ export async function POST(
         if (nameField) name = data[nameField.id]?.trim() || null;
       }
 
+      // Self-entry forms label their fields with the contact column they mean,
+      // so take them directly rather than inferring from field type — the
+      // heuristics above find "First name" and drop the surname entirely, and
+      // never carry birthday, address, city or state at all.
+      const direct = (key: string): string | null => {
+        const value = data[key];
+        return typeof value === "string" && value.trim() ? value.trim() : null;
+      };
+      const directFirstName = direct("firstName");
+      const directLastName = direct("lastName");
+      if (directFirstName || directLastName) {
+        name = [directFirstName, directLastName].filter(Boolean).join(" ") || name;
+      }
+      email = email || direct("email");
+      phone = phone || direct("phone");
+
       if (!email && !phone) {
         skipped++;
         continue;
@@ -133,6 +154,12 @@ export async function POST(
         continue;
       }
 
+      // Consent is what the respondent agreed to, never what they supplied.
+      // Having someone's address is not permission to market to them, and an
+      // owner clicking Sync does not turn contact information into consent.
+      const emailConsent = hasConsentEvidence(data, SELF_ENTRY_CONSENT_EMAIL_ID);
+      const smsConsent = hasConsentEvidence(data, SELF_ENTRY_CONSENT_SMS_ID);
+
       const newContact = await prisma.contact.create({
         data: {
           userId: session.userId,
@@ -140,10 +167,14 @@ export async function POST(
           phone,
           firstName,
           lastName,
-          emailOptedIn: !!email,
-          emailOptedInAt: email ? new Date() : null,
-          smsOptedIn: !!phone,
-          smsOptedInAt: phone ? new Date() : null,
+          birthday: direct("birthday"),
+          address: direct("address"),
+          city: direct("city"),
+          state: direct("state"),
+          emailOptedIn: !!email && emailConsent,
+          emailOptedInAt: email && emailConsent ? new Date() : null,
+          smsOptedIn: !!phone && smsConsent,
+          smsOptedInAt: phone && smsConsent ? new Date() : null,
         },
       });
 
