@@ -6523,3 +6523,57 @@ model TrainingMessage {
 
   @@index([sessionId, createdAt])
 }
+
+// ============================================
+// PUBLIC FORM — VERIFIED RESPONDENT PREFILL
+// ============================================
+// Deliberately relation-free: these tables are written from an unauthenticated
+// public surface, so they hold ids as plain columns and never widen an existing
+// model's relation graph. Rows are short-lived and swept by expiry.
+
+// A one-time code sent to a contact's ALREADY-STORED channel. Possession of the
+// code proves the caller controls that channel; nothing about the flow before
+// this point proves anything at all.
+model DataFormChallenge {
+  id         String    @id @default(cuid())
+  formId     String
+  contactId  String
+  channel    String // "email" — the stored channel the code was sent to
+  codeHash   String // sha256(code + pepper); the code itself is never stored
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([formId, contactId])
+  @@index([expiresAt])
+}
+
+// An opaque bearer reference handed out only after a challenge is solved. The
+// token is random and carries no payload — purpose, scope and lifetime live
+// here, server-side, where they can be revoked.
+model DataFormRespondentSession {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // sha256 of the bearer; the bearer is never stored
+  formId     String
+  contactId  String
+  purpose    String // "smart_collect_prefill"
+  expiresAt  DateTime
+  consumedAt DateTime? // set when the single permitted mutation is applied
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([formId, contactId])
+  @@index([expiresAt])
+}
+
+// Fixed-window rate counters shared by every process serving a public route.
+// The window start is part of the key, so a row is naturally bounded in size
+// and the store is swept by expiry rather than by pruning arrays.
+model PublicRateCounter {
+  bucketKey String   @id // "<scope>|<identity>|<windowStart>"
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

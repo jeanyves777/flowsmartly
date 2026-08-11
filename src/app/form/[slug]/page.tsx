@@ -203,6 +203,192 @@ function StandardForm({
 // The owner turns submissions into contacts from the back office, where the
 // request is authenticated and reviewed.
 
+// ─── VERIFY-TO-PREFILL PANEL ─────────────────────────────────────────
+// Optional shortcut for someone who has filled this in before. It never
+// discloses anything on the strength of a name: the name and the email we
+// already hold only decide who receives a one-time code, and the reply is the
+// same either way. Details come back only after the code is returned, which is
+// the first point at which the caller has proved anything.
+
+interface PrefillResult {
+  token: string;
+  knownFields: { key: string; label: string; value: string }[];
+}
+
+function VerifyPrefillPanel({
+  slug,
+  primaryColor,
+  onVerified,
+}: {
+  slug: string;
+  primaryColor: string;
+  onVerified: (result: PrefillResult) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<"details" | "code">("details");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const sendCode = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/data-forms/public/${slug}/lookup/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, email }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setNotice(json.data?.message || "If those details match, we have sent you a code.");
+        setStage("code");
+      } else {
+        setError(json.error?.message || "Could not send a code. Please try again.");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const verifyRes = await fetch(`/api/data-forms/public/${slug}/lookup/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, email, code }),
+      });
+      const verifyJson = await verifyRes.json();
+      if (!verifyJson.success) {
+        setError(verifyJson.error?.message || "That code is not valid.");
+        return;
+      }
+
+      const token: string = verifyJson.data.token;
+      // The bearer travels in a header, never in the URL.
+      const prefillRes = await fetch(`/api/data-forms/public/${slug}/prefill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const prefillJson = await prefillRes.json();
+      if (!prefillJson.success) {
+        setError(prefillJson.error?.message || "Could not load your details.");
+        return;
+      }
+
+      onVerified({ token, knownFields: prefillJson.data.knownFields || [] });
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline underline-offset-4 transition-colors"
+      >
+        Filled this in before? Get a code to load your details
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-3 bg-gray-50 dark:bg-gray-900/50">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-sm">Load your saved details</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            We&apos;ll email a one-time code to the address we have for you.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {stage === "details" ? (
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Your full name"
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="The email we have for you"
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={sendCode}
+            disabled={busy || fullName.trim().length < 3 || !email.trim()}
+            className="w-full py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {busy ? <AISpinner className="h-4 w-4 animate-spin" /> : null}
+            Send me a code
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {notice && <p className="text-xs text-gray-500">{notice}</p>}
+          <input
+            type="text"
+            inputMode="numeric"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="6-digit code"
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm tracking-[0.3em] text-center outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={verifyCode}
+            disabled={busy || code.length !== 6}
+            className="w-full py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {busy ? <AISpinner className="h-4 w-4 animate-spin" /> : null}
+            Verify
+          </button>
+          <button
+            type="button"
+            onClick={() => { setStage("details"); setCode(""); setError(null); }}
+            className="w-full text-xs text-gray-400 hover:text-gray-600"
+          >
+            Use a different name or email
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle className="h-3 w-3 flex-shrink-0" /> {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface SelfEntryField {
   key: string;
   label: string;
@@ -238,6 +424,10 @@ function SelfEntryForm({
   const [submitted, setSubmitted] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  // Set only once a one-time code has come back. Until then this form knows
+  // nothing about any existing record, because nothing has been proved.
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [knownKeys, setKnownKeys] = useState<string[]>([]);
 
   const setValue = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -308,16 +498,27 @@ function SelfEntryForm({
       }
       if (values.imageUrl) data.imageUrl = values.imageUrl;
 
-      const res = await fetch(`/api/data-forms/public/${slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data,
-          respondentName: `${firstName} ${lastName}`.trim(),
-          respondentEmail: email || undefined,
-          respondentPhone: phone || undefined,
-        }),
-      });
+      // A verified respondent updates their own record. Everyone else files a
+      // submission, which touches no contact at all.
+      const res = sessionToken
+        ? await fetch(`/api/data-forms/public/${slug}/prefill/apply`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionToken}`,
+            },
+            body: JSON.stringify({ data }),
+          })
+        : await fetch(`/api/data-forms/public/${slug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              data,
+              respondentName: `${firstName} ${lastName}`.trim(),
+              respondentEmail: email || undefined,
+              respondentPhone: phone || undefined,
+            }),
+          });
       const json = await res.json();
       if (json.success) setSubmitted(true);
       else setSubmitError(json.error?.message || "Failed to submit. Please try again.");
@@ -373,6 +574,29 @@ function SelfEntryForm({
         {formData.description && <p className="text-gray-500 text-base">{formData.description}</p>}
       </div>
 
+      {sessionToken ? (
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-3 flex items-center gap-2">
+          <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+          <p className="text-sm text-emerald-800 dark:text-emerald-300">
+            Verified — we&apos;ve filled in what we already have.
+          </p>
+        </div>
+      ) : (
+        <VerifyPrefillPanel
+          slug={slug}
+          primaryColor={primaryColor}
+          onVerified={({ token, knownFields }) => {
+            setSessionToken(token);
+            setKnownKeys(knownFields.map((f) => f.key));
+            setValues((prev) => {
+              const next = { ...prev };
+              for (const field of knownFields) next[field.key] = field.value;
+              return next;
+            });
+          }}
+        />
+      )}
+
       <input
         ref={photoInputRef}
         type="file"
@@ -416,6 +640,9 @@ function SelfEntryForm({
             <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
               {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
+              {knownKeys.includes(field.key) && (
+                <span className="ml-2 text-xs font-normal text-emerald-600">on file</span>
+              )}
             </label>
             <input
               type={field.type}
