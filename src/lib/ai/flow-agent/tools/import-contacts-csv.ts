@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { buildImportedContactData } from "@/lib/contacts/contact-intake";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -44,10 +45,6 @@ export const importContactsCsv: FlowAgentTool = {
         type: "string",
         description: "Optional — apply this tag to every imported contact (e.g. 'newsletter-signup-2026'). Stacks with any tags in the CSV row.",
       },
-      defaultOptIn: {
-        type: "string",
-        description: "'email' | 'sms' | 'both' | 'none'. Default 'both' — opts contacts in to the channels they have a value for.",
-      },
     },
     required: ["planId"],
   },
@@ -68,19 +65,13 @@ export const importContactsCsv: FlowAgentTool = {
       }
       const tagAll =
         typeof input.tagAll === "string" && input.tagAll.trim() ? input.tagAll.trim() : null;
-      const defaultOptIn =
-        input.defaultOptIn === "email" ||
-        input.defaultOptIn === "sms" ||
-        input.defaultOptIn === "none"
-          ? input.defaultOptIn
-          : "both";
 
       const taskId = await spawnBackgroundTask({
         userId: ctx.userId,
         conversationId: ctx.conversationId,
         messageId: ctx.messageId,
         kind: "import_contacts_csv",
-        input: { tagAll, defaultOptIn, source: csvUrl ? "url" : "inline" },
+        input: { tagAll, source: csvUrl ? "url" : "inline" },
         worker: async (taskId) => {
           publishTaskEvent({ type: "progress", taskId, progress: 5, message: "Loading CSV…" });
 
@@ -137,32 +128,25 @@ export const importContactsCsv: FlowAgentTool = {
             const tags = parsed.tags ? [...parsed.tags] : [];
             if (tagAll && !tags.includes(tagAll)) tags.push(tagAll);
 
-            const emailOptedIn =
-              !!parsed.email &&
-              (defaultOptIn === "email" || defaultOptIn === "both");
-            const smsOptedIn =
-              !!parsed.phone &&
-              (defaultOptIn === "sms" || defaultOptIn === "both");
-
             try {
+              // Identical to the HTTP import route: a CSV containing a
+              // channel is not the recipient's agreement to be written to.
               await prisma.contact.create({
                 data: {
-                  userId: ctx.userId,
-                  email: parsed.email,
-                  phone: parsed.phone,
-                  firstName: parsed.firstName,
-                  lastName: parsed.lastName,
-                  birthday: parsed.birthday,
-                  company: parsed.company,
-                  city: parsed.city,
-                  state: parsed.state,
-                  address: parsed.address,
-                  tags: JSON.stringify(tags),
+                  ...buildImportedContactData({
+                    userId: ctx.userId,
+                    email: parsed.email,
+                    phone: parsed.phone,
+                    firstName: parsed.firstName,
+                    lastName: parsed.lastName,
+                    birthday: parsed.birthday,
+                    company: parsed.company,
+                    city: parsed.city,
+                    state: parsed.state,
+                    address: parsed.address,
+                    tags,
+                  }),
                   customFields: parsed.customFields ? JSON.stringify(parsed.customFields) : "{}",
-                  emailOptedIn,
-                  emailOptedInAt: emailOptedIn ? new Date() : null,
-                  smsOptedIn,
-                  smsOptedInAt: smsOptedIn ? new Date() : null,
                 },
               });
               imported++;
@@ -193,7 +177,7 @@ export const importContactsCsv: FlowAgentTool = {
             taskId,
             kind: "import_contacts_csv",
             ok: imported > 0,
-            summary: `Contact import done — added ${imported}, skipped ${skipped}, invalid ${invalid}`,
+            summary: `Contact import done — added ${imported}, skipped ${skipped}, invalid ${invalid}. Imported contacts are NOT opted in to email or SMS; consent has to be collected from them.`,
             detail: errors.length > 0 ? `First few errors: ${errors.slice(0, 3).join("; ")}` : undefined,
             deepLink: `/home/outreach`,
           });

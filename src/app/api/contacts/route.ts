@@ -218,10 +218,14 @@ export async function POST(request: NextRequest) {
         birthday: birthday || null,
         imageUrl: imageUrl || null,
         tags: JSON.stringify(tags),
-        emailOptedIn: emailOptedIn !== undefined ? emailOptedIn : !!email,
-        emailOptedInAt: (emailOptedIn !== undefined ? emailOptedIn : !!email) ? new Date() : null,
-        smsOptedIn: smsOptedIn !== undefined ? smsOptedIn : !!phone,
-        smsOptedInAt: (smsOptedIn !== undefined ? smsOptedIn : !!phone) ? new Date() : null,
+        // An owner who says nothing has not said yes. Absence is false — it
+        // never falls back to "they have an address, so they must have agreed".
+        // Whether the explicit boolean SHOULD count as consent at all is a
+        // separate, open question; this only removes the silent default.
+        emailOptedIn: emailOptedIn === true,
+        emailOptedInAt: emailOptedIn === true ? new Date() : null,
+        smsOptedIn: smsOptedIn === true,
+        smsOptedInAt: smsOptedIn === true ? new Date() : null,
       },
     });
 
