@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
-import { ensureSelfEntryFields } from "@/lib/data-forms/self-entry-fields";
+import { effectiveFormFields } from "@/lib/data-forms/self-entry-fields";
 
 // Rate limiting map: IP -> formId -> timestamps
 const rateLimitMap = new Map<string, Map<string, number[]>>();
@@ -103,13 +103,9 @@ export async function GET(
     }
 
     // Self-entry forms created before the lookup was closed have no field
-    // definitions; give them the canonical set so respondents can answer and
-    // the owner can actually see what they answered.
-    const fields = await ensureSelfEntryFields({
-      id: form.id,
-      type: form.type,
-      fields: form.fields,
-    });
+    // definitions. Resolve the canonical set in memory — a GET is a safe
+    // method, and an anonymous read must not migrate an owner's record.
+    const fields = effectiveFormFields({ type: form.type, fields: form.fields });
 
     return NextResponse.json({
       success: true,

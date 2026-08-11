@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { effectiveFormFields } from "@/lib/data-forms/self-entry-fields";
 import {
-  buildConsentDelta,
-  buildContactFillDelta,
+  buildContactSyncPlan,
   initialConsentFields,
   submittedValue,
 } from "@/lib/data-forms/contact-sync";
@@ -22,7 +22,7 @@ export async function POST(
 
     const form = await prisma.dataForm.findFirst({
       where: { id, userId: session.userId },
-      select: { userId: true, fields: true, title: true },
+      select: { userId: true, type: true, fields: true, title: true },
     });
 
     if (!form) {
@@ -60,7 +60,9 @@ export async function POST(
     }
 
     const submissions = await prisma.dataFormSubmission.findMany({ where });
-    const fields = JSON.parse(form.fields || "[]");
+    // Same resolver as both form reads, so legacy forms are understood
+    // identically everywhere without anyone writing.
+    const fields = effectiveFormFields({ type: form.type, fields: form.fields });
 
     let created = 0;
     let linked = 0;
@@ -130,34 +132,34 @@ export async function POST(
       }
 
       if (contact) {
-        // Fill the gaps this respondent just closed. Never overwrite a value
-        // the owner already holds because a submission disagrees with it.
-        const fillDelta = buildContactFillDelta(contact, data);
-        const consentDelta = buildConsentDelta(contact, data);
-        const { smsConsentWithheld, ...consentFields } = consentDelta;
-        if (smsConsentWithheld) smsConsentPending++;
-
-        const contactUpdate: Record<string, unknown> = { ...fillDelta, ...consentFields };
-
         // email and phone are unique per owner, so they may only be filled when
-        // absent AND unclaimed by another contact.
+        // absent AND unclaimed by another contact. Resolve that first — the
+        // channel a consent tick refers to may be supplied by this very
+        // submission, so consent has to be judged against the contact as it
+        // will be, not as it was.
+        const approvedChannels: { email?: string | null; phone?: string | null } = {};
         if (!contact.email && email) {
           const clash = await prisma.contact.findFirst({
             where: { userId: session.userId, email, id: { not: contact.id } },
             select: { id: true },
           });
-          if (!clash) contactUpdate.email = email;
+          if (!clash) approvedChannels.email = email;
         }
         if (!contact.phone && phone) {
           const clash = await prisma.contact.findFirst({
             where: { userId: session.userId, phone, id: { not: contact.id } },
             select: { id: true },
           });
-          if (!clash) contactUpdate.phone = phone;
+          if (!clash) approvedChannels.phone = phone;
         }
 
-        if (Object.keys(contactUpdate).length > 0) {
-          await prisma.contact.update({ where: { id: contact.id }, data: contactUpdate });
+        // Fill the gaps this respondent just closed, never overwriting a value
+        // the owner already holds, and grant consent against the result.
+        const plan = buildContactSyncPlan(contact, data, approvedChannels);
+        if (plan.smsConsentWithheld) smsConsentPending++;
+
+        if (Object.keys(plan.update).length > 0) {
+          await prisma.contact.update({ where: { id: contact.id }, data: plan.update });
           filled++;
         }
 

@@ -1,5 +1,5 @@
 /**
- * Backfilling field definitions onto self-entry forms.
+ * Resolving the fields a self-entry form asks for.
  *
  * Smart Collect and Attendance forms created before the public lookup was
  * closed have `fields: "[]"` — they never needed definitions, because the page
@@ -7,17 +7,27 @@
  * details, the definitions have to exist, or the owner's submissions view
  * (which iterates `form.fields`) renders an empty card for every answer.
  *
- * This runs once per form, is idempotent, and only ever fills a genuinely empty
- * field list — it never overwrites definitions an owner has edited.
+ * This resolves them IN MEMORY. It does not write.
+ *
+ *   Reads may adapt legacy representation; reads do not silently migrate
+ *   durable business state.
+ *
+ * An earlier version backfilled the definitions from the public GET. That is
+ * wrong twice over: GET is a safe method (RFC 9110) precisely so crawlers,
+ * prefetchers, caches and retries can call it without changing anything, and an
+ * anonymous request has no business deciding when an owner's record changes.
+ *
+ * New forms persist the canonical set at creation. Legacy forms stay virtual
+ * until the owner next saves the form, which writes them through the normal
+ * authenticated path.
  */
-import { prisma } from "@/lib/db/client";
 import { SELF_ENTRY_FORM_FIELDS, type DataFormField } from "@/types/data-form";
 
 export function isSelfEntryFormType(type: string | null | undefined): boolean {
   return type === "SMART_COLLECT" || type === "ATTENDANCE";
 }
 
-function parseFields(raw: string | null | undefined): DataFormField[] {
+export function parseFormFields(raw: string | null | undefined): DataFormField[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -28,29 +38,18 @@ function parseFields(raw: string | null | undefined): DataFormField[] {
 }
 
 /**
- * Returns the fields this form should render, persisting the canonical set the
- * first time a self-entry form is found without any.
+ * The fields this form effectively asks for: its own if it has any, otherwise
+ * the canonical self-entry set for a legacy self-entry form.
+ *
+ * Every reader — the public form, the owner's form, and sync — must use this,
+ * so all three agree about what was asked without anyone writing.
  */
-export async function ensureSelfEntryFields(form: {
-  id: string;
+export function effectiveFormFields(form: {
   type: string | null;
   fields: string | null;
-}): Promise<DataFormField[]> {
-  const existing = parseFields(form.fields);
-  if (existing.length > 0) return existing;
-  if (!isSelfEntryFormType(form.type)) return existing;
-
-  try {
-    await prisma.dataForm.updateMany({
-      // Only if it is still empty — a concurrent writer or an owner edit wins.
-      where: { id: form.id, OR: [{ fields: "[]" }, { fields: "" }] },
-      data: { fields: JSON.stringify(SELF_ENTRY_FORM_FIELDS) },
-    });
-  } catch (error) {
-    // Serving the right fields matters more than recording them; the next
-    // request will try again.
-    console.error("Self-entry field backfill failed:", error);
-  }
-
+}): DataFormField[] {
+  const own = parseFormFields(form.fields);
+  if (own.length > 0) return own;
+  if (!isSelfEntryFormType(form.type)) return own;
   return SELF_ENTRY_FORM_FIELDS;
 }

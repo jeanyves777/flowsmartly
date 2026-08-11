@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { ensureSelfEntryFields } from "@/lib/data-forms/self-entry-fields";
+import { effectiveFormFields } from "@/lib/data-forms/self-entry-fields";
 
 // GET /api/data-forms/[id] — Get data form details
 export async function GET(
@@ -24,13 +24,10 @@ export async function GET(
     }
 
     // A self-entry form created before the lookup was closed has no field
-    // definitions. Backfill on read so the builder and the submissions view
-    // both show the questions respondents are actually being asked.
-    const fields = await ensureSelfEntryFields({
-      id: dataForm.id,
-      type: dataForm.type,
-      fields: dataForm.fields,
-    });
+    // definitions. Resolve them in memory so the builder and the submissions
+    // view show the questions respondents are actually being asked; they are
+    // persisted when the owner next saves the form.
+    const fields = effectiveFormFields({ type: dataForm.type, fields: dataForm.fields });
 
     return NextResponse.json({
       success: true,
