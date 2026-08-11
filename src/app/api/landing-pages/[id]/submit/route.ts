@@ -110,8 +110,13 @@ export async function POST(
             company: existingContact.company || company?.trim() || null,
             tags: JSON.stringify(newTags),
             customFields: JSON.stringify(newCustomFields),
-            emailOptedIn: true,
-            emailOptedInAt: existingContact.emailOptedInAt || new Date(),
+            // Marketing consent is deliberately absent. Submitting a landing
+            // page is not agreement to be marketed to — the form may have been
+            // a download, a contact request or a competition entry — and this
+            // was the one place that could silently REVERSE a decision someone
+            // had made, flipping an opted-out contact back to opted-in.
+            // Landing pages have no governed consent field today; when they do,
+            // that field is what grants this, not the submission itself.
           },
         });
         contactId = contact.id;
@@ -138,8 +143,7 @@ export async function POST(
             company: company?.trim() || null,
             tags: JSON.stringify(tags),
             customFields: JSON.stringify(customFields),
-            emailOptedIn: true,
-            emailOptedInAt: new Date(),
+            // The lead is captured; marketing consent is not granted. See above.
             status: "ACTIVE",
           },
         });

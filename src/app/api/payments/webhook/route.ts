@@ -179,8 +179,9 @@ async function processWebhookEvent(event: Stripe.Event) {
                 email: ticketOrder.buyerEmail,
                 firstName: ticketOrder.buyerName.split(" ")[0] || null,
                 lastName: ticketOrder.buyerName.split(" ").slice(1).join(" ") || null,
-                emailOptedIn: true,
-                emailOptedInAt: new Date(),
+                // A payment webhook is evidence of payment. Nobody was at a
+                // keyboard and no disclosure was shown, so there is no
+                // affirmative act here to read as consent.
               },
             });
           }
