@@ -1,0 +1,4 @@
+# Shell scripts run on the Linux VPS. A CRLF line ending turns `set -e` into
+# `set -e\r` and the deploy dies with "\r: command not found" — so pin LF
+# regardless of the editing machine's core.autocrlf.
+*.sh text eol=lf

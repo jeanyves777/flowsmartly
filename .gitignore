@@ -76,3 +76,9 @@ GoogleService-Info.plist
 
 # MediaPipe WASM is copied from node_modules at build time (next.config.ts), not committed
 public/mediapipe/wasm/
+
+# Deploy pipeline state, written on the VPS by scripts/poll-deploy.sh — never committed
+/BUILD_OK
+/DEPLOY_STATUS
+/.deploy-state
+/.deploy-phase
