@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildFollowUpContactData } from "@/lib/contacts/contact-intake";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
@@ -191,22 +192,17 @@ export async function POST(
       }
       plannedNewKeys.add(key);
 
-      const nameParts = e.name.split(/\s+/).filter(Boolean);
-      const firstName = nameParts[0] || null;
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
-
-      newContactsData.push({
-        userId: session.userId,
-        email: e.email,
-        phone: e.phone,
-        firstName,
-        lastName,
-        address: e.address,
-        emailOptedIn: !!e.email,
-        emailOptedInAt: e.email ? new Date() : null,
-        smsOptedIn: !!e.phone,
-        smsOptedInAt: e.phone ? new Date() : null,
-      });
+      // Consent is NOT implied by the entry holding a channel — see
+      // buildFollowUpContactData.
+      newContactsData.push(
+        buildFollowUpContactData({
+          userId: session.userId,
+          email: e.email,
+          phone: e.phone,
+          name: e.name,
+          address: e.address,
+        })
+      );
       pendingNew.push({ entryId: e.id, email: e.email, phone: e.phone });
       created++;
     }

@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  buildImportedContactData,
+  buildImportedContactUpdate,
+} from "@/lib/contacts/contact-intake";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
@@ -226,22 +230,20 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // Update existing contact
-            const updateData: Record<string, unknown> = {};
-            if (contactData.firstName) updateData.firstName = contactData.firstName;
-            if (contactData.lastName) updateData.lastName = contactData.lastName;
-            if (contactData.email && !existingContact.email) updateData.email = contactData.email;
-            if (contactData.phone && !existingContact.phone) updateData.phone = contactData.phone;
-            if (contactData.company) updateData.company = contactData.company;
-            if (contactData.birthday) updateData.birthday = contactData.birthday;
-            if (contactData.city) updateData.city = contactData.city;
-            if (contactData.state) updateData.state = contactData.state;
-            if (contactData.address) updateData.address = contactData.address;
-            if (tags.length > 0) {
-              const existingTags: string[] = JSON.parse(existingContact.tags || "[]");
-              const mergedTags = [...new Set([...existingTags, ...tags])];
-              updateData.tags = JSON.stringify(mergedTags);
-            }
+            // Update existing contact. Consent columns are never touched —
+            // an import neither grants nor revokes an opt-in.
+            const updateData = buildImportedContactUpdate(existingContact, {
+              firstName: contactData.firstName,
+              lastName: contactData.lastName,
+              email: contactData.email,
+              phone: contactData.phone,
+              company: contactData.company,
+              birthday: contactData.birthday,
+              city: contactData.city,
+              state: contactData.state,
+              address: contactData.address,
+              tags,
+            });
 
             if (Object.keys(updateData).length > 0) {
               await prisma.contact.update({
@@ -253,24 +255,22 @@ export async function POST(request: NextRequest) {
             updated++;
           } else {
             // Create new contact
+            // Consent is NOT implied by the file containing a channel — see
+            // buildImportedContactData.
             const contact = await prisma.contact.create({
-              data: {
+              data: buildImportedContactData({
                 userId: session.userId,
                 email,
                 phone,
-                firstName: contactData.firstName || null,
-                lastName: contactData.lastName || null,
-                company: contactData.company || null,
-                birthday: contactData.birthday || null,
-                city: contactData.city || null,
-                state: contactData.state || null,
-                address: contactData.address || null,
-                tags: tags.length > 0 ? JSON.stringify(tags) : "[]",
-                emailOptedIn: !!email,
-                emailOptedInAt: email ? new Date() : null,
-                smsOptedIn: !!phone,
-                smsOptedInAt: phone ? new Date() : null,
-              },
+                firstName: contactData.firstName,
+                lastName: contactData.lastName,
+                company: contactData.company,
+                birthday: contactData.birthday,
+                city: contactData.city,
+                state: contactData.state,
+                address: contactData.address,
+                tags,
+              }),
             });
 
             newContactIds.push(contact.id);
