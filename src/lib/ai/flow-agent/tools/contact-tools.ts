@@ -175,8 +175,11 @@ export const addContact: FlowAgentTool = {
         ? input.tags.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
         : [];
 
-      const emailOptedIn = typeof input.emailOptedIn === "boolean" ? input.emailOptedIn : !!email;
-      const smsOptedIn = typeof input.smsOptedIn === "boolean" ? input.smsOptedIn : !!phone;
+      // Absence is not agreement: an unspecified flag means false, never
+      // "they have an address, so they must have agreed". Whether the explicit
+      // boolean should count as consent is a separate, open question.
+      const emailOptedIn = input.emailOptedIn === true;
+      const smsOptedIn = input.smsOptedIn === true;
 
       const contact = await prisma.contact.create({
         data: {
