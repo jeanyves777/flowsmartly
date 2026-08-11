@@ -27,11 +27,19 @@ interface FormPageData {
   brand: BrandInfo | null;
 }
 
+/**
+ * What the public lookup hands back: a short-lived token that identifies the
+ * respondent to this form only, and the name they typed. No contact id, and no
+ * stored detail the caller did not already supply.
+ */
 interface SearchResult {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  birthday: string | null;
+  token: string;
+  displayName: string;
+}
+
+/** First word of a display name, for greetings. */
+function greetingName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] || "";
 }
 
 interface MissingFieldInfo {
@@ -217,13 +225,6 @@ function StandardForm({
 // ─── SMART COLLECT FORM ──────────────────────────────────────────────
 type SmartStep = "detecting" | "welcome_back" | "search" | "loading" | "confirm" | "form" | "complete" | "already_complete";
 
-interface SiblingInfo {
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  phone: string | null;
-}
-
 function SmartCollectForm({
   formData,
   slug,
@@ -244,10 +245,10 @@ function SmartCollectForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [siblingInfo, setSiblingInfo] = useState<SiblingInfo[]>([]);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [deviceFP, setDeviceFP] = useState<{ hash: string; deviceLabel: string } | null>(null);
-  const [detectedContact, setDetectedContact] = useState<{ id: string; firstName: string | null; lastName: string | null; imageUrl: string | null } | null>(null);
+  const [detectedContact, setDetectedContact] = useState<{ token: string; firstName: string | null; lastName: string | null; imageUrl: string | null } | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -282,10 +283,12 @@ function SmartCollectForm({
     return () => { cancelled = true; };
   }, [slug]);
 
-  // Debounced search
+  // Debounced lookup. The endpoint matches the WHOLE name exactly, so this
+  // only fires once something plausibly complete has been typed.
   useEffect(() => {
-    if (query.trim().length < 2) {
+    if (query.trim().length < 3) {
       setResults([]);
+      setLookupError(null);
       return;
     }
     setSearching(true);
@@ -294,14 +297,19 @@ function SmartCollectForm({
       try {
         const res = await fetch(`/api/data-forms/public/${slug}/search?q=${encodeURIComponent(query.trim())}`);
         const json = await res.json();
-        if (json.success) setResults(json.data);
-        else setResults([]);
+        if (json.success) {
+          setResults(json.data);
+          setLookupError(null);
+        } else {
+          setResults([]);
+          setLookupError(res.status === 429 ? json.error?.message || "Too many attempts. Please wait a moment." : null);
+        }
       } catch {
         setResults([]);
       } finally {
         setSearching(false);
       }
-    }, 300);
+    }, 400);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
   }, [query, slug]);
 
@@ -309,7 +317,7 @@ function SmartCollectForm({
     setSelectedContact(contact);
     setStep("loading");
     try {
-      const res = await fetch(`/api/data-forms/public/${slug}/complete?contactId=${contact.id}`);
+      const res = await fetch(`/api/data-forms/public/${slug}/complete?token=${encodeURIComponent(contact.token)}`);
       const json = await res.json();
       if (json.success) {
         if (json.data.isComplete) {
@@ -325,14 +333,13 @@ function SmartCollectForm({
           setValues(prefilled);
           // If sibling data was merged, show confirmation first
           if (json.data.hasSiblingData) {
-            setSiblingInfo(json.data.siblingInfo || []);
             setStep("confirm");
           } else {
             setStep("form");
           }
         }
       } else {
-        setSubmitError("Could not load your information. Please try again.");
+        setSubmitError(json.error?.message || "Could not load your information. Please try again.");
         setStep("search");
       }
     } catch {
@@ -370,7 +377,7 @@ function SmartCollectForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contactId: selectedContact.id,
+          token: selectedContact.token,
           data: values,
           fingerprint: deviceFP?.hash,
           deviceLabel: deviceFP?.deviceLabel,
@@ -456,12 +463,13 @@ function SmartCollectForm({
         >
           <button
             onClick={() => {
-              // Treat as if they selected this contact from search
+              // Treat as if they had looked themselves up
               handleSelectContact({
-                id: detectedContact.id,
-                firstName: detectedContact.firstName,
-                lastName: detectedContact.lastName,
-                birthday: null,
+                token: detectedContact.token,
+                displayName: [detectedContact.firstName, detectedContact.lastName]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim(),
               });
             }}
             className="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 flex items-center justify-center gap-2"
@@ -508,10 +516,10 @@ function SmartCollectForm({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Start typing your first name..."
+              placeholder="Enter your full name..."
               autoFocus
               className="w-full pl-12 pr-4 py-4 text-lg rounded-2xl border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white dark:bg-gray-900 transition-all outline-none"
-              style={{ borderColor: query.length >= 2 ? primaryColor + "60" : undefined }}
+              style={{ borderColor: query.length >= 3 ? primaryColor + "60" : undefined }}
             />
             {searching && (
               <AISpinner className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
@@ -520,7 +528,7 @@ function SmartCollectForm({
 
           {/* Results dropdown */}
           <AnimatePresence>
-            {query.length >= 2 && !searching && results.length > 0 && (
+            {query.length >= 3 && !searching && results.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -529,7 +537,7 @@ function SmartCollectForm({
               >
                 {results.map((contact, i) => (
                   <motion.button
-                    key={contact.id}
+                    key={contact.token}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
@@ -537,14 +545,14 @@ function SmartCollectForm({
                     className="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-100 dark:border-gray-800 last:border-0"
                   >
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: primaryColor }}>
-                      {(contact.firstName || "?")[0].toUpperCase()}
+                      {(greetingName(contact.displayName) || "?")[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {contact.firstName} {contact.lastName || ""}
+                        {contact.displayName}
                       </p>
-                      {contact.birthday && (
-                        <p className="text-sm text-gray-400">Birthday: {contact.birthday}</p>
+                      {results.length > 1 && (
+                        <p className="text-sm text-gray-400">Record {i + 1}</p>
                       )}
                     </div>
                     <UserCheck className="h-5 w-5 text-gray-300 flex-shrink-0" />
@@ -555,16 +563,22 @@ function SmartCollectForm({
           </AnimatePresence>
 
           {/* No results */}
-          {query.length >= 2 && !searching && results.length === 0 && (
+          {query.length >= 3 && !searching && results.length === 0 && !lookupError && (
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="text-center text-gray-400 mt-4 text-sm"
             >
-              No contacts found for &quot;{query}&quot;. Please check the spelling and try again.
+              We couldn&apos;t find &quot;{query}&quot;. Enter your full name exactly as it was registered.
             </motion.p>
           )}
         </div>
+
+        {lookupError && (
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-amber-600 text-center flex items-center justify-center gap-1">
+            <AlertCircle className="h-3 w-3" /> {lookupError}
+          </motion.p>
+        )}
 
         {submitError && (
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-red-500 text-center flex items-center justify-center gap-1">
@@ -580,7 +594,7 @@ function SmartCollectForm({
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
         <AISpinner className="h-10 w-10 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
-        <p className="text-gray-500 font-medium">Checking your info, {selectedContact?.firstName}...</p>
+        <p className="text-gray-500 font-medium">Checking your info, {greetingName(selectedContact?.displayName || "")}...</p>
       </motion.div>
     );
   }
@@ -592,10 +606,10 @@ function SmartCollectForm({
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="text-center mb-2">
           <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: primaryColor }}>
-            {(selectedContact?.firstName || "?")[0].toUpperCase()}
+            {(greetingName(selectedContact?.displayName || "") || "?")[0].toUpperCase()}
           </div>
           <h2 className="text-xl font-bold">
-            Hi {selectedContact?.firstName}!
+            Hi {greetingName(selectedContact?.displayName || "")}!
           </h2>
           <p className="text-gray-500 text-sm mt-1">
             We found additional info that might be yours. Please confirm.
@@ -637,7 +651,6 @@ function SmartCollectForm({
               setExistingFields(ownExisting);
               setMissingFields([...missingFields, ...newMissing]);
               setValues(ownOnly);
-              setSiblingInfo([]);
               setStep("form");
             }}
             className="flex-1 py-3.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-base text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
@@ -647,7 +660,7 @@ function SmartCollectForm({
         </div>
 
         <button
-          onClick={() => { setStep("search"); setSelectedContact(null); setQuery(""); setResults([]); setMissingFields([]); setExistingFields([]); setValues({}); setSiblingInfo([]); }}
+          onClick={() => { setStep("search"); setSelectedContact(null); setQuery(""); setResults([]); setMissingFields([]); setExistingFields([]); setValues({}); }}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors mx-auto block"
         >
           Search again
@@ -675,7 +688,7 @@ function SmartCollectForm({
           <Sparkles className="h-10 w-10" style={{ color: primaryColor }} />
         </motion.div>
         <h2 className="text-2xl font-bold mb-3">
-          You&apos;re all set, {selectedContact?.firstName}!
+          You&apos;re all set, {greetingName(selectedContact?.displayName || "")}!
         </h2>
         <p className="text-gray-500 text-base">
           Your contact information is already complete. Thank you!
@@ -704,7 +717,7 @@ function SmartCollectForm({
         </motion.div>
         <h2 className="text-2xl font-bold mb-3">{formData.thankYouMessage}</h2>
         <p className="text-gray-500 text-base">
-          Thanks {selectedContact?.firstName}, your information has been updated!
+          Thanks {greetingName(selectedContact?.displayName || "")}, your information has been updated!
         </p>
       </motion.div>
     );
@@ -761,11 +774,11 @@ function SmartCollectForm({
           {currentPhotoUrl ? (
             <img src={currentPhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
           ) : (
-            (selectedContact?.firstName || "?")[0].toUpperCase()
+            (greetingName(selectedContact?.displayName || "") || "?")[0].toUpperCase()
           )}
         </div>
         <h2 className="text-xl font-bold">
-          Hi {selectedContact?.firstName}!
+          Hi {greetingName(selectedContact?.displayName || "")}!
         </h2>
         <p className="text-gray-500 text-sm mt-1">
           {missingFields.filter(f => f.key !== "imageUrl").length > 0

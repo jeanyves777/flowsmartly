@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { SMART_COLLECT_FIELDS } from "@/types/data-form";
+import { readRespondentToken } from "@/lib/data-forms/respondent-token";
+
+// These endpoints are unauthenticated — the caller holds only a public form
+// slug. They therefore identify the respondent by a short-lived, form-bound
+// token issued by /search or /detect (never a raw contact id), and they only
+// ever look inside the contact list this form is bound to.
 
 // POST /api/data-forms/public/[slug]/complete
-// Updates a contact with missing fields, then adds them to the linked list
+// Fills in the missing fields on the respondent's own record
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -11,16 +17,16 @@ export async function POST(
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { contactId, data, fingerprint, deviceLabel } = body as {
-      contactId: string;
+    const { token, data, fingerprint, deviceLabel } = body as {
+      token: string;
       data: Record<string, string>;
       fingerprint?: string;
       deviceLabel?: string;
     };
 
-    if (!contactId || !data || typeof data !== "object") {
+    if (!token || !data || typeof data !== "object") {
       return NextResponse.json(
-        { success: false, error: { message: "contactId and data are required" } },
+        { success: false, error: { message: "token and data are required" } },
         { status: 400 }
       );
     }
@@ -43,12 +49,30 @@ export async function POST(
       );
     }
 
-    // Find the contact (any contact belonging to this user, not limited to a list)
+    // Fail closed: with no linked list there is no audience for this form, and
+    // we do NOT fall back to the owner's whole contact book.
+    if (!form.contactListId) {
+      return NextResponse.json(
+        { success: false, error: { message: "Form not found or not configured" } },
+        { status: 404 }
+      );
+    }
+
+    const contactId = readRespondentToken(token, form.id);
+    if (!contactId) {
+      return NextResponse.json(
+        { success: false, error: { message: "This session expired. Please look yourself up again." } },
+        { status: 401 }
+      );
+    }
+
+    // Find the contact — only inside the list this form is bound to.
     const contact = await prisma.contact.findFirst({
       where: {
         id: contactId,
         userId: form.userId,
         status: "ACTIVE",
+        lists: { some: { contactListId: form.contactListId } },
       },
       select: {
         id: true,
@@ -79,7 +103,8 @@ export async function POST(
       if (val && String(val).trim()) knownData[key] = String(val);
     }
 
-    // Pull data from sibling contacts with the same first name
+    // Pull data from sibling contacts with the same first name — again only
+    // from inside this form's own list.
     if (contact.firstName) {
       const siblings = await prisma.contact.findMany({
         where: {
@@ -87,6 +112,7 @@ export async function POST(
           status: "ACTIVE",
           id: { not: contactId },
           firstName: { equals: contact.firstName },
+          lists: { some: { contactListId: form.contactListId } },
         },
         select: { lastName: true, email: true, phone: true, birthday: true, imageUrl: true, address: true, city: true, state: true },
       });
@@ -162,34 +188,9 @@ export async function POST(
       });
     }
 
-    // Add contact to the linked list if not already a member
-    if (form.contactListId) {
-      const existingMember = await prisma.contactListMember.findFirst({
-        where: { contactListId: form.contactListId, contactId },
-      });
-      if (!existingMember) {
-        await prisma.contactListMember.create({
-          data: {
-            contactListId: form.contactListId,
-            contactId,
-          },
-        });
-        // Update list counts
-        const counts = await prisma.contactListMember.count({
-          where: { contactListId: form.contactListId },
-        });
-        const activeCounts = await prisma.contactListMember.count({
-          where: {
-            contactListId: form.contactListId,
-            contact: { status: "ACTIVE" },
-          },
-        });
-        await prisma.contactList.update({
-          where: { id: form.contactListId },
-          data: { totalCount: counts, activeCount: activeCounts },
-        });
-      }
-    }
+    // Membership in the linked list is a precondition of the lookup above, so
+    // there is nothing to add here: a public caller can no longer move people
+    // into a list.
 
     // Record as a form submission for tracking
     await prisma.dataFormSubmission.create({
@@ -243,19 +244,19 @@ export async function POST(
   }
 }
 
-// GET /api/data-forms/public/[slug]/complete?contactId=xxx
-// Returns which fields are missing for a contact
+// GET /api/data-forms/public/[slug]/complete?token=xxx
+// Returns which fields are missing for the respondent behind the token
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug } = await params;
-    const contactId = request.nextUrl.searchParams.get("contactId");
+    const token = request.nextUrl.searchParams.get("token");
 
-    if (!contactId) {
+    if (!token) {
       return NextResponse.json(
-        { success: false, error: { message: "contactId is required" } },
+        { success: false, error: { message: "token is required" } },
         { status: 400 }
       );
     }
@@ -278,12 +279,29 @@ export async function GET(
       );
     }
 
-    // Find the selected contact
+    // Fail closed when the form is bound to no list (see POST).
+    if (!form.contactListId) {
+      return NextResponse.json(
+        { success: false, error: { message: "Form not found" } },
+        { status: 404 }
+      );
+    }
+
+    const contactId = readRespondentToken(token, form.id);
+    if (!contactId) {
+      return NextResponse.json(
+        { success: false, error: { message: "This session expired. Please look yourself up again." } },
+        { status: 401 }
+      );
+    }
+
+    // Find the selected contact — only inside this form's own list.
     const contact = await prisma.contact.findFirst({
       where: {
         id: contactId,
         userId: form.userId,
         status: "ACTIVE",
+        lists: { some: { contactListId: form.contactListId } },
       },
       select: {
         id: true,
@@ -315,10 +333,10 @@ export async function GET(
       }
     }
 
-    // Look for sibling contacts with the same first name to merge data
+    // Look for sibling contacts with the same first name to merge data — again
+    // only from inside this form's own list.
     const siblingData: Record<string, string> = {};
     let hasSiblingData = false;
-    const siblingInfo: { firstName: string | null; lastName: string | null; email: string | null; phone: string | null }[] = [];
 
     if (contact.firstName) {
       const siblings = await prisma.contact.findMany({
@@ -327,14 +345,14 @@ export async function GET(
           status: "ACTIVE",
           id: { not: contactId },
           firstName: { equals: contact.firstName },
+          lists: { some: { contactListId: form.contactListId } },
         },
         select: {
-          firstName: true,
-          lastName: true,
           email: true,
           phone: true,
           birthday: true,
           imageUrl: true,
+          lastName: true,
           address: true,
           city: true,
           state: true,
@@ -342,23 +360,13 @@ export async function GET(
       });
 
       for (const sibling of siblings) {
-        let sibContributed = false;
         for (const field of SMART_COLLECT_FIELDS) {
           if (ownData[field.key] || siblingData[field.key]) continue;
           const val = sibling[field.key as keyof typeof sibling];
           if (val && String(val).trim()) {
             siblingData[field.key] = String(val);
-            sibContributed = true;
+            hasSiblingData = true;
           }
-        }
-        if (sibContributed) {
-          hasSiblingData = true;
-          siblingInfo.push({
-            firstName: sibling.firstName,
-            lastName: sibling.lastName,
-            email: sibling.email,
-            phone: sibling.phone,
-          });
         }
       }
     }
@@ -384,8 +392,8 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
+        // No contact id on the wire — the caller already holds the token.
         contact: {
-          id: contact.id,
           firstName: contact.firstName,
           lastName: contact.lastName,
         },
@@ -394,7 +402,6 @@ export async function GET(
         isComplete: missingFields.length === 0,
         // If sibling data was found, frontend should show confirmation step
         hasSiblingData,
-        siblingInfo: hasSiblingData ? siblingInfo : undefined,
       },
     });
   } catch (error) {
