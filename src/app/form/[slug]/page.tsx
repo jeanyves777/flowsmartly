@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Send, AlertCircle, UserCheck, Camera } from "lucide-react";
+import { Check, Send, AlertCircle } from "lucide-react";
 import type { DataFormField, DataFormType } from "@/types/data-form";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -194,272 +194,49 @@ function StandardForm({
   );
 }
 
-// ─── SELF-ENTRY FORM (Smart Collect / Attendance) ────────────────────
-// This form used to look the respondent up by name and prefill their stored
-// details. That lookup handed the form owner's contact records to anyone who
-// could type a name, so it is closed. Respondents now type their own details.
+// ─── LOOKUP CLOSED ───────────────────────────────────────────────────
+// Smart Collect and Attendance forms answered themselves: the respondent was
+// looked up by name and their stored details were prefilled. That lookup
+// returned the form owner's contact records to anyone holding the form URL, so
+// it is closed (see the 410s under api/data-forms/public/[slug]/).
 //
-// What they type is stored as a form submission and touches no contact record.
-// The owner turns submissions into contacts from the back office, where the
-// request is authenticated and reviewed.
-
-interface SelfEntryField {
-  key: string;
-  label: string;
-  type: "text" | "email" | "tel";
-  placeholder?: string;
-  required?: boolean;
-}
-
-const SELF_ENTRY_FIELDS: SelfEntryField[] = [
-  { key: "firstName", label: "First name", type: "text", required: true },
-  { key: "lastName", label: "Last name", type: "text", required: true },
-  { key: "email", label: "Email", type: "email" },
-  { key: "phone", label: "Phone", type: "tel" },
-  { key: "birthday", label: "Birthday", type: "text", placeholder: "MM-DD (e.g. 08-15)" },
-  { key: "address", label: "Address", type: "text" },
-  { key: "city", label: "City", type: "text" },
-  { key: "state", label: "State", type: "text" },
-];
-
-function SelfEntryForm({
+// These forms carry no field definitions of their own, so with the lookup gone
+// there is nothing left for the page to collect. It says so plainly rather than
+// rendering an empty shell. A replacement self-entry form is a separate change.
+function FormUnavailable({
   formData,
-  slug,
   primaryColor,
 }: {
   formData: FormPageData;
-  slug: string;
   primaryColor: string;
 }) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  const setValue = (key: string, value: string) => {
-    setValues((prev) => ({ ...prev, [key]: value }));
-    if (errors[key]) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }
-  };
-
-  const handlePhotoUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, imageUrl: "Photo must be under 5MB" }));
-      return;
-    }
-    setUploadingPhoto(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/data-forms/public/${slug}/upload`, { method: "POST", body: fd });
-      const json = await res.json();
-      if (json.success) setValue("imageUrl", json.data.url);
-      else setErrors((prev) => ({ ...prev, imageUrl: json.error?.message || "Upload failed" }));
-    } catch {
-      setErrors((prev) => ({ ...prev, imageUrl: "Upload failed" }));
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const firstName = (values.firstName || "").trim();
-    const lastName = (values.lastName || "").trim();
-    const email = (values.email || "").trim();
-    const phone = (values.phone || "").trim();
-    const birthday = (values.birthday || "").trim();
-
-    const nextErrors: Record<string, string> = {};
-    if (!firstName) nextErrors.firstName = "First name is required";
-    if (!lastName) nextErrors.lastName = "Last name is required";
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      nextErrors.email = "Please enter a valid email";
-    }
-    if (birthday && !/^\d{2}-\d{2}$/.test(birthday)) {
-      nextErrors.birthday = "Format: MM-DD (e.g. 03-14)";
-    }
-    // One reachable channel, so the submission is usable to the form owner.
-    if (!email && !phone) {
-      nextErrors.email = nextErrors.email || "Enter an email or a phone number";
-      nextErrors.phone = "Enter an email or a phone number";
-    }
-
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const data: Record<string, string> = {};
-      for (const field of SELF_ENTRY_FIELDS) {
-        const value = (values[field.key] || "").trim();
-        if (value) data[field.key] = value;
-      }
-      if (values.imageUrl) data.imageUrl = values.imageUrl;
-
-      const res = await fetch(`/api/data-forms/public/${slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data,
-          respondentName: `${firstName} ${lastName}`.trim(),
-          respondentEmail: email || undefined,
-          respondentPhone: phone || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) setSubmitted(true);
-      else setSubmitError(json.error?.message || "Failed to submit. Please try again.");
-    } catch {
-      setSubmitError("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (submitted) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: "spring", duration: 0.5 }}
-        className="text-center py-16"
-      >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.2 }}
-          className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
-          style={{ backgroundColor: "#10b98120" }}
-        >
-          <Check className="h-10 w-10 text-emerald-500" />
-        </motion.div>
-        <h2 className="text-2xl font-bold mb-3">{formData.thankYouMessage}</h2>
-        <p className="text-gray-500 text-base">
-          Thanks {(values.firstName || "").trim()}, your details have been sent.
-        </p>
-      </motion.div>
-    );
-  }
-
-  const photoUrl = values.imageUrl || "";
-  const inputClass =
-    "w-full px-4 py-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-base";
+  const contact = formData.brand?.email || formData.brand?.phone;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="text-center mb-2">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.1 }}
-          className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-          style={{ backgroundColor: primaryColor + "15" }}
-        >
-          <UserCheck className="h-8 w-8" style={{ color: primaryColor }} />
-        </motion.div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{formData.title}</h1>
-        {formData.description && <p className="text-gray-500 text-base">{formData.description}</p>}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="text-center py-16"
+    >
+      <div
+        className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+        style={{ backgroundColor: primaryColor + "15" }}
+      >
+        <AlertCircle className="h-8 w-8" style={{ color: primaryColor }} />
       </div>
-
-      <input
-        ref={photoInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handlePhotoUpload(file);
-          e.target.value = "";
-        }}
-      />
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Optional photo */}
-        <div className="flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={() => photoInputRef.current?.click()}
-            disabled={uploadingPhoto}
-            className="w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 transition-colors disabled:opacity-60"
-            style={photoUrl ? { borderStyle: "solid", borderColor: primaryColor } : undefined}
-          >
-            {uploadingPhoto ? (
-              <AISpinner className="h-6 w-6 animate-spin text-gray-400" />
-            ) : photoUrl ? (
-              <img src={photoUrl} alt="" className="w-20 h-20 object-cover" />
-            ) : (
-              <Camera className="h-6 w-6 text-gray-400" />
-            )}
-          </button>
-          <span className="text-xs text-gray-400">Photo (optional)</span>
-          {errors.imageUrl && (
-            <span className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" /> {errors.imageUrl}
-            </span>
-          )}
-        </div>
-
-        {SELF_ENTRY_FIELDS.map((field) => (
-          <div key={field.key}>
-            <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-              {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <input
-              type={field.type}
-              value={values[field.key] || ""}
-              onChange={(e) => setValue(field.key, e.target.value)}
-              placeholder={field.placeholder}
-              className={inputClass}
-              style={errors[field.key] ? { borderColor: "#ef4444" } : undefined}
-            />
-            {errors[field.key] && (
-              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {errors[field.key]}
-              </p>
-            )}
-          </div>
-        ))}
-
-        <p className="text-xs text-gray-400">
-          Please give us an email address or a phone number so we can reach you.
-        </p>
-
-        {submitError && (
-          <p className="text-sm text-red-500 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" /> {submitError}
-          </p>
+      <h1 className="text-2xl font-bold mb-3">{formData.title}</h1>
+      <p className="text-gray-500 text-base max-w-md mx-auto">
+        This form isn&apos;t accepting responses at the moment.
+        {contact ? (
+          <>
+            {" "}
+            Please get in touch at <span className="font-medium">{contact}</span> and
+            we&apos;ll take your details directly.
+          </>
+        ) : (
+          " Please check back shortly."
         )}
-
-        <button
-          type="submit"
-          disabled={submitting || uploadingPhoto}
-          className="w-full py-3.5 rounded-xl text-white font-semibold text-base transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
-          style={{ backgroundColor: primaryColor }}
-        >
-          {submitting ? (
-            <>
-              <AISpinner className="h-5 w-5 animate-spin" /> Sending...
-            </>
-          ) : (
-            <>
-              <Send className="h-5 w-5" /> Submit
-            </>
-          )}
-        </button>
-      </form>
+      </p>
     </motion.div>
   );
 }
@@ -524,12 +301,11 @@ function PublicFormClient({ slug }: { slug: string }) {
       {/* Form content */}
       <div className="max-w-2xl mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
+          {/* A Smart Collect / Attendance form with no fields of its own has
+              nothing left to render now the lookup is closed. */}
           {(formData.type === "SMART_COLLECT" || formData.type === "ATTENDANCE") &&
           formData.fields.length === 0 ? (
-            // Smart Collect / Attendance forms carry no field definitions of
-            // their own — they collect a fixed set of contact details, which
-            // the respondent now types themselves.
-            <SelfEntryForm key="self" formData={formData} slug={slug} primaryColor={primaryColor} />
+            <FormUnavailable key="unavailable" formData={formData} primaryColor={primaryColor} />
           ) : (
             <StandardForm key="standard" formData={formData} slug={slug} primaryColor={primaryColor} />
           )}
