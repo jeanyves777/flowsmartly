@@ -4,7 +4,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  Linking,
   StyleSheet,
   Text,
   View,
@@ -61,7 +60,7 @@ import {
 import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
 import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
-import { contactHref, EXTERNAL } from "@/lib/destinations";
+import { contactHref, goToSignup } from "@/lib/destinations";
 import { brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
 import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
@@ -901,7 +900,7 @@ function Hero() {
                     size="lg"
                     full={l.isPhone}
                     trackId="home.hero.start-workspace"
-                    onPress={() => Linking.openURL(EXTERNAL.signup)}
+                    onPress={() => goToSignup()}
                   />
                   {/* No demo video exists, so this books a real one rather than
                       opening a player that has nothing to play. */}

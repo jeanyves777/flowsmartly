@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import {
   ArrowLink,
@@ -646,7 +645,7 @@ export default function AdsPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="ads.hero.launch"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="See Ads Manager"

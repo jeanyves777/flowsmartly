@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToSignup } from '@/lib/destinations';
 import { ArrowLink } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
@@ -835,7 +834,7 @@ export default function AnalyticsPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="analytics.hero.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="Explore the platform"

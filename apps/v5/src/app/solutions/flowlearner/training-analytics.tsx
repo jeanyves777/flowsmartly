@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,7 +30,7 @@ import {
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -785,7 +784,7 @@ export default function TrainingAnalyticsPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="training-analytics.hero.explore"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="View a sample report"

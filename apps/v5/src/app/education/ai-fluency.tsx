@@ -3,7 +3,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 // anchor comes in under its own name.
 import { Link as RouterLink, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type DimensionValue } from 'react-native';
+import { StyleSheet, Text, View, type DimensionValue } from 'react-native';
 import { useAnimatedStyle } from 'react-native-reanimated';
 import {
   ArrowLink,
@@ -30,7 +30,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -840,7 +840,7 @@ function Closing() {
             full={l.isPhone}
             trackId="ai-fluency.closing.start-free"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToSignup();
             }}
           />
           <SecondaryButton

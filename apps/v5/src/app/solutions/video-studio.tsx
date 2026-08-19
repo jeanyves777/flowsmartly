@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Connectors, ConnectorSurface, useConnectorField, type Link as Wire } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Animated, Reveal, useCountUp, useGrowIn } from '@/components/public/motion';
@@ -21,7 +21,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -437,7 +437,7 @@ export default function VideoStudioPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="video-studio.hero.create-video"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="See it on a real brief"

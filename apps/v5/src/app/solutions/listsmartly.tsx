@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo } from 'react';
 import {
-  Linking,
   StyleSheet,
   Text,
   View,
@@ -30,7 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToSignup } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -616,7 +615,7 @@ export default function ListSmartlyPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="listsmartly.hero.check-listings"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="Explore the platform"

@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -28,7 +27,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToSignup } from '@/lib/destinations';
 import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -309,7 +308,7 @@ function useOpenApp(): (trackId?: string) => void {
     // PrimaryButton/SecondaryButton emit their own cta_click; only bare rows
     // need one raised here.
     if (trackId) trackCta(trackId, { variant: 'link', destination: 'signup' });
-    Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+    goToSignup();
   }, []);
 }
 

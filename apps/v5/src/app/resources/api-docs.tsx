@@ -31,7 +31,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { EXTERNAL, contactHref, goToSignup } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -241,8 +241,9 @@ const QUICKSTARTS: Quickstart[] = [
     title: 'Authentication',
     body: 'Create a key and sign your first request.',
     tone: 'brand',
-    href: EXTERNAL.signup,
-    external: true,
+    // No longer external: account creation is a route in this app now, so
+    // the row renders as a real <Link> instead of a window.open.
+    href: ROUTES.register,
   },
   {
     icon: 'bullhorn',
@@ -625,7 +626,7 @@ function Hero() {
             full={l.isPhone}
             trackId="api.hero.start-building"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToSignup();
             }}
           />
           {/* The SDKs are the reference that actually exists today. */}
@@ -984,7 +985,7 @@ function Closing() {
             full={l.isPhone}
             trackId="api.closing.start-building"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToSignup();
             }}
           />
           <SecondaryButton

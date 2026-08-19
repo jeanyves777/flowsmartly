@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useMemo } from 'react';
 import {
-  Linking,
   StyleSheet,
   Text,
   View,
@@ -26,7 +25,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -409,7 +408,7 @@ export default function FlowAiPage() {
                   size="lg"
                   full={l.isPhone}
                   trackId="flowagent.hero.try"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 {/* No walkthrough video exists — this books a real demo rather
                     than opening a player with nothing behind it. */}
@@ -787,7 +786,7 @@ export default function FlowAiPage() {
                   label="Try FlowAgent"
                   full={l.isPhone}
                   trackId="flowagent.briefing.try"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="See the platform"

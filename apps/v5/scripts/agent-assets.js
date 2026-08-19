@@ -174,6 +174,9 @@ const SECTIONS = [
   ['Solutions', /^\/(solutions|flowagent)/],
   ['Learning', /^\/(education\/|solutions\/flowlearner)/],
   ['Pricing', /^\/pricing$/],
+  // The account screens. Without a section of their own they fall into
+  // "Other" and `/login/code` is advertised to an assistant as "Code".
+  ['Account', /^\/(login|register|check-email)/],
   ['Resources', /^\/resources/],
   ['Company', /^\/company/],
   ['Legal', /^\/legal/],
@@ -338,6 +341,11 @@ const LABELS = {
   flowlearner: 'FlowLearner',
   flowshop: 'FlowShop',
   listsmartly: 'ListSmartly',
+  login: 'Sign in',
+  register: 'Create your account',
+  // `/login/code` — the leaf alone is meaningless out of context.
+  code: 'Two-factor code',
+  'check-email': 'Check your email',
 };
 
 function label(segment) {

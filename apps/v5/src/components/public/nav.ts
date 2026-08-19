@@ -27,6 +27,19 @@ export const ROUTES = {
   pricing: '/pricing',
   flowAgent: '/flowagent',
 
+  /**
+   * Account screens. These are routes in *this* app — see `lib/destinations`,
+   * which used to send every "Log in" / "Start free" button to
+   * `https://flowsmartly.com/login` and `/register`. The paths match the ones
+   * production already answers on, so nothing that was linked externally
+   * breaks. They are deliberately not in the header, footer or mega menus:
+   * the header's own Log in / Start free buttons are their entry points.
+   */
+  login: '/login',
+  loginCode: '/login/code',
+  register: '/register',
+  checkEmail: '/check-email',
+
   solutions: '/solutions',
   flowshop: '/solutions/flowshop',
   listsmartly: '/solutions/listsmartly',

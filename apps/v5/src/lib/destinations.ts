@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { ROUTES } from '@/components/public/nav';
 
 /**
@@ -10,19 +11,50 @@ import { ROUTES } from '@/components/public/nav';
  */
 
 /**
+ * Signing in and creating an account happen **in this app**.
+ *
+ * They did not used to. `login` and `signup` were
+ * `https://flowsmartly.com/login` and `https://flowsmartly.com/register`, so
+ * every "Log in" and "Start free" button on the site left for the production
+ * deployment. `/login` and `/register` are now real routes here (`src/app`),
+ * built to the V5 auth design, and these are the only paths they may use — the
+ * same two production already answers on, so an external link to either still
+ * lands somewhere real.
+ *
+ * They are deliberately **not** in `EXTERNAL`, and not because of tidiness:
+ * `Linking.openURL` compiles to `window.open(url, '_blank')` on web, so a
+ * relative path there opens the route in a *new tab* instead of navigating.
+ * Use `goToLogin()` / `goToSignup()`, which push through the router.
+ */
+export const AUTH = {
+  login: ROUTES.login,
+  signup: ROUTES.register,
+} as const;
+
+/** Navigate to sign-in. Never `Linking.openURL` — see `AUTH`. */
+export function goToLogin(): void {
+  router.push(AUTH.login as never);
+}
+
+/** Navigate to account creation. Never `Linking.openURL` — see `AUTH`. */
+export function goToSignup(): void {
+  router.push(AUTH.signup as never);
+}
+
+/**
  * The product lives outside this app. Point these at the real endpoints.
  *
- * Every value here is a URL that was checked against production. `/signup` was
- * a guess and returned 404 on every "Start free" button on the site — the real
- * account-creation route is `/register` ("Create Account | FlowSmartly").
- * `github.com/flowsmartly` is likewise a 404: there is no public organisation,
- * so the SDK links route to Contact instead of a dead page.
+ * Every value here is a URL that was checked against production.
+ * `github.com/flowsmartly` is a 404: there is no public organisation, so the
+ * SDK links route to Contact instead of a dead page.
  *
  * Verify before changing one of these; do not invent a path.
  */
 export const EXTERNAL = {
-  signup: 'https://flowsmartly.com/register',
-  login: 'https://flowsmartly.com/login',
+  /**
+   * The signed-in workspace. Still external, and deliberately: the portal is a
+   * separate deployment, not a route in this app.
+   */
   app: 'https://flowsmartly.com/home',
   /** Unused today. `status.flowsmartly.com` does not resolve — the shipping
    *  status page is the in-site route `ROUTES.status`, not this host. Do not

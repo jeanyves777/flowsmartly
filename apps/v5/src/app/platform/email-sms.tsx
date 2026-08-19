@@ -1,9 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
@@ -588,7 +588,7 @@ export default function EmailSmsPage() {
                   size="lg"
                   full={l.isPhone}
                   trackId="email-sms.hero.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="Watch a demo"

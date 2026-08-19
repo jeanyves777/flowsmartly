@@ -1,7 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,7 +25,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToSignup } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -400,7 +399,7 @@ export default function PricingPage() {
                       label={plan.cta}
                       full
                       trackId={`pricing.plan.${plan.id}`}
-                      onPress={() => Linking.openURL(EXTERNAL.signup)}
+                      onPress={() => goToSignup()}
                     />
                   ) : (
                     <Pressable
@@ -408,7 +407,7 @@ export default function PricingPage() {
                       accessibilityLabel={plan.cta}
                       onPress={() => {
                         trackCta(`pricing.plan.${plan.id}`, { variant: 'plan' });
-                        Linking.openURL(EXTERNAL.signup);
+                        goToSignup();
                       }}
                       style={({ pressed }) => [
                         styles.planButton,

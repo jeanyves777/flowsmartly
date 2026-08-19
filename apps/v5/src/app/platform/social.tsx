@@ -1,8 +1,8 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useCallback, useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import { ArrowLink } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
@@ -491,7 +491,7 @@ export default function SocialPage() {
                   size="lg"
                   full={l.isPhone}
                   trackId="social.hero.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="Watch a demo"

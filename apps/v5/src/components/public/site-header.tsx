@@ -1,13 +1,13 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Link, usePathname } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToLogin, goToSignup } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
 import { PrimaryButton, useTypeScale } from './ui';
@@ -265,7 +265,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           onPress={() => {
             trackCta('header.mobile.log-in');
             onNavigate();
-            Linking.openURL(EXTERNAL.login);
+            goToLogin();
           }}
           style={styles.mobileRow}>
           <Text style={styles.mobileLabel}>Log in</Text>
@@ -277,7 +277,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           trackId="header.mobile.start-free"
           onPress={() => {
             onNavigate();
-            Linking.openURL(EXTERNAL.signup);
+            goToSignup();
           }}
         />
       </View>
@@ -358,7 +358,7 @@ export function SiteHeader() {
                   accessibilityRole="link"
                   onPress={() => {
                     trackCta('header.log-in');
-                    Linking.openURL(EXTERNAL.login);
+                    goToLogin();
                   }}
                   style={styles.signInButton}>
                   <Text style={styles.signIn}>Log in</Text>
@@ -367,7 +367,7 @@ export function SiteHeader() {
                   label="Start free"
                   size="sm"
                   trackId="header.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
               </View>
             </>

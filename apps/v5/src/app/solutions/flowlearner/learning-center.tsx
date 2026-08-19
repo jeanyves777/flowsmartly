@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import {
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -30,7 +29,7 @@ import {
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToSignup } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -670,7 +669,7 @@ export default function LearningCenterPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="learning-center.hero.open"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="See a learner view"
@@ -1465,7 +1464,7 @@ export default function LearningCenterPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="learning-center.close.publish-course"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToSignup()}
                 />
                 <SecondaryButton
                   label="Explore FlowLearner"
