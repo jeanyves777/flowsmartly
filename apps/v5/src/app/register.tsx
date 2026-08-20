@@ -72,7 +72,7 @@ export default function RegisterScreen() {
           { name: 'Create your account', path: ROUTES.register },
         ]),
       ]}>
-      <AuthSplit panel="starting">
+      <AuthSplit aside="starting">
         <AuthTitle title="Create your account" lede="Free to start. No card needed." />
 
         <AuthField

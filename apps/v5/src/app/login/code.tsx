@@ -52,7 +52,7 @@ export default function LoginCodeScreen() {
           { name: 'Enter your code', path: ROUTES.loginCode },
         ]),
       ]}>
-      <AuthSplit panel="waiting">
+      <AuthSplit aside="waiting">
         <AuthBackLink
           label="Back to sign in"
           trackId="login-code.back"

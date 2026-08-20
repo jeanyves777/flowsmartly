@@ -1,0 +1,242 @@
+[
+  {
+    "name": "login",
+    "width": 390,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login",
+    "width": 390,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login",
+    "width": 390,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login",
+    "width": 1440,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login",
+    "width": 1440,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login",
+    "width": 1440,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 390,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 390,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 390,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 1440,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 1440,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "register",
+    "width": 1440,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 390,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 390,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 390,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 1440,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 1440,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "login-code",
+    "width": 1440,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 390,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 390,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 390,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 1440,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 1440,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "check-email",
+    "width": 1440,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "home",
+    "width": 390,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "home",
+    "width": 390,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "home",
+    "width": 390,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 0
+  },
+  {
+    "name": "home",
+    "width": 1440,
+    "theme": "light",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 4
+  },
+  {
+    "name": "home",
+    "width": 1440,
+    "theme": "grey",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 4
+  },
+  {
+    "name": "home",
+    "width": 1440,
+    "theme": "dark",
+    "sideways": false,
+    "h1": 1,
+    "boxes": 4
+  }
+]

@@ -1,184 +1,88 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
 import { BrandLogo } from './brand-logo';
-import { Connectors, ConnectorSurface, useConnectorField, type ConnectorField, type Link } from './connectors';
-import { ImageAsset } from './media';
-import { Heading, useTypeScale, type TypeScale } from './ui';
+import { ChannelMap } from './channel-map';
+import { FirstRunPath } from './first-run-path';
+import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } from './ui';
 
 /**
  * The V5 account screens, built from `design/auth-v5.html`.
  *
- * Every screen is the same split — the form card, and a brand panel beside it
- * that disappears when the layout stacks. The card never changes shape, which
- * is the point: there is one form, laid out once, not a desktop form and a
- * separate phone form.
+ * **The page is the page.** An earlier pass wrapped each screen in a bordered,
+ * elevated card with the form inside a second one — which is the boxing this
+ * site rules against everywhere else. A form is a column of controls on the
+ * canvas, like any other section: the hierarchy comes from type, spacing and
+ * rhythm, and the only things that keep a border are the objects a visitor
+ * actually operates — the inputs, the buttons, the framed asides.
+ *
+ * Beside it sits an illustration, and **which** illustration is the argument
+ * of the screen rather than a decoration. Sign-in gets the channel map, shared
+ * with the home page and carrying live counts: a business that kept running.
+ * Create-account gets a path: a business about to begin. Below `BP.split` the
+ * illustration is not rendered at all — it is not worth 400px between a
+ * visitor and the field they came for.
  *
  * **These screens have no backend.** There is no account service in this app,
  * so nothing here creates a session, mints a token, passes a human check or
  * completes an OAuth handshake. What they *do* implement is every state the
  * form can genuinely be in — empty, invalid, revealed, gated, refused —
- * because those are real and can be demonstrated honestly. A screen that faked
- * the rest would be worth less than one that says what it is.
+ * because those are real and can be demonstrated honestly.
  */
 
 /* ------------------------------------------------------------------ */
-/* the brand panel                                                     */
+/* the aside                                                           */
 /* ------------------------------------------------------------------ */
 
-type PanelTile = {
-  key: string;
-  /** brand key for `BrandLogo` — a real mark, never a drawn look-alike */
-  brand?: string;
-  /** FontAwesome6 glyph, for the channels that are not a third-party brand */
-  icon?: string;
-  label: string;
-  /** how many things are waiting on this channel */
-  badge?: number;
-  /** already connected — the state the create-account panel is telling */
-  connected?: boolean;
-  /** the "and the rest" tile: dashed, and deliberately not a brand */
-  more?: boolean;
+/**
+ * What is waiting on each channel while you were away.
+ *
+ * These sum to the 53 the caption claims — 12 + 4 + 7 + 23 + 5 + 2 — because a
+ * caption that disagrees with the picture beside it is a bug. They are a prop
+ * of the shared `ChannelMap`, not a second copy of it: the home page draws the
+ * same diagram plain, because there it is about what *connects* rather than
+ * about what happens to be waiting.
+ */
+const WAITING_COUNTS: Readonly<Record<string, number>> = {
+  instagram: 12,
+  facebook: 4,
+  whatsapp: 7,
+  email: 23,
+  shopify: 5,
+  gbp: 2,
 };
 
-type PanelGroup = { key: string; name: string; accent: 'brand' | 'orange'; tiles: PanelTile[] };
+export type AuthAside = 'waiting' | 'starting';
 
-/**
- * The sign-in panel: every channel, each carrying what arrived while you were
- * away. The badges sum to the 53 the caption claims — 12 + 4 + 7 + 23 + 5 + 2 —
- * because a caption that disagrees with the picture beside it is a bug.
- */
-const WAITING: PanelGroup[] = [
-  {
-    key: 'social',
-    name: 'Social',
-    accent: 'brand',
-    tiles: [
-      { key: 'instagram', brand: 'instagram', label: 'Instagram', badge: 12 },
-      { key: 'facebook', brand: 'facebook', label: 'Facebook', badge: 4 },
-      { key: 'tiktok', brand: 'tiktok', label: 'TikTok' },
-    ],
-  },
-  {
-    key: 'messaging',
-    name: 'Messaging',
-    accent: 'brand',
-    tiles: [
-      { key: 'whatsapp', brand: 'whatsapp', label: 'WhatsApp', badge: 7 },
-      { key: 'email', icon: 'envelope', label: 'Email', badge: 23 },
-      { key: 'sms', icon: 'comment-dots', label: 'SMS' },
-    ],
-  },
-  {
-    key: 'commerce',
-    name: 'Commerce',
-    accent: 'orange',
-    tiles: [
-      { key: 'stripe', brand: 'stripe', label: 'Stripe' },
-      { key: 'shopify', brand: 'shopify', label: 'Shopify', badge: 5 },
-    ],
-  },
-  {
-    key: 'local',
-    name: 'Local',
-    accent: 'brand',
-    tiles: [
-      { key: 'gbp', brand: 'google', label: 'Google Business', badge: 2 },
-      { key: 'applemaps', brand: 'apple', label: 'Apple Maps' },
-    ],
-  },
-  {
-    key: 'content',
-    name: 'Content',
-    accent: 'brand',
-    tiles: [
-      { key: 'youtube', brand: 'youtube', label: 'YouTube' },
-      { key: 'wordpress', brand: 'wordpress', label: 'WordPress' },
-      { key: 'mailchimp', brand: 'mailchimp', label: 'Mailchimp' },
-    ],
-  },
-];
+type AsideCopy = { label: string; lead: string; body: string; facts: { title: string; note: string }[] };
 
-/**
- * The create-account panel: one tile per cluster, one of them already
- * connected. It tells the opposite story to the sign-in panel — start with
- * one, add the rest whenever you like — so a full grid here would contradict
- * the copy underneath it.
- */
-const STARTING: PanelGroup[] = [
-  {
-    key: 'social',
-    name: 'Social',
-    accent: 'brand',
-    tiles: [{ key: 'tiktok', brand: 'tiktok', label: 'TikTok', connected: true }],
-  },
-  { key: 'messaging', name: 'Messaging', accent: 'brand', tiles: [{ key: 'sms', icon: 'comment-dots', label: 'SMS' }] },
-  { key: 'commerce', name: 'Commerce', accent: 'orange', tiles: [{ key: 'shopify', brand: 'shopify', label: 'Shopify' }] },
-  { key: 'local', name: 'Local', accent: 'brand', tiles: [{ key: 'applemaps', brand: 'apple', label: 'Apple Maps' }] },
-  { key: 'content', name: 'Content', accent: 'brand', tiles: [{ key: 'more', icon: 'ellipsis', label: '40+ more', more: true }] },
-];
-
-export type AuthPanelVariant = 'waiting' | 'starting';
-
-type PanelCopy = { lead: string; body: string; features: { title: string; note: string }[] };
-
-const PANEL_COPY: Record<AuthPanelVariant, PanelCopy> = {
+const ASIDE_COPY: Record<AuthAside, AsideCopy> = {
   waiting: {
+    label: 'WHILE YOU WERE AWAY',
     lead: 'Everything kept running.',
     body: '53 things arrived while you were away, and FlowAgent prepared what it could.',
-    features: [
+    facts: [
       { title: '53 waiting', note: 'Across six channels' },
       { title: 'Nothing sent', note: 'Not without your approval' },
       { title: 'Synced 2 min ago', note: 'Every connection live' },
     ],
   },
   starting: {
+    label: 'YOUR FIRST TEN MINUTES',
     lead: 'Bring what you already use.',
     body: 'Connect a channel once and it stays connected. Start with one and add the rest whenever you like.',
-    features: [
+    facts: [
       { title: 'Connect in a click', note: 'Secure OAuth, no password shared' },
       { title: 'Start with one', note: 'Nothing else is required' },
       { title: 'Leave anytime', note: 'Disconnect, export, done' },
     ],
   },
 };
-
-/**
- * Which tiles the hub visibly wires up — the same rule the home page's channel
- * map uses. A wire is only drawn where it has a clear run, so a cluster beside
- * the hub wires its *near* tile and the bottom row is bracketed by its outer
- * two. A line to a far tile disappears behind its neighbour and leaves the end
- * dot stranded in the gap.
- */
-function panelLinks(variant: AuthPanelVariant, t: ThemeTokens): Link[] {
-  const blue = t.brand;
-  if (variant === 'starting') {
-    return [
-      { from: 'hub', to: 'tiktok', color: blue },
-      { from: 'hub', to: 'sms', color: blue },
-      { from: 'hub', to: 'shopify', color: t.orange },
-      { from: 'hub', to: 'applemaps', color: blue },
-      { from: 'hub', to: 'more', color: blue },
-    ];
-  }
-  return [
-    { from: 'hub', to: 'instagram', color: blue },
-    { from: 'hub', to: 'facebook', color: blue },
-    { from: 'hub', to: 'tiktok', color: blue },
-    { from: 'hub', to: 'whatsapp', color: blue },
-    { from: 'hub', to: 'email', color: blue },
-    { from: 'hub', to: 'sms', color: blue },
-    { from: 'hub', to: 'shopify', color: t.orange },
-    { from: 'hub', to: 'gbp', color: blue },
-    { from: 'hub', to: 'youtube', color: blue },
-    { from: 'hub', to: 'mailchimp', color: blue },
-  ];
-}
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -189,106 +93,28 @@ function useAuthStyles(): Styles {
   return useMemo(() => createStyles(t, l, type), [t, l, type]);
 }
 
-function Tile({ tile, field, styles, t }: { tile: PanelTile; field: ConnectorField; styles: Styles; t: ThemeTokens }) {
-  return (
-    <View
-      {...field.node(tile.key)}
-      style={[styles.tile, tile.connected ? styles.tileConnected : null, tile.more ? styles.tileMore : null]}>
-      {tile.badge !== undefined ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{tile.badge}</Text>
-        </View>
-      ) : null}
-      {tile.connected ? (
-        <View style={[styles.badge, styles.badgeConnected]}>
-          <FontAwesome6 name="check" size={9} color={t.textOnBrand} />
-        </View>
-      ) : null}
-      {tile.brand ? (
-        <BrandLogo name={tile.brand} size={20} label={tile.label} />
-      ) : (
-        <FontAwesome6 name={(tile.icon ?? 'circle-nodes') as never} size={20} color={tile.more ? t.textSubtle : t.brand} />
-      )}
-      <Text numberOfLines={2} style={styles.tileLabel}>
-        {tile.label}
-      </Text>
-    </View>
-  );
-}
-
-function Group({ group, field, styles, t }: { group: PanelGroup; field: ConnectorField; styles: Styles; t: ThemeTokens }) {
-  const accent = group.accent === 'orange' ? t.orange : t.chipText;
-  const chipBg = group.accent === 'orange' ? softFill(t.orange, t) : t.chipBg;
-  return (
-    <View style={styles.group}>
-      <View style={[styles.groupChip, { backgroundColor: chipBg }]}>
-        <Text style={[styles.groupChipText, { color: accent }]}>{group.name}</Text>
-      </View>
-      <View style={styles.groupTiles}>
-        {group.tiles.map((tile) => (
-          <Tile key={tile.key} tile={tile} field={field} styles={styles} t={t} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
 /**
- * The panel beside the form. It is a drawing plus a caption — never a heading,
- * so the card's title stays the page's only H1 and the split does not invent a
- * second document outline beside the one the form already has.
+ * The column beside the form: an eyebrow chip, the drawing, a caption and
+ * three facts — the same rhythm a home-page section has, so the two read as
+ * one site. It carries no heading, so the form's title stays the page's only
+ * H1 and the split does not invent a second document outline.
  */
-function AuthPanel({ variant, styles, t }: { variant: AuthPanelVariant; styles: Styles; t: ThemeTokens }) {
-  const field = useConnectorField();
-  const links = useMemo(() => panelLinks(variant, t), [variant, t]);
-  const groups = variant === 'starting' ? STARTING : WAITING;
-  const [social, messaging, commerce, local, content] = groups;
-  const copy = PANEL_COPY[variant];
-
+function AuthAsideColumn({ variant }: { variant: AuthAside }) {
+  const styles = useAuthStyles();
+  const copy = ASIDE_COPY[variant];
   return (
-    <View style={styles.panel}>
-      <LinearGradient
-        pointerEvents="none"
-        colors={[t.brandSoft, hexToRgba(t.brandSoft, 0)]}
-        start={{ x: 0.72, y: 0 }}
-        end={{ x: 0.25, y: 0.7 }}
-        style={StyleSheet.absoluteFill as ViewStyle}
-      />
-      {/* No transform between this surface and the tiles it measures: the
-          overlay reads getBoundingClientRect, so a reveal or a scale here
-          would leave every wire pointing at where a tile used to be. */}
-      <ConnectorSurface field={field} style={styles.diagram}>
-        <Connectors field={field} links={links} color={t.brand} circular={['hub']} strokeWidth={1.6} dash="0.5 6" flow />
-        <View style={styles.diagramRow}>
-          <Group group={social} field={field} styles={styles} t={t} />
-          <Group group={messaging} field={field} styles={styles} t={t} />
-        </View>
-        <View style={styles.diagramRowMiddle}>
-          <Group group={commerce} field={field} styles={styles} t={t} />
-          <View {...field.node('hub')} style={styles.hub}>
-            <ImageAsset
-              source={require('../../../assets/images/v5/flowsmartly-mark.png')}
-              style={styles.hubMark}
-              contentFit="contain"
-              alt="FlowSmartly"
-            />
-          </View>
-          <Group group={local} field={field} styles={styles} t={t} />
-        </View>
-        <View style={styles.diagramRowBottom}>
-          <Group group={content} field={field} styles={styles} t={t} />
-        </View>
-      </ConnectorSurface>
-
-      <Text style={styles.panelCaption}>
-        <Text style={styles.panelCaptionLead}>{copy.lead}</Text>
+    <View style={styles.aside}>
+      <SectionLabel>{copy.label}</SectionLabel>
+      {variant === 'waiting' ? <ChannelMap counts={WAITING_COUNTS} density="aside" /> : <FirstRunPath />}
+      <Text style={styles.asideCaption}>
+        <Text style={styles.asideCaptionLead}>{copy.lead}</Text>
         {` ${copy.body}`}
       </Text>
-      <View style={styles.panelFeatures}>
-        {copy.features.map((feature) => (
-          <View key={feature.title} style={styles.panelFeature}>
-            <Text style={styles.panelFeatureTitle}>{feature.title}</Text>
-            <Text style={styles.panelFeatureNote}>{feature.note}</Text>
+      <View style={styles.asideFacts}>
+        {copy.facts.map((fact) => (
+          <View key={fact.title} style={styles.asideFact}>
+            <Text style={styles.asideFactTitle}>{fact.title}</Text>
+            <Text style={styles.asideFactNote}>{fact.note}</Text>
           </View>
         ))}
       </View>
@@ -296,42 +122,36 @@ function AuthPanel({ variant, styles, t }: { variant: AuthPanelVariant; styles: 
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* the split                                                           */
-/* ------------------------------------------------------------------ */
-
 /**
- * Card on the left, brand panel on the right — and below `BP.split` the panel
- * is not rendered at all. It is decoration: dropping it costs nothing, while
- * stacking it above the form would put 400px of illustration between a visitor
- * and the field they came for.
+ * Form on the left, illustration on the right, both sitting on the page's own
+ * ground. No card, no border and no elevation around either — the gutter and
+ * the vertical rhythm come from `useOpenSection`, exactly as they do for every
+ * other section on the site.
  */
-export function AuthSplit({ panel, children }: { panel: AuthPanelVariant; children: React.ReactNode }) {
-  const t = useTokens();
+export function AuthSplit({ aside, children }: { aside: AuthAside; children: React.ReactNode }) {
   const l = useLayout();
+  const open = useOpenSection();
   const styles = useAuthStyles();
 
   return (
-    <View style={styles.page}>
-      <View style={styles.split}>
-        <View style={styles.card}>
-          <View style={styles.cardInner}>{children}</View>
-        </View>
-        {l.isStacked ? null : <AuthPanel variant={panel} styles={styles} t={t} />}
+    <View style={open}>
+      <View style={styles.main}>
+        <View style={styles.form}>{children}</View>
+        {l.isStacked ? null : <AuthAsideColumn variant={aside} />}
       </View>
     </View>
   );
 }
 
-/** Card title and its supporting line. The title is the page's only H1. */
+/** The form's title and its supporting line. The title is the page's only H1. */
 export function AuthTitle({ title, lede }: { title: string; lede: string }) {
   const styles = useAuthStyles();
   return (
     <>
-      <Heading level={1} style={styles.cardTitle}>
+      <Heading level={1} style={styles.formTitle}>
         {title}
       </Heading>
-      <Text style={styles.cardLede}>{lede}</Text>
+      <Text style={styles.formLede}>{lede}</Text>
     </>
   );
 }
@@ -345,10 +165,10 @@ export function AuthSentHead({ icon, title, children }: { icon: string; title: s
       <View style={styles.sentIcon}>
         <FontAwesome6 name={icon as never} size={22} color={t.brand} />
       </View>
-      <Heading level={1} style={styles.cardTitle}>
+      <Heading level={1} style={styles.formTitle}>
         {title}
       </Heading>
-      <Text style={[styles.cardLede, styles.sentLede]}>{children}</Text>
+      <Text style={[styles.formLede, styles.sentLede]}>{children}</Text>
     </View>
   );
 }
@@ -362,6 +182,11 @@ export function AuthSentHead({ icon, title, children }: { icon: string; title: s
  * react-native-web forwards, and React Native's own prop types declare
  * neither. Building them in one place keeps the untyped surface to two lines
  * rather than an `any` at every field.
+ *
+ * The singular `aria-*` props are also the only ones that reach the DOM at
+ * all: `accessibilityState` is in neither RNW 0.21's `forwardedProps` nor its
+ * `createDOMProps`, so a control that announces its state through that object
+ * announces nothing.
  */
 function describedBy(ids: (string | null | undefined)[]): object {
   const list = ids.filter(Boolean).join(' ');
@@ -722,7 +547,10 @@ export function AuthSubmit({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
+      // Singular `aria-disabled`, with no `accessibilityState` beside it:
+      // RNW 0.21 carries that object in neither `forwardedProps` nor
+      // `createDOMProps`, so a state announced only through it is announced to
+      // nobody.
       aria-disabled={!!disabled}
       disabled={disabled}
       onPress={() => {
@@ -747,15 +575,7 @@ export function AuthSubmit({
 }
 
 /** The quiet button — "Resend the link". Never the page's main action. */
-export function AuthSecondary({
-  label,
-  onPress,
-  trackId,
-}: {
-  label: string;
-  onPress: () => void;
-  trackId: string;
-}) {
+export function AuthSecondary({ label, onPress, trackId }: { label: string; onPress: () => void; trackId: string }) {
   const styles = useAuthStyles();
   return (
     <Pressable
@@ -787,13 +607,7 @@ export function OrDivider() {
  * only. Pressing one cannot start a handshake that nothing in this app can
  * finish, so it says so rather than opening a window at a provider.
  */
-export function SocialRow({
-  onUnavailable,
-  context,
-}: {
-  onUnavailable: (provider: string) => void;
-  context: string;
-}) {
+export function SocialRow({ onUnavailable, context }: { onUnavailable: (provider: string) => void; context: string }) {
   const l = useLayout();
   const styles = useAuthStyles();
   const stacked = l.isPhone;
@@ -823,7 +637,7 @@ export function SocialRow({
   );
 }
 
-/** The line that closes a card — "New here? Create an account". */
+/** The line that closes a form — "New here? Create an account". */
 export function AuthFoot({
   question,
   label,
@@ -888,7 +702,7 @@ export function AuthLegal({ onTerms, onPrivacy }: { onTerms: () => void; onPriva
   );
 }
 
-/** A quiet framed aside under a card — the "verify first" note. */
+/** A quiet framed aside under a form — the "verify first" note. */
 export function AuthCallout({ icon, children }: { icon: string; children: React.ReactNode }) {
   const t = useTokens();
   const styles = useAuthStyles();
@@ -922,38 +736,49 @@ export function emailError(value: string): string | null {
 /* ------------------------------------------------------------------ */
 
 function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
-  const tile = l.isDesktop ? 76 : 68;
-  const hub = l.isDesktop ? 92 : 82;
-  const cardPad = l.isPhone ? 20 : l.isTablet ? 28 : 40;
-
   return StyleSheet.create({
-    page: { paddingHorizontal: l.gutter, paddingVertical: l.sectionSpace },
-    split: {
-      flexDirection: 'row',
-      alignItems: 'stretch',
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: l.radius,
-      overflow: 'hidden',
-      backgroundColor: t.surface,
-      ...(elevation(t, 1) as object),
+    /**
+     * The two columns, on the page's own ground. Same shape as a home-page
+     * feature section: copy column, visual column, one gap, no box.
+     */
+    main: {
+      flexDirection: l.isStacked ? 'column' : 'row',
+      alignItems: l.isStacked ? 'stretch' : 'center',
+      gap: l.isStacked ? 28 : 48,
     },
+    /**
+     * Capped rather than stretched. A 700px-wide text input is not a better
+     * input than a 420px one, and the cap is what keeps the form reading as a
+     * column of controls rather than a full-bleed band.
+     */
+    form: l.isStacked
+      ? { width: '100%', maxWidth: 460, alignSelf: 'center' }
+      : { flexGrow: 0, flexShrink: 1, flexBasis: 420, maxWidth: 460, minWidth: 320 },
+    /**
+     * Stretched, not centred. Centring made every child hug its own content,
+     * so the drawing measured ~520px while the facts rule under it spanned the
+     * full 900 — two different left edges in one column. Everything now shares
+     * the eyebrow chip's edge, which is the rhythm a home-page section has.
+     */
+    aside: { flexGrow: 1, flexShrink: 1, flexBasis: 520, minWidth: 0, alignItems: 'stretch', gap: 22 },
+    asideCaption: { ...type.bodySm, color: t.textSubtle, maxWidth: 620 },
+    asideCaptionLead: { color: t.text, fontWeight: '800' },
+    asideFacts: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      gap: 14,
+      paddingTop: 18,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+    },
+    asideFact: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    asideFactTitle: { fontSize: 13, lineHeight: 18, fontWeight: '800', color: t.text },
+    asideFactNote: { fontSize: 11.5, lineHeight: 16, color: t.textSubtle, marginTop: 2 },
+
     pressed: { opacity: 0.78 },
 
-    /* ---- card ---- */
-    card: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: l.isStacked ? 'auto' : '46%',
-      minWidth: 0,
-      backgroundColor: t.surface,
-      paddingHorizontal: cardPad,
-      paddingVertical: l.isPhone ? 26 : cardPad,
-      justifyContent: 'center',
-    },
-    cardInner: { width: '100%', maxWidth: 390, alignSelf: 'center' },
-    cardTitle: { ...type.h3 },
-    cardLede: { ...type.bodySm, color: t.textMuted, marginTop: 8 },
+    formTitle: { ...type.h2 },
+    formLede: { ...type.body, color: t.textMuted, marginTop: 10 },
 
     sentHead: { alignItems: 'center' },
     sentLede: { textAlign: 'center' },
@@ -967,110 +792,24 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       marginBottom: 14,
     },
 
-    /* ---- panel ---- */
-    panel: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: '54%',
-      minWidth: 0,
-      borderLeftWidth: 1,
-      borderLeftColor: t.border,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 26,
-      paddingTop: 30,
-      paddingBottom: 24,
-      justifyContent: 'space-between',
-      gap: 14,
-    },
-    diagram: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 'auto',
-      justifyContent: 'space-between',
-      gap: 16,
-      paddingBottom: 6,
-    },
-    diagramRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-    diagramRowMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-    diagramRowBottom: { alignItems: 'center' },
-    group: { alignItems: 'center', gap: 7, minWidth: 0 },
-    groupChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-    groupChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', letterSpacing: 0.3 },
-    groupTiles: { flexDirection: 'row', gap: 8, justifyContent: 'center', flexWrap: 'wrap' },
-    tile: {
-      position: 'relative',
-      width: tile,
-      paddingVertical: 10,
-      paddingHorizontal: 5,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: t.border,
-      backgroundColor: t.surfaceRaised,
-      alignItems: 'center',
-      gap: 6,
-    },
-    tileConnected: { borderColor: t.green },
-    tileMore: { borderStyle: 'dashed', borderColor: t.borderStrong, backgroundColor: t.surfaceMuted },
-    tileLabel: { fontSize: 11, lineHeight: 14, fontWeight: '700', color: t.textMuted, textAlign: 'center' },
-    badge: {
-      position: 'absolute',
-      top: -7,
-      right: -7,
-      zIndex: 2,
-      minWidth: 19,
-      height: 19,
-      paddingHorizontal: 5,
-      borderRadius: 999,
-      backgroundColor: t.brand,
-      borderWidth: 2,
-      borderColor: t.surfaceMuted,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    badgeConnected: { backgroundColor: t.green },
-    badgeText: { fontSize: 11, lineHeight: 13, fontWeight: '800', color: t.textOnBrand },
-    hub: {
-      width: hub,
-      height: hub,
-      borderRadius: hub / 2,
-      borderWidth: 1,
-      borderColor: t.border,
-      backgroundColor: t.surfaceRaised,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...(elevation(t, 2) as object),
-    },
-    hubMark: { width: Math.round(hub * 0.46), height: Math.round(hub * 0.46) },
-    panelCaption: { ...type.caption, color: t.textSubtle, textAlign: 'center' },
-    panelCaptionLead: { color: t.text, fontWeight: '800' },
-    panelFeatures: {
-      flexDirection: 'row',
-      gap: 12,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: t.divider,
-    },
-    panelFeature: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    panelFeatureTitle: { fontSize: 12.5, lineHeight: 17, fontWeight: '800', color: t.text },
-    panelFeatureNote: { fontSize: 11, lineHeight: 15, color: t.textSubtle, marginTop: 2 },
-
     /* ---- fields ---- */
-    field: { marginTop: 18 },
-    fieldLabel: { fontSize: 12.5, lineHeight: 17, fontWeight: '700', color: t.text, marginBottom: 6 },
+    field: { marginTop: 20 },
+    fieldLabel: { fontSize: 13, lineHeight: 18, fontWeight: '700', color: t.text, marginBottom: 7 },
     fieldRequirement: { color: t.textSubtle, fontWeight: '600' },
     inputWrap: { position: 'relative', justifyContent: 'center' },
     input: {
-      minHeight: 48,
+      minHeight: 50,
       borderWidth: 1,
       borderColor: t.borderStrong,
       borderRadius: 11,
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingVertical: 13,
       color: t.text,
       fontSize: 15,
     },
     inputWithReveal: { paddingRight: 66 },
+    inputInvalid: { borderColor: t.pink },
     /* Six boxes that read as one field. `flexBasis: 0` shares the row evenly,
        so the group is the same width as every other input above it. */
     codeRow: { flexDirection: 'row', gap: l.isPhone ? 7 : 9 },
@@ -1079,14 +818,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 0,
       minWidth: 0,
-      minHeight: 54,
+      minHeight: 56,
       paddingHorizontal: 0,
       textAlign: 'center',
       fontSize: 19,
       fontWeight: '800',
       letterSpacing: 1,
     },
-    inputInvalid: { borderColor: t.pink },
     reveal: {
       position: 'absolute',
       right: 3,
@@ -1096,18 +834,18 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       borderRadius: 9,
     },
-    revealLabel: { fontSize: 12.5, fontWeight: '700', color: t.textMuted },
+    revealLabel: { fontSize: 12.5, lineHeight: 17, fontWeight: '700', color: t.textMuted },
     fieldError: { fontSize: 12.5, lineHeight: 18, color: t.pink, marginTop: 7 },
     fieldErrorGlyph: { fontWeight: '800' },
     fieldErrorAction: { color: t.pink, fontWeight: '800', textDecorationLine: 'underline' },
     fieldHint: { fontSize: 12.5, lineHeight: 18, color: t.textSubtle, marginTop: 7 },
 
     /* ---- password rules ---- */
-    rules: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, rowGap: 7 },
+    rules: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, rowGap: 8 },
     rule: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '50%', paddingRight: 6, minWidth: 0 },
     ruleBox: {
-      width: 15,
-      height: 15,
+      width: 16,
+      height: 16,
       borderRadius: 5,
       borderWidth: 1,
       borderColor: t.borderStrong,
@@ -1134,7 +872,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 11,
-      marginTop: 20,
+      marginTop: 22,
       paddingHorizontal: 13,
       paddingVertical: 12,
       borderWidth: 1,
@@ -1157,13 +895,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 12,
-      backgroundColor: t.surfaceInset,
+      backgroundColor: t.surfaceMuted,
     },
     noticeCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
     noticeTitle: { fontSize: 12.5, lineHeight: 17, fontWeight: '800', color: t.text },
     noticeBody: { fontSize: 12, lineHeight: 17, color: t.textMuted },
     noticeAction: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, alignSelf: 'flex-start' },
-    noticeActionLabel: { fontSize: 12.5, fontWeight: '800', color: t.brand },
+    noticeActionLabel: { fontSize: 12.5, lineHeight: 17, fontWeight: '800', color: t.brand },
 
     /* ---- callout ---- */
     callout: {
@@ -1190,13 +928,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     calloutLead: { color: t.text, fontWeight: '800' },
 
     /* ---- submit ---- */
-    submit: { marginTop: 20, borderRadius: 12, overflow: 'hidden', ...(elevation(t, 1) as object) },
+    submit: { marginTop: 22, borderRadius: 12, overflow: 'hidden', ...(elevation(t, 1) as object) },
     submitDisabled: { opacity: 0.5 },
-    submitFill: { minHeight: 50, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-    submitLabel: { fontSize: 15, fontWeight: '800', color: t.textOnBrand },
+    submitFill: { minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+    submitLabel: { fontSize: 15, lineHeight: 20, fontWeight: '800', color: t.textOnBrand },
     ghost: {
-      marginTop: 20,
-      minHeight: 50,
+      marginTop: 22,
+      minHeight: 52,
       maxWidth: 290,
       width: '100%',
       alignSelf: 'center',
@@ -1211,7 +949,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     ghostLabel: { fontSize: 15, lineHeight: 20, fontWeight: '800', color: t.text },
 
     /* ---- divider + socials ---- */
-    or: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 22 },
+    or: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24 },
     orRule: { height: 1, flexGrow: 1, flexShrink: 1, flexBasis: 0, backgroundColor: t.divider },
     orLabel: { fontSize: 12, lineHeight: 16, color: t.textSubtle },
     socials: { flexDirection: l.isPhone ? 'column' : 'row', gap: 10, marginTop: 14 },
@@ -1220,7 +958,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: l.isPhone ? 'auto' : 0,
       minWidth: 0,
-      minHeight: 48,
+      minHeight: 50,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',

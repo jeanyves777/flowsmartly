@@ -74,7 +74,7 @@ export default function LoginScreen() {
           { name: 'Sign in', path: ROUTES.login },
         ]),
       ]}>
-      <AuthSplit panel="waiting">
+      <AuthSplit aside="waiting">
         <AuthTitle title="Sign in" lede="Use the email you signed up with." />
 
         <AuthField

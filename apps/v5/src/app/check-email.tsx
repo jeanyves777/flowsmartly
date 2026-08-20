@@ -50,7 +50,7 @@ export default function CheckEmailScreen() {
           { name: 'Check your email', path: ROUTES.checkEmail },
         ]),
       ]}>
-      <AuthSplit panel="starting">
+      <AuthSplit aside="starting">
         <AuthSentHead icon="envelope" title="Check your email">
           {address ? (
             <>
