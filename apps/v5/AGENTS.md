@@ -232,7 +232,7 @@ page** only.
 | --- | --- |
 | `src/theme/tokens.ts` | `ThemeTokens`, the three palettes, `brandColor`, `elevation`, `hexToRgba`, `softFill` |
 | `src/theme/use-responsive.ts` | `BP` (phone 640 / tablet 1024 / split 1120 / desktop 1440 / maxContent 1536), `useLayout()`, the SSR hydration gate |
-| `src/theme/v5-theme-provider.tsx` | `useTokens()`, `useV5Theme()`, light → grey → dark cycling |
+| `src/theme/v5-theme-provider.tsx` | `useTokens()`, `useV5Theme()`, the `system`/light/grey/dark **preference** and its resolution to a `mode` |
 | `src/components/public/ui.tsx` | type scale, `PrimaryButton`/`SecondaryButton`, `ButtonRow`, `SectionLabel`, `Section`/`useSectionShell`, `Card` |
 | `src/components/public/connectors.tsx` | measured SVG connector overlay: `useConnectorField`, `Connectors` (with flowing dots), `ArrowLink`, `ConnectorSurface` |
 | `src/components/public/motion.tsx` | `Reveal`, `Stagger`, `useCountUp`, `useGrowIn`, `useInView`, reduced-motion handling |
@@ -279,11 +279,16 @@ layout work:
 - the page scrolls inside a **container**, not the document. `window.scrollTo`
   silently does nothing; find the child with `overflowY: auto` and set its
   `scrollTop`, or every capture comes back showing the top of the page
-- the theme is driven by the header control and **is remembered**. A harness
-  that clicks a fixed number of times worked only while the mode always
-  started at light; once the choice persisted, two clicks from grey landed on
-  light and a whole sweep reported "could not switch theme" on every route.
-  Click until the control reports the theme you want
+- the theme is driven by the header control and **is remembered**. It is no
+  longer a cycle: `#v5-theme-trigger` opens a menu whose rows are
+  `#v5-theme-option-{system,light,grey,dark}`, so a harness picks a theme in
+  two clicks rather than pressing until it recognises the answer. Seeding
+  `localStorage['v5:theme']` before the first document is faster still — but
+  seed it **once**, not on every navigation, or a reload silently rewrites the
+  value the test just set. The default with nothing stored is `system`, which
+  resolves from `prefers-color-scheme` and re-resolves live, so a capture must
+  either store an explicit choice or emulate the media feature; leaving both
+  unset means the OS decides what the screenshot shows
 - a decoration that bleeds past the viewport edge and is clipped by its
   container is deliberate — the orange swoosh hangs 30px off the right at 390.
   Only treat element overflow as a fault when the *page* scrolls sideways

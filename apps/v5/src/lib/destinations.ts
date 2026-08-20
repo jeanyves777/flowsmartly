@@ -42,11 +42,17 @@ export function goToSignup(): void {
 }
 
 /**
- * The product lives outside this app. Point these at the real endpoints.
+ * Destinations that genuinely leave this app.
  *
- * Every value here is a URL that was checked against production.
- * `github.com/flowsmartly` is a 404: there is no public organisation, so the
- * SDK links route to Contact instead of a dead page.
+ * Every value here is a URL that was checked against production, and every
+ * value here is **absolute**. That is the entry condition, not a convention:
+ * these are the only destinations `Linking.openURL` may be handed, and on web
+ * it compiles to `window.open(url, '_blank')`. A relative path in this object
+ * therefore does not navigate — it opens a second tab of this same site.
+ *
+ * `github` used to live here and was exactly that: `/company/contact?topic=…`,
+ * an in-app route, opened in a new tab from two call sites on the API page. It
+ * is now `goToSdkAccess()` below.
  *
  * Verify before changing one of these; do not invent a path.
  */
@@ -59,8 +65,6 @@ export const EXTERNAL = {
   /** Unused today. `status.flowsmartly.com` does not resolve — the shipping
    *  status page is the in-site route `ROUTES.status`, not this host. Do not
    *  wire a CTA to this without checking that the subdomain exists. */
-  /** No public repo exists yet, so this is the honest fallback. */
-  github: `${ROUTES.contact}?topic=sdk-access`,
 } as const;
 
 /**
@@ -86,6 +90,23 @@ export type ContactTopic =
 export function contactHref(topic: ContactTopic, extra?: Record<string, string>): string {
   const params = new URLSearchParams({ topic, ...extra });
   return `${ROUTES.contact}?${params.toString()}`;
+}
+
+/**
+ * SDK and API access.
+ *
+ * `github.com/flowsmartly` is a 404 — there is no public organisation — so the
+ * SDK CTAs go to Contact with the topic preselected. That makes it an **in-app
+ * route**, which is why it is not in `EXTERNAL` and why it navigates through
+ * the router: as `EXTERNAL.github` it was handed to `Linking.openURL`, and
+ * every "Request SDK access" on the API page opened a second tab of the site
+ * rather than going to the form.
+ */
+export const SDK_ACCESS = contactHref('sdk-access');
+
+/** Navigate to the SDK access request. Never `Linking.openURL` — see above. */
+export function goToSdkAccess(): void {
+  router.push(SDK_ACCESS as never);
 }
 
 /** Human label for a topic, used to prefill the Contact form. */

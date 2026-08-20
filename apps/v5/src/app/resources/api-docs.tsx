@@ -2,7 +2,6 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Link, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -31,7 +30,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL, contactHref, goToSignup } from '@/lib/destinations';
+import { SDK_ACCESS, contactHref, goToSdkAccess, goToSignup } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -233,7 +232,7 @@ const SNIPPETS: Snippet[] = [
  * do not exist in this app, so linking to the product page is the honest
  * destination — `href: null` would leave a link that goes nowhere.
  */
-type Quickstart = { icon: string; title: string; body: string; tone: Tone; href: string; external?: boolean };
+type Quickstart = { icon: string; title: string; body: string; tone: Tone; href: string };
 
 const QUICKSTARTS: Quickstart[] = [
   {
@@ -426,52 +425,41 @@ function Bullet({ children, tone = 'brand' }: { children: string; tone?: Tone })
   );
 }
 
+/**
+ * Every destination this page links to is a route in this app, so the row is
+ * always a real `<Link>`.
+ *
+ * It used to carry an `external` variant that called `Linking.openURL(href)`.
+ * Both rows that set it pointed at `/company/contact?topic=sdk-access` — an
+ * in-app route — and `Linking.openURL` is `window.open(url, '_blank')` on web,
+ * so "Request SDK access" opened a second tab of the site instead of going to
+ * the form. The variant is gone rather than fixed: nothing here has an
+ * off-site destination, and leaving the branch in place leaves the trap in
+ * place.
+ */
 function LinkRow({
   label,
   tone = 'brand',
   href,
-  external,
   trackId,
 }: {
   label: string;
   tone?: Tone;
   href: string;
-  /** the destination lives outside this app */
-  external?: boolean;
   trackId: string;
 }) {
   const styles = useStyles();
   const t = useTokens();
   const color = accent(t, tone);
-  const body = (
-    <>
-      <Text style={[styles.linkText, { color }]}>{label}</Text>
-      <FontAwesome6 name="arrow-right" size={12} color={color} />
-    </>
-  );
-
-  if (external) {
-    return (
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={label}
-        onPress={() => {
-          trackCta(trackId, { variant: 'link', destination: href });
-          Linking.openURL(href).catch(() => undefined);
-        }}
-        style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
-        {body}
-      </Pressable>
-    );
-  }
-
   return (
     <Link
       href={href as never}
       accessibilityRole="link"
       accessibilityLabel={label}
+      onPress={() => trackCta(trackId, { variant: 'link', destination: href })}
       style={styles.linkRowAnchor as never}>
-      {body}
+      <Text style={[styles.linkText, { color }]}>{label}</Text>
+      <FontAwesome6 name="arrow-right" size={12} color={color} />
     </Link>
   );
 }
@@ -634,10 +622,8 @@ function Hero() {
             label="Request SDK access"
             icon="code"
             full={l.isPhone}
-            trackId="api.hero.github"
-            onPress={() => {
-              Linking.openURL(EXTERNAL.github).catch(() => undefined);
-            }}
+            trackId="api.hero.sdk-access"
+            onPress={() => goToSdkAccess()}
           />
         </ButtonRow>
 
@@ -696,7 +682,6 @@ function Quickstarts() {
                 label="Get started"
                 tone={item.tone}
                 href={item.href}
-                external={item.external}
                 trackId={`api.quickstart.${item.title.toLowerCase().replace(/\s+/g, '-')}`}
               />
             </Card>
@@ -750,8 +735,7 @@ function Sdks() {
               <LinkRow
                 label="Request SDK access"
                 tone={sdk.tone}
-                href={EXTERNAL.github}
-                external
+                href={SDK_ACCESS}
                 trackId={`api.sdk.${sdk.monogram.toLowerCase()}`}
               />
             </Card>
@@ -1184,8 +1168,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardBody: { ...type.bodySm, color: t.textMuted },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
 
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
-    /** the same row as an anchor — RNW anchors are inline unless told otherwise */
+    /** RNW anchors are inline unless told otherwise */
     linkRowAnchor: {
       display: 'flex',
       flexDirection: 'row',
@@ -1195,7 +1178,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       textDecorationLine: 'none',
     },
     linkText: { ...type.bodySm, fontWeight: '700' },
-    pressed: { opacity: 0.86 },
 
     bullets: { gap: 9 },
     bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

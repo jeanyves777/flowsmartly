@@ -8,6 +8,7 @@ import {
   type ReactNode,
   useContext,
   useMemo,
+  useState,
 } from 'react';
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -1009,6 +1010,33 @@ type ButtonProps = {
 };
 
 /**
+ * Hover and keyboard-focus state for a button.
+ *
+ * Both buttons used to answer only to `pressed`, which means they had no
+ * affordance at all until a visitor was already clicking — and none whatsoever
+ * for anyone arriving by keyboard. Focus is folded in with hover deliberately:
+ * the browser draws its own focus ring on the underlying element, and this
+ * gives that ring the same fill to sit on that a mouse user sees, in every
+ * theme, rather than a second competing indicator.
+ *
+ * `onHoverIn`/`onHoverOut` are Pressable's own props, so this stays inert on
+ * native, where there is no pointer to hover with.
+ */
+function useButtonState() {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return {
+    lit: hovered || focused,
+    handlers: {
+      onHoverIn: () => setHovered(true),
+      onHoverOut: () => setHovered(false),
+      onFocus: () => setFocused(true),
+      onBlur: () => setFocused(false),
+    },
+  };
+}
+
+/**
  * The old primary button faked a highlight with an absolutely-positioned
  * violet circle, which rendered as a hard purple rectangle covering the right
  * third of every CTA. A real gradient fill replaces it.
@@ -1016,6 +1044,11 @@ type ButtonProps = {
  * The label's contrast contract lives in the tokens, not here: `t.gradient` is
  * a background-only token that must clear 4.5:1 against `t.textOnBrand` at the
  * 13px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light.
+ *
+ * Hover and focus lift the shadow rather than touching the fill, which is what
+ * keeps that contract intact: `elevation` is derived from the palette's own
+ * `shadowColor`/`shadowStrength`, so the lift reads in all three themes
+ * without a single stop changing.
  */
 export function PrimaryButton({
   label,
@@ -1029,6 +1062,7 @@ export function PrimaryButton({
 }: ButtonProps) {
   const t = useTokens();
   const s = SIZES[size];
+  const { lit, handlers } = useButtonState();
   const handlePress = () => {
     trackCta(trackId ?? label, { variant: 'primary' });
     onPress?.();
@@ -1038,6 +1072,7 @@ export function PrimaryButton({
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      {...handlers}
       style={({ pressed }) => [
         {
           minHeight: s.height,
@@ -1047,7 +1082,7 @@ export function PrimaryButton({
           opacity: pressed ? 0.88 : 1,
         },
         full ? { width: '100%' } : null,
-        elevation(t, 1) as ViewStyle,
+        elevation(t, lit && !pressed ? 2 : 1) as ViewStyle,
       ]}>
       <LinearGradient
         colors={[t.gradient[0], t.gradient[1]]}
@@ -1069,6 +1104,19 @@ export function PrimaryButton({
   );
 }
 
+/**
+ * The counterweight to `PrimaryButton`, and it has to look like one.
+ *
+ * It shares the primary's `SIZES` entry, so a pair of them agree on height,
+ * radius, label size and hit area at every size — the header's "Log in" was a
+ * bare `Text` beside a gradient pill, which read as a caption rather than a
+ * control and left the pair looking lopsided.
+ *
+ * Hover and focus tint it with the palette's own soft-brand fill and bring the
+ * border up to `t.brand`. The ink stays `t.text` on purpose: `brandSoft` is a
+ * near-surface tint in all three palettes, so the label keeps the contrast it
+ * had at rest instead of trading it for a brand-coloured one.
+ */
 export function SecondaryButton({
   label,
   onPress,
@@ -1081,6 +1129,7 @@ export function SecondaryButton({
 }: ButtonProps) {
   const t = useTokens();
   const s = SIZES[size];
+  const { lit, handlers } = useButtonState();
   const handlePress = () => {
     trackCta(trackId ?? label, { variant: 'secondary' });
     onPress?.();
@@ -1090,13 +1139,14 @@ export function SecondaryButton({
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      {...handlers}
       style={({ pressed }) => [
         {
           minHeight: s.height,
           borderRadius: s.radius,
           borderWidth: 1,
-          borderColor: t.borderStrong,
-          backgroundColor: t.surfaceRaised,
+          borderColor: lit ? t.brand : t.borderStrong,
+          backgroundColor: lit ? t.brandSoft : t.surfaceRaised,
           paddingHorizontal: s.padding,
           flexDirection: 'row',
           alignItems: 'center',

@@ -1,16 +1,15 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Link, usePathname } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
-import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
-import { trackCta } from '@/lib/analytics';
+import { useTokens, useV5Theme, type V5ThemePreference } from '@/theme/v5-theme-provider';
 import { goToLogin, goToSignup } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
-import { PrimaryButton, useTypeScale } from './ui';
+import { PrimaryButton, SecondaryButton, useTypeScale } from './ui';
 
 /**
  * The one site header. Every route renders this through `PageShell` — the home
@@ -42,22 +41,245 @@ function Brand() {
   );
 }
 
-function ThemeToggle() {
+/* ------------------------------------------------------------------ */
+/* theme                                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The four things a visitor may ask the site for.
+ *
+ * This used to be one button that cycled light → grey → dark. A cycle cannot
+ * show you the options, cannot tell you what the next press will do, and
+ * cannot be *chosen* from — you press it until you recognise the answer. The
+ * menu names all four, says which one is active, and lets a visitor pick the
+ * one they want in a single action.
+ *
+ * `system` is a preference rather than a fourth palette: it resolves to
+ * `light` or `dark` off the device and re-resolves live. No operating system
+ * has a notion of grey, so grey is reachable only by asking for it — which is
+ * the other half of why a cycle was the wrong control.
+ */
+const THEME_OPTIONS: {
+  preference: V5ThemePreference;
+  label: string;
+  icon: string;
+  hint: string;
+}[] = [
+  { preference: 'system', label: 'System', icon: 'desktop', hint: 'Match my device' },
+  { preference: 'light', label: 'Light', icon: 'sun', hint: 'Bright, blue-tinted' },
+  { preference: 'grey', label: 'Grey', icon: 'circle-half-stroke', hint: 'Neutral charcoal' },
+  { preference: 'dark', label: 'Dark', icon: 'moon', hint: 'Near-black navy' },
+];
+
+/**
+ * The menu is addressed by element id rather than by ref.
+ *
+ * Everything it needs — move focus to a row, ask whether the click landed
+ * outside the card, put focus back on the trigger — is a DOM operation, and a
+ * react-native-web ref is the DOM element only as far as TypeScript is
+ * concerned *not at all*. Ids keep every one of those calls plainly typed.
+ * There is exactly one header on a page, so the ids are unique by
+ * construction.
+ */
+const THEME_ROOT_ID = 'v5-theme-control';
+const THEME_TRIGGER_ID = 'v5-theme-trigger';
+const themeOptionId = (preference: V5ThemePreference) => `v5-theme-option-${preference}`;
+
+/**
+ * React Native has never heard of `aria-haspopup`, and react-native-web
+ * forwards it verbatim (its `forwardedProps` allow-list carries it), so this
+ * is how the trigger says it opens a menu rather than performs an action.
+ * Native ignores props it does not implement.
+ */
+const ARIA_HAS_MENU = { 'aria-haspopup': 'menu' } as object;
+
+function isWebDom(): boolean {
+  return Platform.OS === 'web' && typeof document !== 'undefined';
+}
+
+function focusById(id: string) {
+  if (!isWebDom()) return;
+  document.getElementById(id)?.focus();
+}
+
+/** Which option row currently has focus, or -1 when focus is elsewhere. */
+function focusedOptionIndex(): number {
+  if (!isWebDom()) return -1;
+  const id = document.activeElement?.id;
+  return THEME_OPTIONS.findIndex((option) => themeOptionId(option.preference) === id);
+}
+
+function focusOptionAt(index: number) {
+  const count = THEME_OPTIONS.length;
+  const wrapped = ((index % count) + count) % count;
+  focusById(themeOptionId(THEME_OPTIONS[wrapped].preference));
+}
+
+function ThemeMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const styles = useHeaderStyles();
   const t = useTokens();
-  const { mode, cycleMode } = useV5Theme();
+  const { preference, systemMode, setPreference } = useV5Theme();
+  const [hovered, setHovered] = useState<V5ThemePreference | null>(null);
+
+  const chosen = THEME_OPTIONS.find((option) => option.preference === preference) ?? THEME_OPTIONS[0];
+  // What the *device* is asking for — not the painted mode. Reading `mode`
+  // here made the System row agree with whatever was currently on screen, so
+  // choosing Grey left it claiming "Match my device — grey", which no
+  // operating system can ask for. This is precisely the preference/resolution
+  // conflation the two fields exist to keep apart.
+  const osMode = THEME_OPTIONS.find((option) => option.preference === systemMode) ?? THEME_OPTIONS[1];
+
+  const close = useCallback(
+    (returnFocus: boolean) => {
+      onOpenChange(false);
+      // Escape and a choice both end with focus back where it started; a click
+      // outside does not, because focus has already gone somewhere the visitor
+      // asked for.
+      if (returnFocus) focusById(THEME_TRIGGER_ID);
+    },
+    [onOpenChange],
+  );
+
+  // Opening puts focus on the active row. Guarded, so a re-render while the
+  // card is open does not yank focus back off whichever row the arrows reached.
+  useEffect(() => {
+    if (!open || focusedOptionIndex() >= 0) return;
+    focusById(themeOptionId(preference));
+  }, [open, preference]);
+
+  // Escape closes and restores focus, the arrows walk the list, Home/End jump
+  // to its ends, and anything happening outside the card — a click or focus
+  // moving on with Tab — closes it behind the visitor.
+  useEffect(() => {
+    if (!open || !isWebDom()) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+        return;
+      }
+      const index = focusedOptionIndex();
+      if (index < 0) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        focusOptionAt(index + 1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        focusOptionAt(index - 1);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        focusOptionAt(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        focusOptionAt(THEME_OPTIONS.length - 1);
+      }
+    };
+
+    const outside = (target: EventTarget | null) => {
+      const root = document.getElementById(THEME_ROOT_ID);
+      return !root || !(target instanceof Node) || !root.contains(target);
+    };
+    const onPointerDown = (event: Event) => {
+      if (outside(event.target)) onOpenChange(false);
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (outside(event.target)) onOpenChange(false);
+    };
+
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, [open, close, onOpenChange]);
+
+  const triggerLabel =
+    preference === 'system'
+      ? `Theme: System, currently ${osMode.label.toLowerCase()}. Opens the theme menu.`
+      : `Theme: ${chosen.label}. Opens the theme menu.`;
+
   return (
-    <Pressable
-      onPress={cycleMode}
-      accessibilityRole="button"
-      accessibilityLabel={`Theme: ${mode}. Change theme`}
-      style={styles.iconButton}>
-      <FontAwesome6
-        name={mode === 'dark' ? 'moon' : mode === 'grey' ? 'circle-half-stroke' : 'sun'}
-        size={16}
-        color={t.text}
-      />
-    </Pressable>
+    <View id={THEME_ROOT_ID} style={styles.themeWrap}>
+      <Pressable
+        id={THEME_TRIGGER_ID}
+        onPress={() => (open ? close(true) : onOpenChange(true))}
+        accessibilityRole="button"
+        accessibilityLabel={triggerLabel}
+        // `aria-*`, not `accessibilityState`: react-native-web 0.21 maps the
+        // singular ARIA props and the deprecated `accessibility*` ones, and has
+        // no handler for the `accessibilityState` object at all — it reaches the
+        // DOM as nothing. The state was announced by no one.
+        aria-expanded={open}
+        {...ARIA_HAS_MENU}
+        style={[styles.themeTrigger, open && styles.themeTriggerOpen]}>
+        <FontAwesome6 name={chosen.icon as never} size={16} color={open ? t.brand : t.text} />
+        <FontAwesome6
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={9}
+          color={open ? t.brand : t.textMuted}
+        />
+      </Pressable>
+
+      {open ? (
+        <View accessibilityRole="radiogroup" aria-label="Theme" style={styles.themeMenu}>
+          <Text style={styles.themeMenuTitle}>Theme</Text>
+          {THEME_OPTIONS.map((option) => {
+            const active = option.preference === preference;
+            const lit = !active && hovered === option.preference;
+            // The System row says what it resolves to today. Short on purpose:
+            // with the tick beside it the longer phrasing wrapped, and only on
+            // whichever row happened to be the active one.
+            const hint =
+              option.preference === 'system'
+                ? `${option.hint} — ${osMode.label.toLowerCase()}`
+                : option.hint;
+            return (
+              <Pressable
+                key={option.preference}
+                id={themeOptionId(option.preference)}
+                accessibilityRole="radio"
+                aria-checked={active}
+                accessibilityLabel={
+                  option.preference === 'system'
+                    ? `System theme, matching your device — ${osMode.label.toLowerCase()} right now`
+                    : `${option.label} theme`
+                }
+                onHoverIn={() => setHovered(option.preference)}
+                onHoverOut={() =>
+                  setHovered((current) => (current === option.preference ? null : current))
+                }
+                onPress={() => {
+                  setPreference(option.preference);
+                  close(true);
+                }}
+                style={[
+                  styles.themeOption,
+                  active && styles.themeOptionActive,
+                  lit && styles.themeOptionLit,
+                ]}>
+                <FontAwesome6
+                  name={option.icon as never}
+                  size={14}
+                  color={active ? t.brand : t.textMuted}
+                  style={styles.themeOptionIcon}
+                />
+                <View style={styles.themeOptionCopy}>
+                  <Text style={styles.themeOptionLabel}>{option.label}</Text>
+                  <Text style={styles.themeOptionHint}>{hint}</Text>
+                </View>
+                {/* A tick, not a tint: the active row has to be readable
+                    without relying on the fill behind it. */}
+                {active ? <FontAwesome6 name="check" size={12} color={t.brand} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -220,7 +442,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           <View key={item.label}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ expanded: expanded === item.label }}
+              aria-expanded={expanded === item.label}
               onPress={() => setExpanded((current) => (current === item.label ? null : item.label))}
               style={styles.mobileRow}>
               <Text style={styles.mobileLabel}>{item.label}</Text>
@@ -259,17 +481,20 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           </Link>
         ),
       )}
+      {/* The same pair as the desktop bar, in the same order and with the same
+          two treatments — a bare "Log in" row here read as one more navigation
+          item rather than as the counterpart to the button below it. */}
       <View style={styles.mobileActions}>
-        <Pressable
-          accessibilityRole="link"
+        <SecondaryButton
+          label="Log in"
+          size="md"
+          full
+          trackId="header.mobile.log-in"
           onPress={() => {
-            trackCta('header.mobile.log-in');
             onNavigate();
             goToLogin();
           }}
-          style={styles.mobileRow}>
-          <Text style={styles.mobileLabel}>Log in</Text>
-        </Pressable>
+        />
         <PrimaryButton
           label="Start free"
           size="md"
@@ -294,8 +519,20 @@ export function SiteHeader() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [centres, setCentres] = useState<Record<string, number>>({});
   const [navWidth, setNavWidth] = useState(0);
+  // The theme card and a mega panel are both absolutely positioned under the
+  // same bar, so the header owns whether the card is open: opening one closes
+  // the other rather than leaving two panels stacked on each other.
+  const [themeOpen, setThemeOpen] = useState(false);
   const compact = l.isCompact;
   const openItem = MAIN_NAV.find((item) => item.label === openMenu && item.columns);
+
+  // Stable, because the theme card subscribes to `document` while it is open
+  // and a fresh callback each render would tear those listeners down and put
+  // them back on every keystroke.
+  const openThemeMenu = useCallback((next: boolean) => {
+    setThemeOpen(next);
+    if (next) setOpenMenu(null);
+  }, []);
 
   return (
     <SafeAreaView edges={['top']} style={styles.headerSafe}>
@@ -306,12 +543,12 @@ export function SiteHeader() {
           <Brand />
           {compact ? (
             <View style={styles.headerActions}>
-              <ThemeToggle />
+              <ThemeMenu open={themeOpen} onOpenChange={openThemeMenu} />
               <Pressable
                 onPress={() => setMenuOpen((open) => !open)}
                 accessibilityRole="button"
                 accessibilityLabel={menuOpen ? 'Close navigation' : 'Open navigation'}
-                accessibilityState={{ expanded: menuOpen }}
+                aria-expanded={menuOpen}
                 style={styles.iconButton}>
                 <FontAwesome6 name={menuOpen ? 'xmark' : 'bars'} size={18} color={t.text} />
               </Pressable>
@@ -327,7 +564,10 @@ export function SiteHeader() {
                       key={item.label}
                       item={item}
                       open={openMenu === item.label}
-                      onOpen={() => setOpenMenu(item.columns ? item.label : null)}
+                      onOpen={() => {
+                        setOpenMenu(item.columns ? item.label : null);
+                        setThemeOpen(false);
+                      }}
                       onMeasure={(centre) =>
                         setCentres((current) =>
                           current[item.label] === centre
@@ -352,17 +592,18 @@ export function SiteHeader() {
                   />
                 ) : null}
               </View>
+              {/* Two controls of the same height, radius and label size, one
+                  quiet and one loud. "Log in" was a bare `Text` here: it read
+                  as a caption next to the gradient pill, and its hit area was
+                  whatever the word happened to measure. */}
               <View style={styles.headerActions}>
-                <ThemeToggle />
-                <Pressable
-                  accessibilityRole="link"
-                  onPress={() => {
-                    trackCta('header.log-in');
-                    goToLogin();
-                  }}
-                  style={styles.signInButton}>
-                  <Text style={styles.signIn}>Log in</Text>
-                </Pressable>
+                <ThemeMenu open={themeOpen} onOpenChange={openThemeMenu} />
+                <SecondaryButton
+                  label="Log in"
+                  size="sm"
+                  trackId="header.log-in"
+                  onPress={() => goToLogin()}
+                />
                 <PrimaryButton
                   label="Start free"
                   size="sm"
@@ -537,8 +778,63 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       justifyContent: 'center',
       backgroundColor: t.surfaceRaised,
     },
-    signInButton: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
-    signIn: { color: t.text, fontSize: 14, fontWeight: '600' },
+    /* ---------- theme menu ---------- */
+    themeWrap: { position: 'relative' },
+    // Wider than the old 44px square and carrying a caret, because it no longer
+    // performs an action — it opens something, and it has to look like it.
+    themeTrigger: {
+      minHeight: 44,
+      paddingHorizontal: 11,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 11,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      backgroundColor: t.surfaceRaised,
+    },
+    themeTriggerOpen: { borderColor: t.brand, backgroundColor: t.brandSoft },
+    // Above the mega panel's 60: the two are absolutely positioned under the
+    // same bar and the card a visitor just opened is the one on top.
+    themeMenu: {
+      position: 'absolute',
+      top: '100%',
+      right: 0,
+      marginTop: 8,
+      minWidth: 246,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      zIndex: 70,
+      ...(elevation(t, 3) as object),
+    },
+    themeMenuTitle: {
+      color: t.textSubtle,
+      fontSize: 12,
+      fontWeight: '600',
+      paddingHorizontal: 10,
+      paddingTop: 2,
+      paddingBottom: 8,
+    },
+    themeOption: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+    },
+    themeOptionActive: { backgroundColor: t.brandSoft },
+    themeOptionLit: { backgroundColor: t.surfaceMuted },
+    themeOptionIcon: { width: 18, textAlign: 'center' },
+    themeOptionCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 1 },
+    themeOptionLabel: { color: t.text, fontSize: 14, fontWeight: '600' },
+    themeOptionHint: { color: t.textSubtle, fontSize: 11 },
 
     mobileMenu: {
       maxHeight: 480,
