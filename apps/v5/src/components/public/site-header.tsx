@@ -5,7 +5,12 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
-import { useTokens, useV5Theme, type V5ThemePreference } from '@/theme/v5-theme-provider';
+import {
+  useTokens,
+  useV5Theme,
+  type OsThemeMode,
+  type V5ThemePreference,
+} from '@/theme/v5-theme-provider';
 import { goToLogin, goToSignup } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
@@ -109,6 +114,20 @@ function focusedOptionIndex(): number {
   return THEME_OPTIONS.findIndex((option) => themeOptionId(option.preference) === id);
 }
 
+/**
+ * The option describing what the **device** currently asks for.
+ *
+ * It takes an `OsThemeMode`, not a `V5ThemeMode`, and that signature is the
+ * whole point: the version of this that read the painted `mode` no longer
+ * compiles. With Grey chosen it used to render "Match my device — grey", a
+ * sentence describing a resolution no operating system can produce. A comment
+ * saying "use systemMode here" would have been just as true and just as easy
+ * to walk past.
+ */
+function osOption(osMode: OsThemeMode) {
+  return THEME_OPTIONS.find((option) => option.preference === osMode) ?? THEME_OPTIONS[1];
+}
+
 function focusOptionAt(index: number) {
   const count = THEME_OPTIONS.length;
   const wrapped = ((index % count) + count) % count;
@@ -122,12 +141,7 @@ function ThemeMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
   const [hovered, setHovered] = useState<V5ThemePreference | null>(null);
 
   const chosen = THEME_OPTIONS.find((option) => option.preference === preference) ?? THEME_OPTIONS[0];
-  // What the *device* is asking for — not the painted mode. Reading `mode`
-  // here made the System row agree with whatever was currently on screen, so
-  // choosing Grey left it claiming "Match my device — grey", which no
-  // operating system can ask for. This is precisely the preference/resolution
-  // conflation the two fields exist to keep apart.
-  const osMode = THEME_OPTIONS.find((option) => option.preference === systemMode) ?? THEME_OPTIONS[1];
+  const osMode = osOption(systemMode);
 
   const close = useCallback(
     (returnFocus: boolean) => {
