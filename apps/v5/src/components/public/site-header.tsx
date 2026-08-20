@@ -644,6 +644,13 @@ function useHeaderStyles() {
   return useMemo(() => createStyles(t, l, type.bodySm.fontSize as number), [t, l, type]);
 }
 
+/**
+ * The header bar's own minimum height, exported because a screen that wants to
+ * fill "the rest of the window" has to subtract it. A second literal 64 in
+ * another file is a number that drifts the first time this bar changes.
+ */
+export const HEADER_MIN_HEIGHT = 64;
+
 function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
   return StyleSheet.create({
     headerSafe: {
@@ -653,7 +660,7 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       zIndex: 50,
     },
     header: {
-      minHeight: 64,
+      minHeight: HEADER_MIN_HEIGHT,
       width: '100%',
       maxWidth: BP.maxContent,
       alignSelf: 'center',

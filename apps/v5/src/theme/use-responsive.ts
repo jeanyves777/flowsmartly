@@ -122,3 +122,33 @@ export function cellBasis(columns: number): `${number}%` {
   const pct = Math.floor((100 / columns) * 1000) / 1000;
   return `${pct}%` as `${number}%`;
 }
+
+/**
+ * Height the static export is rendered at — the companion to `SSR_WIDTH`.
+ *
+ * A layout that wants "at least the window" has the same problem the width had:
+ * static rendering has no window, so the server emits one number and the
+ * browser's first pass another, and React throws the server markup away. So the
+ * first client render repeats the server's assumption and the real height is
+ * adopted in a layout effect, before the browser paints.
+ */
+const SSR_HEIGHT = 800;
+
+/**
+ * The viewport height, safe to use in a style.
+ *
+ * Deliberately **not** part of `Layout`: every breakpoint decision on this site
+ * is a width decision, and putting height in that object would invite a section
+ * to change its *arrangement* when a window is resized vertically. Only a
+ * `minHeight` that means "fill the window" needs this, so only that asks.
+ */
+export function useViewportHeight(): number {
+  const { height } = useWindowDimensions();
+  const [hydrated, setHydrated] = useState(Platform.OS !== 'web');
+
+  useIsomorphicLayoutEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  return hydrated && height > 0 ? height : SSR_HEIGHT;
+}

@@ -961,16 +961,31 @@ export function Band({
 /* eyebrow chip                                                        */
 /* ------------------------------------------------------------------ */
 
-export function SectionLabel({ children }: { children: string }) {
+/**
+ * The ground the eyebrow is standing on.
+ *
+ * `page` is the default and the only one most sections need. `raised` exists
+ * because `chipBg` is a *tint of the page*: measured against the sign-in
+ * screen's brand-washed half it scores 1.12:1 in light and 1.01:1 in dark, so
+ * the pill disappears and the eyebrow degrades into loose floating text. On a
+ * ground that is not the page, the chip takes the same card treatment every
+ * other object on that ground already has.
+ */
+export type SectionLabelTone = 'page' | 'raised';
+
+export function SectionLabel({ children, tone = 'page' }: { children: string; tone?: SectionLabelTone }) {
   const t = useTokens();
+  const raised = tone === 'raised';
   return (
     <View
       style={{
         alignSelf: 'flex-start',
-        backgroundColor: t.chipBg,
+        backgroundColor: raised ? t.surfaceRaised : t.chipBg,
+        borderWidth: raised ? 1 : 0,
+        borderColor: t.border,
         borderRadius: 999,
         paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingVertical: raised ? 6 : 7,
       }}>
       <Text style={{ color: t.chipText, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 }}>{children}</Text>
     </View>

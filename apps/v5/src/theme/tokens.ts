@@ -426,3 +426,31 @@ export function hexToRgba(hex: string, alpha: number): string {
 export function softFill(hex: string, t: ThemeTokens): string {
   return hexToRgba(hex, t.mode === 'light' ? 0.1 : 0.18);
 }
+
+/**
+ * Composite one token over another and return an **opaque** colour.
+ *
+ * `hexToRgba` is enough wherever the thing behind is genuinely the page, but
+ * not where the resolved colour has to be *declared* — a `backgroundColor` that
+ * something else is measured against, or a gradient stop that must not let the
+ * ground show through unevenly. Translucency also stacks: a card painted on a
+ * translucent ground inherits whatever is under both, which is how a diagram
+ * tile ends up a slightly different tone in two places on one page.
+ *
+ * Both arguments are tokens, so the result moves with the palette exactly as a
+ * token does — this is a way of deriving a colour, not a way around the rule.
+ */
+export function blend(hex: string, over: string, alpha: number): string {
+  const parse = (value: string) => {
+    const raw = value.replace('#', '');
+    const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+    return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+  };
+  const [fr, fg, fb] = parse(hex);
+  const [br, bg, bb] = parse(over);
+  const mix = (f: number, b: number) =>
+    Math.round(Math.max(0, Math.min(255, f * alpha + b * (1 - alpha))))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${mix(fr, br)}${mix(fg, bg)}${mix(fb, bb)}`;
+}

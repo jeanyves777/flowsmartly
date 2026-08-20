@@ -2,31 +2,56 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { elevation, type ThemeTokens } from '@/theme/tokens';
-import { useLayout, type Layout } from '@/theme/use-responsive';
+import { blend, elevation, type ThemeTokens, type V5ThemeMode } from '@/theme/tokens';
+import { BP, useLayout, useViewportHeight, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
 import { BrandLogo } from './brand-logo';
 import { ChannelMap } from './channel-map';
 import { FirstRunPath } from './first-run-path';
-import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } from './ui';
+import { HEADER_MIN_HEIGHT } from './site-header';
+import { Heading, SectionLabel, useTypeScale, type TypeScale } from './ui';
 
 /**
  * The V5 account screens, built from `design/auth-v5.html`.
  *
- * **The page is the page.** An earlier pass wrapped each screen in a bordered,
- * elevated card with the form inside a second one — which is the boxing this
- * site rules against everywhere else. A form is a column of controls on the
- * canvas, like any other section: the hierarchy comes from type, spacing and
- * rhythm, and the only things that keep a border are the objects a visitor
- * actually operates — the inputs, the buttons, the framed asides.
+ * **The window is cut once, down the middle.** Every account screen is the
+ * same shape: two halves of exactly equal width, each running to the edge of
+ * the viewport and down the full height of the window. There is no gutter
+ * between them, no inset around them and no maximum width on the split itself
+ * — the seam is at 50% and nothing else decides where it falls.
+ *
+ * The version this replaces was *a capped column beside a flexible one*: the
+ * form asked for 420 and the illustration took whatever was left, which is
+ * 40/60 at 1440 and a different ratio at every other width. It looked like a
+ * split from one seat. `flexBasis: 0` on both halves is the whole mechanism,
+ * and it has to be written out: react-native-web's `View` base style ships
+ * `flexBasis: 'auto'` and `flexShrink: 0`, so a half that only says
+ * `flexGrow: 1` still sizes itself to its own contents.
+ *
+ * **The two halves are different surfaces**, because two equal halves painted
+ * the same colour do not read as a divided page — they read as a wide page
+ * with a picture in it. The form stands on the page's own ground; the
+ * illustration stands on a brand wash, blue to violet along the diagonal. See
+ * `asideWash` for why its strength is a per-theme number rather than one
+ * constant.
+ *
+ * **The page is still the page.** No card, no border and no elevation around
+ * either half. A form is a column of controls on the canvas: the hierarchy
+ * comes from type, spacing and rhythm, and the only things that keep an edge
+ * are the objects a visitor actually operates — the inputs, the buttons, the
+ * framed asides. The measure survives as a cap on the content *inside* the
+ * left half rather than as the width of a column, so the half stays 50% and
+ * the form inside it stays readable.
  *
  * Beside it sits an illustration, and **which** illustration is the argument
- * of the screen rather than a decoration. Sign-in gets the channel map, shared
- * with the home page and carrying live counts: a business that kept running.
- * Create-account gets a path: a business about to begin. Below `BP.split` the
- * illustration is not rendered at all — it is not worth 400px between a
- * visitor and the field they came for.
+ * of the screen rather than a decoration. Sign-in and its two-factor step get
+ * the channel map, shared with the home page and carrying live counts: a
+ * business that kept running while you were away. Create-account and the
+ * verify-your-email step that follows it get a path: a business about to
+ * begin. Below `BP.tablet` there is no second half at all — one column, form
+ * only. 400px of illustration is not worth putting between a visitor on a
+ * narrow window and the field they came for.
  *
  * **These screens have no backend.** There is no account service in this app,
  * so nothing here creates a session, mints a token, passes a human check or
@@ -34,6 +59,17 @@ import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } f
  * form can genuinely be in — empty, invalid, revealed, gated, refused —
  * because those are real and can be demonstrated honestly.
  */
+
+/** The readable measure of a form, whatever the half around it is doing. */
+const FORM_MEASURE = 460;
+
+/**
+ * The measure of the illustration column. Wider than the form's, because a
+ * diagram is not read line by line — but still capped, so the channel map's
+ * two clusters stay a pair rather than drifting to opposite edges of a half
+ * that is 720px wide at desktop.
+ */
+const ASIDE_MEASURE = 560;
 
 /* ------------------------------------------------------------------ */
 /* the aside                                                           */
@@ -84,61 +120,127 @@ const ASIDE_COPY: Record<AuthAside, AsideCopy> = {
   },
 };
 
+/**
+ * How hard the illustration half's wash is painted, per theme — and why it is
+ * not one number.
+ *
+ * Every value below is the strongest wash that keeps two things true at once,
+ * measured on the real palettes:
+ *
+ *  - **the quietest ink on it still clears AA.** `textSubtle` is the floor, and
+ *    in *light* it is the binding constraint: 4.61:1 at 0.11, 4.46:1 at 0.14.
+ *    So light cannot go past about 0.12 whatever it would look like.
+ *  - **a card on it still reads as a card.** `surfaceRaised` is barely above
+ *    `background` in the two dark palettes, so a middling wash lands exactly on
+ *    the channel tiles and flattens them (1.03:1 at 0.10). Pushing *past* them
+ *    restores the separation with the sign reversed — dark cards on a lit panel,
+ *    1.15:1 at 0.20 — which is also what the wash is for.
+ *
+ * The seam that results is stronger than the step this site already trusts
+ * between the page and the header bar (1.08–1.10:1) in every theme: 1.17:1 in
+ * light, 1.39:1 in grey, 1.33:1 in dark.
+ */
+const ASIDE_WASH: Record<V5ThemeMode, number> = { light: 0.11, grey: 0.2, dark: 0.2 };
+
+/**
+ * The illustration half's ground, blue to violet — the brand arc, in the
+ * direction the live sign-in screen runs it.
+ *
+ * Opaque rather than translucent, so the half can *declare* the colour it is
+ * painted: a translucent stop leaves the half's own `backgroundColor` reading
+ * as the page, which is exactly the thing the split must not be.
+ */
+function asideWash(t: ThemeTokens): readonly [string, string] {
+  const alpha = ASIDE_WASH[t.mode];
+  return [blend(t.brand, t.background, alpha), blend(t.violet, t.background, alpha)];
+}
+
 type Styles = ReturnType<typeof createStyles>;
 
 function useAuthStyles(): Styles {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  return useMemo(() => createStyles(t, l, type), [t, l, type]);
+  const viewport = useViewportHeight();
+  return useMemo(() => createStyles(t, l, type, viewport), [t, l, type, viewport]);
 }
 
 /**
- * The column beside the form: an eyebrow chip, the drawing, a caption and
- * three facts — the same rhythm a home-page section has, so the two read as
- * one site. It carries no heading, so the form's title stays the page's only
- * H1 and the split does not invent a second document outline.
+ * The half beside the form: an eyebrow chip, the drawing, a caption and three
+ * facts — the same rhythm a home-page section has, so the two read as one
+ * site. It carries no heading, so the form's title stays the page's only H1
+ * and the split does not invent a second document outline.
+ *
+ * The seam is drawn as an absolutely-positioned hairline rather than a
+ * `borderLeftWidth`. A border participates in flex sizing: with `flexBasis: 0`
+ * and border-box sizing it makes this half exactly one pixel narrower than its
+ * neighbour, which is a real defect in the one property the split exists to
+ * guarantee.
  */
 function AuthAsideColumn({ variant }: { variant: AuthAside }) {
+  const t = useTokens();
   const styles = useAuthStyles();
   const copy = ASIDE_COPY[variant];
+  const wash = useMemo(() => asideWash(t), [t]);
   return (
-    <View style={styles.aside}>
-      <SectionLabel>{copy.label}</SectionLabel>
-      {variant === 'waiting' ? <ChannelMap counts={WAITING_COUNTS} density="aside" /> : <FirstRunPath />}
-      <Text style={styles.asideCaption}>
-        <Text style={styles.asideCaptionLead}>{copy.lead}</Text>
-        {` ${copy.body}`}
-      </Text>
-      <View style={styles.asideFacts}>
-        {copy.facts.map((fact) => (
-          <View key={fact.title} style={styles.asideFact}>
-            <Text style={styles.asideFactTitle}>{fact.title}</Text>
-            <Text style={styles.asideFactNote}>{fact.note}</Text>
-          </View>
-        ))}
+    <View nativeID="auth-split-aside" style={[styles.half, styles.halfAside]}>
+      <LinearGradient
+        colors={wash}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View pointerEvents="none" style={styles.seam} />
+      <View style={styles.asideColumn}>
+        <SectionLabel tone="raised">{copy.label}</SectionLabel>
+        {variant === 'waiting' ? <ChannelMap counts={WAITING_COUNTS} density="aside" /> : <FirstRunPath />}
+        <Text style={styles.asideCaption}>
+          <Text style={styles.asideCaptionLead}>{copy.lead}</Text>
+          {` ${copy.body}`}
+        </Text>
+        <View style={styles.asideFacts}>
+          {copy.facts.map((fact) => (
+            <View key={fact.title} style={styles.asideFact}>
+              <Text style={styles.asideFactTitle}>{fact.title}</Text>
+              <Text style={styles.asideFactNote}>{fact.note}</Text>
+            </View>
+          ))}
+        </View>
       </View>
     </View>
   );
 }
 
 /**
- * Form on the left, illustration on the right, both sitting on the page's own
- * ground. No card, no border and no elevation around either — the gutter and
- * the vertical rhythm come from `useOpenSection`, exactly as they do for every
- * other section on the site.
+ * The skeleton every account screen is built from — and the *only* one.
+ * `/login`, `/login/code`, `/register` and `/check-email` all take this shape,
+ * and so will the reset flow when it exists; a screen that arranged its own
+ * would be the same defect as the two channel diagrams were, alike on the day
+ * it is written and drifted on every day after. What a screen chooses is which
+ * illustration the second half carries and what the copy says, never the
+ * geometry.
  */
 export function AuthSplit({ aside, children }: { aside: AuthAside; children: React.ReactNode }) {
   const l = useLayout();
-  const open = useOpenSection();
   const styles = useAuthStyles();
 
-  return (
-    <View style={open}>
-      <View style={styles.main}>
-        <View style={styles.form}>{children}</View>
-        {l.isStacked ? null : <AuthAsideColumn variant={aside} />}
+  // Below `BP.tablet` a half is under 512px, which is not enough for a form
+  // and a diagram to both be worth looking at. One column, form only.
+  if (l.isCompact) {
+    return (
+      <View style={styles.stack}>
+        <View style={styles.formColumn}>{children}</View>
       </View>
+    );
+  }
+
+  return (
+    <View nativeID="auth-split" style={styles.split}>
+      <View nativeID="auth-split-form" style={styles.half}>
+        <View style={styles.formColumn}>{children}</View>
+      </View>
+      <AuthAsideColumn variant={aside} />
     </View>
   );
 }
@@ -735,33 +837,82 @@ export function emailError(value: string): string | null {
 /* styles                                                              */
 /* ------------------------------------------------------------------ */
 
-function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
+function createStyles(t: ThemeTokens, l: Layout, type: TypeScale, viewport: number) {
+  /**
+   * How far the split has to escape the page column to reach the viewport
+   * edge. `PageShell` caps its content at `BP.maxContent` and centres it, so
+   * above that width a split that simply filled its parent would stop at 1536
+   * and the two halves would be a very wide card — and the seam would no
+   * longer be at the middle of the *window*, which is the thing being built.
+   * Below it the column already is the viewport and the answer is zero.
+   */
+  const bleed = Math.max(0, Math.round((l.width - BP.maxContent) / 2));
+
+  /**
+   * The seam runs the full window, so the shortest screen — `/check-email`,
+   * which is an icon, two lines and a button — divides the page exactly as the
+   * longest one does. Anything taller than the window simply grows.
+   */
+  const fill = Math.max(0, viewport - HEADER_MIN_HEIGHT);
+
   return StyleSheet.create({
     /**
-     * The two columns, on the page's own ground. Same shape as a home-page
-     * feature section: copy column, visual column, one gap, no box.
+     * The cut. No `maxWidth`, no horizontal padding and no gap: the gutter each
+     * half needs is padding *inside* that half, where it does not move the
+     * seam.
      */
-    main: {
-      flexDirection: l.isStacked ? 'column' : 'row',
-      alignItems: l.isStacked ? 'stretch' : 'center',
-      gap: l.isStacked ? 28 : 48,
+    split: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      marginHorizontal: -bleed,
+      minHeight: fill,
     },
     /**
-     * Capped rather than stretched. A 700px-wide text input is not a better
-     * input than a 420px one, and the cap is what keeps the form reading as a
-     * column of controls rather than a full-bleed band.
+     * One half.
+     *
+     * `flexBasis: 0` is the load-bearing line, and it is written out on
+     * purpose: react-native-web's `View` base style ships `flexBasis: 'auto'`
+     * and `flexShrink: 0`, so a half that only grows is still sized by its own
+     * contents first — which silently produces 40/60 with every other property
+     * here correct.
      */
-    form: l.isStacked
-      ? { width: '100%', maxWidth: 460, alignSelf: 'center' }
-      : { flexGrow: 0, flexShrink: 1, flexBasis: 420, maxWidth: 460, minWidth: 320 },
+    half: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      minWidth: 0,
+      justifyContent: 'center',
+      paddingHorizontal: l.gutter,
+      paddingVertical: l.sectionSpace,
+      // Declared rather than inherited: this half's ground is the page, and
+      // the half beside it is not, so both say which one they are.
+      backgroundColor: t.background,
+    },
+    /** The illustration half's declared ground — see `asideWash`. */
+    halfAside: { position: 'relative', backgroundColor: asideWash(t)[0], overflow: 'hidden' },
+    seam: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 1, backgroundColor: t.border },
+
+    /** Below `BP.tablet`: one column, the same rhythm every open section has. */
+    stack: { paddingHorizontal: l.gutter, paddingVertical: l.sectionSpace },
+
     /**
-     * Stretched, not centred. Centring made every child hug its own content,
-     * so the drawing measured ~520px while the facts rule under it spanned the
-     * full 900 — two different left edges in one column. Everything now shares
-     * the eyebrow chip's edge, which is the rhythm a home-page section has.
+     * Capped rather than stretched, and centred in its half. A 700px-wide text
+     * input is not a better input than a 460px one — the measure is what keeps
+     * the form reading as a column of controls rather than a band. It is a cap
+     * on the *content* now, not the width of the column it sits in: the column
+     * is half the window.
      */
-    aside: { flexGrow: 1, flexShrink: 1, flexBasis: 520, minWidth: 0, alignItems: 'stretch', gap: 22 },
-    asideCaption: { ...type.bodySm, color: t.textSubtle, maxWidth: 620 },
+    formColumn: { width: '100%', maxWidth: FORM_MEASURE, alignSelf: 'center' },
+
+    /**
+     * Stretched, not centred, *within* its own measure. Centring made every
+     * child hug its own content, so the drawing measured ~520px while the
+     * facts rule under it spanned the full column — two different left edges
+     * in one column. Everything now shares the eyebrow chip's edge, which is
+     * the rhythm a home-page section has.
+     */
+    asideColumn: { width: '100%', maxWidth: ASIDE_MEASURE, alignSelf: 'center', alignItems: 'stretch', gap: 22 },
+    asideCaption: { ...type.bodySm, color: t.textSubtle },
     asideCaptionLead: { color: t.text, fontWeight: '800' },
     asideFacts: {
       alignSelf: 'stretch',
@@ -769,7 +920,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 14,
       paddingTop: 18,
       borderTopWidth: 1,
-      borderTopColor: t.divider,
+      /**
+       * `divider` is a tint of the page and vanishes on the wash — 1.02:1 in
+       * dark. `borderStrong` is the rule that survives its own background.
+       */
+      borderTopColor: t.borderStrong,
     },
     asideFact: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     asideFactTitle: { fontSize: 13, lineHeight: 18, fontWeight: '800', color: t.text },
