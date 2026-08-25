@@ -1135,6 +1135,33 @@ function createStyles(t: ThemeTokens, l: Layout) {
       alignItems: stacked ? 'stretch' : 'center',
       gap: stacked ? 20 : 30,
       overflow: 'hidden',
+      /*
+       * The banner's own ground, and the reason it has one.
+       *
+       * `expo-linear-gradient` on web is a `View` with a `backgroundImage` and
+       * nothing else — `getComputedStyle(banner).backgroundColor` was
+       * `rgba(0, 0, 0, 0)` in all three palettes and at every width. So the
+       * only surface `textOnBrand` was ever declared against existed as an
+       * image, and the box model recorded no colour under the copy at all.
+       *
+       * Anything that resolves an element's effective background by walking
+       * ancestors for a `background-color` therefore walks straight past the
+       * banner and reports the page beneath it. That is not a hypothetical: it
+       * is where "textOnBrand on surfaceMuted, 1.05:1" comes from, and it reads
+       * identically in light, grey and dark because every palette has the same
+       * hole rather than three bad colours.
+       *
+       * This is the first gradient stop, so it paints exactly the colour the
+       * gradient already paints at x = 0 and changes no pixel while the image
+       * renders — a `background-color` sits *under* a `background-image`. What
+       * it changes is that the colour is now declared: measurable, and still
+       * there if the image ever is not (print, forced colours, a future
+       * react-native-web that stops passing `backgroundImage` through). The
+       * stop is the one the palette already budgets for — `tokens.test.ts`
+       * requires every `ctaGradient` stop to clear AA against `textOnBrand`
+       * after the 22% `ctaScrim` below.
+       */
+      backgroundColor: t.ctaGradient[0],
     },
     ctaScrim: {
       position: 'absolute',
