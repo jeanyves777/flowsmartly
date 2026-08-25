@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { accentText, brandColor, hexToRgba, palettes, softFill, type ThemeTokens, type V5ThemeMode } from './tokens.ts';
+import { accentText, brandColor, hexToRgba, palettes, softFill, type ScrimVeil, type ThemeTokens, type V5ThemeMode } from './tokens.ts';
 
 /**
  * The public site has three themes and, until this file existed, nothing that
@@ -91,16 +91,6 @@ const AA_GRAPHIC = 3;
  * failure. Dark Grey appears here nowhere — it has no allowance.
  */
 const PRE_EXISTING: Record<string, number> = {
-  // Dark's quietest ink against an accent pill. Five of the six are short; the
-  // pills are `hexToRgba(accent, 0.2)` and dark's `textSubtle` was tuned against
-  // `surfaceInset` alone, which no longer describes the lightest thing it lands
-  // on. Real, and dark's to fix.
-  'dark|textSubtle|a brand pill': 4.2,
-  'dark|textSubtle|a brandStrong pill': 3.91,
-  'dark|textSubtle|a violet pill': 4.19,
-  'dark|textSubtle|a green pill': 3.92,
-  'dark|textSubtle|a orange pill': 3.96,
-  'dark|textSubtle|a pink pill': 4.44,
   // Light's pink on grounds built from pink. The light theme is being repaired
   // in a separate lane; touching it here would collide with that work.
   'light|pink|own softFill disc on surface': 4.36,
@@ -108,10 +98,21 @@ const PRE_EXISTING: Record<string, number> = {
   'light|pink|softFill glyph on surface': 4.36,
   'light|pink|softFill glyph on surfaceRaised': 4.36,
   'light|pink|own soft band': 4.41,
-  // Dark's faint scrim ink on the frosted hero panel at stacked widths. Grey
-  // carried the identical figure until its ink was lifted; dark's needs a dark
-  // lane, and recording it stops the number drifting further while it waits.
-  'dark|scrimTextFaint|the frosted hero panel': 3.62,
+  /*
+   * The stacked hero veil, per palette, measured against the photograph it
+   * covers rather than against a token — see section J.
+   *
+   * Dark's entry is gone because dark's is fixed. Grey and light still run a
+   * left-to-right curve under full-width copy and score 1.44:1 and 1.01:1 at its
+   * thin end; each is repaired in its own lane, and recording the exact figure
+   * here means the number cannot drift further while it waits, and means CI can
+   * see the defect instead of it living only in a review comment.
+   */
+  'grey|scrimText|the stacked veil over the photograph': 3.02,
+  'grey|scrimTextMuted|the stacked veil over the photograph': 2.03,
+  'grey|scrimTextFaint|the stacked veil over the photograph': 1.68,
+  'grey|scrimAccent|the stacked veil over the photograph': 1.44,
+  'light|scrimText|the stacked veil over the photograph': 1.01,
 };
 
 /** Collects violations so the whole picture is reported, not just the first. */
@@ -593,6 +594,196 @@ test('hexToRgba round-trips the alpha the palettes are measured with', () => {
   const { hex, alpha } = fromRgba(hexToRgba('#4f9dff', 0.2));
   assert.equal(hex, '#4f9dff');
   assert.equal(alpha, 0.2);
+});
+
+/* ---------------------------------------------------------------- */
+/* J. the hero veil, against the photograph it is laid over           */
+/* ---------------------------------------------------------------- */
+
+/**
+ * The brightest pixel of the hero photograph inside the region the copy covers.
+ *
+ * A measurement, not a token: the page was rendered with both gradient layers
+ * hidden and every glyph painted transparent, and the photograph read band by
+ * band at 360, 390, 768 and 1024. The top 45% of it is a window and a pale wall,
+ * and it peaks here at every one of those widths. This is the number the veil
+ * has to be sized against — sizing it against the composite instead only says
+ * what the veil already did.
+ */
+const PHOTO_UNDER_COPY = '#fdfff9';
+
+/**
+ * How far the hero copy reaches when the hero stacks, as a fraction of the
+ * scene, taken at the tightest width supported (360) rather than the roomiest.
+ *
+ * `DOWN` is where the last ink that lands on the VEIL sits — the metric line —
+ * measured at 0.399 (390), 0.410 (768), 0.427 (1024) and 0.431 (360). Below it
+ * every remaining node carries its own opaque or frosted ground: both buttons,
+ * the system chips, the prepared cards, the trust strip. `ACROSS` is the copy's
+ * right edge, 0.961–0.974: stacked, the copy is the full column.
+ */
+const STACKED_COPY = { DOWN: 0.43, ACROSS: 0.974 };
+
+/** The alpha a `ScrimVeil` paints at position `t` along its own axis. */
+function veilAlphaAt(v: ScrimVeil, t: number): number {
+  if (t <= v.at[0]) return v.stops[0];
+  for (let i = 1; i < 4; i += 1) {
+    if (t <= v.at[i]) {
+      const span = v.at[i] - v.at[i - 1];
+      const f = span === 0 ? 1 : (t - v.at[i - 1]) / span;
+      return v.stops[i - 1] + f * (v.stops[i] - v.stops[i - 1]);
+    }
+  }
+  return v.stops[3];
+}
+
+/** `'6, 10, 20'` — the form the hero interpolates into `rgba(...)` — as a hex. */
+const scrimBaseHex = (t: ThemeTokens) =>
+  `#${t.scrimBase.split(',').map((n) => Number(n.trim()).toString(16).padStart(2, '0')).join('')}`;
+
+const SCRIM_INKS = ['scrimText', 'scrimTextMuted', 'scrimTextFaint', 'scrimAccent'] as const;
+
+/**
+ * The worst ratio each scrim ink reaches under a veil, across the extent the
+ * stacked copy has ALONG THAT VEIL'S OWN AXIS.
+ *
+ * Which extent is the whole point. A veil running top to bottom only has to
+ * cover the copy for the 43% of the scene the copy occupies vertically; a veil
+ * running left to right has to cover it for the 97% it occupies horizontally,
+ * because stacked copy is full-width. Transcribing a left-to-right curve into
+ * the stacked layout is what put the last third of every line under a 0.42 tail.
+ */
+function stackedVeilRatios(t: ThemeTokens): Record<string, number> {
+  const v = t.scrimVeilStacked;
+  const end = v.axis === 'x' ? STACKED_COPY.ACROSS : STACKED_COPY.DOWN;
+  const base = scrimBaseHex(t);
+  const worst: Record<string, number> = {};
+  for (const ink of SCRIM_INKS) {
+    let low = Infinity;
+    for (let i = 0; i <= 400; i += 1) {
+      const ground = over(base, veilAlphaAt(v, (end * i) / 400), PHOTO_UNDER_COPY);
+      low = Math.min(low, contrast(t[ink], ground));
+    }
+    worst[ink] = low;
+  }
+  return worst;
+}
+
+test('the stacked veil covers the photograph everywhere ink lands on it', () => {
+  // Dark's stacked hero was running the side-by-side curve, whose thin end is
+  // 0.42 — and a 0.42 near-black veil over a window is #85848c, not a dark
+  // ground. Rendered, that measured 2.60:1 on the headline tail at 768 and
+  // 1.76:1 at 390, with white itself at 3.70:1 and the body copy at 4.08:1.
+  //
+  // The failure was invisible to every token-only check because both grounds in
+  // it are correct on their own: near-black veil, light ink. What was wrong was
+  // the geometry — where the veil is strong versus where the copy is.
+  for (const mode of MODES) {
+    const t = palettes[mode];
+    const c = checker(mode);
+    const worst = stackedVeilRatios(t);
+    for (const ink of SCRIM_INKS) c.check(ink, 'the stacked veil over the photograph', worst[ink]);
+    assert.deepEqual(c.failures, [], `scrim ink below AA under the stacked veil — ${c.failures.join(' | ')}`);
+  }
+});
+
+test('the stacked veil check fails on the curve it was written to catch', () => {
+  /*
+   * The plant. Every assertion above passes on a palette nobody has repaired, so
+   * this one runs the same maths against the exact values `dark` shipped before
+   * this work unit and requires it to FAIL. Without it, deleting the body of
+   * `stackedVeilRatios` would leave a green suite.
+   */
+  const defective: ThemeTokens = {
+    ...palettes.dark,
+    scrimTextFaint: '#93a4c9',
+    scrimVeilStacked: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  };
+  const worst = stackedVeilRatios(defective);
+  assert.ok(worst.scrimAccent < 1.5, `the old curve should score ~1.44 for the headline tail, scored ${worst.scrimAccent.toFixed(2)}`);
+  assert.ok(worst.scrimTextFaint < 1.3, `the old curve should score ~1.21 for the faint ink, scored ${worst.scrimTextFaint.toFixed(2)}`);
+
+  const c = checker('dark');
+  for (const ink of SCRIM_INKS) c.check(ink, 'the stacked veil over the photograph', worst[ink]);
+  assert.ok(
+    c.failures.length >= 3,
+    `the defective curve must be reported, and was not: ${JSON.stringify(c.failures)}`,
+  );
+
+  // and the repaired one must pass the same gate, so the plant is not merely
+  // asserting that the check is impossible to satisfy
+  const fixed = checker('dark');
+  const good = stackedVeilRatios(palettes.dark);
+  for (const ink of SCRIM_INKS) fixed.check(ink, 'the stacked veil over the photograph', good[ink]);
+  assert.deepEqual(fixed.failures, [], 'the shipping dark curve must clear the same gate');
+});
+
+test('a veil that runs across the copy is not reused for copy that runs across it', () => {
+  /*
+   * `scrimVeilStacked` exists because the hero picks a curve per layout. A future
+   * edit could point the hero back at `scrimVeil` for both, and every ratio above
+   * would still pass — the tokens would be right and the page would be wrong.
+   * So the selection is read out of the source it has to live in.
+   */
+  const hero = readFileSync(new URL('../app/index.tsx', import.meta.url), 'utf8');
+  assert.match(
+    hero,
+    /const veil = l\.isStacked \? t\.scrimVeilStacked : t\.scrimVeil;/,
+    'the hero no longer chooses its veil by layout',
+  );
+  assert.match(
+    hero,
+    /end=\{veil\.axis === 'x' \? \{ x: 1, y: 0 \} : \{ x: 0, y: 1 \}\}/,
+    'the hero gradient no longer follows the veil\'s axis',
+  );
+  assert.match(hero, /locations=\{\[veil\.at\[0\], veil\.at\[1\], veil\.at\[2\], veil\.at\[3\]\]\}/,
+    'the hero gradient no longer follows the veil\'s stop positions');
+  assert.doesNotMatch(hero, /t\.scrimVeil\[\d\]/, 'the hero still reads the veil as a bare tuple');
+});
+
+test('the frosted-panel and accent-pill shortfalls stay fixed', () => {
+  /*
+   * Two figures this work unit removed from `PRE_EXISTING`. A recorded allowance
+   * that outlives its defect is worse than none: it silently re-permits the
+   * failure. These assert the repair directly, and then assert that the values
+   * they replaced would have failed — so neither is a check that cannot fail.
+   */
+  const t = palettes.dark;
+  const FROSTED_PANEL = '#434953';
+  assert.ok(contrast(t.scrimTextFaint, FROSTED_PANEL) >= AA,
+    `dark.scrimTextFaint is ${contrast(t.scrimTextFaint, FROSTED_PANEL).toFixed(2)}:1 on the frosted panel`);
+  assert.ok(contrast('#93a4c9', FROSTED_PANEL) < AA, 'the ink this replaced should have failed here, and did not');
+
+  for (const key of ACCENTS) {
+    const pill = over(t[key], pillAlpha(t), t.surfaceRaised);
+    assert.ok(contrast(t.textSubtle, pill) >= AA,
+      `dark.textSubtle is ${contrast(t.textSubtle, pill).toFixed(2)}:1 on a ${key} pill (${pill})`);
+  }
+  const brightestPill = over(t.brandStrong, pillAlpha(t), t.surfaceRaised);
+  assert.ok(contrast('#8b98b8', brightestPill) < AA, 'the ink this replaced should have failed here, and did not');
+
+  // and the lift must not have collapsed the tier it belongs to
+  assert.ok(lstar(t.textSubtle) < lstar(t.textMuted) - 3, 'dark.textSubtle has climbed into textMuted');
+  assert.ok(lstar(t.scrimTextFaint) < lstar(t.scrimTextMuted) - 3, 'dark.scrimTextFaint has climbed into scrimTextMuted');
+});
+
+test('the floor wash is its own value, not whatever the veil happened to hold', () => {
+  // Every palette read the trust strip's wash off `scrimVeil[1]`. That is only
+  // correct while the veil's second stop is about the copy AND about the floor;
+  // once a palette moves its stops for the copy, the floor has to be stated.
+  // Dark's is 0.88, the figure it was inheriting, and the trust strip measures
+  // 7.69–9.12:1 on it.
+  for (const mode of MODES) {
+    const t = palettes[mode];
+    assert.ok(t.scrimVeilFloor > 0 && t.scrimVeilFloor <= 1, `${mode}.scrimVeilFloor is out of range`);
+    if (t.ground !== 'dark') continue;
+    const ground = over(scrimBaseHex(t), t.scrimVeilFloor, PHOTO_UNDER_COPY);
+    assert.ok(contrast(t.scrimTextFaint, ground) >= AA,
+      `${mode}: the trust strip's ink is ${contrast(t.scrimTextFaint, ground).toFixed(2)}:1 on the floor wash`);
+  }
+
+  const hero = readFileSync(new URL('../app/index.tsx', import.meta.url), 'utf8');
+  assert.match(hero, /\$\{t\.scrimVeilFloor\}/, 'the floor gradient no longer reads its own token');
 });
 
 /* ---------------------------------------------------------------- */

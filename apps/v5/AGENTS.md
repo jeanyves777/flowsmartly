@@ -261,23 +261,43 @@ into another branch bundle — the source is correct, `tsc` is green, the unit
 tests pass, and the exported page is blank.
 
 It has happened twice. Both times the bundle carried a version of
-`app/index.tsx` reading `t.scrimVeilStacked` and `veil.stops[0]` — an
-identifier present in **no** source file in **any** worktree — against a
-`tokens.ts` whose `scrimVeil` is still the 4-tuple it has always been. The
-result is `TypeError: Cannot read properties of undefined (reading 0)` at
-mount, and a page with zero characters of text.
+`app/index.tsx` reading `t.scrimVeilStacked` and `veil.stops[0]` against a
+`tokens.ts` whose `scrimVeil` was still a 4-tuple. The result is `TypeError:
+Cannot read properties of undefined (reading 0)` at mount, and a page with zero
+characters of text.
 
-A blank page after a build you did not `--clear` is this, not your change.
-Prove which before debugging your own diff:
+**That symbol is no longer a canary, and grepping for it is now a false alarm.**
+`scrimVeilStacked` is a real token: the hero picks its veil by layout, because a
+veil is a statement about where the copy is. The two bundles that went blank were
+early drafts of exactly that change leaking between worktrees. Anything keyed to
+a fixed identifier eventually goes wrong the same way, so identify a foreign
+bundle by **identity**, not by vocabulary:
 
 ```bash
-# a symbol from no source tree means the bundle is not yours
-grep -c scrimVeilStacked dist/_expo/static/js/web/entry-*.js   # must be 0
+# record these together, and assert the digest against the file the page loaded
+sha256sum apps/v5/dist/_expo/static/js/web/entry-*.js
+git rev-parse HEAD && git status --porcelain
 ```
 
-And never measure a page you have not confirmed mounted. Assert the rendered
-text length before trusting any screenshot, contrast figure or "0 failures"
-taken from it — a blank page reports no contrast failures at all.
+A measurement that cannot name the artefact it came from cannot be attributed to
+a candidate at all.
+
+And never measure a page you have not confirmed mounted. Before any number is
+trusted, assert all five: the intended route answered 200 at the intended path;
+the page mounted (one `<h1>`, and a rendered text length); it is not a 404 or an
+error fallback; the expected route-identity content is present; and the served
+bundle matches the candidate's digest. A blank page reports no contrast failures
+at all — and so does a 404.
+
+Two capture traps that produce confident wrong numbers, both hit on this page:
+
+- **Sample line boxes, not element boxes.** An element's box includes its own
+  border and padding, so a card's 1px accent hairline crossing it reads as "the
+  ground the letters sit on" and invents a failure no glyph ever had. Use
+  `Range.getClientRects()` and inset a pixel.
+- **Hit-test every rect you sample.** A node scrolled under the sticky header is
+  still in view by geometry; sampling it reads the header's own logo as the
+  ground, at a scroll position no reader ever sees that text at.
 
 
 Then screenshot **390 / 768 / 1024 / 1280 / 1536 / 1920 × light / grey / dark**

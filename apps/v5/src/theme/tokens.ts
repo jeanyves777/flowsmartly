@@ -3,6 +3,31 @@ import { Platform } from 'react-native';
 export type V5ThemeMode = 'light' | 'grey' | 'dark';
 
 /**
+ * The veil laid over the hero photograph, as four alphas along one axis.
+ *
+ * `axis` and `at` are part of the veil because a veil is a statement about
+ * *where the copy is*, and that moves with the layout. The hero puts its copy in
+ * a left column when it is side by side and across the full width when it
+ * stacks, so a single left-to-right curve cannot serve both: the stops that
+ * cover a left column leave the last third of a full-width paragraph sitting on
+ * the raw photograph.
+ *
+ * A near-black veil's thin end was assumed to cost a light ink nothing. It does
+ * not, and that assumption is what shipped the defect. Measured on the rendered
+ * dark hero, the photograph under the copy reaches `#fdfff9` — a window behind
+ * the room — and the old curve's 0.42 tail composited it to `#85848c`, on which
+ * the headline's own accent scored 1.76:1 and white itself scored 3.70:1.
+ */
+export type ScrimVeil = {
+  /** 'x' = left→right, 'y' = top→bottom */
+  axis: 'x' | 'y';
+  /** opacity at each stop */
+  stops: readonly [number, number, number, number];
+  /** where each stop sits, 0–1 along the axis */
+  at: readonly [number, number, number, number];
+};
+
+/**
  * Every colour the public page is allowed to use.
  *
  * The page used to hardcode ~400 colour literals inside StyleSheet.create, so
@@ -97,14 +122,33 @@ export type ThemeTokens = {
   /** the ground a scrim is built from, as rgb triples for gradient stops */
   scrimBase: string;
   /**
-   * How strongly the veil covers the photograph, across the four gradient
-   * stops. Per theme, because the two grounds do not behave alike: a dark veil
-   * deepens a photograph and it stays crisp, while a light one *milks* it, and
-   * the same opacities that read well in dark left the light hero looking like
-   * a faded print. Light therefore covers hard only where the copy sits and
-   * gets out of the way fast.
+   * How strongly the veil covers the photograph, when the hero is side by side.
+   *
+   * Per theme, because the two grounds do not behave alike: a dark veil deepens
+   * a photograph and it stays crisp, while a light one *milks* it, and the same
+   * opacities that read well in dark left the light hero looking like a faded
+   * print. Light therefore covers hard only where the copy sits and gets out of
+   * the way fast — and "where the copy sits" is why the stop positions live here
+   * too, not fixed in the hero.
    */
-  scrimVeil: readonly [number, number, number, number];
+  scrimVeil: ScrimVeil;
+  /**
+   * The veil for the stacked hero, below `BP.split`, where the copy is
+   * full-width instead of a left column.
+   *
+   * Light and grey point this at the same curve as `scrimVeil` — not because one
+   * curve genuinely serves both layouts there, but because each of those
+   * palettes is repaired in its own lane and this one moves only `dark`. Their
+   * figures are written down beside them.
+   */
+  scrimVeilStacked: ScrimVeil;
+  /**
+   * The upward gradient under the trust strip, which is a separate wash from the
+   * veil and needs its own value: every palette was reading it off `scrimVeil[1]`,
+   * and a veil whose stops move for the copy must not drag the floor of the
+   * photograph with them.
+   */
+  scrimVeilFloor: number;
   /** frosted panel on a photograph */
   scrimGlass: string;
   scrimGlassLine: string;
@@ -184,7 +228,13 @@ const light: ThemeTokens = {
   scrimTextMuted: '#33436c',
   scrimTextFaint: '#4a587c',
   scrimBase: '246, 249, 255',
-  scrimVeil: [0.9, 0.68, 0.24, 0.08],
+  // Transcribed, not changed: the same four alphas the bare tuple meant, at the
+  // 0 / 0.3 / 0.6 / 1 the hero used to hard-code. Light's hero has its own
+  // (worse) failure at stacked widths — 1.00:1 measured on the body copy at 768
+  // and 390 — and its own lane; nothing here moves it either way.
+  scrimVeil: { axis: 'x', stops: [0.9, 0.68, 0.24, 0.08], at: [0, 0.3, 0.6, 1] },
+  scrimVeilStacked: { axis: 'x', stops: [0.9, 0.68, 0.24, 0.08], at: [0, 0.3, 0.6, 1] },
+  scrimVeilFloor: 0.68,
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
   scrimAccent: '#0a56b8',
@@ -323,7 +373,18 @@ const grey: ThemeTokens = {
    */
   scrimTextFaint: '#b6c2d8',
   scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  /*
+   * Transcribed, not changed. Grey has the same stacked-hero failure dark had
+   * and it is measured here rather than left implied: at 390 its headline tail
+   * reads 1.76:1 (envelope) / 2.08:1 (as typed) and its metric label 3.09:1; at
+   * 768 the tail reads 2.60:1. Identical figures to dark's, because every scrim
+   * token except the faint ink is shared between them. Repairing it is grey's
+   * lane — this one moves `dark` only, and grey's captures must come out
+   * unchanged to prove that.
+   */
+  scrimVeil: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilStacked: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilFloor: 0.88,
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',
@@ -396,17 +457,88 @@ const dark: ThemeTokens = {
 
   text: '#f5f8ff',
   textMuted: '#a9b6d2',
-  // already 4.76:1 on surfaceInset, the tightest of the five surfaces
-  textSubtle: '#8b98b8',
+  /*
+   * #8b98b8 -> #9ea8c3.
+   *
+   * It was documented as "already 4.76:1 on surfaceInset, the tightest of the
+   * five surfaces" — true, and beside the point: the tightest ground this ink
+   * lands on is not a surface at all. It lands on accent pills, which are
+   * `hexToRgba(accent, 0.2)` over `surfaceRaised` and sit above every rung of the
+   * ladder. Five of the six were short: brand 4.20, brandStrong 3.91, violet
+   * 4.19, green 3.92, orange 3.96, pink 4.44.
+   *
+   * The lift is the least that clears the *brightest* pill (brandStrong, #293b59)
+   * rather than the average one: 4.74:1 there, 6.26 on the tightest tinted wash,
+   * 6.83 on the tightest surface. It stays the quietest of the three tiers, 5.0
+   * L* below `textMuted` and 28.6 below `text` — the same separation light (7.0)
+   * and grey (5.4) carry between their lower two.
+   */
+  textSubtle: '#9ea8c3',
   // Navy near-black, to match the near-black-navy palette: 6.78:1 on brand,
   // 8.91 brandStrong, 7.03 violet, 9.38 green, 9.45 orange, 6.53 pink.
   textOnBrand: '#0b1220',
   textOnScrim: '#ffffff',
   scrimText: '#ffffff',
   scrimTextMuted: '#c8d4ee',
-  scrimTextFaint: '#93a4c9',
+  /*
+   * #93a4c9 -> #b3bfd9.
+   *
+   * The one ink this palette shared with grey until grey lifted its own, and the
+   * one that was left recorded as a defect rather than fixed. On the frosted hero
+   * panel — a measurement, `#434953`, not a token, because the panel is glass over
+   * a photograph — it scored 3.62:1. It is 4.91:1 now.
+   *
+   * The lift is not cosmetic bookkeeping: it is what buys the photograph back.
+   * This is the quietest ink on the veil, so it is the ink that sets how deep the
+   * veil has to be, and against the brightest pixel of the photograph under the
+   * copy (`#fdfff9`) it demanded alpha 0.805 at #93a4c9 and demands 0.725 at
+   * #b3bfd9. Every point of luminance put into the ink is a point of veil the
+   * picture gets to keep. It stays below `scrimTextMuted` (L* 77.2 against 84.8),
+   * so the three scrim tiers keep their order.
+   */
+  scrimTextFaint: '#b3bfd9',
   scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  /*
+   * Side by side, unchanged. The copy is a left column ending at 47.6% of the
+   * width, the curve is already 0.95/0.88 across it, and the right half of the
+   * photograph — the half worth looking at — keeps its own light. Worst measured
+   * hero string at 1440 is 6.12:1 on this curve; there is nothing here to repair
+   * and moving it would only cost the picture.
+   */
+  scrimVeil: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  /*
+   * Stacked, the copy runs the full width, so the veil runs DOWN instead.
+   *
+   * Running the left-to-right curve here put the last third of every line under
+   * its 0.42 tail, and a 0.42 near-black veil over a bright window is `#85848c`,
+   * not a dark ground: 2.60:1 on the headline tail at 768 and 1.76:1 at 390, with
+   * white itself at 3.70:1 and the body at 4.08:1.
+   *
+   * The hold is sized from the photograph, not from the composite. Read band by
+   * band with every opaque ground hidden, the top 45% of this photograph is a
+   * window and a pale wall — `#fdfff9` at its brightest — and over
+   * `rgb(6, 10, 20)` that needs alpha 0.555 for `scrimText`, 0.665 for
+   * `scrimTextMuted`, 0.725 for the lifted `scrimTextFaint` and 0.745–0.76 for
+   * `scrimAccent`. The accent is the binding one, because the headline tail is
+   * the signature brand blue and is not going to be bleached toward white to buy
+   * veil back.
+   *
+   * So the curve holds 0.88 → 0.79 to 45% and then leaves. 45% is where the ink
+   * on the veil ends: the copy's last line sits at 40% (768) / 40% (390) / 43%
+   * (360), and everything below it — both buttons, the system chips, the prepared
+   * cards, the trust strip — carries its own opaque or frosted ground.
+   *
+   * Below 45% it opens to 0.40, which is LIGHTER than the 0.42 the old curve gave
+   * only its far right edge and far lighter than the 0.95 it painted down the
+   * left. The laptop, the table and the room come back through the lower half at
+   * a strength the old curve never gave them anywhere. This keeps more of the
+   * photograph than the curve it replaces, not less; what it gives up is the
+   * bright right-hand blowout the copy was sitting on.
+   */
+  scrimVeilStacked: { axis: 'y', stops: [0.88, 0.84, 0.79, 0.5], at: [0, 0.22, 0.45, 0.74] },
+  // The `scrimVeil[1]` the floor gradient was already reading. The trust strip
+  // measures 6.55–7.66:1 on it and does not need to move.
+  scrimVeilFloor: 0.88,
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',
