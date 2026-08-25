@@ -865,17 +865,39 @@ function Hero() {
               // The one h1 on the site root. react-native-web renders every
               // Text as a div, so without this the page ships no heading at all.
               /*
-               * The typing must not shove the page around. A ghost copy of the
-               * longest phrase holds the block open at exactly the height the
-               * live headline can ever need, and the live one is laid over it —
-               * so letters appear and disappear inside a box that never
-               * changes size. Reserving a guessed `minHeight` instead would be
-               * wrong at one type scale out of four.
+               * The typing must not shove the page around. Ghost copies hold
+               * the block open at exactly the height the live headline can ever
+               * need, and the live one is laid over them — so letters appear
+               * and disappear inside a box that never changes size. Reserving a
+               * guessed `minHeight` instead would be wrong at one type scale
+               * out of four.
+               *
+               * **Every phrase is ghosted, not the longest one.** The tallest
+               * headline is not the one with the most characters: at 320 and
+               * 360 `three appointments to fill.` and `the monthly donor
+               * report.` each wrap to five lines while the longer-by-characters
+               * `five tax-client follow-ups.` wraps to four, so a single ghost
+               * reserved four lines and the fifth was painted straight over the
+               * body paragraph. Which phrase is tallest changes with the column
+               * width — it is `three appointments to fill.` again at 430 — so it
+               * cannot be picked in advance at all.
+               *
+               * The ghosts are laid out as a row in which each is a full column
+               * wide and pulls the next one back over itself, so they stack in
+               * the same place and the row takes the height of the tallest.
+               * That is the max of seven wrapped heights, computed by layout at
+               * the real width, with no measurement pass and no client state —
+               * so it is still correct with JavaScript off.
                */
               <View key="title" style={styles.heroTitleWrap}>
-                <Text aria-hidden style={[styles.heroTitle, styles.heroTitleGhost]}>
-                  {`${HERO_TITLE_LEAD} ${HERO_LONGEST_TAIL}`}
-                </Text>
+                {HERO_TAILS.map((ghost) => (
+                  <Text
+                    key={ghost}
+                    aria-hidden
+                    style={[styles.heroTitle, styles.heroTitleGhost]}>
+                    {`${HERO_TITLE_LEAD} ${ghost}`}
+                  </Text>
+                ))}
                 <Heading level={1} style={[styles.heroTitle, styles.heroTitleLive]}>
                   {HERO_TITLE_LEAD}{' '}
                   <Text style={styles.heroTitleTail}>{tail}</Text>
@@ -989,11 +1011,14 @@ function Hero() {
 const HERO_HUB = ['hub'];
 
 const HERO_TITLE_LEAD = 'While you were away, FlowAgent prepared';
-/** The tallest the headline can render — what the ghost copy reserves. */
-const HERO_LONGEST_TAIL = HERO_PREPARED.reduce(
-  (longest, item) => (item.tail.length > longest.length ? item.tail : longest),
-  '',
-);
+/**
+ * Every phrase the headline types, so the block can reserve the height of the
+ * tallest of them *at the width it is actually rendering* — see the ghost row
+ * in the hero. A prefix is never taller than its own finished phrase (checked
+ * across every typed frame at 320…1440), so the finished seven are the whole
+ * worst case.
+ */
+const HERO_TAILS = HERO_PREPARED.map((item) => item.tail);
 
 /* ------------------------------------------------------------------ */
 /* growth command center                                               */
@@ -1883,9 +1908,21 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       fontWeight: '800',
       letterSpacing: 1.1,
     },
-    heroTitleWrap: { position: 'relative', alignSelf: 'stretch' },
+    // A row whose children each overlap the one before, so its height is the
+    // tallest ghost rather than the sum of them. `alignItems: 'flex-start'`
+    // keeps every ghost at its own height instead of stretching them all.
+    // The 640 cap lives on the wrap, not only on the text: `-100%` cancels a
+    // percentage of the *wrap*, so a ghost narrower than its parent would leave
+    // each successive copy drifting further left of the column.
+    heroTitleWrap: {
+      position: 'relative',
+      alignSelf: 'stretch',
+      maxWidth: 640,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
     // holds the block open; never read, never seen
-    heroTitleGhost: { opacity: 0 },
+    heroTitleGhost: { opacity: 0, width: '100%', marginRight: '-100%', flexShrink: 0 },
     heroTitleLive: { position: 'absolute', top: 0, left: 0, right: 0 },
     heroTitleTail: { color: t.scrimAccent },
     heroMetric: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
