@@ -3,6 +3,27 @@ import { Platform } from 'react-native';
 export type V5ThemeMode = 'light' | 'grey' | 'dark';
 
 /**
+ * The veil laid over the hero photograph, as four alphas along one axis.
+ *
+ * `axis` and `at` are part of the veil because a veil is a statement about
+ * *where the copy is*, and that moves with the layout. The hero puts its copy
+ * in a left column when it is side by side and across the full width when it
+ * stacks, so a single left-to-right curve cannot serve both: the stops that
+ * cover a left column leave the last third of a full-width paragraph sitting on
+ * the raw photograph. Carrying the axis and the stop positions here lets the
+ * stacked layout run the same veil downwards instead, and lets a theme place
+ * its falloff exactly where its copy ends rather than at a fixed 30/60%.
+ */
+export type ScrimVeil = {
+  /** 'x' = left→right, 'y' = top→bottom */
+  axis: 'x' | 'y';
+  /** opacity at each stop */
+  stops: readonly [number, number, number, number];
+  /** where each stop sits, 0–1 along the axis */
+  at: readonly [number, number, number, number];
+};
+
+/**
  * Every colour the public page is allowed to use.
  *
  * The page used to hardcode ~400 colour literals inside StyleSheet.create, so
@@ -76,14 +97,33 @@ export type ThemeTokens = {
   /** the ground a scrim is built from, as rgb triples for gradient stops */
   scrimBase: string;
   /**
-   * How strongly the veil covers the photograph, across the four gradient
-   * stops. Per theme, because the two grounds do not behave alike: a dark veil
-   * deepens a photograph and it stays crisp, while a light one *milks* it, and
-   * the same opacities that read well in dark left the light hero looking like
-   * a faded print. Light therefore covers hard only where the copy sits and
-   * gets out of the way fast.
+   * How strongly the veil covers the photograph, when the hero is side by side.
+   *
+   * Per theme, because the two grounds do not behave alike: a dark veil deepens
+   * a photograph and it stays crisp, while a light one *milks* it, and the same
+   * opacities that read well in dark left the light hero looking like a faded
+   * print. Light therefore covers hard only where the copy sits and gets out of
+   * the way fast — and "where the copy sits" is why the stop positions are here
+   * too, not fixed in the hero.
    */
-  scrimVeil: readonly [number, number, number, number];
+  scrimVeil: ScrimVeil;
+  /**
+   * The veil for the stacked hero, where the copy is full-width.
+   *
+   * The two dark palettes point this at the same curve as `scrimVeil`: a
+   * near-black veil at any opacity is still dark, so its thin end costs a white
+   * ink nothing and one curve genuinely serves both layouts. A light ground has
+   * no such luxury — its thin end is the raw photograph, which is exactly where
+   * a full-width paragraph's last third lands.
+   */
+  scrimVeilStacked: ScrimVeil;
+  /**
+   * The upward gradient under the trust strip, which is a separate wash from
+   * the veil and needs its own value: the two dark palettes were reading it off
+   * `scrimVeil[1]`, and light's copy stops needed to move without dragging the
+   * floor of the photograph up with them.
+   */
+  scrimVeilFloor: number;
   /** frosted panel on a photograph */
   scrimGlass: string;
   scrimGlassLine: string;
@@ -158,16 +198,74 @@ const light: ThemeTokens = {
   textSubtle: '#59647f',
   textOnBrand: '#ffffff',
   textOnScrim: '#ffffff',
+  /*
+   * Measured on the rendered hero: the ground is read from inside each text
+   * node's own box with the glyphs painted transparent, so it is the surface
+   * the letters actually sit on rather than a token colour.
+   *
+   * Two of the four inks move, and only as far as they must — every point of
+   * luminance taken out of an ink is a point of veil the photograph gets to
+   * keep. Backdrop needed for 4.5:1, before -> after:
+   *   scrimTextFaint  #4a587c -> #3a486e   0.83 -> 0.72 veil
+   *   scrimAccent     #0a56b8 -> #0a4a9e   0.86 -> 0.76 veil
+   * `scrimText` and `scrimTextMuted` clear 4.5:1 under the curve below as they
+   * are, so they stay, and the three tiers keep their order (0.010 / 0.058 /
+   * 0.066 relative luminance — the faint tier is still the quietest).
+   */
   scrimText: '#071449',
   scrimTextMuted: '#33436c',
-  scrimTextFaint: '#4a587c',
+  scrimTextFaint: '#3a486e',
   scrimBase: '246, 249, 255',
-  scrimVeil: [0.9, 0.68, 0.24, 0.08],
-  scrimGlass: 'rgba(10, 16, 30, 0.30)',
+  /*
+   * Side by side, the copy is a left column ending around 45% of the width. The
+   * veil is held at 0.80+ across exactly that much and then drops away, so the
+   * right of the photograph — the half worth looking at, and the half the glass
+   * panels sit on — keeps its own light. The old curve was already down to 0.24
+   * by 60% and 0.08 at the edge; it was tuned for a near-black veil, where a
+   * thin end costs a white ink nothing, and transcribed onto a near-white one,
+   * where the thin end IS the photograph.
+   */
+  scrimVeil: { axis: 'x', stops: [0.9, 0.86, 0.8, 0.06], at: [0, 0.26, 0.46, 0.8] },
+  /*
+   * Stacked, the copy runs the full width, so the veil runs DOWN instead — firm
+   * through the copy, out of the way below it, where every remaining node sits
+   * on glass and carries its own ground. Running the left-to-right curve here
+   * is what put the last third of the body copy at 1.04:1 and the headline tail
+   * at 1.18:1 on a phone.
+   */
+  scrimVeilStacked: { axis: 'y', stops: [0.92, 0.9, 0.82, 0.3], at: [0, 0.3, 0.56, 0.86] },
+  // The trust strip's own ground, 0.68 -> 0.86. At a phone width the strip
+  // wraps to two rows and the upper row lands above where the old wash had
+  // reached: 4.24:1 measured there at 0.82, 5.10:1 at 0.86, with the stacked
+  // veil's own tail carrying the other half of the lift.
+  scrimVeilFloor: 0.86,
+  /*
+   * 0.30 was a tint, not a glass, and on a light ground a tint cannot carry
+   * white ink: the veil under it is near-white, so the badge measured 2.18:1
+   * and a card over the brightest part of the veil measured 1.00:1.
+   *
+   * This is also where the coupling is settled. Below about 0.55 the panel's
+   * ink and the body copy pull against each other — every point of veil that
+   * saves the paragraph lightens the backdrop behind the glass and costs the
+   * label. At 0.66 the backdrop contributes a third of the composite and white
+   * clears 4.5:1 (6.3:1) against the *brightest* backdrop this veil can
+   * produce, so the two stop being coupled and the veil is free to serve the
+   * copy alone. Less see-through than the two dark palettes: the price of the
+   * same design language on a light page.
+   */
+  scrimGlass: 'rgba(10, 16, 30, 0.66)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
-  scrimAccent: '#0a56b8',
+  scrimAccent: '#0a4a9e',
   scrimGood: '#4ed67f',
-  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
+  /*
+   * The status pill is the deepest stack of tints on the page — its own wash,
+   * over the glass, over the veil — and `scrimGood` is a text colour there, not
+   * only the live dot, so it owes 4.5:1. A green wash *raised* the ground its
+   * own green label had to clear (2.64:1). A dark well instead: the pill reads
+   * as an inset rather than a stain, the green ink and green hairline are
+   * untouched, and the label clears 5.4:1.
+   */
+  scrimGoodBg: 'rgba(4, 30, 16, 0.42)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
   scrimGlassBlur: 'blur(14px) saturate(120%)',
@@ -236,7 +334,14 @@ const grey: ThemeTokens = {
   scrimTextMuted: '#c8d4ee',
   scrimTextFaint: '#93a4c9',
   scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  // Unchanged: the same four alphas, the same axis and the same stop positions
+  // the single array meant, and the stacked layout points at the same curve —
+  // a near-black veil's thin end costs a white ink nothing, so one curve does
+  // serve both layouts here. `scrimVeilFloor` is the 0.88 the floor gradient
+  // was already reading out of `scrimVeil[1]`.
+  scrimVeil: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilStacked: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilFloor: 0.88,
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',
@@ -300,7 +405,14 @@ const dark: ThemeTokens = {
   scrimTextMuted: '#c8d4ee',
   scrimTextFaint: '#93a4c9',
   scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  // Unchanged: the same four alphas, the same axis and the same stop positions
+  // the single array meant, and the stacked layout points at the same curve —
+  // a near-black veil's thin end costs a white ink nothing, so one curve does
+  // serve both layouts here. `scrimVeilFloor` is the 0.88 the floor gradient
+  // was already reading out of `scrimVeil[1]`.
+  scrimVeil: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilStacked: { axis: 'x', stops: [0.95, 0.88, 0.62, 0.42], at: [0, 0.3, 0.6, 1] },
+  scrimVeilFloor: 0.88,
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#7cb6ff',

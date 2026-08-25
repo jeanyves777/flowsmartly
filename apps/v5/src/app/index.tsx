@@ -826,29 +826,39 @@ function Hero() {
     (_, i) => HERO_PREPARED[(offset + i) % HERO_PREPARED.length],
   );
 
+  // Which way the copy runs is which way the veil has to run.
+  const veil = l.isStacked ? t.scrimVeilStacked : t.scrimVeil;
+
   return (
     <>
     <View style={styles.heroScene}>
       {/* The photograph is the ground. It is decorative — the headline beside
           it carries the meaning — so it takes an empty alt. */}
       <Media name="scenes/careers-team" alt="" radius={0} style={styles.heroPhoto} />
-      {/* Two scrims: one across, so the copy has contrast over whatever the
-          photograph is doing; one up from the floor, for the trust strip. */}
+      {/* Two scrims: one across the copy, so it has contrast over whatever the
+          photograph is doing; one up from the floor, for the trust strip.
+
+          The first one follows the LAYOUT, not just the theme. Side by side the
+          copy is a left column and the veil runs left to right; stacked, the
+          copy is full-width and the same veil runs top to bottom instead. The
+          old fixed left-to-right curve was correct for the desktop column and
+          left the last third of every stacked paragraph on the raw photograph —
+          which a dark ground survives and a light one does not. */}
       <LinearGradient
         colors={[
-          `rgba(${t.scrimBase},${t.scrimVeil[0]})`,
-          `rgba(${t.scrimBase},${t.scrimVeil[1]})`,
-          `rgba(${t.scrimBase},${t.scrimVeil[2]})`,
-          `rgba(${t.scrimBase},${t.scrimVeil[3]})`,
+          `rgba(${t.scrimBase},${veil.stops[0]})`,
+          `rgba(${t.scrimBase},${veil.stops[1]})`,
+          `rgba(${t.scrimBase},${veil.stops[2]})`,
+          `rgba(${t.scrimBase},${veil.stops[3]})`,
         ]}
-        locations={[0, 0.3, 0.6, 1]}
+        locations={[veil.at[0], veil.at[1], veil.at[2], veil.at[3]]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={veil.axis === 'x' ? { x: 1, y: 0 } : { x: 0, y: 1 }}
         style={styles.heroScrim}
         pointerEvents="none"
       />
       <LinearGradient
-        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},${t.scrimVeil[1]})`]}
+        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},${t.scrimVeilFloor})`]}
         locations={[0.68, 1]}
         style={styles.heroScrim}
         pointerEvents="none"
