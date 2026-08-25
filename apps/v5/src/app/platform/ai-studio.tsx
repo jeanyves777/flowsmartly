@@ -1725,7 +1725,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba('#000000', 0.72),
     },
     // On a black scrim over imagery, not on a brand fill — so it needs the
-    // always-white scrim ink, not the on-brand ink (which is dark in grey/dark).
+    // always-white scrim ink, not the on-brand ink (which is dark in `dark`).
     durationText: { ...type.micro, color: t.textOnScrim, fontWeight: '800' },
 
     timelineRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },

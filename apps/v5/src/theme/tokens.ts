@@ -13,6 +13,24 @@ export type V5ThemeMode = 'light' | 'grey' | 'dark';
 export type ThemeTokens = {
   mode: V5ThemeMode;
 
+  /**
+   * Whether the page is a **light ground carrying dark ink** or the reverse.
+   *
+   * `mode` names the theme; `ground` names the only thing about it that twenty
+   * call sites across the site ever actually asked `mode` about. They asked it
+   * as `t.mode === 'light'`, which was a correct shorthand for exactly as long
+   * as grey was a second dark — an editor panel borrowed the dark palette
+   * "unless light", an artwork strip picked its alpha "unless light", a scrim
+   * picked its opacity "unless light". Grey becoming a mid page falsified all
+   * twenty at once, and none of them would have gone red: they compile, and
+   * they render a dark-theme decision onto a light-theme page.
+   *
+   * Naming the property is what makes the next theme cheap. A fourth palette
+   * declares which side it is on and every one of those call sites is already
+   * right.
+   */
+  ground: 'light' | 'dark';
+
   /** page behind the section cards */
   background: string;
   /** a section card */
@@ -31,17 +49,22 @@ export type ThemeTokens = {
    * Ink for anything painted **on** a brand / accent / gradient fill.
    *
    * It is not "white": it is whatever clears 4.5:1 on the fills *this* palette
-   * uses. Light keeps white, because its accents are deep. The two dark themes
-   * raise their accents to light tones (`brand` is `#4f9dff` there, not
-   * `#0878f9`) so they read against a dark page — which means white on top of
-   * them scored 2.0–2.9:1, i.e. below even the 3:1 large-text floor, on every
-   * "Approve" / "Accept all" / "Pay" / step-number fill on the site. Dark ink
-   * on a light fill is the correct inversion, and it fixes all ~44 call sites
-   * at once without any of them knowing.
+   * uses. The two light-ground themes keep white, because their accents are
+   * deep. `dark` raises its accents to light tones (`brand` is `#4f9dff`
+   * there, not `#0878f9`) so they read against a near-black page — which means
+   * white on top of them scored 2.0–2.9:1, i.e. below even the 3:1 large-text
+   * floor, on every "Approve" / "Accept all" / "Pay" / step-number fill on the
+   * site. Dark ink on a light fill is the correct inversion, and it fixes all
+   * ~44 call sites at once without any of them knowing.
+   *
+   * Grey used to be on dark's side of this and is now on light's: when its
+   * page stopped being near-black its accents stopped needing to be light, and
+   * the ink on them went back to white.
    *
    * The consequence, and it is deliberate: `gradient` and `ctaGradient` must
-   * stay light enough in grey/dark for this ink. They are background-only
-   * tokens, so that is a free trade — see the notes on them below.
+   * stay light enough in `dark` for a dark ink, and dark enough in the two
+   * light-ground themes for a white one. They are background-only tokens, so
+   * that is a free trade either way — see the notes on them below.
    */
   textOnBrand: string;
   /**
@@ -58,9 +81,10 @@ export type ThemeTokens = {
    * hardcoded dark in all three, on the argument that a scrim carrying AA text
    * cannot also be a light surface — which is only true if the scrim has to be
    * dark. It does not: in light the photograph takes a near-white veil and the
-   * copy stays navy, in grey and dark it takes the near-black one and the copy
-   * goes white. Same photograph, three grounds, the theme switch still means
-   * something on the first screen of the site.
+   * copy stays navy, in grey a mid-grey one with the same dark copy, and in
+   * dark the near-black one with the copy in white. Same photograph, three
+   * grounds, the theme switch still means something on the first screen of the
+   * site.
    */
   /**
    * The ink on the *veil* — dark on a light one, white on a dark one.
@@ -81,7 +105,8 @@ export type ThemeTokens = {
    * deepens a photograph and it stays crisp, while a light one *milks* it, and
    * the same opacities that read well in dark left the light hero looking like
    * a faded print. Light therefore covers hard only where the copy sits and
-   * gets out of the way fast.
+   * gets out of the way fast; grey does the same thing one notch firmer,
+   * because a mid veil has about half light's headroom over a photograph.
    */
   scrimVeil: readonly [number, number, number, number];
   /** frosted panel on a photograph */
@@ -98,8 +123,10 @@ export type ThemeTokens = {
    * The frost. Without it a glass panel is only a tinted rectangle, so the
    * tint has to be heavy enough to carry text by itself and stops being
    * see-through — which is how these shipped first as white pills and then as
-   * dark ones. With the blur the tint drops to 30% and the photograph reads
-   * through properly.
+   * dark ones. With the blur the tint can drop far enough for the photograph to
+   * read through: 30% on the two themes whose veil is near-white or near-black,
+   * 55% in grey, where the tint has to fight a mid veil for the white ink it
+   * carries. See `scrimGlass` on each palette.
    */
   scrimGlassBlur: string;
 
@@ -144,6 +171,7 @@ export type ThemeTokens = {
 
 const light: ThemeTokens = {
   mode: 'light',
+  ground: 'light',
   background: '#f3f6fc',
   surface: '#ffffff',
   surfaceRaised: '#ffffff',
@@ -215,73 +243,210 @@ const light: ThemeTokens = {
   statusBar: 'dark',
 };
 
-/** "Grey" is a true dark charcoal UI — neutral, not navy. */
+/**
+ * "Grey" is a **mid** page — not a dimmer dark and not a paler light, but the
+ * light theme's *structure* (dark ink, grounds that rise for a card and recede
+ * for a well) at about half the luminance.
+ *
+ * It used to be a second dark, and the name was the only thing separating it
+ * from `dark`. WCAG relative luminance of the five surfaces, measured on the
+ * palette this replaces:
+ *
+ * ```
+ *              background  surface  surfaceRaised  surfaceMuted  surfaceInset
+ *   light        0.9098    1.0000     1.0000         0.9553        0.8879
+ *   grey (was)   0.0093    0.0160     0.0224         0.0184        0.0272
+ *   dark         0.0036    0.0079     0.0130         0.0095        0.0166
+ * ```
+ *
+ * Grey's page sat **0.6% of the way from dark to light**, and it was *darker
+ * than dark's own `surfaceRaised` (0.0130) and `surfaceInset` (0.0166)* — the
+ * two ladders interleaved. Someone picking the middle of three themes got a
+ * page darker than the recessed surfaces of the darkest one.
+ *
+ * ```
+ *   grey (now)   0.4536    0.5811     0.6492         0.5066        0.4040
+ * ```
+ *
+ * Dark's brightest surface is 0.0166 and light's dimmest is 0.8879, so the
+ * three families no longer overlap anywhere.
+ *
+ * The ladder is transcribed from the portal's `packages/design-tokens`, which
+ * made this correction first, so the two products agree on what grey is:
+ * `surface.canvas` → `background`, `surface.raised` → `surface`,
+ * `surface.overlay` → `surfaceRaised`, `surface.hover` → `surfaceMuted`,
+ * `surface.sunken` → `surfaceInset`. Every ratio in the comments below is
+ * measured against **these** five surfaces, never copied from the portal's.
+ *
+ * Three things do not survive a transcription and are authored here:
+ *
+ * **The ink inverts.** `text` was `#f1f4f8` — near-white on near-black. Every
+ * text, scrim and on-brand token had to be re-derived from the other side.
+ *
+ * **The accents are deepened, not reused.** A blue that clears 4.5:1 on white
+ * does not clear it on a ground at 0.45. Each accent below is the *lightest*
+ * value on its own hue that clears 4.5:1 both as text on `surfaceInset` (the
+ * darkest of the five) and under white on a solid fill — the same rule light
+ * applies, run against a mid ground.
+ *
+ * **The washes are hand-authored, not scaled.** A tint loses its chroma faster
+ * than its luminance when it is dimmed, so light's chip / success / warn
+ * grounds scaled down arrive as three greys on a grey page — legible, and
+ * indistinguishable. They carry more saturation here to say the same thing at
+ * half the brightness.
+ */
 const grey: ThemeTokens = {
   mode: 'grey',
-  background: '#15181d',
-  surface: '#1d2127',
-  surfaceRaised: '#242931',
-  surfaceMuted: '#20242b',
-  surfaceInset: '#282d35',
+  ground: 'light',
+  background: '#AEB4BE',
+  surface: '#C4C9D1',
+  surfaceRaised: '#CFD3DA',
+  surfaceMuted: '#B8BDC6',
+  surfaceInset: '#A4ABB6',
 
-  text: '#f1f4f8',
-  textMuted: '#b2bac7',
-  // already 4.63:1 on surfaceInset, the tightest of the five surfaces
-  textSubtle: '#98a2b3',
-  // Neutral near-black, to match the charcoal palette: 6.74:1 on brand,
-  // 8.86 brandStrong, 6.99 violet, 9.33 green, 9.40 orange, 6.50 pink.
-  textOnBrand: '#101317',
+  // 8.20:1 on surfaceInset, the tightest of the five surfaces; 9.09 on the
+  // page, 11.39 on a card, 12.62 on a raised panel.
+  text: '#0A1020',
+  // 6.13:1 on surfaceInset
+  textMuted: '#232B3C',
+  // 4.86:1 on surfaceInset — the quietest of the three tiers that still clears
+  // AA on the darkest surface. #3E4556 was the next step down and scored 4.14.
+  textSubtle: '#333B4B',
+  // White, and this is the inversion the whole theme turns on. Grey used to
+  // raise its accents to light tones so they read on a near-black page, which
+  // forced a near-black ink on top of them. The accents below are deep, so the
+  // ink goes back to white: 10.43:1 on brand, 11.93 brandStrong, 11.12 violet,
+  // 10.60 green, 10.56 orange, 10.53 pink.
+  textOnBrand: '#ffffff',
+  // Glass over a photograph stays a dark tint in every theme, so its ink stays
+  // white in every theme. See scrimGlass.
   textOnScrim: '#ffffff',
-  scrimText: '#ffffff',
-  scrimTextMuted: '#c8d4ee',
-  scrimTextFaint: '#93a4c9',
-  scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
-  scrimGlass: 'rgba(10, 16, 30, 0.30)',
-  scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
-  scrimAccent: '#7cb6ff',
-  scrimGood: '#4ed67f',
-  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
-  scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
+  // The veil is now the page's own grey rather than a near-black, so the copy
+  // on it is the page's own ink. Measured on the *rendered* hero rather than on
+  // the token: 8.76:1 at 1440, 9.02 at 768, 10.13 at 390.
+  scrimText: '#0A1020',
+  // 6.42 / 6.53 / 6.53 across the same three widths — and 5.02 at the worst
+  // point of all, the right-hand third of the body copy at 768, where the veil
+  // has thinned and the photograph is dark. That point is what set the veil.
+  scrimTextMuted: '#232B3C',
+  // A step deeper than `textSubtle`, which the two grounded tiers above reuse.
+  // #333B4B measured 4.40:1 on the rendered page at 768; this is 5.15–5.63
+  // across the three widths and 4.68 at its own worst third.
+  scrimTextFaint: '#2E3644',
+  scrimBase: '174, 180, 190',
+  /*
+   * Far firmer than light's [0.9, 0.68, 0.24, 0.08], and the tail is what
+   * matters rather than the head.
+   *
+   * A mid veil has roughly half light's headroom over a photograph, and the
+   * hero copy is only inset from the left on a wide screen: at 768 and 390 it
+   * runs the full width and its last third sits under the veil's *thin* end.
+   * Measured there with light's curve transcribed, grey's body copy scored
+   * 2.84:1 at 768 and 2.77:1 at 390.
+   *
+   * Worth recording, because it is the reason this is a grey-only change:
+   * LIGHT fails the same measurement harder — 1.94:1 at 768 and 1.48:1 at 390
+   * on the same words — and dark passes everywhere, because a near-black veil
+   * at any opacity is still dark. The defect belongs to light grounds, grey
+   * inherited it by transcription, and only grey is in scope here. Light's
+   * figures are recorded so the next person does not have to rediscover them.
+   *
+   * With this curve the worst third of any hero string is 4.68:1, at 768.
+   * The photograph pays for it: it reads as a soft ground rather than a picture
+   * at full strength. That is the trade, taken deliberately.
+   */
+  scrimVeil: [0.95, 0.9, 0.8, 0.68],
+  // Deepened from light's 0.30, and measured rather than inherited. The glass
+  // is a window onto the photograph and stays a dark tint in all three themes —
+  // but it composites over the *veil*, and at 0.30 over a mid veil it landed at
+  // #808691, where the white ink it carries scored 3.66:1. It is also coupled
+  // to `scrimVeil`: every time the veil was firmed to protect the body copy,
+  // the glass got a lighter backdrop and the pills inside it lost ground. At
+  // 0.72 against the final veil the badge ink measures 10.75–10.92:1 and the
+  // status pills 5.55–6.39:1.
+  scrimGlass: 'rgba(10, 16, 30, 0.72)',
+  scrimGlassLine: 'rgba(255, 255, 255, 0.22)',
+  // The headline tail, painted on the veil rather than on glass — so unlike the
+  // rest of this family it follows the theme. 5.56:1 measured on the rendered
+  // hero at 1440, where the tail actually falls.
+  scrimAccent: '#063572',
+  // Lifted from the shared #4ed67f. It is a *label* on the hero's status pills,
+  // not only the live dot, so it owes 4.5:1 — and the pill's ground is
+  // scrimGoodBg over glass over the veil, the deepest stack of tints on the
+  // page. At #4ed67f over grey's veil it measured 3.27:1 at 390; this measures
+  // 5.55–6.39:1 across the three widths.
+  scrimGood: '#6FE3A0',
+  // The wash is thinner and the line is firmer than the other two palettes, and
+  // measuring said why: the glass beneath it renders at 0.014 luminance, so
+  // nearly all of the pill's lightness was coming from its own 16% green tint —
+  // the ground the label has to clear was being raised by the label's own hue.
+  // At 0.10 the pill still reads as a pill, because the border carries it.
+  scrimGoodBg: 'rgba(111, 227, 160, 0.10)',
+  scrimGoodLine: 'rgba(111, 227, 160, 0.38)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
   scrimGlassBlur: 'blur(14px) saturate(120%)',
 
-  border: '#333941',
-  borderStrong: '#48505c',
-  divider: '#2b3038',
+  // 1.22 / 1.51 / 2.20 against the page. These separate adjacent surfaces and
+  // are never the sole boundary of a control; light's own ladder scores 1.10 /
+  // 1.21 / 1.33 there, so grey is the firmer of the two light-ground themes.
+  border: '#8A929E',
+  borderStrong: '#6E7683',
+  divider: '#9CA3AE',
 
-  brand: '#4f9dff',
-  brandStrong: '#7cb6ff',
-  brandSoft: '#1f2a37',
-  violet: '#a98cff',
-  green: '#3fd07c',
-  orange: '#ffa34d',
-  pink: '#ff5f96',
+  // Like LIGHT and unlike the old grey, an accent here is used both as text and
+  // as a fill, and both roles pull the same way — so the hue is deepened rather
+  // than the ink on it. Each value is the LIGHTEST one on its hue that clears
+  // 4.5:1 both as text on surfaceInset (#A4ABB6, the darkest grey surface) and
+  // under white on a solid fill.
+  //   was (light tones, for a near-black page) -> now   as-text / white-on-fill
+  //   brand   #4f9dff -> #063D85                1.85 -> 4.51 / 1.83 -> 10.43
+  //   violet  #a98cff -> #431B9E                1.55 -> 4.81 / 2.14 -> 11.12
+  //   green   #3fd07c -> #084A23                1.10 -> 4.51 / 2.31 -> 10.60
+  //   orange  #ffa34d -> #663000                1.08 -> 4.57 / 2.32 -> 10.56
+  //   pink    #ff5f96 -> #810235                1.35 -> 4.55 / 2.09 -> 10.53
+  brand: '#063D85',
+  brandStrong: '#063572',
+  // Hand-authored, not `brand` scaled towards the surface: a 5% tint of this
+  // blue on a mid ground is a grey. This carries real chroma and still takes
+  // the page's ink at 11.01:1, with `brand` on it at 6.06:1.
+  brandSoft: '#B9C6DE',
+  violet: '#431B9E',
+  green: '#084A23',
+  orange: '#663000',
+  pink: '#810235',
 
-  chipBg: '#242e3c',
-  chipText: '#89b9ff',
-  successBg: '#17301f',
-  successText: '#4ed67f',
-  warnBg: '#332512',
-  warnText: '#f5b040',
+  // 6.58:1
+  chipBg: '#9FB0D8',
+  chipText: '#0E2170',
+  // 5.55:1
+  successBg: '#A8CBB4',
+  successText: '#004F20',
+  // 6.02:1
+  warnBg: '#E5C6A2',
+  warnText: '#752E00',
 
-  // The palette's own brand → violet accents, so a gradient fill and a solid
-  // `t.brand` fill sit at the same tone and take the same ink. 6.66:1.
-  gradient: ['#4f9dff', '#a98cff'],
-  // Same arc, lifted 16% so it still clears 4.5:1 (4.81) after the banner's own
-  // 22% black scrim. Keeping the old deep-royal stops would have put the copy
-  // at 2.40:1 against this ink — the scrim spends a third of the budget.
-  ctaGradient: ['#6badff', '#939fff', '#b79eff'],
+  // The palette's own brand → violet, so a gradient fill and a solid `t.brand`
+  // fill sit at the same tone and take the same ink: 10.43:1 and 11.12:1 under
+  // white. The old note here said the gradient had to stay *light* enough for a
+  // dark ink; the constraint flipped with the ink.
+  gradient: ['#063D85', '#431B9E'],
+  // Light's arc at 60%. Measured after the banner's own 22% shadowColor scrim,
+  // which is the budget that matters: #03467C 9.67:1, #0E2978 13.07:1 and
+  // #351A7C 13.21:1 under white.
+  ctaGradient: ['#005495', '#0e2f90', '#401b95'],
 
-  shadowColor: '#000000',
-  shadowStrength: 0.45,
+  // Not black. A pure-black shadow on a mid ground reads as dirt; this is the
+  // page's own ink hue, at the strength the portal's elevation ladder uses.
+  shadowColor: '#0e1522',
+  shadowStrength: 0.18,
 
-  statusBar: 'light',
+  statusBar: 'dark',
 };
 
 /** Near-black navy. */
 const dark: ThemeTokens = {
   mode: 'dark',
+  ground: 'dark',
   background: '#070b16',
   surface: '#0e1424',
   surfaceRaised: '#141c30',
@@ -360,9 +525,27 @@ function luminance(hex: string): number {
 /**
  * Brand glyphs keep their own colour, except the near-black ones (TikTok,
  * Apple, X) which disappear entirely on a dark surface.
+ *
+ * The rescue is for a **dark ground only**, and that is now stated by the
+ * ground rather than by naming light. It used to read `t.mode === 'light'`,
+ * which sent grey down the rescue path; on a mid page that path is not merely
+ * unnecessary, it is backwards. The six marks the `< 0.12` cut-off fires on are
+ * the six that score *best* on grey's page — GitHub 8.58:1, TikTok 9.06:1,
+ * Apple / X / Notion / Copilot 10.07:1 — so it would have repainted the
+ * official mark with the theme's ink to fix a problem the mid ground does not
+ * have.
+ *
+ * The marks that genuinely vanish on a mid grey are the bright ones, and this
+ * function cannot see them: Airtable `#18BFFF` measures 1.01:1 on the page,
+ * Amazon `#ff9900` 1.03:1, WhatsApp `#25d366` 1.05:1. They are not rescued
+ * here and deliberately so — a logotype is exempt from the contrast minimum,
+ * every one of them is labelled in text beside the glyph, and light has
+ * carried exactly the same figures since it shipped (Airtable is 1.60:1 on
+ * white). Repainting them would mean inventing a colour for someone else's
+ * mark, which the rest of `brand-logo.tsx` exists to prevent.
  */
 export function brandColor(hex: string, t: ThemeTokens): string {
-  if (t.mode === 'light') return hex;
+  if (t.ground === 'light') return hex;
   // Only near-black marks need rescuing (#111 scores 0.067). A higher cut-off
   // also swallows saturated-but-dark brand colours — YouTube red is 0.213 and
   // was being repainted as a white block.
@@ -392,9 +575,13 @@ export function elevation(t: ThemeTokens, level: 1 | 2 | 3 = 1) {
  * The palette accents were tuned to clear 4.5:1 on `surfaceInset`, the darkest
  * surface that existed at the time. Soft band grounds arrived later and sit
  * slightly off that value, which costs about a tenth of a point — enough to
- * put a 12px chip label at 4.36 in light and 3.94 in grey. This nudges the
- * accent in whichever direction the theme needs: darker on light, lighter on
- * the two dark palettes.
+ * put a 12px chip label at 4.36 in light. This nudges the accent in whichever
+ * direction the *ground* needs: darker on a light one, lighter on a dark one.
+ *
+ * Grey moved sides with the rest of the palette. On the mid page a −16% shift
+ * takes `brand` `#063D85` to `#053370`, which measures 6.11:1 on a 12% soft
+ * fill over a card and 4.97:1 over the page itself; the +20% it used to get
+ * would have moved it the wrong way.
  *
  * Only for text. Fills and icons are unaffected — they are not held to a
  * contrast ratio.
@@ -402,7 +589,7 @@ export function elevation(t: ThemeTokens, level: 1 | 2 | 3 = 1) {
 export function accentText(hex: string, t: ThemeTokens): string {
   const value = hex.replace('#', '');
   const full = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
-  const shift = t.mode === 'light' ? -0.16 : 0.2;
+  const shift = t.ground === 'light' ? -0.16 : 0.2;
   const channel = (start: number) => {
     const v = parseInt(full.slice(start, start + 2), 16);
     const next = shift < 0 ? v * (1 + shift) : v + (255 - v) * shift;
@@ -422,7 +609,19 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${Math.round(alpha * 1000) / 1000})`;
 }
 
-/** Tint a solid colour towards the current surface — for soft icon backdrops. */
+/**
+ * Tint a solid colour towards the current surface — for soft icon backdrops.
+ *
+ * Three values rather than two, because the alpha is really asking how much
+ * room there is between the accent and the ground. Light has the most (a deep
+ * accent on white), dark has the most in the other direction (a light accent on
+ * near-black), and grey has the least in both: its accents are deep *and* its
+ * page is mid, so 0.10 leaves the tile almost invisible and 0.18 turns it into
+ * a second card. 0.13 puts `brand` at `#ACB7C7` on a card, which is a tint you
+ * can see without it reading as a surface of its own.
+ */
+const SOFT_FILL_ALPHA: Record<V5ThemeMode, number> = { light: 0.1, grey: 0.13, dark: 0.18 };
+
 export function softFill(hex: string, t: ThemeTokens): string {
-  return hexToRgba(hex, t.mode === 'light' ? 0.1 : 0.18);
+  return hexToRgba(hex, SOFT_FILL_ALPHA[t.mode]);
 }

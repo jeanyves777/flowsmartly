@@ -135,7 +135,7 @@ const plans: Plan[] = [
 /**
  * The FlowSmartly signature swoosh on the growth CTA. Brand colours, so they
  * are deliberately theme-invariant — like the logo, the mark should read the
- * same in light, charcoal and dark.
+ * same in light, grey and dark.
  */
 const SIGNATURE = { wedge: '#ff9700', arc: '#ffc21a' } as const;
 
@@ -636,9 +636,11 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
         style={styles.cta}>
-        {/* Deepens the gradient so the white copy clears 4.5:1 on the light first
-          stop (#008cf8 scored 3.44:1, grey 4.00:1). Painted first, so every
-          sibling below renders on top of it. */}
+        {/* Deepens the gradient so the copy clears 4.5:1 on the lightest stop
+          (light's #008cf8 scored 3.44:1 under white on its own). Painted first,
+          so every sibling below renders on top of it. Grey's arc is authored
+          against this scrim rather than rescued by it: 9.67:1 at its first stop
+          after the 22% pass. */}
         <View style={styles.ctaScrim} pointerEvents="none" />
         {/* Signature swoosh, painted over the scrim but under the copy/panel. */}
         <SignatureMark width={signature.width} height={signature.height} />

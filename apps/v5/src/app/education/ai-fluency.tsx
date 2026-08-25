@@ -1276,7 +1276,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 12,
       backgroundColor: t.warnBg,
       borderWidth: 1,
-      borderColor: hexToRgba(t.orange, t.mode === 'light' ? 0.24 : 0.34),
+      borderColor: hexToRgba(t.orange, t.ground === 'light' ? 0.24 : 0.34),
       padding: 12,
       gap: 6,
     },

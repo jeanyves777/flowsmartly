@@ -62,9 +62,14 @@ const MONO = Platform.select({
 
 /**
  * A code block reads as an editor, so it stays dark in all three themes — the
- * one surface on the page that does not follow the light palette. The colours
- * are still tokens: on light they are borrowed wholesale from the dark palette,
- * on grey/dark they are the theme's own raised surfaces.
+ * one surface on the page that does not follow the page's own palette. The
+ * colours are still tokens: on a light ground they are borrowed wholesale from
+ * the dark palette, and on a dark one they are the theme's own raised surfaces.
+ *
+ * The test is the ground, not the mode. While grey was a second dark this read
+ * `t.mode === 'light'` and was right by accident; the moment grey became a mid
+ * page that branch put the editor on `#CFD3DA` — a pale grey panel with pale
+ * grey syntax on it — while still calling itself dark chrome.
  */
 type Ink = {
   bg: string;
@@ -80,7 +85,7 @@ type Ink = {
 
 function inkFor(t: ThemeTokens): Ink {
   const d = palettes.dark;
-  const borrowed = t.mode === 'light';
+  const borrowed = t.ground === 'light';
   return {
     bg: borrowed ? d.surface : t.surfaceRaised,
     panel: borrowed ? d.surfaceRaised : t.surfaceInset,

@@ -1448,7 +1448,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 999,
       paddingHorizontal: 11,
       paddingVertical: 6,
-      backgroundColor: hexToRgba(t.pink, t.mode === 'light' ? 0.12 : 0.2),
+      backgroundColor: hexToRgba(t.pink, t.ground === 'light' ? 0.12 : 0.2),
     },
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.pink },
     liveText: { ...type.micro, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },

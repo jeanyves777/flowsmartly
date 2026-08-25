@@ -279,7 +279,7 @@ function UptimeBar({ component }: { component: Component }) {
           ? t.pink
           : component.degraded.includes(day)
             ? t.orange
-            : hexToRgba(t.green, t.mode === 'light' ? 0.72 : 0.8);
+            : hexToRgba(t.green, t.ground === 'light' ? 0.72 : 0.8);
         return <View key={day} style={[styles.bar, { backgroundColor: color }]} />;
       })}
     </View>
@@ -664,7 +664,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const barGap = l.isPhone || l.isTablet ? 1 : 3;
   const barHeight = l.isPhone ? 24 : 30;
 
-  const healthy = hexToRgba(t.green, t.mode === 'light' ? 0.72 : 0.8);
+  const healthy = hexToRgba(t.green, t.ground === 'light' ? 0.72 : 0.8);
 
   const cardBase: ViewStyle = {
     borderWidth: 1,
@@ -705,7 +705,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 26,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: hexToRgba(t.green, t.mode === 'light' ? 0.18 : 0.24),
+      backgroundColor: hexToRgba(t.green, t.ground === 'light' ? 0.18 : 0.24),
     },
     bannerDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.successText },
     bannerCopy: stacked

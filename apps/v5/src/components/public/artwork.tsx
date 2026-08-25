@@ -12,7 +12,7 @@ import { Media } from './media';
  * The 3D illustrations were rendered on a flat lavender plate. Used as plain
  * images they filled a hard-edged box with a backdrop that belonged to the
  * artwork's own render, not to this page — which read as a pasted-in stock
- * image in the light theme and as a glaring light block in grey and dark.
+ * image on a light ground and as a glaring light block on a dark one.
  *
  * The backdrop is now removed at build time (`scripts/cutouts.py`), so the
  * subject has real transparency and this component supplies the surface it sits
@@ -79,7 +79,7 @@ export function Artwork({
     <View style={[styles.plate, { borderRadius: radius, padding: inset }, height ? { height } : null, style]}>
       {surface === 'plate' ? (
         <LinearGradient
-          colors={[hexToRgba(t.brand, t.mode === 'light' ? 0.1 : 0.15), hexToRgba(t.violet, t.mode === 'light' ? 0.09 : 0.13)]}
+          colors={[hexToRgba(t.brand, t.ground === 'light' ? 0.1 : 0.15), hexToRgba(t.violet, t.ground === 'light' ? 0.09 : 0.13)]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
@@ -106,7 +106,7 @@ function createStyles(t: ThemeTokens) {
     artboard: {
       overflow: 'hidden',
       borderWidth: 1,
-      borderColor: t.mode === 'light' ? t.border : hexToRgba('#ffffff', 0.14),
+      borderColor: t.ground === 'light' ? t.border : hexToRgba('#ffffff', 0.14),
       backgroundColor: '#ece7fb',
       alignItems: 'center',
       justifyContent: 'center',

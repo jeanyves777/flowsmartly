@@ -142,7 +142,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     plate: {
       borderRadius: l.isPhone ? 8 : 10,
       overflow: 'hidden',
-      backgroundColor: t.mode === 'light' ? t.surface : t.surfaceMuted,
+      backgroundColor: t.ground === 'light' ? t.surface : t.surfaceMuted,
     },
     visualImage: { width: '100%', aspectRatio: l.isPhone ? 1.2 : 1.5 },
   });

@@ -555,7 +555,7 @@ function AttendanceChart({
             {`${value}`}
           </SvgText>
         ))}
-        <Path d={area} fill={hexToRgba(color, t.mode === 'light' ? 0.12 : 0.2)} />
+        <Path d={area} fill={hexToRgba(color, t.ground === 'light' ? 0.12 : 0.2)} />
         <Path d={line} stroke={color} strokeWidth={2} strokeLinecap="round" fill="none" />
         <Circle
           cx={x(ATTENDANCE_VALUES.length - 1)}
