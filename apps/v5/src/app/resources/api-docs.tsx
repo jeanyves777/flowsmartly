@@ -62,9 +62,16 @@ const MONO = Platform.select({
 
 /**
  * A code block reads as an editor, so it stays dark in all three themes — the
- * one surface on the page that does not follow the light palette. The colours
- * are still tokens: on light they are borrowed wholesale from the dark palette,
- * on grey/dark they are the theme's own raised surfaces.
+ * one surface on the page that does not follow the page's own palette. The
+ * colours are still tokens: on a light ground they are borrowed wholesale from
+ * the dark palette, and on a dark one they are the theme's own raised surfaces.
+ *
+ * The test is the ground, not the mode. All three palettes are dark-ink-on-
+ * light or light-ink-on-dark, and this panel only ever cared which — it read
+ * `t.mode === 'light'`, which was right only for as long as no second light
+ * ground existed. Under the charcoal grey it evaluates exactly as the mode
+ * check did, so nothing renders differently today; the point is that a fourth
+ * palette now declares its side instead of having to be named here.
  */
 type Ink = {
   bg: string;
@@ -80,7 +87,7 @@ type Ink = {
 
 function inkFor(t: ThemeTokens): Ink {
   const d = palettes.dark;
-  const borrowed = t.mode === 'light';
+  const borrowed = t.ground === 'light';
   return {
     bg: borrowed ? d.surface : t.surfaceRaised,
     panel: borrowed ? d.surfaceRaised : t.surfaceInset,

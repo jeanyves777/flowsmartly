@@ -2,6 +2,15 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // `tokens.test.ts` imports `./tokens.ts` by its real filename, because Node
+    // runs it directly through type-stripping rather than through a bundler.
+    "allowImportingTsExtensions": true,
+    // Expo's base sets `customConditions: ["react-native"]`, under which the
+    // `node:*` specifiers in the theme test do not resolve unless @types/node is
+    // named here. Naming anything turns OFF automatic inclusion of every other
+    // `@types/*`, so `react` — the only other one this app reads — is listed
+    // with it rather than being silently dropped.
+    "types": ["node", "react"],
     "paths": {
       "@/*": [
         "./src/*"

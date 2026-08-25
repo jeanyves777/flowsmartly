@@ -536,7 +536,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: t.mode === 'light' ? 'rgba(7, 20, 73, 0.34)' : 'rgba(0, 0, 0, 0.58)',
+      backgroundColor: t.ground === 'light' ? 'rgba(7, 20, 73, 0.34)' : 'rgba(0, 0, 0, 0.58)',
     },
     panel: {
       width: '100%',

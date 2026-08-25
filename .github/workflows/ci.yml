@@ -68,3 +68,12 @@ jobs:
         run: npx tsc --noEmit
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+      # The theme tokens are the one place a colour may live, and until this
+      # existed nothing in `apps/v5` was executed by CI at all — the public
+      # site's grey shipped as a second near-black, and the correction for it
+      # shipped as a light page, both under a green type check. These assert
+      # where each palette sits and which way its ink runs, which is the part
+      # no contrast sweep reports. Node runs the TypeScript directly.
+      - name: Unit tests (apps/v5)
+        run: npm test

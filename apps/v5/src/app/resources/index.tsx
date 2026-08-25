@@ -350,15 +350,18 @@ function searchResources(query: string): SearchEntry[] {
 
 /**
  * A code block reads as an editor, so it stays dark in all three themes — the
- * one surface here that does not follow the light palette. The colours are
- * still tokens: on light they are borrowed from the dark palette, on grey and
- * dark they are the theme's own raised surfaces.
+ * one surface here that does not follow the page's own palette. The colours are
+ * still tokens: on a light ground they are borrowed from the dark palette, and
+ * on a dark one they are the theme's own raised surfaces. The test is the
+ * ground rather than the mode: charcoal grey answers `dark` and takes its own
+ * raised surfaces, exactly as the old mode check made it do, and a future
+ * light-ground palette would borrow without this line being touched.
  */
 type Ink = { bg: string; panel: string; border: string; text: string; muted: string };
 
 function inkFor(t: ThemeTokens): Ink {
   const d = palettes.dark;
-  const borrowed = t.mode === 'light';
+  const borrowed = t.ground === 'light';
   return {
     bg: borrowed ? d.surface : t.surfaceRaised,
     panel: borrowed ? d.surfaceRaised : t.surfaceInset,

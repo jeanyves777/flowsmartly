@@ -551,7 +551,7 @@ function RevenueChart({
             {`$${line_}K`}
           </SvgText>
         ))}
-        <Path d={area} fill={hexToRgba(color, t.mode === 'light' ? 0.12 : 0.2)} />
+        <Path d={area} fill={hexToRgba(color, t.ground === 'light' ? 0.12 : 0.2)} />
         <Path d={line} stroke={color} strokeWidth={2} strokeLinecap="round" fill="none" />
         <Circle
           cx={x(REVENUE_VALUES.length - 1)}
@@ -650,7 +650,7 @@ function Sparkline({
   return (
     <View onLayout={onLayout} style={styles.chartBox}>
       <Svg width={width} height={height}>
-        <Path d={area} fill={hexToRgba(color, t.mode === 'light' ? 0.12 : 0.2)} />
+        <Path d={area} fill={hexToRgba(color, t.ground === 'light' ? 0.12 : 0.2)} />
         <Path d={line} stroke={color} strokeWidth={2} strokeLinecap="round" fill="none" />
         <Circle
           cx={x(values.length - 1)}

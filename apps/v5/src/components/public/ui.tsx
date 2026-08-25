@@ -318,7 +318,7 @@ function bandGround(tone: BandTone, t: ThemeTokens): string {
   if (tone === 'surface') return t.surface;
   const hex =
     tone === 'violet' ? t.violet : tone === 'green' ? t.green : tone === 'orange' ? t.orange : tone === 'pink' ? t.pink : t.brand;
-  return hexToRgba(hex, t.mode === 'light' ? 0.05 : 0.09);
+  return hexToRgba(hex, t.ground === 'light' ? 0.05 : 0.09);
 }
 
 /**
@@ -475,7 +475,7 @@ export function SectionArt({ variant, color, side = 'right', bleed = false }: Se
    */
   const escape = bleed ? bandBleed(l.width) : 0;
 
-  const dark = t.mode !== 'light';
+  const dark = t.ground === 'dark';
   // It sits in empty page, so nothing has to read through it — the ceiling
   // here is taste rather than legibility.
   const line = hexToRgba(color, dark ? 0.34 : 0.26);
@@ -838,7 +838,7 @@ export function SectionAside({
   // Below the split a section is one column and there is no hole beside it.
   if (l.isStacked) return null;
 
-  const dark = t.mode !== 'light';
+  const dark = t.ground === 'dark';
   const line = hexToRgba(color, dark ? 0.28 : 0.22);
   const soft = hexToRgba(color, dark ? 0.18 : 0.13);
   const fill = hexToRgba(color, dark ? 0.12 : 0.075);
@@ -1015,7 +1015,8 @@ type ButtonProps = {
  *
  * The label's contrast contract lives in the tokens, not here: `t.gradient` is
  * a background-only token that must clear 4.5:1 against `t.textOnBrand` at the
- * 13px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light.
+ * 13px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light;
+ * it now scores 7.93:1 in grey, 6.66:1 in dark and 4.80:1 in light.
  */
 export function PrimaryButton({
   label,

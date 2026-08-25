@@ -803,10 +803,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     // A video frame reads as dark chrome in every theme, so it is painted from
     // the shadow colour rather than from `t.text` — which is near-white in the
-    // grey and dark palettes and would have turned the player into a white box.
+    // two dark palettes and would have turned the player into a white box. The
+    // alpha follows the ground rather than the mode, because what it is buying
+    // is coverage of the page underneath: 0.94 to bury a light one, 0.82 where
+    // the page is already dark. Grey's `#05070b` at 0.82 over its `#3c3f45`
+    // card lands at `#0d1016` — chrome, not a lighter grey rectangle.
     player: {
       borderRadius: 14,
-      backgroundColor: hexToRgba(t.shadowColor, t.mode === 'light' ? 0.94 : 0.82),
+      backgroundColor: hexToRgba(t.shadowColor, t.ground === 'light' ? 0.94 : 0.82),
       overflow: 'hidden',
       minHeight: l.isPhone ? 150 : 190,
       justifyContent: 'space-between',
@@ -958,7 +962,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 7,
       overflow: 'hidden',
     },
-    mockDark: { backgroundColor: hexToRgba(t.shadowColor, t.mode === 'light' ? 0.94 : 0.82) },
+    mockDark: { backgroundColor: hexToRgba(t.shadowColor, t.ground === 'light' ? 0.94 : 0.82) },
     mockTint: { backgroundColor: t.surfaceInset },
     mockScrub: { height: 3, borderRadius: 2, backgroundColor: t.textOnScrim, opacity: 0.3, marginBottom: 3 },
     mockTrack: { height: 14, borderRadius: 4, backgroundColor: t.textOnScrim, opacity: 0.12, overflow: 'hidden' },

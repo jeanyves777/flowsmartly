@@ -32,6 +32,7 @@
     "simple-icons": "^16.28.0"
   },
   "devDependencies": {
+    "@types/node": "~26.1.2",
     "@types/react": "~19.2.2",
     "eslint-config-expo": "~57.0.1",
     "typescript": "~6.0.3"
@@ -49,7 +50,8 @@
     "audit:agent": "node scripts/agent-readiness.js --strict",
     "qa:web": "npm run build:web && node scripts/agent-readiness.js --strict && node scripts/mirror-routes.js",
     "content": "node scripts/build-content.js",
-    "content:check": "node scripts/build-content.js --check"
+    "content:check": "node scripts/build-content.js --check",
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-hooks.mjs --test \"src/**/*.test.ts\""
   },
   "private": true
 }
