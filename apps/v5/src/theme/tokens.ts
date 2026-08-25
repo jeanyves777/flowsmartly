@@ -310,7 +310,18 @@ const grey: ThemeTokens = {
   textOnScrim: '#ffffff',
   scrimText: '#ffffff',
   scrimTextMuted: '#c8d4ee',
-  scrimTextFaint: '#93a4c9',
+  /**
+   * Lighter than dark's `#93a4c9`, and the one scrim token the two dark
+   * palettes do not share.
+   *
+   * Measured on the rendered home hero at 390, this ink lands on the frosted
+   * panel at `#434953` and scored 3.62:1 there — the same node, the same ground
+   * and the same figure in `dark`, because every scrim token was transcribed
+   * between them. Dark needs its own lane for that; this palette does not get to
+   * ship the failure while it waits. 5.05:1 now, and 'lighter text and icons' is
+   * this theme's brief rather than a departure from it.
+   */
+  scrimTextFaint: '#b6c2d8',
   scrimBase: '6, 10, 20',
   scrimVeil: [0.95, 0.88, 0.62, 0.42],
   scrimGlass: 'rgba(10, 16, 30, 0.30)',

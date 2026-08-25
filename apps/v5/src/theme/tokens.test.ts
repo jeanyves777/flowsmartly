@@ -108,6 +108,10 @@ const PRE_EXISTING: Record<string, number> = {
   'light|pink|softFill glyph on surface': 4.36,
   'light|pink|softFill glyph on surfaceRaised': 4.36,
   'light|pink|own soft band': 4.41,
+  // Dark's faint scrim ink on the frosted hero panel at stacked widths. Grey
+  // carried the identical figure until its ink was lifted; dark's needs a dark
+  // lane, and recording it stops the number drifting further while it waits.
+  'dark|scrimTextFaint|the frosted hero panel': 3.62,
 };
 
 /** Collects violations so the whole picture is reported, not just the first. */
@@ -530,6 +534,29 @@ test('Dark Grey stays dark enough that bright marks still read on it', () => {
     assert.ok(r >= AA_GRAPHIC, `${name} ${mark} scores ${r.toFixed(2)}:1 on Dark Grey's card`);
   }
 });
+
+test('scrim ink clears AA on the frosted panel it is written on', () => {
+  // Measured on the rendered home hero at 390: the frosted panel composites to
+  // #434953, and `scrimTextFaint` at 12.5px lands on it. Grey and dark had
+  // transcribed every scrim token between them, so both scored 3.62:1 — the same
+  // node, the same ground, the same figure. Grey's ink was lifted; dark's is
+  // recorded in PRE_EXISTING and belongs to a dark lane.
+  //
+  // The ground is a measurement rather than a token, because the panel is glass
+  // over a photograph. Pinning the measured value is the point: it is the number
+  // a token-only sweep cannot produce.
+  const FROSTED_PANEL = '#434953';
+  for (const mode of MODES) {
+    const t = palettes[mode];
+    if (t.ground !== 'dark') continue;
+    const c = checker(mode);
+    c.check('scrimText', 'the frosted hero panel', contrast(t.scrimText, FROSTED_PANEL));
+    c.check('scrimTextMuted', 'the frosted hero panel', contrast(t.scrimTextMuted, FROSTED_PANEL));
+    c.check('scrimTextFaint', 'the frosted hero panel', contrast(t.scrimTextFaint, FROSTED_PANEL));
+    assert.deepEqual(c.failures, [], `scrim ink below AA — ${c.failures.join(' | ')}`);
+  }
+});
+
 
 /* ---------------------------------------------------------------- */
 /* H. per-palette quantities that must not collapse to per-ground     */
