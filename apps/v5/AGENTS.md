@@ -249,9 +249,36 @@ and `v5-footer.tsx` (outcomes + testimonial, pricing, growth CTA, footer nav).
 ```bash
 cd apps/v5
 npx tsc --noEmit                 # type gate
-npx expo export -p web           # ~90s, writes dist/
+npx expo export -p web --clear   # ~90s, writes dist/. --clear IS NOT OPTIONAL — see below
 python -m http.server 8092 --directory dist
 ```
+
+### Always `--clear`, and check the bundle came from your tree
+
+Metro caches transformed modules in the OS temp directory, which every worktree
+on this machine shares. Building without `--clear` can mix one branch modules
+into another branch bundle — the source is correct, `tsc` is green, the unit
+tests pass, and the exported page is blank.
+
+It has happened twice. Both times the bundle carried a version of
+`app/index.tsx` reading `t.scrimVeilStacked` and `veil.stops[0]` — an
+identifier present in **no** source file in **any** worktree — against a
+`tokens.ts` whose `scrimVeil` is still the 4-tuple it has always been. The
+result is `TypeError: Cannot read properties of undefined (reading 0)` at
+mount, and a page with zero characters of text.
+
+A blank page after a build you did not `--clear` is this, not your change.
+Prove which before debugging your own diff:
+
+```bash
+# a symbol from no source tree means the bundle is not yours
+grep -c scrimVeilStacked dist/_expo/static/js/web/entry-*.js   # must be 0
+```
+
+And never measure a page you have not confirmed mounted. Assert the rendered
+text length before trusting any screenshot, contrast figure or "0 failures"
+taken from it — a blank page reports no contrast failures at all.
+
 
 Then screenshot **390 / 768 / 1024 / 1280 / 1536 / 1920 × light / grey / dark**
 and look at every one. Reference captures live in `qa-v5/`.
