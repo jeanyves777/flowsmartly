@@ -224,12 +224,12 @@ export const MAIN_NAV: MainNavItem[] = [
      */
     columns: [
       { title: 'Business & growth', links: [PLATFORM_GROUP.links[0], PLATFORM_GROUP.links[1], PLATFORM_GROUP.links[2], PLATFORM_GROUP.links[3]] },
-      { title: 'Intelligence & operations', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5]] },
-      { title: 'Agent platform & trust', links: [PLATFORM_GROUP.links[6], PLATFORM_GROUP.links[7]] },
+      { title: 'Intelligence & operations', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5], SOLUTIONS_GROUP.links[8]] },
+      { title: 'Agent platform & trust', links: [SOLUTIONS_GROUP.links[2], PLATFORM_GROUP.links[6], PLATFORM_GROUP.links[7]] },
     ],
     overview: [
       { label: 'The whole system', href: ROUTES.product, icon: 'table-cells-large' },
-      { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles' },
+      { label: 'All solutions', href: ROUTES.solutions, icon: 'shapes' },
       { label: 'Pricing', href: ROUTES.pricing, icon: 'tag' },
     ],
   },
