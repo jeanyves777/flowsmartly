@@ -99,53 +99,17 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
-      - name: Verify the export is complete
-        # Mirrors verify_export() in scripts/deploy-v5-public.sh. Keep the two
-        # lists in step: this gate exists so a build that would fail the deploy
-        # script's verification fails the PR instead of the deploy.
-        run: |
-          set -euo pipefail
-          fail=0
-
-          for f in \
-            index.html \
-            robots.txt \
-            sitemap.xml \
-            llms.txt \
-            feed.xml \
-            product.html \
-            pricing.html \
-            flowagent.html \
-            login.html \
-            early-access.html \
-            legal/privacy.html \
-            company/contact.html
-          do
-            if [ ! -s "dist/$f" ]; then
-              echo "::error::missing or empty export output: dist/$f"
-              fail=1
-            fi
-          done
-
-          for d in _expo assets; do
-            if [ ! -d "dist/$d" ]; then
-              echo "::error::missing export directory: dist/$d"
-              fail=1
-            fi
-          done
-
-          # /flow-ai is a redirect stub rather than a page: assert it actually
-          # points at /flowagent, so a rename cannot silently strand it.
-          if ! grep -q '/flowagent' dist/flow-ai/index.html 2>/dev/null; then
-            echo "::error::dist/flow-ai/index.html does not redirect to /flowagent"
-            fail=1
-          fi
-
-          pages=$(find dist -name '*.html' -type f | wc -l)
-          if [ "$pages" -lt 40 ]; then
-            echo "::error::only $pages HTML pages exported — expected 45+"
-            fail=1
-          fi
-          echo "exported $pages HTML pages"
-
-          exit $fail
+      - name: Verify the export and the route map agree
+        # scripts/precheck-v5-routes.mjs is the single definition of "this
+        # export is complete and the Nginx config serves it". It used to be a
+        # duplicated file list here AND in scripts/deploy-v5-public.sh; two
+        # copies of a checklist drift until one of them is checking nothing.
+        #
+        # It derives the expected routes from apps/v5/src/app and the blog
+        # index — sources the export cannot influence — so a route that
+        # `expo export` silently drops fails the PR rather than the deploy. It
+        # also resolves deploy/nginx-flowsmartly-v5.conf the way Nginx resolves
+        # it, which is what catches a page that exports fine but that no
+        # `location` claims.
+        working-directory: ${{ github.workspace }}
+        run: node scripts/precheck-v5-routes.mjs
