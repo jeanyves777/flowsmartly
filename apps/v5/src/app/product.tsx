@@ -690,7 +690,8 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
   };
 
   /*
-   * PHONE: the collage is not the wide collage stacked.
+   * PHONE: the collage is not the wide collage stacked, and it is not two
+   * blocks either — it is ONE BOUNDED CARD.
    *
    * Wide, the eight modules are two rows of four wired to the hub between
    * them, and that reads as a system. At 390 the same markup is four rows of
@@ -698,65 +699,69 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
    * are no longer on either side of anything, so the diagram is not drawing a
    * relationship any more, it is just tall.
    *
-   * So the hub keeps its place as the product surface and the eight modules
-   * become a wrapping strip of named chips underneath it: same eight names,
-   * one third of the height, and no connector surface at all — which is also
-   * why nothing here has to worry about a transform detaching a wire.
+   * The first phone answer put the hub in one box and the eight names in a
+   * loose strip below it, which is two stacked blocks pretending to be one
+   * picture. The home hero settled the direction for both pages: copy first,
+   * then a single bounded card, with the capability names as OPAQUE plates
+   * inside it. Opaque is the load-bearing word — a plate that lets anything
+   * show through is how a label ends up sitting on artwork.
+   *
+   * No connector surface at all here, which is also why nothing in this branch
+   * has to worry about a transform detaching a wire.
    */
   if (l.isPhone) {
     return (
-      <View style={styles.collage}>
-        <View style={styles.hub}>
-          <View style={styles.hubHead}>
-            <View style={styles.hubBadge}>
-              <FontAwesome6 name="table-cells-large" size={12} color={t.brand}  aria-hidden={true}/>
-            </View>
-            <View style={styles.hubHeadCopy}>
-              <Text numberOfLines={1} style={styles.hubTitle}>
-                Command Center
-              </Text>
-              <Text numberOfLines={1} style={styles.hubSub}>
-                Last 30 days • every connected system
-              </Text>
-            </View>
-            <View style={styles.hubLive}>
-              <View style={styles.hubLiveDot} />
-              <Text style={styles.hubLiveText}>Live</Text>
-            </View>
+      <View style={styles.hub}>
+        <View style={styles.hubHead}>
+          <View style={styles.hubBadge}>
+            <FontAwesome6 name="table-cells-large" size={12} color={t.brand}  aria-hidden={true}/>
           </View>
-
-          <View ref={attachCounters} style={styles.statGrid}>
-            {STATS.map((stat, index) => {
-              const accent = accentOf(stat.accent);
-              return (
-                <View key={stat.key} style={styles.statCell}>
-                  <View style={styles.statTile}>
-                    <Text numberOfLines={2} style={styles.statLabel}>
-                      {stat.label}
-                    </Text>
-                    <Text numberOfLines={1} style={styles.statValue}>
-                      {`${stat.prefix}${values[index].toFixed(1)}${stat.suffix}`}
-                    </Text>
-                    <View style={styles.statDeltaRow}>
-                      <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon}  aria-hidden={true}/>
-                      <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
-                        {stat.delta}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+          <View style={styles.hubHeadCopy}>
+            <Text numberOfLines={1} style={styles.hubTitle}>
+              Command Center
+            </Text>
+            <Text numberOfLines={1} style={styles.hubSub}>
+              Last 30 days • every connected system
+            </Text>
+          </View>
+          <View style={styles.hubLive}>
+            <View style={styles.hubLiveDot} />
+            <Text style={styles.hubLiveText}>Live</Text>
           </View>
         </View>
 
-        <View style={styles.chipStrip}>
+        <View ref={attachCounters} style={styles.statGrid}>
+          {STATS.map((stat, index) => {
+            const accent = accentOf(stat.accent);
+            return (
+              <View key={stat.key} style={styles.statCell}>
+                <View style={styles.statTile}>
+                  <Text numberOfLines={2} style={styles.statLabel}>
+                    {stat.label}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.statValue}>
+                    {`${stat.prefix}${values[index].toFixed(1)}${stat.suffix}`}
+                  </Text>
+                  <View style={styles.statDeltaRow}>
+                    <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon}  aria-hidden={true}/>
+                    <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
+                      {stat.delta}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Inside the card, under a hairline — not a second block beneath it. */}
+        <View style={styles.plateStrip}>
           {HERO_MODULES.map((m) => {
             const accent = accentOf(m.accent);
             return (
-              <View key={m.key} style={styles.chip}>
+              <View key={m.key} style={styles.plate}>
                 <FontAwesome6 name={m.icon as never} size={12} color={accent}  aria-hidden={true}/>
-                <Text numberOfLines={1} style={styles.chipLabel}>
+                <Text numberOfLines={1} style={styles.plateLabel}>
                   {m.label}
                 </Text>
               </View>
@@ -1070,25 +1075,16 @@ export default function ProductPage() {
             <Heading level={2} style={[type.h2, styles.sectionTitle]}>
               Know every customer, not just every click.
             </Heading>
-            <Text style={[type.body, styles.splitBody]}>
+            {/* Written for a 540px column; three lines is the whole thought
+                and the fourth is only ever a widow at 362px. */}
+            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.splitBody]}>
               Channels report on themselves. FlowSmartly reports on the person — one record, one
               history, one recommended next move.
             </Text>
-            {/* Four stacked icon-and-paragraph rows is a column of prose on a
-                phone. Paired as cards they are two rows, and each keeps its
-                icon inside the copy it describes. */}
-            {l.isPhone ? (
-              <CardGrid style={styles.benefitGrid}>
-                {CUSTOMER_BENEFITS.map((benefit) => (
-                  <FeatureCard
-                    key={benefit.title}
-                    icon={benefit.icon}
-                    title={benefit.title}
-                    body={benefit.body}
-                  />
-                ))}
-              </CardGrid>
-            ) : (
+            {/* Wide, the four benefits belong in this column: they are the
+                detail beside the picture. On a phone they are NOT part of the
+                copy block — see the grid below the visual. */}
+            {l.isPhone ? null : (
               <View style={styles.benefitList}>
                 {CUSTOMER_BENEFITS.map((benefit) => (
                   <View key={benefit.title} style={styles.benefitRow}>
@@ -1179,6 +1175,39 @@ export default function ProductPage() {
               </View>
             </View>
           </Reveal>
+
+          {/*
+            PHONE: claim, then the evidence, then the detail.
+            ================================================
+
+            Wide this is one horizontal composition — copy on the left, the
+            customer record on the right, the second visually supporting the
+            first. Stacked naively that becomes 660px of copy-and-cards before
+            the record it is all describing ever appears, and the reader meets
+            the payoff a screen and a half down.
+
+            So on a phone the split's third element is the benefit grid, placed
+            AFTER the visual: heading and claim (~220px), the record that proves
+            it, then the four comparable benefits as a two-up card grid. Same
+            content, same total height, but the picture arrives while the claim
+            is still on screen.
+
+            Four stacked icon-and-paragraph rows would be a column of prose;
+            paired as cards they are two rows and each keeps its icon inside the
+            copy it describes.
+          */}
+          {l.isPhone ? (
+            <CardGrid style={styles.benefitGrid}>
+              {CUSTOMER_BENEFITS.map((benefit) => (
+                <FeatureCard
+                  key={benefit.title}
+                  icon={benefit.icon}
+                  title={benefit.title}
+                  body={benefit.body}
+                />
+              ))}
+            </CardGrid>
+          ) : null}
         </View>
       </OpenSection>
 
@@ -1306,7 +1335,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const suiteColumns = columns(1, 2, 2, 2);
   const trustColumns = columns(1, 2, 2, 4);
   const heroTileColumns = l.isPhone ? 2 : 4;
-  const statColumns = l.isPhone || l.isTablet ? 2 : 4;
+  /**
+   * Two whenever the hero has not reached its full two-column width. Below
+   * 1120 the command centre shares the row with the copy (or is the whole of a
+   * stacked column), so a four-up stat grid would put "Revenue influenced"
+   * into a 93px tile; four columns is only correct once the visual column is
+   * ~580px or more.
+   */
+  const statColumns = l.isStacked ? 2 : 4;
 
   const cardBase: ViewStyle = {
     borderWidth: 1,
@@ -1334,14 +1370,29 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   return StyleSheet.create({
     /* -------------------------------------------------- hero */
+    /*
+     * ONE responsive composition, following the home hero rather than
+     * inventing a second answer to the same problem: copy first and a single
+     * bounded card on a phone, two columns everywhere there is room for two.
+     *
+     * The split point is `isCompact` (1024), not the page-wide `isStacked`
+     * (1120), so the laptop band gets the two-column hero instead of a third
+     * screen of stacked blocks. It deliberately stops at 1024 rather than
+     * going all the way down to 640: below that the visual column is ~280px,
+     * where `hubSub` clips and the stat tiles stop fitting "Revenue
+     * influenced" — and this lane cannot build or screenshot to prove
+     * otherwise. Every other section on this page keeps `isStacked`.
+     */
     heroRow: {
-      flexDirection: stacked ? 'column' : 'row',
-      alignItems: stacked ? 'stretch' : 'center',
-      gap: stacked ? 28 : 40,
+      flexDirection: l.isCompact ? 'column' : 'row',
+      alignItems: l.isCompact ? 'stretch' : 'center',
+      gap: l.isCompact ? 28 : stacked ? 32 : 40,
     },
-    heroCopy: stacked
+    heroCopy: l.isCompact
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 420, minWidth: 300 },
+      : stacked
+        ? { flexGrow: 1.05, flexShrink: 1, flexBasis: 0, minWidth: 0 }
+        : { flexGrow: 1, flexShrink: 1, flexBasis: 420, minWidth: 300 },
     heroTitle: { marginTop: 14 },
     heroBody: { marginTop: 14, maxWidth: 540 },
     heroButtons: { marginTop: 22 },
@@ -1364,12 +1415,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
-    heroVisual: stacked
+    heroVisual: l.isCompact
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
-      : { flexGrow: 1.35, flexShrink: 1, flexBasis: 560, minWidth: 0 },
+      : stacked
+        ? { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 }
+        : { flexGrow: 1.35, flexShrink: 1, flexBasis: 560, minWidth: 0 },
 
     /* -------------------------------------------------- command centre collage */
-    collage: { gap: l.isPhone ? 18 : 26, paddingVertical: 6 },
+    // Wide only. The phone branch is one bounded card, not a collage, so it
+    // never reaches this style — a phone value here would just be a lie for
+    // the next reader to trip over.
+    collage: { gap: 26, paddingVertical: 6 },
     moduleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', marginHorizontal: -half },
     moduleCell: { ...cellBase(heroTileColumns) },
     moduleTile: {
@@ -1396,11 +1452,25 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     moduleLabel: { ...type.micro, color: t.text, fontWeight: '700', textAlign: 'center' },
 
-    // Phone only: the eight modules as a wrapping strip of named chips instead
-    // of four rows of two tiles. Same eight names, a third of the height, and
-    // no connector surface to keep intact.
-    chipStrip: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: 8 },
-    chip: {
+    // Phone only: the eight modules as a wrapping strip of named plates inside
+    // the hub card, under a hairline. Same eight names, a third of the height
+    // of four rows of two tiles, and no connector surface to keep intact.
+    //
+    // `paddingTop` + the divider are what make this part OF the card rather
+    // than a second block under it.
+    plateStrip: {
+      marginTop: 2,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      rowGap: 8,
+      columnGap: 8,
+    },
+    // Opaque on purpose: `surfaceRaised` is a solid token, so the label never
+    // sits on whatever is behind the card.
+    plate: {
       flexGrow: 0,
       flexShrink: 1,
       minWidth: 0,
@@ -1414,7 +1484,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 11,
       paddingVertical: 7,
     },
-    chipLabel: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    plateLabel: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     /** the rhythm a phone `CardGrid` takes where a wide grid uses its own */
     phoneGrid: { marginTop: 20 },
@@ -1673,7 +1743,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     benefitList: { marginTop: 22, gap: 16 },
-    benefitGrid: { marginTop: 22 },
+    /**
+     * `width: '100%'` is load-bearing, not decoration. `splitRow` aligns its
+     * children to `flex-start`, so a column child with no width shrinks to fit
+     * its content — and a wrapping percentage grid that shrinks to fit is a
+     * grid with no columns.
+     */
+    benefitGrid: { width: '100%', minWidth: 0 },
     benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
     benefitIcon: {
       width: 36,

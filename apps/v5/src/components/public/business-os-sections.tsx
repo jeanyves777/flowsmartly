@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { goToEarlyAccess } from '@/lib/destinations';
-import { CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
+import { basisFor, CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -255,52 +255,72 @@ const SYSTEM_PARTS = [
  * defined authority, an approval, an evaluated result. "Agentic" is the claim
  * this page is allowed to make; "autonomous" is not, and does not appear.
  *
- * Two shapes of one sequence. `line` is the wide panel's checklist, which gets
- * away with not showing its order because eight ticks in a card beside a copy
- * column read as a picture of a product surface. `title` + `body` is the
- * phone's numbered flow: the ordering is the entire content of this section,
- * and a stack of eight identical ticks carries none of it.
+ * Three shapes of one sequence.
+ *
+ * `line` is the wide panel's checklist, which gets away with not showing its
+ * order because eight ticks in a card beside a copy column read as a picture of
+ * a product surface.
+ *
+ * `title` + `body` is the tablet's numbered rail flow: the ordering is the
+ * entire content of this section, and a stack of eight identical ticks carries
+ * none of it.
+ *
+ * `title` + `short` is the phone's numbered two-column grid. The rail costs
+ * ~99px a step — 792px for a loop whose eight entries are one verb and one
+ * qualifier each — and at 390px that is two and a half screens of one section's
+ * supporting panel. The ordinal is what carries the sequence, not the rail, so
+ * the numbers stay and the rail goes. `short` is written to the ~23-character
+ * measure of a 175px cell, so `numberOfLines={2}` is a guard rather than a
+ * guillotine.
  */
-const AGENT_LOOP: { line: string; title: string; body: string }[] = [
+const AGENT_LOOP: { line: string; title: string; body: string; short: string }[] = [
   {
     line: 'Understand the objective and your business context',
     title: 'Understand',
     body: 'The objective, and the business context around it.',
+    short: 'The objective and its context',
   },
   {
     line: 'Build a plan and assign specialized agents',
     title: 'Plan',
     body: 'Build the plan and assign specialized agents.',
+    short: 'Build it, assign the agents',
   },
   {
     line: 'Coordinate tools and connected systems',
     title: 'Coordinate',
     body: 'Drive the tools and connected systems it may use.',
+    short: 'The tools it may operate',
   },
   {
     line: 'Execute the work within defined authority',
     title: 'Execute',
     body: 'Do the work, inside defined authority.',
+    short: 'Inside defined authority',
   },
   {
     line: 'Request approval before consequential actions',
     title: 'Ask',
     body: 'Request approval before consequential actions.',
+    short: 'Approval before big actions',
   },
   {
     line: 'Observe the result and evaluate the outcome',
     title: 'Observe',
     body: 'Check the real result and evaluate the outcome.',
+    short: 'Check the real outcome',
   },
   {
     line: 'Recover when a step fails, and say what is still blocked',
     title: 'Recover',
     body: 'Retry a failed step, and say what is still blocked.',
+    short: 'Retry, and name the blocker',
   },
   {
     line: 'Continue from what it learned on the last run',
     title: 'Continue',
     body: 'Carry forward what it learned on the last run.',
+    short: 'Carry the last run forward',
   },
 ];
 
@@ -435,6 +455,50 @@ function ItemCards({ items, wideColumns = 3 }: { items: Item[]; wideColumns?: 3 
         ))}
       </CardGrid>
     </Reveal>
+  );
+}
+
+/**
+ * The working loop at 390px: a numbered two-column grid.
+ *
+ * `SteppedFlow`'s vertical rail is the right answer at tablet width and the
+ * wrong one on a phone. Each of its steps is a 28px dot column beside a title
+ * and a three-line body — ~99px — so eight of them are 792px, and the section
+ * around them was measuring 1,431px in total. Nothing in that height is
+ * content: the eight entries are a verb and a short qualifier each.
+ *
+ * Two columns halves the rows and the ordinal keeps the sequence, which is the
+ * only thing the rail was there to carry. No box on the cells: rule 15 — this
+ * is a sequence drawn on the page, not eight product surfaces — and eight
+ * bordered cards would also have put the padding straight back.
+ *
+ * `basisFor(2, 12)` rather than a local percentage: `CardGrid`'s phone gap is
+ * 12, and a cell whose basis is computed even slightly differently is exactly
+ * how a grid ends up with a last row that does not line up.
+ */
+function LoopGrid() {
+  const styles = useStyles();
+  return (
+    <CardGrid style={styles.loopGrid}>
+      {AGENT_LOOP.map((step, index) => (
+        <View key={step.title} style={styles.loopCell}>
+          <View style={styles.loopHead}>
+            <View style={styles.loopNumber}>
+              <Text style={styles.loopNumberText}>{index + 1}</Text>
+            </View>
+            {/* Plain text, exactly as `SteppedFlow` renders its step titles: a
+                phone-only composition must not invent eight headings that the
+                same content does not have at any other width. */}
+            <Text style={styles.loopTitle} numberOfLines={1}>
+              {step.title}
+            </Text>
+          </View>
+          <Text style={styles.loopNote} numberOfLines={2}>
+            {step.short}
+          </Text>
+        </View>
+      ))}
+    </CardGrid>
   );
 }
 
@@ -628,9 +692,37 @@ export function FlowAgentAlongsideSection() {
   const router = useRouter();
   const open = useOpenSection();
 
-  // Open split: the copy and the panel are two columns of one page, not two
-  // things inside a box. At desktop width the panel stays a card — it is a
-  // picture of a product surface, which is exactly what a card is for.
+  /*
+   * THE OUTER SPLIT AT 390px
+   * ========================
+   * Open split: the copy and the panel are two columns of one page, not two
+   * things inside a box. At desktop width the panel stays a card — it is a
+   * picture of a product surface, which is exactly what a card is for.
+   *
+   * Narrow, the two halves are not the same kind of content, so they do not get
+   * the same treatment. The copy reads sequentially and stays a single column.
+   * The loop is eight comparable items with an order, so it takes the card-grid
+   * composition — two columns, numbered — rather than a column of eight rail
+   * steps. Together with a phone paragraph that is written rather than clamped,
+   * the section measures ~815px instead of 1,431:
+   *
+   *   copy   label 32 + heading 3x32 = 96 + body 4x28 = 112
+   *          + two 54px buttons + 12 = 120 + 3 gaps x18 = 54   ->  414
+   *   loop   title 25 + gap 16 + 4 rows x70 + 3 rowGaps x18    ->  375
+   *   seam   split gap                                         ->   26
+   *                                                               -----
+   *                                                                815
+   *
+   * The two lines that carry it: the eight-step rail was 792px on its own and
+   * is now 334, and the paragraph went from eight lines to four because the
+   * loop underneath it already says the same thing in order.
+   *
+   * The wide paragraph is not clamped here for the same reason it is not
+   * clamped anywhere else on this page: it names the eight steps of the loop in
+   * prose, and the loop itself is directly underneath on a phone. Saying it
+   * twice is what made the column long, so the phone says it once, short, and
+   * lets the numbered grid be the detail.
+   */
   return (
     <Reveal style={[open, styles.split]} distance={20}>
       <View style={styles.splitCopy}>
@@ -639,10 +731,9 @@ export function FlowAgentAlongsideSection() {
           The agentic layer that turns objectives into work.
         </Heading>
         <Text style={styles.headBody}>
-          FlowAgent understands an objective and the business context around it, builds a plan,
-          coordinates specialized agents and the tools they are allowed to operate, executes the
-          steps, asks for approval where your rules require it, observes the real result, and
-          continues from what it learned. Not a chatbot, and not a fixed automation.
+          {l.isPhone
+            ? 'FlowAgent turns an objective into planned work, executed inside the authority you set and checked against the real result. Not a chatbot, and not a fixed automation.'
+            : 'FlowAgent understands an objective and the business context around it, builds a plan, coordinates specialized agents and the tools they are allowed to operate, executes the steps, asks for approval where your rules require it, observes the real result, and continues from what it learned. Not a chatbot, and not a fixed automation.'}
         </Text>
         <ButtonRow>
           <PrimaryButton
@@ -664,20 +755,23 @@ export function FlowAgentAlongsideSection() {
 
       {cards ? (
         /*
-         * The loop is a SEQUENCE. Dropped into a phone column the panel becomes
+         * The loop is a SEQUENCE. Dropped into a narrow column the panel becomes
          * eight equal-weight rows in a box below the copy: no order, no
          * progression, and a border around content that is not an object.
          *
-         * So it recomposes into the numbered vertical flow — a rail, a step
-         * number, and each line split into the verb and the thing that bounds
-         * it. The ordering is the whole point of this section, and this is the
-         * only narrow composition that carries it.
+         * So it is recomposed twice, by width. A tablet gets the numbered
+         * vertical flow — a rail, a step number, and each line split into the
+         * verb and the thing that bounds it. A phone gets the same numbering in
+         * two columns (`LoopGrid`), because at 390px the rail's eight steps are
+         * 792px and the ordinal, not the rail, is what carries the order.
          */
         <View style={styles.agentFlow}>
           <Heading level={3} style={styles.agentFlowTitle}>
             The working loop
           </Heading>
-          <SteppedFlow steps={AGENT_LOOP} />
+          {/* A tablet has room for the rail and only four rows' worth of height
+              to save; a phone has neither. */}
+          {l.isPhone ? <LoopGrid /> : <SteppedFlow steps={AGENT_LOOP} />}
         </View>
       ) : (
         <View style={styles.agentPanel}>
@@ -872,6 +966,28 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 16,
     },
     agentFlowTitle: { ...ty.h3, color: t.text },
+    /* ---------- the working loop, phone ---------- */
+    // A little more air between the rows than between the columns: the cells
+    // carry no border, so the row gap is the only thing separating step 3 from
+    // step 5 directly beneath it.
+    loopGrid: { rowGap: 18 },
+    loopCell: { ...basisFor(2, 12), gap: 6 },
+    loopHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    loopNumber: {
+      width: 22,
+      height: 22,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 11,
+      backgroundColor: t.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // `lineHeight` matched to the circle so the digit sits on its centre; the
+    // caption's own 21px leaves it a pixel high inside a 22px dot.
+    loopNumberText: { ...ty.caption, color: t.textOnBrand, fontWeight: '800', lineHeight: 22 },
+    loopTitle: { ...ty.h4, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    loopNote: { ...ty.caption, color: t.textMuted },
     agentPanel: {
       flexGrow: l.isStacked ? 0 : 1.08,
       flexShrink: l.isStacked ? 0 : 1,

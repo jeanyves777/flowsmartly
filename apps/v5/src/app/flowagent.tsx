@@ -294,14 +294,17 @@ function QueueRow({
   accent,
   styles,
   t,
+  compact = false,
 }: {
   item: QueueItem;
   accent: string;
   styles: Styles;
   t: ThemeTokens;
+  /** Phone: drop the mock control so the item itself gets the width. */
+  compact?: boolean;
 }) {
   return (
-    <View style={styles.queueRow}>
+    <View style={[styles.queueRow, compact ? styles.queueRowCompact : null]}>
       <View style={[styles.queueIcon, { backgroundColor: softFill(accent, t) }]}>
         <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
       </View>
@@ -318,11 +321,17 @@ function QueueRow({
         no item behind the row to review, so the control is a View that merely
         looks like the real one. A button that invites a click and does nothing
         is worse than a static illustration of one.
+
+        It is also the widest thing in the row, so on a phone it is dropped
+        entirely rather than shrunk: 91px of unpressable chrome is not worth
+        two-line titles on every row.
       */}
-      <View style={styles.reviewButton}>
-        <Text style={styles.reviewLabel}>Review</Text>
-        <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
-      </View>
+      {compact ? null : (
+        <View style={styles.reviewButton}>
+          <Text style={styles.reviewLabel}>Review</Text>
+          <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
+        </View>
+      )}
     </View>
   );
 }
@@ -397,7 +406,13 @@ export default function FlowAiPage() {
             <Heading level={1} style={[type.h1, styles.heroTitle]}>
               The agentic layer that turns objectives into work.
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
+            {/* Nine verbs written for a 560px column. Unclamped it is eight
+                lines — 224px — in a 362px one, and the short paragraph under
+                it, which is the one that actually lands the positioning, ends
+                up below the fold. Four lines carry understands / plans /
+                coordinates / executes, and the next paragraph finishes the
+                thought. */}
+            <Text numberOfLines={l.isPhone ? 4 : undefined} style={[type.body, styles.heroBody]}>
               FlowAgent understands an objective and the business context around it, builds a plan,
               coordinates specialized agents and the tools they are allowed to operate, executes the
               steps, requests approval where your rules require it, observes the real result,
@@ -453,14 +468,30 @@ export default function FlowAiPage() {
                 </View>
               </View>
 
+              {/*
+                PHONE: four rows, and no mock Review control.
+
+                The card is a picture of the approval queue, not the queue. Six
+                rows each carrying a 44px control that cannot be pressed is
+                562px of the hero on a 390px screen, and the control is also
+                what squeezes the item itself into 191px so every title wraps
+                to two lines. Dropping it gives the title ~294px — most of them
+                then fit on one line — and four rows say "there is a queue and
+                nothing in it has been sent" exactly as well as six.
+
+                The head still says "Needs your approval" and the foot still
+                says nothing has been launched, so removing a control that was
+                never pressable costs the section none of its meaning.
+              */}
               <View style={styles.oppList}>
-                {QUEUE.map((item) => (
+                {(l.isPhone ? QUEUE.slice(0, 4) : QUEUE).map((item) => (
                   <QueueRow
                     key={item.title}
                     item={item}
                     accent={accentOf(item.accent)}
                     styles={styles}
                     t={t}
+                    compact={l.isPhone}
                   />
                 ))}
               </View>
@@ -1011,6 +1042,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 11,
     },
+    // Phone: no mock control in the row, so the padding sets the row height
+    // rather than a 44px control that is no longer there.
+    queueRowCompact: { paddingVertical: 10, gap: 11 },
     queueIcon: {
       width: 32,
       height: 32,

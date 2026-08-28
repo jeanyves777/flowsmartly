@@ -184,6 +184,78 @@ export default function EarlyAccessScreen() {
     });
   };
 
+  /**
+   * PHONE RECOMPOSITION — THE ASK COMES BEFORE THE ARGUMENT.
+   * =======================================================
+   *
+   * At 1440 this page is a horizontal media/copy composition and a good one:
+   * the pitch reads down the left column while the form sits at eye level on
+   * the right, so the argument and the ask are seen at the same moment.
+   *
+   * Turned into one column at 390 that simultaneity is exactly what is lost.
+   * The pitch measures ~825px on its own — a 34px h1 over three paragraphs of
+   * 17px copy over three promise rows — so the form's own heading landed
+   * ~853px down. On a 390x844 viewport that is a full screen of prose before
+   * the page shows the visitor the one thing it exists to collect, and this is
+   * a conversion page: every one of those pixels is a chance to leave.
+   *
+   * So the column is not the desktop column turned sideways. It is:
+   *
+   *   label -> h1 -> the one paragraph that says what V5 is -> THE FORM
+   *   -> the rest of the argument -> the three promises
+   *
+   * The promises in particular read *better* underneath: "No spam, ever" is a
+   * reassurance, and a reassurance belongs next to the button it is reassuring
+   * you about, not four screens above it.
+   *
+   * Nothing is dropped and nothing is truncated — the same nodes render at
+   * both breakpoints, in the order each breakpoint can actually read. And the
+   * form keeps index 1 among the split's children at every width, so crossing
+   * the 640px boundary (a phone rotating to landscape mid-typing) reorders the
+   * prose around it without remounting the inputs.
+   */
+  const pitchDetail = (
+    <>
+      <Text style={styles.lede}>
+        From business growth and customer engagement to operations, analytics and agentic
+        engineering, V5 is being built to move AI beyond assistance.{' '}
+        <Text style={styles.ledeLead}>Into action.</Text>
+      </Text>
+      <Text style={styles.lede}>
+        We are opening it in batches so every new workspace lands properly.
+      </Text>
+      <View style={styles.promises}>
+        {PROMISES.map((item) => (
+          <View key={item.title} style={styles.promise}>
+            {/* A glyph echoing the title beside it. It carries nothing the
+                heading does not already say, and an icon font renders as a
+                private-use character, so it is taken out of the accessibility
+                tree rather than left to be guessed at. */}
+            <View
+              aria-hidden
+              style={[styles.promiseIcon, { backgroundColor: softFill(t.brand, t) }]}>
+              <FontAwesome6 name={item.icon as never} size={14} color={accentText(t.brand, t)}  aria-hidden={true}/>
+            </View>
+            <View style={styles.promiseCopy}>
+              {/* Level 2, not 3, at BOTH breakpoints. Wide, these sit directly
+                  under the page h1 with no section heading between them, so a
+                  3 skipped a level. On a phone they follow the form's own h2
+                  instead — still level 2, still no skip, which is why the
+                  reorder can move them without touching the outline.
+                  `Heading` takes all of its appearance from `style`, so the
+                  rank is fixed and the type is not: `promiseTitle` sets the
+                  size. */}
+              <Heading level={2} style={styles.promiseTitle}>
+                {item.title}
+              </Heading>
+              <Text style={styles.promiseBody}>{item.body}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+
   return (
     <PageShell
       title="Early access"
@@ -209,41 +281,9 @@ export default function EarlyAccessScreen() {
               tools and specialized agents, execute work, learn from feedback, and grow with the way
               your organization operates.
             </Text>
-            <Text style={styles.lede}>
-              From business growth and customer engagement to operations, analytics and agentic
-              engineering, V5 is being built to move AI beyond assistance.{' '}
-              <Text style={styles.ledeLead}>Into action.</Text>
-            </Text>
-            <Text style={styles.lede}>
-              We are opening it in batches so every new workspace lands properly.
-            </Text>
-            <View style={styles.promises}>
-              {PROMISES.map((item) => (
-                <View key={item.title} style={styles.promise}>
-                  {/* A glyph echoing the title beside it. It carries nothing
-                      the heading does not already say, and an icon font renders
-                      as a private-use character, so it is taken out of the
-                      accessibility tree rather than left to be guessed at. */}
-                  <View
-                    aria-hidden
-                    style={[styles.promiseIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={14} color={accentText(t.brand, t)}  aria-hidden={true}/>
-                  </View>
-                  <View style={styles.promiseCopy}>
-                    {/* Level 2, not 3. These three sit directly under the page
-                        h1 with no section heading between them, so a 3 skipped
-                        a level and told a screen reader they belonged to a
-                        heading that does not exist. `Heading` takes all of its
-                        appearance from `style`, so the rank changed and the
-                        type did not: `promiseTitle` still sets the size. */}
-                    <Heading level={2} style={styles.promiseTitle}>
-                      {item.title}
-                    </Heading>
-                    <Text style={styles.promiseBody}>{item.body}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+            {/* Wide: the argument finishes the left column, beside the form.
+                Phone: it moves below the form — see `pitchDetail`. */}
+            {l.isPhone ? null : pitchDetail}
           </Reveal>
 
           {/* The form is an interactive object, so it keeps its box (rule 15). */}
@@ -386,6 +426,17 @@ export default function EarlyAccessScreen() {
               )}
             </Card>
           </Reveal>
+
+          {/* Third child, phone only — and deliberately third rather than a
+              `column-reverse` on the parent: reversing would put the form's h2
+              ahead of the page h1 in the reading order that assistive
+              technology follows, which is a worse defect than the one being
+              fixed. This is a real DOM order, so the outline stays h1 -> h2. */}
+          {l.isPhone ? (
+            <Reveal delay={140} style={styles.pitchDetail}>
+              {pitchDetail}
+            </Reveal>
+          ) : null}
         </View>
       </OpenSection>
 
@@ -573,6 +624,14 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
       minWidth: 0,
       alignSelf: 'stretch',
     },
+    /**
+     * The phone-only third child. `split` sets `alignItems: 'flex-start'`, so a
+     * column child sizes to its content on the cross axis unless it says
+     * otherwise — `formColumn` already stretches for the same reason. Same gap
+     * rhythm as `pitch` so the paragraphs below the form sit on the same
+     * vertical grid as the one above it.
+     */
+    pitchDetail: { alignSelf: 'stretch', minWidth: 0, gap: 14 },
 
     h1: { ...ts.h1, color: t.text },
     h2: { ...ts.h2, color: t.text },

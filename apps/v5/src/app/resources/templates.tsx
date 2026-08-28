@@ -331,7 +331,10 @@ function Hero() {
         <Heading level={1} style={styles.heroTitle}>
           Start from a template, not a blank page.
         </Heading>
-        <Text style={styles.heroBody}>
+        {/* Two lines in the 600px desktop column, three at 362px. The clamp is
+            a bound on future copy, not a cut to this sentence: a lede that grew
+            past four phone lines would push the CTA off the first screen. */}
+        <Text style={styles.heroBody} numberOfLines={l.isPhone ? 4 : undefined}>
           Ready-made campaigns, journeys, lessons, and store layouts you can use as-is or make your own.
         </Text>
         <View style={styles.heroButtons}>
@@ -641,7 +644,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   /** Image styles sit outside the sheet: StyleSheet.create widens `'100%'` to
    *  `string`, which no longer satisfies `ImageStyle`. */
-  const heroImage: ImageStyle = { width: '100%', height: l.isPhone ? 220 : stacked ? 280 : 360 };
+  /*
+   * PHONE: the library shot is a *supporting* visual, not the subject — the
+   * subject is the sentence above it. At 362px of content width a 220px block
+   * is a 1.6:1 picture that has to be scrolled past before the page has said
+   * anything more; at 160 it is a 2.3:1 banner that still reads as "shelves of
+   * ready-made work" and costs 60px less. Wide values are untouched.
+   */
+  const heroImage: ImageStyle = { width: '100%', height: l.isPhone ? 160 : stacked ? 280 : 360 };
   const templateImage: ImageStyle = { width: '100%', height: l.isPhone ? 172 : 182 };
 
   const cardBase: ViewStyle = {

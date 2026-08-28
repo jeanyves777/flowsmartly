@@ -719,9 +719,27 @@ function GovernanceCard() {
   );
 }
 
+/**
+ * A picture of the assistant as it appears inside the product.
+ *
+ * PHONE COMPOSITION. At 1440 this mock sits in a 56% column beside the four
+ * points and the whole card reads as one horizontal media/copy composition. At
+ * 390 the same mock is 328px wide, three boxes deep (page -> card -> mock ->
+ * bubble) and 352px tall — a third of the section's height spent on chrome
+ * around one idea.
+ *
+ * So on a phone it keeps the two parts that carry meaning — who is speaking,
+ * and the safety guidance the card is *about* — and drops the two that are
+ * only set dressing: the generic "here is a draft" bubble, and the fake
+ * composer row. The composer is worth dropping on its own account: a 44px
+ * pill that looks exactly like a text field but is `pointerEvents="none"` is a
+ * dead control on the one device where everything is tapped.
+ */
 function AssistantMock() {
   const styles = useStyles();
   const t = useTokens();
+  const l = useLayout();
+  const full = !l.isPhone;
 
   return (
     <View style={styles.assistant}>
@@ -737,11 +755,13 @@ function AssistantMock() {
         </View>
       </View>
 
-      <View style={styles.assistantBubble}>
-        <Text style={styles.assistantBubbleText}>
-          Here is a draft for your spring promotion. Review the offer details before it goes out.
-        </Text>
-      </View>
+      {full ? (
+        <View style={styles.assistantBubble}>
+          <Text style={styles.assistantBubbleText}>
+            Here is a draft for your spring promotion. Review the offer details before it goes out.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.safetyTip}>
         <View style={styles.safetyHead}>
@@ -759,12 +779,14 @@ function AssistantMock() {
         </View>
       </View>
 
-      <View style={styles.askRow} pointerEvents="none">
-        <Text style={styles.askText}>Ask a question…</Text>
-        <View style={styles.askSend}>
-          <FontAwesome6 name="paper-plane" size={12} color={t.textSubtle}  aria-hidden={true}/>
+      {full ? (
+        <View style={styles.askRow} pointerEvents="none">
+          <Text style={styles.askText}>Ask a question…</Text>
+          <View style={styles.askSend}>
+            <FontAwesome6 name="paper-plane" size={12} color={t.textSubtle}  aria-hidden={true}/>
+          </View>
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }

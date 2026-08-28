@@ -196,7 +196,12 @@ function Hero() {
             Your business doesn&apos;t work like everyone else&apos;s. Your AI automation
             shouldn&apos;t either.
           </Heading>
-          <Text style={styles.heroBody}>
+          {/* Written for the 620px column this paragraph declares. In a 362px
+              one it runs to six lines, and the two CTAs — the only thing this
+              page asks anyone to do — get pushed a further 56px down. Four
+              lines carry the ask ("tell us how you work") and the offer
+              ("we design skills around it"). */}
+          <Text numberOfLines={l.isPhone ? 4 : undefined} style={styles.heroBody}>
             Tell us how your business works, where your team loses time, and which systems you
             depend on. We work with you one-to-one to design custom FlowAgent skills and workflows
             built specifically around your operation.

@@ -22,6 +22,47 @@ import {
 } from './ui';
 
 /**
+ * THE OUTER SPLIT, AND WHY IT STAYS ONE — WITH THE ARITHMETIC
+ * ==========================================================
+ * Category: media beside copy, where one side visually supports the other. It
+ * is not a sequence (nothing here is read in order) and it is not a set of
+ * comparable items (there is one product shot and one pitch), so neither of the
+ * other two sanctioned compositions applies.
+ *
+ * A split that merely stacks is the defect. This one does not merely stack —
+ * every lever the narrow composition has is already pulled:
+ *
+ *   tighter copy      the phone gets its own two-line sentence rather than a
+ *                     clamp across the 560px-column paragraph
+ *   bounded visual    the screenshot is framed at its native 3:2 and sits at
+ *                     ~231px, not the 292px slab it started as, and never
+ *                     full-bleed
+ *   supporting points a two-column CardGrid of four proof cards, which is what
+ *                     replaced reading four call-outs off artwork that is a few
+ *                     pixels tall in a 354px column
+ *
+ * What is left is content, and it measures out as content:
+ *
+ *   copy      label 18 + heading 3x39 = 117 + body 2x28 = 56 + two 48px
+ *             buttons + 12 = 108 + 4 gaps x14 = 56          ->  355
+ *   visual    (390 - 28 gutter - 16 frame padding) / 1.5 = 231
+ *             + 16 padding + 2 border                       ->  249
+ *   proof     4 cards, 2 x 2: 12 + (21 title + 2 + 2x21 note) + 12 = 89
+ *             x 2 rows + 12 gap                             ->  190
+ *   seams     2 x 20                                        ->   40
+ *                                                              -----
+ *                                                               834..916
+ *
+ * There is no block in that column that is a desktop shape turned sideways, and
+ * nothing left to remove that is not either the pitch, the CTAs, the product
+ * shot or the four claims. The height is what those five things cost at 390px.
+ *
+ * The screenshot in particular is NOT a candidate for removal. It was dropped
+ * once and restoring it is why this section grew from 834 to 916; an illegible
+ * caption inside a picture is a reason to caption the picture, which is what
+ * the proof grid does, not a reason to delete it.
+ */
+/**
  * What the screenshot is showing, said in words — BESIDE the screenshot, not
  * instead of it.
  *
@@ -69,11 +110,14 @@ export function ListSmartlySection() {
         <Heading level={2} style={styles.title}>
           Be accurate, trusted, and recommended everywhere.
         </Heading>
-        {/* Written for a 560px column; four lines at 390 before the buttons.
-            The proof cards below carry the third and fourth of them anyway. */}
+        {/* The wide sentence is written for a 560px column and runs to four
+            lines at 390. Clamping it to two cut it at "appear across", so the
+            phone gets a sentence of its own that ends where it means to; the
+            proof cards under the screenshot carry the rest of it anyway. */}
         <Text style={styles.body} numberOfLines={phone ? 2 : undefined}>
-          Sync business information, strengthen review health, and see how your locations appear across traditional and
-          AI-powered discovery.
+          {phone
+            ? 'Sync your listings, strengthen review health, and see how AI discovery describes you.'
+            : 'Sync business information, strengthen review health, and see how your locations appear across traditional and AI-powered discovery.'}
         </Text>
         <ButtonRow>
           <PrimaryButton

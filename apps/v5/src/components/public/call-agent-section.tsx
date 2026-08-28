@@ -218,8 +218,60 @@ export function CallAgentSection() {
   const stacked = l.isStacked;
   const phone = l.isPhone;
   /**
-   * PHONE RECOMPOSITION
-   * ===================
+   * THE OUTER SPLIT: A MEDIA / COPY COMPOSITION, NOT A STACK
+   * =======================================================
+   * Of the three sanctioned narrow compositions — one column for sequential
+   * reading, a card grid for comparable items, media beside copy where one side
+   * supports the other — this section is the third, and it stays the third at
+   * 390px. The console is not decoration next to the pitch; it is the evidence
+   * for it. "Answers, books, qualifies, follows up" is a claim, and the console
+   * showing a live call that produced a booking, a qualified lead, a CRM write
+   * and a scheduled SMS is the only thing on the page that demonstrates it.
+   *
+   * What a phone cannot keep is the *simultaneity*. At 1440 the reader takes in
+   * the claim and the proof in one glance. Turned into a column, the proof
+   * arrived ~570px down — after the headline, the paragraph, both buttons, the
+   * proof line and the three-item "what it replaces" list — which is exactly
+   * the "copy-beside-a-visual row that simply stacks" failure.
+   *
+   * So the phone reorders rather than merely stacking: the pitch and its two
+   * CTAs stay together at the top, the console follows immediately, and the
+   * supporting evidence — the capability line and what the agent replaces —
+   * moves BELOW the console, where it reads as the console's caption rather
+   * than as more copy standing between the visitor and the demo. The console
+   * now starts ~355px in, roughly one thumb-scroll, instead of ~570px.
+   *
+   * That is also why the phone gets its own body sentence instead of a clamp on
+   * the desktop one: `numberOfLines={3}` cut the wide paragraph mid-clause, at
+   * "supports customers,". A shorter true sentence ends where it means to and
+   * costs one line less.
+   *
+   * WHAT THE 390px HEIGHT IS SPENT ON
+   * =================================
+   *   pitch     label 32 + heading 3x39 = 117 + body 2x28 = 56
+   *             + two 48px buttons + 12 = 108 + 3 gaps x14 = 42    ->  355
+   *   console   header 46 + call panel 214 (caller 42, wave 38,
+   *             two transcript lines 104, 3 gaps x10)
+   *             + outcomes 2x2 x72 = 146 + modes 2 rows = 76
+   *             + stats 2x2 = 128 + 24 padding + 3 gaps x12        ->  ~807
+   *   support   proof line 21 + rule 18 + title 25
+   *             + 3 rows x24 = 72 + 3 gaps x8 = 24                 ->  160
+   *   seams     2 x 22                                             ->   44
+   *                                                                   -----
+   *                                                                   ~1366
+   *
+   * Every line of that is content, and the console has already been through the
+   * pass below: the inner card, the mute/hang-up/keypad row, the long mode
+   * labels, the stat icons and the tall outcome bands are all gone on a phone,
+   * which is how it came down from ~1,050 to ~807. What is left is a headline,
+   * a sentence, two 44px+ CTAs, a live call with its transcript, the four
+   * things that call produced, the five modes the agent runs in, four numbers,
+   * and the three things it replaces. Nothing there is a desktop shape turned
+   * sideways, and nothing left is decoration: the next cut would have to delete
+   * evidence, which is not a layout fix.
+   *
+   * PHONE RECOMPOSITION — INSIDE THE CONSOLE
+   * ========================================
    * The console is the same object at every width, but at 390px it was the
    * desktop console turned sideways: a full-width call panel, then four
    * full-width outcome bands, then three rows of chips, then a 2x2 stat block —
@@ -280,6 +332,38 @@ export function CallAgentSection() {
     [t],
   );
 
+  /**
+   * The supporting evidence: what the agent comes with, and what it replaces.
+   *
+   * It is one node rendered in one of two places — inside the copy column at
+   * every width that has a copy column, and below the console on a phone, where
+   * it captions the demo instead of delaying it. Never both.
+   */
+  const support = (
+    <>
+      <Text style={styles.proof} numberOfLines={phone ? 1 : 2}>
+        {phone ? 'Human handoff • Recording • Call logs' : 'Human handoff • Call recording controls • Complete call logs'}
+      </Text>
+
+      <View style={styles.replaces}>
+        <Text style={styles.replacesTitle}>What it replaces</Text>
+        {REPLACES.map((item) => (
+          <View key={item.text} style={styles.replacesRow}>
+            <View style={styles.replacesIcon}>
+              <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle} aria-hidden={true} />
+            </View>
+            {/* Three sentences written for a 560px column become six lines in
+                a 390px one. The phone gets the same three facts as three
+                single lines instead. */}
+            <Text style={styles.replacesText} numberOfLines={phone ? 1 : undefined}>
+              {phone ? item.short : item.text}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+
   return (
     <OpenSection style={stacked ? styles.sectionStacked : styles.sectionRow}>
       {/* ---------------------------------------------------------- copy */}
@@ -288,11 +372,13 @@ export function CallAgentSection() {
         <Heading level={2} style={styles.title}>
           Never miss a call—or the opportunity behind it.
         </Heading>
-        {/* Written for a 560px column. At 390 it runs to five lines before the
-            first button, so the phone reads the first three and stops. */}
-        <Text style={styles.body} numberOfLines={phone ? 3 : undefined}>
-          Deploy an AI voice agent that answers naturally, books appointments, qualifies leads, supports customers,
-          takes orders, and follows up around the clock.
+        {/* The wide paragraph is written for a 560px column and runs to five
+            lines at 390. Clamping it cut a clause in half, so the phone gets a
+            sentence of its own that ends where it means to, in two lines. */}
+        <Text style={styles.body} numberOfLines={phone ? 2 : undefined}>
+          {phone
+            ? 'Deploy an AI voice agent that answers, books, qualifies leads and follows up—24/7.'
+            : 'Deploy an AI voice agent that answers naturally, books appointments, qualifies leads, supports customers, takes orders, and follows up around the clock.'}
         </Text>
         <ButtonRow>
           <PrimaryButton
@@ -315,26 +401,8 @@ export function CallAgentSection() {
             onPress={() => router.push(contactHref('demo') as never)}
           />
         </ButtonRow>
-        <Text style={styles.proof} numberOfLines={2}>
-          {phone ? 'Human handoff • Recording controls • Full call logs' : 'Human handoff • Call recording controls • Complete call logs'}
-        </Text>
-
-        <View style={styles.replaces}>
-          <Text style={styles.replacesTitle}>What it replaces</Text>
-          {REPLACES.map((item) => (
-            <View key={item.text} style={styles.replacesRow}>
-              <View style={styles.replacesIcon}>
-                <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle}  aria-hidden={true}/>
-              </View>
-              {/* Three sentences written for a 560px column become six lines in
-                  a 390px one. The phone gets the same three facts as three
-                  single lines instead. */}
-              <Text style={styles.replacesText} numberOfLines={phone ? 1 : undefined}>
-                {phone ? item.short : item.text}
-              </Text>
-            </View>
-          ))}
-        </View>
+        {/* On a phone this travels below the console — see `support`. */}
+        {phone ? null : support}
       </Reveal>
 
       {/* ------------------------------------------------------- console */}
@@ -506,6 +574,13 @@ export function CallAgentSection() {
           ))}
         </View>
       </Reveal>
+
+      {/* ------------------------------------------------- support (phone) */}
+      {phone ? (
+        <Reveal style={styles.columnFull} delay={160} distance={16}>
+          {support}
+        </Reveal>
+      ) : null}
     </OpenSection>
   );
 }
