@@ -101,11 +101,22 @@ export async function submitLead(input: LeadInput): Promise<LeadResult> {
     body = null;
   }
 
-  if (response.ok) {
+  // EXACTLY 201, not `response.ok`. `ok` is true for the whole 2xx range, so a
+  // 200, a 202 or a 204 from a proxy, a cache, or a future handler would have
+  // rendered the success screen. The contract this form is written against is
+  // "201 Created plus the id of the row that was created" - anything else is a
+  // response we cannot stand behind telling the visitor their details are safe.
+  if (response.status === 201) {
     const id = (body as ApiLeadBody | null)?.lead?.id;
     if (typeof id === 'string' && id.length > 0) return { ok: true, id };
-    // 2xx without an id means the contract was not honoured. Treat it as a
-    // failure rather than showing a success screen we cannot stand behind.
+    // 201 without an id means the contract was not honoured.
+    return { ok: false, code: 'server_error', message: FALLBACK_MESSAGE };
+  }
+
+  // Any other 2xx is not success here. Treated as a server error rather than
+  // silently discarded, so the visitor is told to try again instead of walking
+  // away believing they are on the list.
+  if (response.ok) {
     return { ok: false, code: 'server_error', message: FALLBACK_MESSAGE };
   }
 
