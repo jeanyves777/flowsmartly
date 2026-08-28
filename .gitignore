@@ -79,3 +79,10 @@ public/mediapipe/wasm/
 
 # Windows PowerShell module cache, written into the repo when LOCALAPPDATA is unset
 Microsoft/
+
+# Studio thumbnail intermediates. The DERIVED, referenced files are committed:
+# Clone_Yourself/*.webp (clone-workspace.tsx) and _training_thumbnail/<semantic>.png
+# (brief-sheet.tsx). These PNG intermediates are 41 MB, nothing references them, and
+# public/ is served — same reasoning as apps/v5 assets/images/v5cut/.
+public/Studio_Menus_Thumnail/Clone_Yourself/clone-*.png
+public/Studio_Menus_Thumnail/_training_thumbnail/ChatGPT Image*.png
