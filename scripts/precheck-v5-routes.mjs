@@ -32,7 +32,7 @@
  * Exit code is 0 only if every check passes.
  */
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -54,6 +54,7 @@ const APP_SRC = join(REPO, 'apps', 'v5', 'src', 'app');
 const POST_INDEX = join(REPO, 'apps', 'v5', 'src', 'content', 'posts.index.json');
 const CHECKLIST = join(REPO, 'deploy', 'CUTOVER-CHECKLIST.md');
 const UPSTREAM_CONF = join(REPO, 'deploy', 'nginx-upstream-v4.conf');
+const DEPLOY_DIR = join(REPO, 'deploy');
 
 const SKIP_EXPORT = flag('--skip-export');
 const SKIP_CONF = flag('--skip-conf');
@@ -511,12 +512,54 @@ function checkConf() {
       '26 files build OAuth redirect_uri values from it',
     );
   }
-  check(
-    'nginx',
-    'the config does not itself try to move NEXT_PUBLIC_APP_URL',
-    !/NEXT_PUBLIC_APP_URL/.test(text),
-    'the apex keeps proxying /api/* precisely so that variable never has to change',
-  );
+
+  /* -- 9. no deploy config may instruct repointing the app URL -------- */
+  // This used to be `!/NEXT_PUBLIC_APP_URL/.test(text)` — a broad claim ("the
+  // config does not move the variable") tested against a narrow subject: only
+  // the single file passed via --conf, i.e. the apex vhost, which never had
+  // the problem. The file that DID carry the forbidden instruction was
+  // deploy/nginx-legacy-v4.conf, in its own Prerequisites block, and nothing
+  // ever read it. Both vhosts proxy the SAME single V4 process, so there is
+  // one value of the variable, not one per host; and the operator installing
+  // the legacy vhost works from that file BEFORE reaching section 0 of the
+  // checklist, so a stale prerequisite there is the instruction they hit first.
+  //
+  // So: scan every deliverable config in deploy/, plus whatever --conf points
+  // at (on the VPS that is the installed vhost, outside deploy/).
+  //
+  // A config may still NAME the variable — deleting the mention outright loses
+  // the knowledge that someone once believed repointing was required, and the
+  // next person re-adds it — but only on a line that explicitly forbids the
+  // change. A mention without a prohibition is a violation.
+  {
+    const FORBIDS = /\b(?:do not|don't|never|must not|cannot|no changes)\b/i;
+    const scanned = [
+      ...(existsSync(DEPLOY_DIR)
+        ? readdirSync(DEPLOY_DIR)
+            .filter((f) => f.endsWith('.conf'))
+            .map((f) => join(DEPLOY_DIR, f))
+        : []),
+      CONF,
+    ].filter((f, i, a) => existsSync(f) && a.indexOf(f) === i);
+    const offenders = [];
+    for (const file of scanned) {
+      readFileSync(file, 'utf8')
+        .split(/\r?\n/)
+        .forEach((line, i) => {
+          if (/APP_URL/.test(line) && !FORBIDS.test(line)) {
+            offenders.push(`${relative(REPO, file).split(sep).join('/')}:${i + 1}`);
+          }
+        });
+    }
+    check(
+      'nginx',
+      'no deploy config instructs anyone to move NEXT_PUBLIC_APP_URL',
+      offenders.length === 0,
+      offenders.length
+        ? `named without a prohibition at ${offenders.join(', ')} — the apex keeps proxying /api/* precisely so that variable never has to change`
+        : `${scanned.length} config file(s) scanned`,
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
