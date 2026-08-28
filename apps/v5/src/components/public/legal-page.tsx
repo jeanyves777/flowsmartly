@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { elevation, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
@@ -216,7 +216,7 @@ export function AsideCard({
       </View>
       <Text style={[type.h4, styles.asideTitle]}>{title}</Text>
       <View style={styles.asideBody}>{children}</View>
-      {linkLabel ? <Text style={[type.bodySm, { color: accent, fontWeight: '700' }]}>{linkLabel} →</Text> : null}
+      {linkLabel ? <Text style={[type.bodySm, { color: accentText(accent, t), fontWeight: '700' }]}>{linkLabel} →</Text> : null}
     </View>
   );
 }
@@ -263,7 +263,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     railHeading: { ...type.bodySm, color: t.text, fontWeight: '800', marginBottom: 8 },
     railRow: { minHeight: 34, justifyContent: 'center' },
     railLink: { ...type.caption, color: t.textMuted },
-    railLinkActive: { color: t.brand, fontWeight: '700' },
+    railLinkActive: { color: accentText(t.brand, t), fontWeight: '700' },
     // The card passed in brings its own border and surface — a second frame
     // here would double-box it.
     railCard: { marginTop: 22 },
@@ -332,7 +332,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     contactCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     contactName: {},
-    contactEmail: { color: t.brand, fontWeight: '700' },
+    contactEmail: { color: accentText(t.brand, t), fontWeight: '700' },
 
     aside: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: 268, gap: 16 },
     asideStacked: { marginTop: 26, gap: 16 },

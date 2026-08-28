@@ -58,6 +58,7 @@ const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox',
 const page = await browser.newPage();
 await page.setViewport({ width: WIDTH, height: HEIGHT, deviceScaleFactor: 2 });
 
+const hx = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
 const findings = [];
 const byCategory = new Map();
 const pageStats = [];
@@ -188,132 +189,93 @@ for (const route of ROUTES) {
       return out;
     };
     /**
-     * WHAT IS ACTUALLY BEHIND THIS TEXT.
+     * WHAT IS ACTUALLY PAINTED BEHIND THIS TEXT.
      *
-     * An ancestor walk is not enough, and the failure it produces is the
-     * dangerous kind - a confident wrong number. Two layouts defeat it:
+     * Three wrong answers were tried before this one, and each was confidently
+     * wrong in a different direction:
      *
-     *   - a button whose gradient sits on an ancestor while the ancestor's own
-     *     backgroundColor is transparent. Collecting gradients on the way up and
-     *     then taking the worst ground scores white-on-blue against the white
-     *     page BEHIND the button: 1.05:1, reported against the most prominent
-     *     control on the site.
-     *   - a hero whose background is an absolutely-positioned SIBLING layer.
-     *     No ancestor carries it at all, so the walk finds the white page and
-     *     reports every white heading as failing.
+     *   deepest box containing the point   picked unrelated nodes from elsewhere
+     *                                      in the DOM and scored white-on-blue
+     *                                      buttons at 1.00:1
+     *   first opaque ancestor              missed the footer CTA's scrim, which
+     *                                      is a SIBLING painted under the copy,
+     *                                      and reported 3.44:1 on text the scrim
+     *                                      had already been added to rescue
+     *   ancestors only, composited         same blind spot; ancestry is not paint
+     *                                      order
      *
-     * elementsFromPoint does not solve it either: background layers are usually
-     * pointerEvents="none", and that API skips exactly those.
+     * Paint order is the actual rule, so use it. Within a stacking context an
+     * element is painted over everything that precedes it in document order, and
+     * over its own ancestors. So the ground under a text node is every layer that
+     * contains its centre AND precedes it in document order - ancestors and
+     * earlier siblings alike - composited from the topmost (latest) downward
+     * until the accumulated alpha is opaque.
      *
-     * So paint candidates are gathered once per page - every element carrying an
-     * opaque colour or a gradient - and for a given text node the DEEPEST
-     * candidate whose box contains the text wins. Depth stands in for paint
-     * order, which is correct for the shapes here: a background layer inside the
-     * hero is deeper than the page, a card is deeper than the section it sits on.
+     * Where a photo or url() background is reached before the stack turns opaque
+     * the ground is genuinely unknowable from computed styles. That returns
+     * `unverified` and is counted separately: never scored, never silently
+     * passed. Inventing a number there is how an audit ends up asserting
+     * something it never measured.
      */
+    const order = new Map();
+    all.forEach((e, i) => order.set(e, i));
+
     const paintLayers = [];
     for (const e of all) {
       const cs = getComputedStyle(e);
       const r = e.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-      let depth = 0;
-      for (let n = e; n; n = n.parentElement) depth++;
+      const op = parseFloat(cs.opacity);
+      if (op < 0.02) continue;
+      const oi = order.get(e);
 
       const img = cs.backgroundImage && cs.backgroundImage !== 'none' ? cs.backgroundImage : '';
       const isMedia = /^(IMG|VIDEO|CANVAS|SVG)$/.test(e.tagName) || /url\(/.test(img);
-      if (isMedia) { paintLayers.push({ r, depth, kind: 'image', el: e }); continue; }
+      if (isMedia) { paintLayers.push({ r, oi, kind: 'image' }); continue; }
       if (img) {
-        const stops = gradientStops(img);
-        if (stops.length) { paintLayers.push({ r, depth, kind: 'gradient', stops }); continue; }
+        const stops = gradientStopsA(img);
+        if (stops.length) { paintLayers.push({ r, oi, kind: 'gradient', stops, op }); continue; }
       }
       const bg = parseRGB(cs.backgroundColor);
-      if (bg && bg.a > 0.01) paintLayers.push({ r, depth, kind: 'color', rgb: bg.rgb, a: bg.a });
+      if (bg && bg.a > 0.01) paintLayers.push({ r, oi, kind: 'color', rgb: bg.rgb, a: bg.a * op });
     }
+    paintLayers.sort((a, b) => a.oi - b.oi);
 
-    /**
-     * COMPOSITE the stack rather than picking one layer out of it.
-     *
-     * The hero labels sit on rgba(10,16,30,0.3) - a scrim - over a gradient over
-     * the page. A binary opaque/not-opaque filter throws the scrim away and
-     * scores white text against the pale page: 1.05:1, reported as a failure on
-     * text that is perfectly legible. The ground is what the layers COMPOSITE to,
-     * so that is what gets computed: topmost first, accumulating alpha until the
-     * stack is opaque.
-     *
-     * Where a photo or a url() background is in the stack the ground is genuinely
-     * unknowable from computed styles. That returns `unverified` and is counted
-     * separately - never scored, never silently passed. Guessing a number there
-     * is how an audit ends up asserting something it did not measure.
-     */
     const effBg = (el) => {
-      /*
-       * ANCESTRY, not geometry. Selecting the deepest layer whose box merely
-       * CONTAINS the text picks unrelated nodes: a deeply nested element
-       * elsewhere on the page that happens to overlap wins on depth and becomes
-       * the "background". That scored white-on-brand-blue buttons at 1.00:1
-       * while their real ground - the button's own fill - sat right there in the
-       * ancestor chain. Only ancestors actually paint behind their descendants.
-       */
-      const chain = [];
-      for (let q = el; q && q !== document.documentElement; q = q.parentElement) chain.push(q);
-
-      /*
-       * Where does a photo stop mattering? A media layer that overlaps this text
-       * is only behind it until some ancestor paints an opaque fill on top of the
-       * photo - a white card over a hero image makes the text on that card
-       * perfectly measurable. So find the first ancestor that also contains the
-       * photo: if the chain turns opaque BEFORE that point, the photo is
-       * occluded and the number is real; if not, the ground is the photo and no
-       * honest ratio exists.
-       */
       const tr = el.getBoundingClientRect();
-      const tx = tr.left + tr.width / 2;
-      const tyy = tr.top + tr.height / 2;
-      let mediaBlockIdx = Infinity;
+      const x = tr.left + tr.width / 2;
+      const y = tr.top + tr.height / 2;
+      const ti = order.get(el);
+
+      const stack = [];
       for (const L of paintLayers) {
-        if (L.kind !== 'image' || !L.el) continue;
-        if (tx < L.r.left || tx > L.r.right || tyy < L.r.top || tyy > L.r.bottom) continue;
-        if (L.el.contains(el)) { mediaBlockIdx = -1; break; }   // text sits inside the media box
-        const idx = chain.findIndex((c) => c.contains(L.el));
-        if (idx >= 0 && idx < mediaBlockIdx) mediaBlockIdx = idx;
+        if (L.oi > ti) break;                       // painted above the text
+        if (x < L.r.left || x > L.r.right || y < L.r.top || y > L.r.bottom) continue;
+        stack.push(L);
       }
 
       let branches = [{ c: [0, 0, 0], a: 0 }];
-      let opaqueAt = Infinity;
-      let ci = -1;
-      let n = el;
-      while (n && n !== document.documentElement) {
-        ci++;
-        if (branches.every((br) => br.a >= 0.999)) { opaqueAt = ci - 1; break; }
-        const cs = getComputedStyle(n);
-        const img = cs.backgroundImage && cs.backgroundImage !== 'none' ? cs.backgroundImage : '';
-        if (/url\(/.test(img)) return { unverified: true, grounds: [] };
-        let cols = [];
-        if (img) cols = gradientStopsA(img).slice(0, 3);
-        if (!cols.length) {
-          const bg = parseRGB(cs.backgroundColor);
-          if (bg && bg.a > 0.01) cols = [{ rgb: bg.rgb, a: bg.a }];
-        }
-        if (cols.length) {
-          const next = [];
-          for (const br of branches) {
-            if (br.a >= 0.999) { next.push(br); continue; }
-            for (const col of cols) {
-              const w = col.a * (1 - br.a);
-              next.push({ c: [br.c[0] + col.rgb[0] * w, br.c[1] + col.rgb[1] * w, br.c[2] + col.rgb[2] * w], a: br.a + w });
-            }
+      for (let i = stack.length - 1; i >= 0; i--) {   // topmost first
+        if (branches.every((br) => br.a >= 0.999)) break;
+        const L = stack[i];
+        if (L.kind === 'image') return { unverified: true, grounds: [] };
+        const cols = L.kind === 'gradient'
+          ? L.stops.slice(0, 3).map((s) => ({ rgb: s.rgb, a: s.a * (L.op === undefined ? 1 : L.op) }))
+          : [{ rgb: L.rgb, a: L.a }];
+        const next = [];
+        for (const br of branches) {
+          if (br.a >= 0.999) { next.push(br); continue; }
+          for (const col of cols) {
+            const w = col.a * (1 - br.a);
+            next.push({
+              c: [br.c[0] + col.rgb[0] * w, br.c[1] + col.rgb[1] * w, br.c[2] + col.rgb[2] * w],
+              a: br.a + w,
+            });
           }
-          branches = next.slice(0, 6);
         }
-        n = n.parentElement;
+        branches = next.slice(0, 6);
       }
-
-      if (branches.every((br) => br.a >= 0.999) && opaqueAt === Infinity) opaqueAt = chain.length - 1;
-      // the photo wins unless an ancestor painted over it first
-      if (mediaBlockIdx !== Infinity && !(opaqueAt < mediaBlockIdx)) return { unverified: true, grounds: [] };
-      // still see-through after the whole chain, with nothing known behind it
-      if (!branches.every((br) => br.a >= 0.999) && mediaBlockIdx !== Infinity) return { unverified: true, grounds: [] };
 
       const bodyBg = parseRGB(getComputedStyle(document.body).backgroundColor);
       const fill = bodyBg && bodyBg.a > 0.05 ? bodyBg.rgb : [255, 255, 255];
@@ -392,7 +354,7 @@ for (const route of ROUTES) {
         const large = n.size >= 24 || (n.size >= 18.66 && Number(n.weight) >= 700);
         const need = large ? 3.0 : 4.5;
         if (cr < need) {
-          findings.push({ route, kind: 'contrast', detail: cr.toFixed(2) + ':1 < ' + need + ' at ' + n.size + 'px [' + n.cat + '] "' + n.text + '"' });
+          findings.push({ route, kind: 'contrast', cr: +cr.toFixed(2), fg: hx(fg), bg: hx(n.grounds[0]), size: n.size, cat: n.cat, text: n.text, detail: cr.toFixed(2) + ':1 < ' + need + ' at ' + n.size + 'px [' + n.cat + '] ' + hx(fg) + ' on ' + hx(n.grounds[0]) + ' "' + n.text + '"' });
         }
       }
     }

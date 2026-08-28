@@ -12,7 +12,7 @@ import {
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { trackCta } from '@/lib/analytics';
-import { elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 
@@ -1235,7 +1235,7 @@ export function TextLink({
         gap: 8,
         opacity: pressed ? 0.7 : 1,
       })}>
-      <Text style={{ color: t.brand, fontSize: 14, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
+      <Text style={{ color: accentText(t.brand, t), fontSize: 14, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       <FontAwesome6 name={icon as never} size={12} color={t.brand} />
     </Pressable>
   );

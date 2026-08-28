@@ -31,7 +31,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -492,6 +492,7 @@ function ExpertCard({
 }
 
 function ResultTile({ result, accent, styles }: { result: Result; accent: string; styles: Styles }) {
+  const t = useTokens();
   const counter = useCountUp(result.target, { decimals: result.decimals });
   const shown =
     result.decimals > 0
@@ -502,7 +503,7 @@ function ResultTile({ result, accent, styles }: { result: Result; accent: string
       <Text numberOfLines={1} style={styles.resultLabel}>
         {result.label}
       </Text>
-      <Text numberOfLines={1} style={[styles.resultValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.resultValue, { color: accentText(accent, t) }]}>
         {`${result.prefix}${shown}${result.suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.resultNote}>
@@ -762,7 +763,7 @@ export default function AgentMarketplacePage() {
                         </View>
                       </View>
                       <View style={styles.matchScoreWrap}>
-                        <Text numberOfLines={1} style={[styles.matchScore, { color: accent }]}>
+                        <Text numberOfLines={1} style={[styles.matchScore, { color: accentText(accent, t) }]}>
                           {match.score}%
                         </Text>
                         <Text numberOfLines={1} style={styles.matchScoreLabel}>

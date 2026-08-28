@@ -11,7 +11,7 @@ import {
   track,
   type ConsentCategories,
 } from '@/lib/analytics';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { ROUTES } from './nav';
@@ -492,7 +492,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     bannerCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 4 },
     bannerTitle: { color: t.text, fontSize: 15, fontWeight: '800' , fontFamily: FONT_SANS },
     bannerBody: { ...type.caption, color: t.textMuted },
-    bannerLink: { color: t.brand, fontWeight: '700' },
+    bannerLink: { color: accentText(t.brand, t), fontWeight: '700' },
     bannerActions: {
       flexGrow: 0,
       flexShrink: 0,

@@ -440,7 +440,7 @@ function Library() {
                     accessibilityLabel={`Join early access to use the template: ${item.title}`}
                     onPress={() => openApp(`templates.use.${item.type.toLowerCase()}`)}
                     style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
-                    <Text style={[styles.linkText, { color: accent(t, TYPE_TONE[item.type]) }]}>
+                    <Text style={[styles.linkText, { color: accentText(accent(t, TYPE_TONE[item.type]), t) }]}>
                       Join early access
                     </Text>
                     <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])} />

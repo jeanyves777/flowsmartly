@@ -266,7 +266,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     head: { paddingTop: l.isPhone ? 20 : 32, paddingBottom: 0 },
     headCopy: { gap: 14, maxWidth: 760 },
     backLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
-    backText: { ...type.bodySm, color: t.brand, fontWeight: '700' },
+    backText: { ...type.bodySm, color: accentText(t.brand, t), fontWeight: '700' },
 
     topicChip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
     topicChipText: { ...type.micro, fontWeight: '800' },

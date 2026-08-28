@@ -31,7 +31,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -272,7 +272,7 @@ function JourneyStep({
 
   const copy = (
     <View style={vertical ? styles.stepCopyRow : styles.stepCopyColumn}>
-      <Text style={[styles.stepTitle, { color }]}>{step.title}</Text>
+      <Text style={[styles.stepTitle, { color: accentText(color, t) }]}>{step.title}</Text>
       <Text style={styles.stepCaption}>{step.caption}</Text>
     </View>
   );
@@ -514,7 +514,7 @@ function ScoreRow({ item, index }: { item: Readiness; index: number }) {
           <Text style={styles.scoreLabel} numberOfLines={1}>
             {item.label}
           </Text>
-          <Text ref={count.ref as never} style={[styles.scoreValue, { color }]} numberOfLines={1}>
+          <Text ref={count.ref as never} style={[styles.scoreValue, { color: accentText(color, t) }]} numberOfLines={1}>
             {count.value}
             <Text style={styles.scoreOutOf}>/100</Text>
           </Text>
@@ -1096,7 +1096,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minHeight: 44,
       textDecorationLine: 'none',
     },
-    linkText: { ...type.bodySm, fontWeight: '700', color: t.brand },
+    linkText: { ...type.bodySm, fontWeight: '700', color: accentText(t.brand, t) },
 
     /* readiness ----------------------------------------------------- */
     assessHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1260,7 +1260,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    betaText: { fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1, color: t.chipText , fontFamily: FONT_SANS },
+    betaText: { fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', color: t.chipText, fontFamily: FONT_SANS },
 
     assistantBubble: {
       borderWidth: 1,

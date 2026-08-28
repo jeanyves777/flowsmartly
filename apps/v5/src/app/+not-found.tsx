@@ -17,7 +17,7 @@ import { FONT_SANS,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -231,7 +231,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       lineHeight: Math.round(codeSize * 1.04),
       letterSpacing: -Math.round(codeSize * 0.04),
       fontWeight: '800',
-      color: t.brand,
+      color: accentText(t.brand, t),
       textAlign: 'center',
     },
     title: { ...type.h1, textAlign: 'center' },

@@ -647,7 +647,7 @@ function Categories() {
               <View style={styles.cardSpacer} />
               <Text style={styles.cardMeta}>{category.meta}</Text>
               <View style={styles.linkRow}>
-                <Text style={[styles.linkText, { color: accent(t, category.tone) }]}>Open</Text>
+                <Text style={[styles.linkText, { color: accentText(accent(t, category.tone), t) }]}>Open</Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, category.tone)} />
               </View>
             </Link>

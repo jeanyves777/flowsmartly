@@ -471,6 +471,7 @@ function CourseCard({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const fill: DimensionValue = `${Math.max(3, progress)}%`;
   return (
     <View style={styles.courseCard}>
@@ -484,7 +485,7 @@ function CourseCard({
       <View style={styles.courseTrack}>
         <View style={[styles.courseFill, { width: fill, backgroundColor: accent }]} />
       </View>
-      <Text numberOfLines={1} style={[styles.courseState, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.courseState, { color: accentText(accent, t) }]}>
         {state}
       </Text>
     </View>
@@ -547,10 +548,11 @@ function ProgressStat({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(value);
   return (
     <View ref={counter.ref as never} style={styles.progressTile}>
-      <Text numberOfLines={1} style={[styles.progressValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.progressValue, { color: accentText(accent, t) }]}>
         {`${Math.round(counter.value)}${suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.progressLabel}>
@@ -1328,7 +1330,7 @@ export default function LearningCenterPage() {
                   <Text numberOfLines={1} style={styles.priceTitle}>
                     {mode.title}
                   </Text>
-                  <Text numberOfLines={1} style={[styles.priceValue, { color: accent }]}>
+                  <Text numberOfLines={1} style={[styles.priceValue, { color: accentText(accent, t) }]}>
                     {mode.price}
                   </Text>
                   <Text numberOfLines={1} style={styles.priceCadence}>

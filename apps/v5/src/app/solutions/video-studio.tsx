@@ -22,7 +22,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -875,7 +875,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     statLabel: { ...type.micro, color: t.textSubtle },
     statValue: { ...type.caption, color: t.text, fontWeight: '800' },
-    statDelta: { ...type.micro, color: t.green, fontWeight: '700' },
+    statDelta: { ...type.micro, color: accentText(t.green, t), fontWeight: '700' },
     statNote: { ...type.micro, color: t.textSubtle },
 
     trend: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 36 },

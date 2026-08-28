@@ -29,7 +29,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -462,7 +462,7 @@ function Paths() {
               <View style={styles.cardSpacer} />
               <Text style={styles.cardMeta}>{path.note}</Text>
               <View style={styles.linkRow}>
-                <Text style={[styles.linkText, { color: accent(t, path.tone) }]}>Learn more</Text>
+                <Text style={[styles.linkText, { color: accentText(accent(t, path.tone), t) }]}>Learn more</Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)} />
               </View>
             </View>

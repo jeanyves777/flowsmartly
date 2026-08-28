@@ -705,7 +705,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
                   </Text>
                   <View style={styles.statDeltaRow}>
                     <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon} />
-                    <Text numberOfLines={1} style={[styles.statDelta, { color: accent }]}>
+                    <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
                       {stat.delta}
                     </Text>
                   </View>
@@ -1496,7 +1496,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 7,
       backgroundColor: t.brandSoft,
     },
-    profileScoreValue: { fontSize: 17, lineHeight: 21, fontWeight: '800', color: t.brand , fontFamily: FONT_SANS },
+    profileScoreValue: { fontSize: 17, lineHeight: 21, fontWeight: '800', color: accentText(t.brand, t) , fontFamily: FONT_SANS },
     profileScoreLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
 
     timeline: { gap: 14 },

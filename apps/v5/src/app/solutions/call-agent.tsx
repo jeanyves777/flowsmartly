@@ -407,12 +407,13 @@ function StatTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
   return (
     <View ref={counter.ref as never} style={styles.statTile}>
-      <Text numberOfLines={1} style={[styles.statValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
         {`${shown}${suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.statLabel}>

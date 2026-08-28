@@ -1412,7 +1412,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderWidth: 1,
       borderColor: hexToRgba(t.brand, 0.35),
     },
-    stepBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.brand },
+    stepBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: accentText(t.brand, t) },
     headTitleCentered: { textAlign: l.isPhone ? 'left' : 'center' },
     headSub: { maxWidth: 560 },
     headSubCentered: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 680 },

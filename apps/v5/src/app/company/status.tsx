@@ -439,7 +439,7 @@ function UptimeTiles() {
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
             <View style={styles.tileCard}>
               <Text style={styles.tileLabel}>{tile.label}</Text>
-              <Text style={[styles.tileValue, { color: accent(t, tile.tone) }]}>{tile.value}</Text>
+              <Text style={[styles.tileValue, { color: accentText(accent(t, tile.tone), t) }]}>{tile.value}</Text>
               <Text style={styles.tileNote}>{tile.note}</Text>
             </View>
           </Reveal>

@@ -486,7 +486,7 @@ function FeaturedIntegrations() {
                 href={contactHref('demo') as never}
                 accessibilityLabel={`See what ${item.name} unlocks — book a demo`}
                 style={styles.linkRow as never}>
-                <Text style={[styles.linkText, { color: accent(t, item.tone) }]}>
+                <Text style={[styles.linkText, { color: accentText(accent(t, item.tone), t) }]}>
                   {`See what ${item.name} unlocks`}
                 </Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, item.tone)} />

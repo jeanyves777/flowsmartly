@@ -456,7 +456,7 @@ function AudienceBoard({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
                 <Text numberOfLines={1} style={styles.boardRowLabel}>
                   {row.label}
                 </Text>
-                <Text numberOfLines={1} style={[styles.boardRowValue, { color: accent }]}>
+                <Text numberOfLines={1} style={[styles.boardRowValue, { color: accentText(accent, t) }]}>
                   {row.value}
                 </Text>
               </View>
@@ -719,7 +719,7 @@ export default function SolutionsPage() {
           <OpenSection key={scenario.key}>
             <View style={[styles.scenarioRow, flip ? styles.scenarioRowFlip : null]}>
               <Reveal style={styles.scenarioCopy} distance={16}>
-                <Text style={[styles.scenarioEyebrow, { color: accent }]}>{scenario.eyebrow}</Text>
+                <Text style={[styles.scenarioEyebrow, { color: accentText(accent, t) }]}>{scenario.eyebrow}</Text>
                 <Heading level={2} style={[type.h2, styles.scenarioHeading]}>
                   {scenario.heading}
                 </Heading>

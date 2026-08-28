@@ -19,7 +19,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref } from '@/lib/destinations';
-import { softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -344,7 +344,7 @@ function Topics() {
                 accessibilityRole="link"
                 accessibilityLabel={`Open ${topic.title} help`}
                 style={styles.linkRow as never}>
-                <Text style={[styles.linkText, { color: accent(t, topic.tone) }]}>Browse articles</Text>
+                <Text style={[styles.linkText, { color: accentText(accent(t, topic.tone), t) }]}>Browse articles</Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, topic.tone)} />
               </Link>
             </Card>

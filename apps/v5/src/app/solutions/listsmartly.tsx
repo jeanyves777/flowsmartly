@@ -530,11 +530,12 @@ function HealthCount({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(value);
   return (
     <View ref={counter.ref as never} style={styles.healthCountCell}>
       <View style={styles.healthCount}>
-        <Text numberOfLines={1} style={[styles.healthCountValue, { color: accent }]}>
+        <Text numberOfLines={1} style={[styles.healthCountValue, { color: accentText(accent, t) }]}>
           {Math.round(counter.value).toLocaleString('en-US')}
         </Text>
         <Text numberOfLines={1} style={styles.healthCountLabel}>
@@ -1367,7 +1368,7 @@ export default function ListSmartlyPage() {
                           <View style={[styles.winFill, { width, backgroundColor: accent }]} />
                         </View>
                       </View>
-                      <Text numberOfLines={1} style={[styles.multiScore, { color: accent }]}>
+                      <Text numberOfLines={1} style={[styles.multiScore, { color: accentText(accent, t) }]}>
                         {row.score}%
                       </Text>
                     </View>

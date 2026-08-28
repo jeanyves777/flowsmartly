@@ -393,6 +393,7 @@ function NumberedHead({
 
 /** One counting figure. A component per tile keeps the hook count static. */
 function MetricTile({ metric, accent, styles }: { metric: Metric; accent: string; styles: Styles }) {
+  const t = useTokens();
   const counter = useCountUp(metric.target, { decimals: metric.decimals });
   const shown =
     metric.decimals > 0
@@ -406,7 +407,7 @@ function MetricTile({ metric, accent, styles }: { metric: Metric; accent: string
       <Text numberOfLines={1} style={styles.metricValue}>
         {`${metric.prefix}${shown}${metric.suffix}`}
       </Text>
-      <Text numberOfLines={1} style={[styles.metricDelta, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.metricDelta, { color: accentText(accent, t) }]}>
         {metric.delta}
       </Text>
     </View>
@@ -428,6 +429,7 @@ function DashStat({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target);
   return (
     <View ref={counter.ref as never} style={styles.dashStatCell}>
@@ -438,7 +440,7 @@ function DashStat({
         <Text numberOfLines={1} style={styles.dashStatValue}>
           {`${prefix ?? ''}${Math.round(counter.value).toLocaleString('en-US')}`}
         </Text>
-        <Text numberOfLines={1} style={[styles.dashStatDelta, { color: accent }]}>
+        <Text numberOfLines={1} style={[styles.dashStatDelta, { color: accentText(accent, t) }]}>
           {delta}
         </Text>
       </View>
@@ -1958,7 +1960,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     qualityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     qualityCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 },
     qualityLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
-    qualityValue: { ...type.h4, color: t.green, flexGrow: 0, flexShrink: 0 },
+    qualityValue: { ...type.h4, color: accentText(t.green, t), flexGrow: 0, flexShrink: 0 },
     track: { height: 6, borderRadius: 3, backgroundColor: t.surfaceInset, overflow: 'hidden' },
     trackFill: { height: 6, borderRadius: 3 },
 

@@ -296,7 +296,7 @@ function Archive({ topic }: { topic: string }) {
                   <View style={styles.cardSpacer} />
                   <MetaRow date={post.date} read={post.readMinutes} />
                   <View style={styles.linkRow}>
-                    <Text style={[styles.linkText, { color: accent(t, post.tone) }]}>Read</Text>
+                    <Text style={[styles.linkText, { color: accentText(accent(t, post.tone), t) }]}>Read</Text>
                     <FontAwesome6 name="arrow-right" size={12} color={accent(t, post.tone)} />
                   </View>
                 </View>

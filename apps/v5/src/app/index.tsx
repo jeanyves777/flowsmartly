@@ -63,7 +63,7 @@ import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
 import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
 import { contactHref, goToEarlyAccess } from "@/lib/destinations";
-import { brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
+import { accentText, brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
 import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
 
@@ -2470,7 +2470,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // panel) does not push its value out of line with its neighbours.
     statLabel: { ...ty.caption, color: t.textSubtle, minHeight: 32 },
     statValue: { ...ty.caption, color: t.text, fontWeight: "800", marginTop: 3 },
-    statValueBrand: { ...ty.caption, color: t.brand, fontWeight: "800", marginTop: 3 },
+    statValueBrand: { ...ty.caption, color: accentText(t.brand, t), fontWeight: "800", marginTop: 3 },
 
     customerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
     customerIdentity: { flexShrink: 1, minWidth: 0 },
@@ -2492,7 +2492,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       padding: 8,
     },
     recommendLabel: { ...ty.caption, color: t.textSubtle },
-    recommendValue: { ...ty.caption, color: t.brand, fontWeight: "700", marginTop: 2 },
+    recommendValue: { ...ty.caption, color: accentText(t.brand, t), fontWeight: "700", marginTop: 2 },
 
     trustRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     trustCheck: { fontWeight: "900", fontSize: ty.caption.fontSize, flexShrink: 0 , fontFamily: FONT_SANS },
@@ -2741,7 +2741,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingVertical: 14,
     },
     recommendationMetric: { flexShrink: 1, minWidth: 0, gap: 4 },
-    revenueBrand: { ...ty.h3, color: t.brand },
+    revenueBrand: { ...ty.h3, color: accentText(t.brand, t) },
     confidence: { ...ty.h3, color: t.successText },
     reason: { padding: 11, borderRadius: 10, backgroundColor: t.surfaceMuted },
     reasonText: { ...ty.caption, color: t.text, fontWeight: "600" },

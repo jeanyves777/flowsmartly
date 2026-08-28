@@ -461,7 +461,7 @@ function Stories() {
               />
               <View style={styles.storyBody}>
                 <Chip label={story.industry} tone={story.tone} />
-                <Text style={[styles.storyResult, { color: accent(t, story.tone) }]}>
+                <Text style={[styles.storyResult, { color: accentText(accent(t, story.tone), t) }]}>
                   {story.result}
                 </Text>
                 <Text style={styles.storyCompany}>{story.company}</Text>
@@ -488,7 +488,7 @@ function Stories() {
                 </View>
 
                 <View style={styles.linkRow}>
-                  <Text style={[styles.linkText, { color: accent(t, story.tone) }]}>
+                  <Text style={[styles.linkText, { color: accentText(accent(t, story.tone), t) }]}>
                     Read the story
                   </Text>
                   <FontAwesome6 name="arrow-right" size={12} color={accent(t, story.tone)} />
@@ -563,7 +563,7 @@ function Outcomes() {
                   {outcome.product}
                 </Text>
               </View>
-              <Text style={[styles.outcomeMetric, { color: accent(t, outcome.tone) }]}>
+              <Text style={[styles.outcomeMetric, { color: accentText(accent(t, outcome.tone), t) }]}>
                 {outcome.metric}
               </Text>
               <Text style={styles.cardBody}>{outcome.body}</Text>
@@ -753,7 +753,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 'auto',
     },
-    statValue: { ...type.h2, color: t.brand, textAlign: l.isPhone ? 'left' : 'center' },
+    statValue: { ...type.h2, color: accentText(t.brand, t), textAlign: l.isPhone ? 'left' : 'center' },
     statLabel: {
       ...type.caption,
       color: t.textMuted,

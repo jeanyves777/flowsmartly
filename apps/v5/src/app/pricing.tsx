@@ -28,7 +28,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import PRICING_FAQ from '@/content/pricing-faq.json';
@@ -375,7 +375,7 @@ export default function PricingPage() {
 
                   <View style={[styles.creditsLine, { borderColor: hexToRgba(accent, 0.35) }]}>
                     <FontAwesome6 name="coins" size={12} color={accent} />
-                    <Text style={[styles.creditsText, { color: accent }]}>{plan.credits}</Text>
+                    <Text style={[styles.creditsText, { color: accentText(accent, t) }]}>{plan.credits}</Text>
                   </View>
 
                   <View style={styles.featureList}>
@@ -665,7 +665,7 @@ export default function PricingPage() {
                     </View>
                   </View>
                   <Text style={[type.h4, styles.usageTitle]}>{item.title}</Text>
-                  <Text style={[type.h3, styles.usageRate, { color: accent }]}>{item.rate}</Text>
+                  <Text style={[type.h3, styles.usageRate, { color: accentText(accent, t) }]}>{item.rate}</Text>
                   <Text style={styles.usageNote}>{item.note}</Text>
                 </View>
               </Reveal>
@@ -766,7 +766,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     customCopy: l.isStacked
       ? { width: '100%', minWidth: 0, gap: 10 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
-    customEyebrow: { ...type.caption, color: t.violet, fontWeight: '800', letterSpacing: 1.2 },
+    customEyebrow: { ...type.caption, color: accentText(t.violet, t), fontWeight: '800', letterSpacing: 1.2 },
     customTitle: type.h3,
     customBody: { ...type.bodySm, color: t.textMuted, maxWidth: 620 },
     customAside: l.isStacked
@@ -1103,7 +1103,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 12,
     },
     balanceTotalLabel: { ...type.bodySm, color: t.text, fontWeight: '700' },
-    balanceTotalValue: { ...type.h4, color: t.brand },
+    balanceTotalValue: { ...type.h4, color: accentText(t.brand, t) },
 
     creditsCopy: stacked ? { width: '100%', minWidth: 0 } : { ...twoUp, paddingTop: 4 },
     creditsTitle: { marginTop: 14 },

@@ -1043,7 +1043,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       flexShrink: 1,
       flexBasis: 0,
       minWidth: 0,
-      color: t.violet,
+      color: accentText(t.violet, t),
       fontWeight: '700',
     },
     storyCta: { alignItems: 'flex-start' },

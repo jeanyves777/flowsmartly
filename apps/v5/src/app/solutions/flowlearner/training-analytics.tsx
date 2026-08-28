@@ -434,6 +434,7 @@ function KpiTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
@@ -453,7 +454,7 @@ function KpiTile({
       </Text>
       <View style={styles.kpiDeltaRow}>
         <FontAwesome6 name="arrow-trend-up" size={10} color={accent} />
-        <Text numberOfLines={1} style={[styles.kpiDelta, { color: accent }]}>
+        <Text numberOfLines={1} style={[styles.kpiDelta, { color: accentText(accent, t) }]}>
           {`${delta} vs last period`}
         </Text>
       </View>
@@ -480,6 +481,7 @@ function StatTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
@@ -490,7 +492,7 @@ function StatTile({
           <FontAwesome6 name={icon as never} size={13} color={accent} />
         </View>
       ) : null}
-      <Text numberOfLines={1} style={[styles.statValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
         {`${prefix}${shown}${suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.statLabel}>
@@ -549,7 +551,7 @@ function AttendanceChart({
             key={`ylabel-${value}`}
             x={padLeft - 8}
             y={y(value) + 4}
-            fontSize={11}
+            fontSize={14}
             fill={t.textSubtle}
             textAnchor="end">
             {`${value}`}
@@ -571,7 +573,7 @@ function AttendanceChart({
               key={label}
               x={x(index)}
               y={height - 6}
-              fontSize={11}
+              fontSize={14}
               fill={t.textSubtle}
               textAnchor="middle">
               {label}
@@ -1182,7 +1184,7 @@ export default function TrainingAnalyticsPage() {
             return (
               <Reveal key={stat.key} style={styles.quadCell} distance={14} delay={index * 60}>
                 <View style={styles.plainTile}>
-                  <Text numberOfLines={1} style={[styles.statValue, { color: accent }]}>
+                  <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
                     {stat.value}
                   </Text>
                   <Text numberOfLines={2} style={styles.statLabel}>
@@ -1229,7 +1231,7 @@ export default function TrainingAnalyticsPage() {
                       <View style={styles.hardTrack}>
                         <View style={[styles.hardFill, { width: fill, backgroundColor: accent }]} />
                       </View>
-                      <Text numberOfLines={1} style={[styles.hardValue, { color: accent }]}>
+                      <Text numberOfLines={1} style={[styles.hardValue, { color: accentText(accent, t) }]}>
                         {`${item.correct}%`}
                       </Text>
                     </View>
@@ -2143,7 +2145,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 36 : 46,
       fontWeight: '800',
-      color: t.green,
+      color: accentText(t.green, t),
     },
     linkRow: {
       flexDirection: 'row',

@@ -1039,7 +1039,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     reviewButtonPressed: { backgroundColor: t.surfaceInset },
-    reviewLabel: { ...type.caption, fontWeight: '700', color: t.brand },
+    reviewLabel: { ...type.caption, fontWeight: '700', color: accentText(t.brand, t) },
 
     commandFoot: {
       flexDirection: 'row',

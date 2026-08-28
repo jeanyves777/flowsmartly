@@ -438,6 +438,7 @@ function KpiTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
@@ -456,7 +457,7 @@ function KpiTile({
       <Text numberOfLines={1} style={styles.kpiValue}>
         {`${prefix}${shown}${suffix}`}
       </Text>
-      <Text numberOfLines={1} style={[styles.kpiDelta, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.kpiDelta, { color: accentText(accent, t) }]}>
         {`${delta} vs last period`}
       </Text>
     </View>
@@ -481,12 +482,13 @@ function StatTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
   return (
     <View ref={counter.ref as never} style={styles.statTile}>
-      <Text numberOfLines={1} style={[styles.statValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
         {`${prefix}${shown}${suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.statLabel}>
@@ -545,7 +547,7 @@ function RevenueChart({
             key={`ylabel-${line_}`}
             x={padLeft - 8}
             y={y(line_) + 4}
-            fontSize={11}
+            fontSize={14}
             fill={t.textSubtle}
             textAnchor="end">
             {`$${line_}K`}
@@ -567,7 +569,7 @@ function RevenueChart({
               key={month}
               x={x(index)}
               y={height - 6}
-              fontSize={11}
+              fontSize={14}
               fill={t.textSubtle}
               textAnchor="middle">
               {month}
@@ -1107,7 +1109,7 @@ export default function AnalyticsPage() {
                     <Text numberOfLines={1} style={styles.channelShare}>
                       {`${channel.share}% share`}
                     </Text>
-                    <Text numberOfLines={1} style={[styles.channelDelta, { color: accent }]}>
+                    <Text numberOfLines={1} style={[styles.channelDelta, { color: accentText(accent, t) }]}>
                       {channel.delta}
                     </Text>
                   </View>
@@ -1149,7 +1151,7 @@ export default function AnalyticsPage() {
                   <Text numberOfLines={1} style={styles.journeyMeta}>
                     {step.meta}
                   </Text>
-                  <Text numberOfLines={1} style={[styles.journeyRevenue, { color: accent }]}>
+                  <Text numberOfLines={1} style={[styles.journeyRevenue, { color: accentText(accent, t) }]}>
                     {step.revenue}
                   </Text>
                   <Text numberOfLines={1} style={styles.journeyConversions}>

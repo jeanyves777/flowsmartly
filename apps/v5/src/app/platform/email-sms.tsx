@@ -1604,7 +1604,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderWidth: 1,
       borderColor: hexToRgba(t.brand, 0.35),
     },
-    stepBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.brand },
+    stepBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: accentText(t.brand, t) },
     headTitleCentered: { textAlign: l.isPhone ? 'left' : 'center' },
     headSub: { maxWidth: 560 },
     headSubCentered: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 680 },
@@ -1766,7 +1766,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.surfaceRaised,
     },
-    assistChipText: { ...type.caption, color: t.violet, fontWeight: '700' },
+    assistChipText: { ...type.caption, color: accentText(t.violet, t), fontWeight: '700' },
 
     /* -------------------------------------------------- sms */
     smsRow: {
@@ -1880,7 +1880,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 13,
     },
     matchDot: { width: 8, height: 8, borderRadius: 4, flexGrow: 0, flexShrink: 0, backgroundColor: t.brand },
-    matchValue: { fontSize: l.isPhone ? 22 : 26, lineHeight: l.isPhone ? 27 : 31, fontWeight: '800', color: t.brand , fontFamily: FONT_SANS },
+    matchValue: { fontSize: l.isPhone ? 22 : 26, lineHeight: l.isPhone ? 27 : 31, fontWeight: '800', color: accentText(t.brand, t) , fontFamily: FONT_SANS },
     matchLabel: { ...type.caption, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- deliverability */

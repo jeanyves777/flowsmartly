@@ -168,7 +168,7 @@ export function ArticleBody({ blocks, tone }: { blocks: Block[]; tone: CalloutTo
                 {block.items.map((item, itemIndex) => (
                   <View key={itemIndex} style={styles.listRow}>
                     {block.kind === 'ol' ? (
-                      <Text style={[styles.marker, { color: accent(t, tone) }]}>{itemIndex + 1}.</Text>
+                      <Text style={[styles.marker, { color: accentText(accent(t, tone), t) }]}>{itemIndex + 1}.</Text>
                     ) : (
                       <View style={[styles.bullet, { backgroundColor: accent(t, tone) }]} />
                     )}
@@ -268,7 +268,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       color: t.text,
       backgroundColor: t.surfaceInset,
     },
-    link: { color: t.brand, fontWeight: '700', textDecorationLine: 'underline' },
+    link: { color: accentText(t.brand, t), fontWeight: '700', textDecorationLine: 'underline' },
 
     /* lists ---------------------------------------------------------- */
     list: { gap: 10 },

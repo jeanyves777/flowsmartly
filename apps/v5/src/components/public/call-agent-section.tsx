@@ -11,7 +11,7 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { contactHref } from '@/lib/destinations';
-import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, type Layout, useLayout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Animated, Reveal, useCountUp, useInView, useReducedMotion } from './motion';
@@ -378,7 +378,7 @@ export function CallAgentSection() {
                         </Reveal>
                       ) : null}
                     </View>
-                    <Text style={[styles.outcomeValue, { color: o.color }]} numberOfLines={1}>
+                    <Text style={[styles.outcomeValue, { color: accentText(o.color, t) }]} numberOfLines={1}>
                       {o.value}
                     </Text>
                   </View>
@@ -587,8 +587,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     agentLine: { backgroundColor: t.surfaceMuted, borderColor: t.divider },
     transcriptText: { ...type.caption, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
-    speaker: { color: t.brand, fontWeight: '700' },
-    speakerAgent: { color: t.violet, fontWeight: '700' },
+    speaker: { color: accentText(t.brand, t), fontWeight: '700' },
+    speakerAgent: { color: accentText(t.violet, t), fontWeight: '700' },
 
     callControls: {
       flexDirection: 'row',

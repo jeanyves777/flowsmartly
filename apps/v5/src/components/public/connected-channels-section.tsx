@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { brandColor, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, brandColor, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { Connectors, ConnectorSurface, useConnectorField, type ConnectorField, type Link } from './connectors';
@@ -156,7 +156,7 @@ function ChannelGroup({ group, field, styles, t }: { group: Group; field: Connec
   return (
     <View style={styles.group}>
       <View style={[styles.groupChip, { backgroundColor: chipBg }]}>
-        <Text style={[styles.groupChipText, { color: accent }]}>{group.name}</Text>
+        <Text style={[styles.groupChipText, { color: accentText(accent, t) }]}>{group.name}</Text>
       </View>
       <View style={styles.groupTiles}>
         {group.items.map((item) => (

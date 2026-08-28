@@ -1696,7 +1696,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 9,
       paddingRight: 4,
     },
-    backLinkText: { ...type.caption, color: t.brand, fontWeight: '700' },
+    backLinkText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '700' },
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.5, flexShrink: 1, flexBasis: 600, minWidth: 0 },
@@ -1922,7 +1922,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: softFill(t.orange, t),
     },
-    inkNoteText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.orange },
+    inkNoteText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: accentText(t.orange, t) },
 
     /* inspector */
     inspector: editorStacked
@@ -2119,7 +2119,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 16,
     },
-    ghostButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
+    ghostButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: accentText(t.brand, t) },
     solidButton: {
       minHeight: 44,
       flexGrow: 0,
@@ -2197,7 +2197,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.orange, t),
     },
     boardDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.orange },
-    boardChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.orange },
+    boardChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: accentText(t.orange, t) },
 
     inkBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
     inkSwatches: { flexDirection: 'row', alignItems: 'center', gap: 7, flexGrow: 0, flexShrink: 0 },
@@ -2692,7 +2692,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 12,
     },
-    restoreText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
+    restoreText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: accentText(t.brand, t) },
     collabFoot: {
       marginTop: 2,
       flexDirection: 'row',
@@ -2761,7 +2761,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     closeLinkText: {
       ...type.caption,
-      color: t.brand,
+      color: accentText(t.brand, t),
       fontWeight: '700',
       flexGrow: 1,
       flexShrink: 1,

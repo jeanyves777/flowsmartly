@@ -815,7 +815,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 20,
     },
     teamLinkPressed: { backgroundColor: t.surfaceInset },
-    teamLinkText: { fontSize: 14, fontWeight: '700', color: t.brand , fontFamily: FONT_SANS },
+    teamLinkText: { fontSize: 14, fontWeight: '700', color: accentText(t.brand, t) , fontFamily: FONT_SANS },
 
     /* -------------------------------------------------- values */
     valueGrid: {

@@ -32,7 +32,7 @@ import { FONT_SANS,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
 import { EXTERNAL, contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -735,7 +735,7 @@ function Sdks() {
             <Card style={styles.sdkCard}>
               <View style={styles.sdkHead}>
                 <View style={[styles.monogram, { backgroundColor: softFill(accent(t, sdk.tone), t) }]}>
-                  <Text style={[styles.monogramText, { color: accent(t, sdk.tone) }]}>{sdk.monogram}</Text>
+                  <Text style={[styles.monogramText, { color: accentText(accent(t, sdk.tone), t) }]}>{sdk.monogram}</Text>
                 </View>
                 <View style={styles.sdkHeadCopy}>
                   <Text style={styles.cardTitle}>{sdk.title}</Text>

@@ -441,12 +441,13 @@ function StatTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0 ? counter.value.toFixed(decimals) : Math.round(counter.value).toLocaleString('en-US');
   return (
     <View ref={counter.ref as never} style={styles.statTile}>
-      <Text numberOfLines={1} style={[styles.statValue, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
         {`${shown}${suffix}`}
       </Text>
       <Text numberOfLines={2} style={styles.statLabel}>
@@ -642,7 +643,7 @@ export default function LiveRoomPage() {
                               <Text numberOfLines={1} style={styles.participantName}>
                                 {person.name}
                               </Text>
-                              <Text numberOfLines={1} style={[styles.participantRole, { color: accent }]}>
+                              <Text numberOfLines={1} style={[styles.participantRole, { color: accentText(accent, t) }]}>
                                 {person.role}
                               </Text>
                             </View>
@@ -1560,7 +1561,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 9,
       paddingRight: 4,
     },
-    backLinkText: { ...type.caption, color: t.brand, fontWeight: '700' },
+    backLinkText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '700' },
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.5, flexShrink: 1, flexBasis: 600, minWidth: 0 },
@@ -1682,7 +1683,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.orange, t),
     },
     drawingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.orange },
-    drawingChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.orange },
+    drawingChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: accentText(t.orange, t) },
     boardCanvas: {
       borderWidth: 1,
       borderColor: t.border,
@@ -2239,7 +2240,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 16,
     },
-    ghostButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
+    ghostButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: accentText(t.brand, t) },
     solidButton: {
       minHeight: 44,
       flexGrow: 0,
@@ -2351,7 +2352,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 12,
     },
-    clipButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
+    clipButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: accentText(t.brand, t) },
 
     /* -------------------------------------------------- setup */
     setupNote: {
@@ -2557,7 +2558,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     closeLinkText: {
       ...type.caption,
-      color: t.brand,
+      color: accentText(t.brand, t),
       fontWeight: '700',
       flexGrow: 1,
       flexShrink: 1,

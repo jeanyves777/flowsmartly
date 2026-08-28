@@ -36,7 +36,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 
 import { useLayout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
-import { elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
+import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTypeScale } from '@/components/public/ui';
 
 /* ------------------------------------------------------------------ */
@@ -163,7 +163,7 @@ export const FeatureCard = memo(function FeatureCard({
       color: t.textMuted,
     },
     action: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-    actionText: { ...ty.caption, color: t.brand, fontWeight: '700' },
+    actionText: { ...ty.caption, color: accentText(t.brand, t), fontWeight: '700' },
   });
 
   const content = (

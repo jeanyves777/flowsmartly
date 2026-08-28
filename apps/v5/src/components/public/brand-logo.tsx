@@ -131,7 +131,12 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
   // up already has room for) and only a genuinely tiny tile expands. That is
   // the honest trade: the old 14px tile "contained" GPT only because the 9px
   // text was already spilling 4px out of it.
-  const fontSize = Math.max(11, Math.round(size * (initials.length > 2 ? 0.3 : 0.4)));
+  // 12, not 11: a monogram is a MARK rather than prose, so it belongs to the
+  // sanctioned signpost class - two letters, uppercase, tracked, read at a
+  // glance - and that class bottoms out at 12. Tiles from ~21 up still fit it;
+  // only a genuinely tiny tile expands, which the minWidth/minHeight above
+  // already allow for.
+  const fontSize = Math.max(12, Math.round(size * (initials.length > 2 ? 0.3 : 0.4)));
   return (
     <View
       accessibilityLabel={label ?? name}
@@ -151,6 +156,12 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
           fontSize,
           lineHeight: Math.round(fontSize * 1.25),
           fontWeight: '800',
+          letterSpacing: 0.4,
+          // Declares this a signpost rather than copy. The 12px floor is for
+          // labels that SAY they are labels, not for anything that happens to
+          // be short - which is also why the audit keys the exemption off
+          // textTransform instead of counting characters.
+          textTransform: 'uppercase',
         }}>
         {initials}
       </Text>

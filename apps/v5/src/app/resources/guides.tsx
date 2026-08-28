@@ -524,7 +524,7 @@ function Paths() {
                 accessibilityRole="link"
                 accessibilityLabel={`Explore the ${path.name} path`}
                 style={styles.linkRow as never}>
-                <Text style={[styles.linkText, { color: accent(t, path.tone) }]}>
+                <Text style={[styles.linkText, { color: accentText(accent(t, path.tone), t) }]}>
                   {`Explore the ${path.name} path`}
                 </Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)} />

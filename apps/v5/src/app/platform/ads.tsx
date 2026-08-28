@@ -427,6 +427,7 @@ function CountTile({
   accent: string;
   styles: Styles;
 }) {
+  const t = useTokens();
   const counter = useCountUp(target, { decimals });
   const shown =
     decimals > 0
@@ -440,7 +441,7 @@ function CountTile({
       <Text numberOfLines={1} style={styles.countValue}>
         {`${prefix}${shown}${suffix}`}
       </Text>
-      <Text numberOfLines={1} style={[styles.countDelta, { color: accent }]}>
+      <Text numberOfLines={1} style={[styles.countDelta, { color: accentText(accent, t) }]}>
         {delta}
       </Text>
     </View>
@@ -538,7 +539,7 @@ function PerformanceChart({
             key={`ylabel-${line}`}
             x={padLeft - 8}
             y={y(line) + 4}
-            fontSize={11}
+            fontSize={14}
             fill={t.textSubtle}
             textAnchor="end">
             {String(line)}
@@ -570,7 +571,7 @@ function PerformanceChart({
             key={label}
             x={x(index)}
             y={height - 7}
-            fontSize={11}
+            fontSize={14}
             fill={t.textSubtle}
             textAnchor="middle">
             {label}
@@ -1029,7 +1030,7 @@ export default function AdsPage() {
                     {variant.angle}
                   </Text>
                   <View style={styles.variantStats}>
-                    <Text numberOfLines={1} style={[styles.variantStat, { color: accent }]}>
+                    <Text numberOfLines={1} style={[styles.variantStat, { color: accentText(accent, t) }]}>
                       {variant.ctr}
                     </Text>
                     <Text numberOfLines={1} style={styles.variantStatMuted}>
@@ -2089,7 +2090,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     audienceHubTitle: { ...type.h4, color: t.text },
-    audienceHubValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800', color: t.brand , fontFamily: FONT_SANS },
+    audienceHubValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800', color: accentText(t.brand, t) , fontFamily: FONT_SANS },
     audienceChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4 },
     audienceChip: {
       ...type.micro,
