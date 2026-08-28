@@ -9,7 +9,7 @@ import { AuroraBackdrop, GradientText, Magnetic } from "@/components/marketing/m
 import { AssetPreview, type AssetKind } from "@/components/marketing/asset-preview";
 import { cn } from "@/lib/utils/cn";
 
-const proofItems = ["No credit card", "Free workspace", "Pay per work, not seats"];
+const proofItems = ["Human approval built in", "No credit card", "Pay for outcomes, not seats"];
 
 type DemoScript = {
   id: string;
@@ -294,7 +294,7 @@ export function HeroSection() {
   }
 
   return (
-    <section className="relative isolate overflow-hidden px-4 pb-16 pt-32 sm:px-6 sm:pt-40 lg:px-8">
+    <section className="relative isolate overflow-hidden border-b border-white/10 bg-[#050b0a] px-4 pb-20 pt-32 sm:px-6 sm:pt-40 lg:px-8">
       <AuroraBackdrop />
       <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <motion.div
@@ -303,17 +303,17 @@ export function HeroSection() {
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           className="text-center lg:text-left"
         >
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur">
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[.06] px-3 py-1.5 text-xs font-semibold text-emerald-200 shadow-sm backdrop-blur">
             <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_2px_rgba(16,185,129,0.7)]" />
-            Your AI marketing team — in one chat
+            Autonomous growth, with you in control
           </span>
           <h1 className="mt-5 text-balance font-display text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
-            One agent runs
+            Turn every signal into
             <br />
-            <GradientText>your whole marketing.</GradientText>
+            <GradientText>your next growth action.</GradientText>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-muted-foreground lg:mx-0">
-            Describe the outcome. The agent designs, prints, publishes, advertises, builds your store &amp; site, and chases leads — across every surface. You only pay for the work it does.
+            FlowSmartly connects customer data, content, conversations, campaigns, commerce and local discovery—then prepares the next best move for your approval.
           </p>
           <form onSubmit={handleSubmit} className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row lg:mx-0">
             <label className="flex min-h-14 flex-1 items-center rounded-2xl border border-input bg-card px-4 text-left text-sm shadow-lg focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
@@ -332,7 +332,7 @@ export function HeroSection() {
                 size="lg"
                 className="min-h-14 gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-purple px-8 text-base font-bold text-white hover:opacity-90"
               >
-                Try free <ArrowRight className="h-5 w-5" />
+                Start building <ArrowRight className="h-5 w-5" />
               </Button>
             </Magnetic>
           </form>
