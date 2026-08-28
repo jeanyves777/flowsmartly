@@ -46,6 +46,7 @@ example
 # QA artefacts — regenerable from `npx expo export -p web` + the screenshot harness
 /qa-v5/
 /qa*.png
+/qa-*/
 /v5-*.png
 /replica.png
 

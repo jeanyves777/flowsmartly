@@ -76,3 +76,6 @@ GoogleService-Info.plist
 
 # MediaPipe WASM is copied from node_modules at build time (next.config.ts), not committed
 public/mediapipe/wasm/
+
+# Windows PowerShell module cache, written into the repo when LOCALAPPDATA is unset
+Microsoft/
