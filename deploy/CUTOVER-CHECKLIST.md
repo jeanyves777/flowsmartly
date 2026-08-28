@@ -65,7 +65,15 @@ So the exact env change list for this cutover is: **no changes.** Revisit only
 when the apex stops proxying `/api/*` to V4.
 
 `scripts/precheck-v5-routes.mjs` asserts that this section still says so, and
-that no Nginx config in `deploy/` mentions the variable at all.
+that no Nginx config in `deploy/` names the variable on a line that does not
+forbid changing it. The earlier wording — "mentions it at all" — was both
+wrong about the gate (it only ever inspected the single file passed to
+`--conf`, the apex vhost, which never had the problem) and the wrong rule:
+`deploy/nginx-legacy-v4.conf` deliberately keeps the original
+"set it to the legacy host" instruction, inverted into a warning, so that the
+reasoning behind the ban travels with the file an operator actually reads
+first. The gate scans every `deploy/*.conf` plus whatever `--conf` points at,
+and goes red if any of them names the variable without that prohibition.
 
 ---
 
