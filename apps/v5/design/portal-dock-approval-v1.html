@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlowAgent dock — approval affordance (PORTAL-SHELL-SPEC §4) — C-1 / C-10 review</title>
+<style>
+/* ── tokens: lifted verbatim from apps/v5/design/portal-shell-v1.html ───────── */
+:root{
+  --bg:#f3f6fc; --surface:#ffffff; --raised:#ffffff; --muted:#f7f9fe; --inset:#eef3fb;
+  --text:#071449; --text-muted:#42527a; --text-subtle:#606c8a; --on-brand:#ffffff;
+  --border:#dfe5f2; --border-strong:#c4cee4; --divider:#e9eef8;
+  --brand:#0a63d6; --brand-strong:#0a56b8; --brand-soft:#edf3ff;
+  --violet:#6c2cff; --violet-soft:#f1ecff;
+  --green:#0e7b3a; --orange:#ad5100; --pink:#d70459;
+  --chip-bg:#edf1ff; --chip-text:#1740db;
+  --ok-bg:#e8f8ee; --ok-text:#008034; --warn-bg:#fff1e6; --warn-text:#bd4a00;
+  --shadow:rgba(31,45,98,.10); --shadow-2:rgba(31,45,98,.20);
+  --r-card:14px; --r-tile:11px; --r-pill:999px;
+  --ff:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#15181d; --surface:#1d2127; --raised:#242931; --muted:#20242b; --inset:#282d35;
+  --text:#f1f4f8; --text-muted:#b2bac7; --text-subtle:#8c96a6; --on-brand:#101317;
+  --border:#333941; --border-strong:#48505c; --divider:#2b3038;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#1f2a37;
+  --violet:#a98cff; --violet-soft:#241f38;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#242e3c; --chip-text:#89b9ff;
+  --ok-bg:#17301f; --ok-text:#4ed67f; --warn-bg:#332512; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.45); --shadow-2:rgba(0,0,0,.62);
+}
+html[data-theme="midnight"]{
+  --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+  --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+  --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+  --violet:#a98cff; --violet-soft:#1b1c3d;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#17264a; --chip-text:#8ab8ff;
+  --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.66);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ff);
+     font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;letter-spacing:-.02em;text-wrap:balance}
+h1{font-size:23px}h2{font-size:17px}h3{font-size:14px}
+code,.mono{font-family:var(--mono);font-size:12px}
+a{color:var(--brand)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 90px}
+.topbar{position:sticky;top:0;z-index:60;background:var(--bg);
+        border-bottom:1px solid var(--divider);padding:14px 20px;margin:0 -20px 22px;
+        display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1 1 auto}
+.seg{display:flex;gap:2px;background:var(--inset);border:1px solid var(--border);
+     border-radius:var(--r-pill);padding:3px}
+.seg button{border:0;background:transparent;color:var(--text-muted);font:inherit;font-size:12px;
+     padding:5px 12px;border-radius:var(--r-pill);cursor:pointer;min-height:30px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);
+     box-shadow:0 1px 3px var(--shadow);font-weight:600}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-subtle);font-weight:700}
+
+section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
+        padding:20px;margin-bottom:20px;box-shadow:0 1px 2px var(--shadow)}
+section>header{margin-bottom:14px}
+section>header p{margin:6px 0 0;color:var(--text-muted);max-width:78ch}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand);font-weight:700}
+.note{background:var(--muted);border:1px solid var(--border);border-left:3px solid var(--brand);
+      border-radius:0 var(--r-tile) var(--r-tile) 0;padding:11px 14px;margin:14px 0;color:var(--text-muted)}
+.note.warn{border-left-color:var(--orange);background:var(--warn-bg);color:var(--warn-text)}
+.note strong{color:var(--text)}
+.note.warn strong{color:var(--warn-text)}
+
+/* ── the viewport frame ────────────────────────────────────────────────────── */
+.stage{background:var(--inset);border:1px solid var(--border);border-radius:var(--r-tile);
+       padding:22px 16px;display:flex;justify-content:center;overflow-x:auto}
+.device{background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-tile);
+        box-shadow:0 10px 30px var(--shadow);padding:14px;flex:0 0 auto;transition:width .18s ease}
+.device .vp{font-size:11px;color:var(--text-subtle);margin-bottom:9px;display:flex;gap:8px}
+
+/* ── the dock ──────────────────────────────────────────────────────────────── */
+.dock{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-pill);
+      box-shadow:0 22px 50px var(--shadow-2);padding:8px 10px;display:flex;align-items:center;
+      gap:9px;min-height:60px}
+.dock.mobile{border-radius:var(--r-card)}
+.glyph{width:34px;height:34px;border-radius:50%;flex:0 0 auto;position:relative;
+       background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;
+       display:grid;place-items:center;font-size:15px}
+.glyph .badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;
+       border-radius:var(--r-pill);background:var(--pink);color:#fff;font-size:10px;font-weight:700;
+       display:grid;place-items:center;border:2px solid var(--surface)}
+.ident{display:flex;flex-direction:column;line-height:1.25;flex:0 0 auto;min-width:0}
+.ident b{font-size:13px}
+.ident span{font-size:11px;color:var(--text-subtle)}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:0 0 auto;
+         box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 22%,transparent)}
+.field{flex:1 1 auto;min-width:0;background:var(--inset);border:1px solid var(--border);
+       border-radius:var(--r-pill);padding:8px 13px;color:var(--text-subtle);font-size:13px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iconbtn{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:1px solid var(--border);
+       background:var(--surface);color:var(--text-muted);display:grid;place-items:center;
+       cursor:pointer;font-size:14px}
+.iconbtn.mic{border:0;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff}
+.iconbtn.big{width:44px;height:44px}
+.openbtn{flex:0 0 auto;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);
+       border-radius:var(--r-pill);padding:8px 13px;font:inherit;font-size:12.5px;cursor:pointer;
+       min-height:36px;display:flex;align-items:center;gap:6px}
+
+/* decide composition */
+.appr{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px}
+.appr .what{flex:1 1 auto;min-width:0;font-size:13.5px;white-space:nowrap;overflow:hidden;
+       text-overflow:ellipsis}
+.facts{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);
+       background:var(--inset);border:1px solid var(--border);border-radius:var(--r-pill);padding:4px 10px;
+       white-space:nowrap;font-variant-numeric:tabular-nums}
+.facts .cost{font-weight:700;color:var(--text)}
+.facts.expired{background:var(--warn-bg);border-color:var(--warn-text);color:var(--warn-text)}
+.pos{flex:0 0 auto;font-size:11.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums;
+     min-width:26px;text-align:center}
+.btn{flex:0 0 auto;border-radius:var(--r-pill);padding:9px 15px;font:inherit;font-size:13px;
+     font-weight:600;cursor:pointer;min-height:38px;border:1px solid var(--border-strong);
+     background:var(--surface);color:var(--text);display:inline-flex;align-items:center;gap:7px;
+     justify-content:center}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn.danger{background:transparent;border-color:var(--pink);color:var(--pink)}
+.btn[disabled]{opacity:.42;cursor:not-allowed}
+.btn.sm{padding:6px 11px;min-height:32px;font-size:12px}
+.spin{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;
+      animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* provenance colour-coding */
+.prov{position:relative}
+.prov::after{content:"";position:absolute;inset:-3px -5px;border-radius:8px;pointer-events:none;
+      border:1.5px dashed transparent}
+body.showprov .prov.has::after{border-color:var(--green)}
+body.showprov .prov.missing::after{border-color:var(--orange)}
+body.showprov .prov.missing{background:color-mix(in srgb,var(--orange) 13%,transparent);border-radius:6px}
+.key{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);margin-top:12px}
+.key i{width:11px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px;
+     border:1.5px dashed var(--green)}
+.key i.o{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 13%,transparent)}
+
+/* scenario controls */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:11px;margin-bottom:16px}
+.ctl{background:var(--muted);border:1px solid var(--border);border-radius:var(--r-tile);padding:11px 13px}
+.ctl .lbl{display:block;margin-bottom:7px}
+.ctl label{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-muted);
+     cursor:pointer;padding:3px 0;min-height:26px}
+.ctl select{width:100%;font:inherit;font-size:12.5px;padding:6px 8px;border-radius:7px;
+     border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.outcome{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle)}
+td code{background:var(--inset);padding:1px 5px;border-radius:4px}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);
+     text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.tag.has{background:var(--ok-bg);color:var(--ok-text)}
+.tag.missing{background:var(--warn-bg);color:var(--warn-text)}
+.scroll-x{overflow-x:auto}
+.dot{text-align:center;color:var(--brand);font-weight:700}
+.dot.no{color:var(--text-subtle);font-weight:400}
+
+/* panel / ApprovalCard */
+.panel{width:330px;max-width:100%;background:var(--surface);border:1px solid var(--border-strong);
+       border-radius:var(--r-card);box-shadow:0 22px 50px var(--shadow-2);overflow:hidden}
+.panel .ph{padding:12px 15px;border-bottom:1px solid var(--divider);display:flex;align-items:center;gap:9px}
+.panel .pb{padding:15px;display:flex;flex-direction:column;gap:13px;background:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-tile);padding:14px}
+.card h4{margin:0 0 4px;font-size:13.5px}
+.card .sub{font-size:12px;color:var(--text-muted);margin-bottom:11px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--divider);
+    font-size:12.5px}
+.kv:first-of-type{border-top:0}
+.kv b{font-variant-numeric:tabular-nums}
+.reason{width:100%;font:inherit;font-size:12.5px;padding:8px 10px;border-radius:8px;
+     border:1px solid var(--border);background:var(--inset);color:var(--text);resize:vertical;min-height:56px}
+
+/* live region + a11y readout */
+.liveout{margin-top:13px;background:var(--inset);border:1px solid var(--border);border-radius:var(--r-tile);
+     padding:11px 13px;font-family:var(--mono);font-size:11.5px;color:var(--text-muted);
+     white-space:pre-wrap;word-break:break-word;min-height:60px}
+.liveout b{color:var(--text)}
+
+/* C-10 comparison */
+.compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:14px}
+.opt{border:1px solid var(--border);border-radius:var(--r-tile);overflow:hidden;background:var(--muted)}
+.opt>h4{margin:0;padding:10px 13px;background:var(--surface);border-bottom:1px solid var(--border);
+     font-size:12.5px;display:flex;align-items:center;gap:8px}
+.opt .body{padding:14px 13px}
+.opt .verdict{padding:9px 13px;font-size:12px;border-top:1px solid var(--border)}
+.opt .verdict.yes{background:var(--ok-bg);color:var(--ok-text)}
+.opt .verdict.no{background:var(--warn-bg);color:var(--warn-text)}
+.faketop{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);
+     border-radius:var(--r-pill);padding:6px 11px}
+.meter{width:74px;height:6px;border-radius:var(--r-pill);background:var(--inset);overflow:hidden;flex:0 0 auto}
+.meter i{display:block;height:100%;width:32%;background:linear-gradient(90deg,var(--brand),var(--violet))}
+.plan{font-size:10.5px;font-weight:700;background:var(--chip-bg);color:var(--chip-text);
+     padding:2px 7px;border-radius:var(--r-pill)}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:760px){.wrap{padding:16px 13px 70px}.topbar{padding:12px 13px;margin:0 -13px 18px}}
+</style>
+</head>
+<body class="showprov">
+
+<div class="topbar">
+  <strong style="font-size:13.5px">FlowAgent dock — §4 approval affordance</strong>
+  <span class="tag missing" style="font-size:10px">DESIGN-ONLY MOCK · NO BACKEND</span>
+  <span class="spacer"></span>
+  <span class="lbl">Theme</span>
+  <div class="seg" id="themeSeg">
+    <button aria-pressed="true"  data-theme="light">Light</button>
+    <button aria-pressed="false" data-theme="dark">Dark</button>
+    <button aria-pressed="false" data-theme="midnight">Midnight</button>
+  </div>
+  <span class="lbl">Width</span>
+  <div class="seg" id="bpSeg">
+    <button aria-pressed="false" data-w="390">390</button>
+    <button aria-pressed="false" data-w="768">768</button>
+    <button aria-pressed="false" data-w="1024">1024</button>
+    <button aria-pressed="true"  data-w="1440">1440</button>
+  </div>
+  <div class="seg">
+    <button id="provBtn" aria-pressed="true">Show provenance</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">What this is, and what it is not</div>
+    <h1>The dock approval affordance, authored in <code>PORTAL-SHELL-SPEC.md §4</code></h1>
+    <p>
+      The approved shell mockup (<code>portal-shell-v1.html</code>) has a dock with a field, a mic,
+      a send and “Open panel”. <strong>It has no approve affordance</strong> — that is C-1. §4 authors
+      one; this page renders it so it can be looked at before it is signed off.
+    </p>
+  </header>
+
+  <div class="note warn">
+    <strong>This is a static mock.</strong> It creates no route, no contract and no client model.
+    Every value below is a hard-coded fixture standing in for a <em>recorded backend answer</em>.
+    Nothing here computes authority, eligibility, cost or approval state — that is FE15a, and it is
+    the rule the real component must also keep.
+  </div>
+
+  <div class="note">
+    <strong>Read the dashes.</strong> Every slot in the dock is outlined by where its value would come
+    from. <span style="color:var(--green);font-weight:700">Green</span> = the field exists in
+    <code>PendingWait</code> today. <span style="color:var(--orange);font-weight:700">Amber</span> =
+    <strong>it does not exist and the frontend must not invent it</strong> — that is C-2, and the
+    amber slots are precisely the contract you are being asked to require.
+    <div class="key">
+      <span><i></i>in the read model today</span>
+      <span><i class="o"></i>missing — C-2 contract request</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">§4.1 · composition one of two</div>
+    <h2>Normal state — the “ask” composition</h2>
+    <p>
+      <code>awaiting</code> contains no item with <code>on === 'approval'</code>. The status line is a
+      <strong>count</strong>, which ADR 0005 permits, phrased from the vocabulary — “2 running”,
+      never “2 pending”, because <code>pending</code> is not a <code>StepState</code>.
+    </p>
+  </header>
+  <div class="stage">
+    <div class="device" id="deviceAsk">
+      <div class="vp"><span id="vpAsk">1440 · wide</span></div>
+      <div id="dockAsk"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">§4.1–§4.4 · composition two of two</div>
+    <h2>Pending approval — the “decide” composition</h2>
+    <p>
+      At least one <code>awaiting</code> item has <code>on === 'approval'</code>. The decide
+      composition <strong>takes priority over the ask field</strong> — a person cannot be asked to
+      type past something waiting on them. The shape changes because of <em>data</em>, never because
+      of a mode.
+    </p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl">
+      <span class="lbl">Recorded backend outcomes</span>
+      <label><input type="checkbox" id="cCanRespond" checked> <code>canRespond</code></label>
+      <label><input type="checkbox" id="cFullReview"> <code>requiresFullReview</code></label>
+      <label><input type="checkbox" id="cHasCost" checked> approval carries a cost ceiling</label>
+      <label><input type="checkbox" id="cExpired"> <code>now &gt; expiresAt</code></label>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Queue</span>
+      <label>Approvals waiting
+        <select id="cQueue" style="margin-top:5px">
+          <option value="1">1</option><option value="3" selected>3</option><option value="7">7</option>
+        </select>
+      </label>
+      <label>Expires in
+        <select id="cExpiry" style="margin-top:5px">
+          <option value="660">11 minutes</option>
+          <option value="48">48 seconds</option>
+          <option value="3600">1 hour</option>
+        </select>
+      </label>
+    </div>
+    <div class="ctl">
+      <span class="lbl">§4.3 · what happens on submit</span>
+      <label>Server responds with
+        <select id="cResult" style="margin-top:5px">
+          <option value="ok">2xx — accepted</option>
+          <option value="approval_expired">Problem · approval_expired</option>
+          <option value="approval_already_used">Problem · approval_already_used</option>
+          <option value="approval_stale">Problem · approval_stale</option>
+          <option value="scope_mismatch">Problem · scope_mismatch</option>
+          <option value="cost_exceeds_approval">Problem · cost_exceeds_approval</option>
+          <option value="approval_rejected">Problem · approval_rejected</option>
+          <option value="offline">network — offline</option>
+        </select>
+      </label>
+      <div class="outcome">
+        <button class="btn sm" id="btnReset">Reset row</button>
+        <button class="btn sm" id="btnSettle">Projection settles</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="device" id="deviceDecide">
+      <div class="vp"><span id="vpDecide">1440 · wide</span></div>
+      <div id="dockDecide"></div>
+    </div>
+  </div>
+
+  <div class="liveout" id="liveOut" role="status" aria-live="polite"></div>
+
+  <div class="note">
+    <strong>§4.3, the three rules this demonstrates.</strong>
+    <b>No optimistic removal</b> — on 2xx the row stays in <code>submitting</code> until the refreshed
+    projection stops listing that <code>waitId</code>; press “Projection settles” to see the row leave.
+    An empty list is an assertion only the projection may make (ADR 0005).
+    <b>Refusals are rendered, not swallowed</b> — each refusal renders <code>Problem.title</code>,
+    never prose parsed out of <code>detail</code>.
+    <b><code>approval_stale</code> must not read as an error</b> — it is the system working, and it is
+    styled accordingly.
+  </div>
+  <div class="note warn">
+    <strong>§4.4 — cost is mandatory before Approve is enabled.</strong> Untick “carries a cost
+    ceiling”: <code>Approve</code> disables and only <code>Review</code> renders, with “Open to see
+    what this costs”. Approving against an unknown ceiling is exactly what doc 00 §A3’s cost ceiling
+    exists to prevent, and <code>holdApproval</code> would refuse it later with
+    <code>cost_exceeds_approval</code> anyway.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">§4.2 · every word, and where it comes from</div>
+    <h2>The C-2 contract request, rendered as the slots that need it</h2>
+    <p>
+      Three of the five slots in the decide row cannot be filled from
+      <code>PendingWait&nbsp;{waitId, stepId, reason, on, waitingSince, expiresAt, resumeAfter}</code>.
+      They are the amber ones above.
+    </p>
+  </header>
+  <div class="scroll-x">
+  <table>
+    <thead><tr><th>Slot</th><th>Source named in §4.2</th><th>In the read model?</th><th>Rule</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>what is being approved</b></td>
+        <td><code>PendingWait.reason</code> + capability label joined from <code>tasks[].steps[]</code></td>
+        <td><span class="tag missing">partial</span></td>
+        <td>One line, <code>numberOfLines={1}</code>. <b>Neither a title nor a preview exists.</b>
+            Inferring a title from <code>reason</code> is ADR 0005 reinterpretation.</td>
+      </tr>
+      <tr>
+        <td><b>cost</b></td>
+        <td><code>estimatedCredits</code> / <code>maxCredits</code> on the approval request</td>
+        <td><span class="tag missing">missing</span></td>
+        <td>Whole credits (<code>9 cr</code>), never a decimal, never a client-side currency
+            conversion. Cost exists today only as <code>ledger.approval.maxCredits</code>, written
+            <em>after</em> a decision.</td>
+      </tr>
+      <tr>
+        <td><b>expiry</b></td>
+        <td><code>PendingWait.expiresAt</code></td>
+        <td><span class="tag has">exists</span></td>
+        <td>Relative in the row, absolute in the accessible name.</td>
+      </tr>
+      <tr>
+        <td><b>position</b></td>
+        <td><code>awaiting.filter(on === 'approval')</code> index</td>
+        <td><span class="tag has">exists</span></td>
+        <td><code>1/3</code>, in the projection’s order. <b>Never re-sorted</b> by cost or expiry.</td>
+      </tr>
+      <tr>
+        <td><b>actions</b></td>
+        <td><code>canRespond</code> (authority) · <code>requiresFullReview</code> (policy)</td>
+        <td><span class="tag missing">missing</span></td>
+        <td>Both must be <b>recorded backend outcomes</b>. FE15a: the client never computes either.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">
+    This table is the contract request. Requiring <strong>a stable approval id, a title, a
+    preview/summary, and cost/impact where applicable</strong> fills every amber row — and the amber
+    disappears from the dock above.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">§4.3 · the branch you asked to see</div>
+    <h2>Approve / Reject — and why <em>Reject</em> is not in the dock</h2>
+    <p>
+      §4.3 is explicit: <strong>“Reject is not in the dock.”</strong> Two controls fit on a one-line
+      strip; it carries the affirmative one and <code>Review</code>. Rejecting lives in the panel’s
+      <code>ApprovalCard</code>, <strong>where the reason can be captured</strong> — a one-line strip
+      is not the place to record why something was refused.
+    </p>
+  </header>
+  <div class="note warn">
+    <strong>This contradicts the wording of your C-1 decision</strong>, which says “the dock may show
+    <em>Approve / Reject</em>”. §4 as written puts only Approve in the dock. Both are shown below so
+    you can pick one — they are not the same product decision, and the spec cannot record both.
+  </div>
+  <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+    <div style="flex:1 1 320px;min-width:290px">
+      <h3 style="margin-bottom:9px">A · §4 as authored — Approve only in the dock</h3>
+      <div class="stage" style="padding:16px 12px"><div class="device" style="width:520px">
+        <div id="dockRejA"></div>
+      </div></div>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:9px 0 0">
+        Rejecting requires opening the panel. One extra tap to refuse, and the refusal always carries
+        a reason.
+      </p>
+    </div>
+    <div style="flex:1 1 320px;min-width:290px">
+      <h3 style="margin-bottom:9px">B · your C-1 wording — Approve <em>and</em> Reject in the dock</h3>
+      <div class="stage" style="padding:16px 12px"><div class="device" style="width:520px">
+        <div id="dockRejB"></div>
+      </div></div>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:9px 0 0">
+        Refusal is one tap — but <strong>no reason is captured</strong>, and at 390px the row cannot
+        hold label + cost + expiry + two buttons without dropping something §4.5 says never drops.
+      </p>
+    </div>
+  </div>
+
+  <h3 style="margin:22px 0 9px">The panel’s <code>ApprovalCard</code> — where Reject lives either way</h3>
+  <div class="stage" style="align-items:flex-start">
+    <div class="panel">
+      <div class="ph">
+        <div class="glyph" style="width:26px;height:26px;font-size:12px">✦</div>
+        <b style="font-size:13px">FlowAgent</b>
+        <span class="spacer"></span>
+        <span style="font-size:11px;color:var(--text-subtle)">1 waiting</span>
+      </div>
+      <div class="pb">
+        <div class="card">
+          <h4 class="prov missing">Send the Spring Sale email to 2,140 people</h4>
+          <div class="sub prov missing">
+            Preview: subject “Spring Sale — 20% off everything”, sending to the “Engaged last 90 days”
+            segment. 2,140 recipients.
+          </div>
+          <div class="kv"><span>Cost ceiling</span><b class="prov missing">9 credits</b></div>
+          <div class="kv"><span>Expires</span><b class="prov has">in 11 minutes</b></div>
+          <div class="kv"><span>Capability</span><b class="prov has">marketing.email.send</b></div>
+          <div class="kv"><span>Requested by</span><b class="prov has">FlowAgent · task #4192</b></div>
+          <label class="lbl" style="display:block;margin:13px 0 6px">Reason (kept with the decision)</label>
+          <textarea class="reason" placeholder="Why are you refusing this?"></textarea>
+          <div style="display:flex;gap:8px;margin-top:11px">
+            <button class="btn primary" style="flex:1">Approve</button>
+            <button class="btn danger" style="flex:1">Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">§4.5 · authored, not shrunk</div>
+    <h2>Responsive behaviour — the slot table is the design</h2>
+    <p>
+      Slots drop in a fixed order and <code>Dock</code> owns the table. Change the width control in the
+      header and the docks above re-author themselves. At mobile the decide composition drops the ask
+      field entirely and the row stays one line.
+    </p>
+  </header>
+  <div class="scroll-x">
+  <table>
+    <thead><tr><th>Slot</th><th style="text-align:center">wide</th><th style="text-align:center">desktop</th>
+      <th style="text-align:center">tablet</th><th style="text-align:center">mobile</th></tr></thead>
+    <tbody id="slotTable"></tbody>
+  </table>
+  </div>
+  <div class="note">
+    <strong>The rule that decides ties:</strong> if label + cost + expiry cannot fit at 390px,
+    <strong>the label truncates — cost and expiry never do.</strong> They are the two facts doc 05
+    requires on an approval.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section>
+  <header>
+    <div class="eyebrow">C-10 · the credits-meter contradiction</div>
+    <h2>What the mockup says, against what the mockup draws</h2>
+    <p>
+      The approved mockup’s settled note reads <em>“cost on the item, not a meter, no balance in the
+      rail”</em> — and its own top bar carries a Credits chip with a 32% meter and a plan tag. Both
+      cannot be the decision. Here they are side by side.
+    </p>
+  </header>
+  <div class="compare">
+    <div class="opt">
+      <h4><span class="tag missing">as drawn</span> Top-bar meter + plan tag</h4>
+      <div class="body">
+        <div class="faketop">
+          <span style="font-size:12px;color:var(--text-muted)">Credits</span>
+          <span class="meter"><i></i></span>
+          <b style="font-size:12.5px" class="prov missing">3,204</b>
+          <span class="plan">Growth</span>
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:12px 0 0">
+          A percentage meter implies a denominator — a plan allowance. Nothing in V5 owns that number.
+        </p>
+      </div>
+      <div class="verdict no">Blocked by your C-10 decision: this is a numeric meter presented as
+        real product state, with no credits contract behind it.</div>
+    </div>
+    <div class="opt">
+      <h4><span class="tag has">settled note</span> Cost on the item only</h4>
+      <div class="body">
+        <div class="faketop" style="border-radius:var(--r-tile);justify-content:space-between">
+          <span style="font-size:12.5px">Send the Spring Sale email…</span>
+          <span class="facts"><b class="cost prov missing">9 cr</b><span>·</span><span>11m</span></span>
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:12px 0 0">
+          Cost sits next to the button that spends it. No balance, no denominator, nothing to be
+          wrong about.
+        </p>
+      </div>
+      <div class="verdict yes">Consistent with C-10 today — and it still needs the C-2 cost field
+        before <code>9 cr</code> is real rather than drawn.</div>
+    </div>
+    <div class="opt">
+      <h4><span class="tag has">spec’s reading</span> Balance readout, no meter</h4>
+      <div class="body">
+        <div class="faketop">
+          <span style="font-size:12px;color:var(--text-muted)">Credits</span>
+          <b style="font-size:12.5px" class="prov missing">3,204</b>
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:12px 0 0">
+          §9 C-10 argues both <em>can</em> coexist, because “a balance readout is not a per-action
+          meter”. This is that middle position: a number with no implied denominator.
+        </p>
+      </div>
+      <div class="verdict no">Still needs C62 item 8. A balance is as much a backend fact as a meter
+        is; only the false denominator goes away.</div>
+    </div>
+  </div>
+  <div class="note warn">
+    <strong>The decision you are actually making.</strong> C-10 was filed as <em>design copy</em> —
+    fix the sentence. Your ruling makes it stronger: no numeric credits representation ships until
+    C62 item 8 exists. That is decidable now, but note it removes the third option too, not just the
+    meter. If you want the balance readout back once the contract lands, the settled note has to say
+    so, or PF2 will build against a sentence that forbids it.
+  </div>
+</section>
+
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Everything renders from FIXTURE. Nothing derives a backend decision — the
+   controls flip *recorded answers*, exactly as /dev/ui's mock scenarios do.
+   ───────────────────────────────────────────────────────────────────────────*/
+const FIXTURE = {
+  identity:'FlowAgent',
+  running:2,
+  label:'Send the Spring Sale email to 2,140 people',
+  capability:'marketing.email.send',
+  cost:9,
+  waitId:'wait_9f2c41',
+};
+
+const SLOTS = [
+  ['glyph',                          1,1,1,1],
+  ['identity ("FlowAgent" + count)', 1,1,2,3],
+  ['live dot',                       1,1,1,1],
+  ['approval line (decide)',         1,1,1,1],
+  ['cost',                           1,1,1,1],
+  ['expiry',                         1,1,1,4],
+  ['position 1/3',                   1,1,1,0],
+  ['Review',                         1,1,1,5],
+  ['Approve',                        1,1,1,1],
+  ['ask field (ask composition)',    1,1,1,1],
+  ['mic',                            1,1,1,0],
+  ['Open panel',                     6,6,7,7],
+];
+const CELL={0:'—',1:'●',2:'count only',3:'badge on glyph',4:'compact 11m',5:'icon 44×44',
+            6:'label + icon',7:'icon'};
+
+let W=1440, THEME='light';
+let state={phase:'idle',problem:null};
+
+const bp = w => w<768?'mobile' : w<1024?'tablet' : w<1440?'desktop' : 'wide';
+const bpIndex = w => ({mobile:3,tablet:2,desktop:1,wide:0})[bp(w)];
+
+const $=s=>document.querySelector(s);
+
+/* ── the dock renderer — one function, composition chosen by data ─────────── */
+function renderDock(opts){
+  const {mode,canRespond,requiresFullReview,hasCost,expired,queue,expiry,phase,problem,rejectInDock}=opts;
+  const b=bp(W), mobile=b==='mobile', tablet=b==='tablet';
+  const wrap=document.createElement('div');
+  wrap.className='dock'+(mobile?' mobile':'');
+
+  // glyph (+ count badge at mobile)
+  const g=document.createElement('div'); g.className='glyph'; g.textContent='✦';
+  if(mobile){ const bd=document.createElement('span'); bd.className='badge';
+    bd.textContent=mode==='ask'?FIXTURE.running:queue; g.appendChild(bd); }
+  wrap.appendChild(g);
+
+  // identity
+  if(!mobile){
+    const id=document.createElement('div'); id.className='ident';
+    if(!tablet){ const nb=document.createElement('b'); nb.textContent=FIXTURE.identity; id.appendChild(nb); }
+    const sp=document.createElement('span');
+    sp.textContent = mode==='ask' ? `${FIXTURE.running} running`
+                                  : (queue===1?'1 waiting':`${queue} waiting`);
+    id.appendChild(sp); wrap.appendChild(id);
+  }
+
+  const dot=document.createElement('span'); dot.className='livedot'; wrap.appendChild(dot);
+
+  if(mode==='ask'){
+    const f=document.createElement('div'); f.className='field';
+    f.textContent='Ask FlowAgent anything'; wrap.appendChild(f);
+    if(!mobile){ const mic=document.createElement('button'); mic.className='iconbtn mic';
+      mic.textContent='🎙'; mic.setAttribute('aria-label','Voice input'); wrap.appendChild(mic); }
+    const send=document.createElement('button'); send.className='iconbtn';
+    send.textContent='→'; send.setAttribute('aria-label','Send'); wrap.appendChild(send);
+    const open=document.createElement('button'); open.className='openbtn';
+    open.innerHTML = (mobile||tablet) ? '▴' : '▴ Open';
+    open.setAttribute('aria-label','Open panel'); wrap.appendChild(open);
+    return wrap;
+  }
+
+  /* decide composition */
+  const appr=document.createElement('div'); appr.className='appr';
+
+  const what=document.createElement('div');
+  what.className='what prov missing';
+  what.textContent = phase==='problem' ? problemTitle(problem) : FIXTURE.label;
+  if(phase==='problem') what.style.color = problem==='approval_stale' ? 'var(--text)' : 'var(--warn-text)';
+  appr.appendChild(what);
+
+  // cost · expiry — never truncated
+  const facts=document.createElement('span');
+  facts.className='facts'+(expired?' expired':'');
+  if(expired){ facts.textContent='Expired'; }
+  else{
+    if(hasCost){ const c=document.createElement('b'); c.className='cost prov missing';
+      c.textContent=FIXTURE.cost+' cr'; facts.appendChild(c);
+      facts.appendChild(document.createTextNode(' · ')); }
+    const e=document.createElement('span'); e.className='prov has'; e.textContent=fmtExpiry(expiry);
+    facts.appendChild(e);
+  }
+  appr.appendChild(facts);
+  wrap.appendChild(appr);
+
+  if(!mobile && queue>1){ const p=document.createElement('span'); p.className='pos prov has';
+    p.textContent=`1/${queue}`; wrap.appendChild(p); }
+
+  /* §4.3 — the branch */
+  const review=document.createElement('button');
+  review.className='btn'+(bp(W)==='mobile'?' iconbtnwrap':'');
+  if(bp(W)==='mobile'){ review.className='iconbtn big'; review.textContent='⌕';
+    review.setAttribute('aria-label','Review '+FIXTURE.label); }
+  else review.textContent='Review';
+
+  const approve=document.createElement('button');
+  approve.className='btn primary prov missing';
+
+  if(phase==='submitting'){
+    approve.innerHTML='<span class="spin"></span> Approving';
+    approve.disabled=true; review.disabled=true;
+    wrap.appendChild(review); wrap.appendChild(approve);
+    return wrap;
+  }
+
+  approve.textContent='Approve';
+
+  if(!canRespond){
+    review.title='You cannot approve this';
+    wrap.appendChild(review);
+  } else if(requiresFullReview){
+    wrap.appendChild(review);
+  } else if(!hasCost){
+    review.title='Open to see what this costs';
+    approve.disabled=true;
+    wrap.appendChild(review); wrap.appendChild(approve);
+  } else if(expired){
+    approve.disabled=true;
+    wrap.appendChild(review); wrap.appendChild(approve);
+  } else {
+    wrap.appendChild(review);
+    if(rejectInDock){
+      const rej=document.createElement('button'); rej.className='btn danger'; rej.textContent='Reject';
+      wrap.appendChild(rej);
+    }
+    approve.onclick=()=>submit();
+    wrap.appendChild(approve);
+  }
+  return wrap;
+}
+
+function problemTitle(p){
+  return {
+    approval_expired:'This approval expired before it was submitted',
+    approval_already_used:'This approval has already been used',
+    approval_stale:'What would happen now differs from what was approved',
+    scope_mismatch:'This is outside what you may approve',
+    cost_exceeds_approval:'This now costs more than the approved ceiling',
+    approval_rejected:'This approval was rejected',
+    offline:'You are offline — this was not sent',
+  }[p] || 'Problem';
+}
+function fmtExpiry(s){
+  if(s>=3600) return Math.round(s/3600)+'h';
+  if(s>=60)   return Math.round(s/60)+'m';
+  return s+'s';
+}
+
+/* ── interaction: §4.3's flow, including no optimistic removal ───────────── */
+function submit(){
+  const r=$('#cResult').value;
+  state={phase:'submitting',problem:null};
+  say(`live region → "Approving ${FIXTURE.label}"\nrow → submitting; both buttons disabled.`);
+  paint();
+  setTimeout(()=>{
+    if(r==='ok'){
+      state={phase:'submitting',problem:null};
+      say(`2xx accepted.\n\nThe row is STILL HERE, still submitting — deliberately.\n`+
+          `ADR 0005: an empty list is an assertion only the projection may make, so the dock waits `+
+          `for a refreshed ConversationView that no longer lists ${FIXTURE.waitId}.\n\n`+
+          `→ press "Projection settles" to deliver that refreshed projection.`);
+    } else if(r==='offline'){
+      state={phase:'problem',problem:'offline'};
+      say(`network failure → offline banner (§6.5).\nThe row is kept. The request is NOT retried silently.`);
+    } else {
+      state={phase:'problem',problem:r};
+      say(`Problem → the row renders Problem.title verbatim:\n  "${problemTitle(r)}"\n\n`+
+          `The row is kept and Review is offered. detail is never parsed.`+
+          (r==='approval_stale'
+            ? `\n\napproval_stale is styled as neutral, NOT as an error — it is the system working.`
+            : ``));
+    }
+    paint();
+  },900);
+}
+function say(t){ $('#liveOut').innerHTML='<b>§4.3 trace</b>\n'+t; }
+
+/* ── paint ────────────────────────────────────────────────────────────────── */
+function opts(mode,over){
+  return Object.assign({
+    mode,
+    canRespond:$('#cCanRespond').checked,
+    requiresFullReview:$('#cFullReview').checked,
+    hasCost:$('#cHasCost').checked,
+    expired:$('#cExpired').checked,
+    queue:+$('#cQueue').value,
+    expiry:+$('#cExpiry').value,
+    phase:state.phase, problem:state.problem,
+    rejectInDock:false,
+  },over||{});
+}
+function paint(){
+  const dw = Math.min(W, window.innerWidth-90);
+  ['#deviceAsk','#deviceDecide'].forEach(s=>{ $(s).style.width = dw+'px'; });
+  $('#vpAsk').textContent = $('#vpDecide').textContent = `${W} · ${bp(W)}`;
+
+  $('#dockAsk').replaceChildren(renderDock(opts('ask')));
+  $('#dockDecide').replaceChildren(renderDock(opts('decide')));
+
+  const frozen={canRespond:true,requiresFullReview:false,hasCost:true,expired:false,
+                queue:3,expiry:660,phase:'idle',problem:null};
+  $('#dockRejA').replaceChildren(renderDock(Object.assign({mode:'decide'},frozen,{rejectInDock:false})));
+  $('#dockRejB').replaceChildren(renderDock(Object.assign({mode:'decide'},frozen,{rejectInDock:true})));
+
+  const i=bpIndex(W);
+  $('#slotTable').replaceChildren(...SLOTS.map(([name,...cells])=>{
+    const tr=document.createElement('tr');
+    const th=document.createElement('td'); th.innerHTML='<b>'+name+'</b>'; tr.appendChild(th);
+    cells.forEach((c,k)=>{
+      const td=document.createElement('td');
+      td.className='dot'+(c===0?' no':'');
+      td.textContent=CELL[c];
+      if(k===i) td.style.background='var(--brand-soft)';
+      tr.appendChild(td);
+    });
+    return tr;
+  }));
+}
+
+/* ── controls ─────────────────────────────────────────────────────────────── */
+$('#themeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  THEME=b.dataset.theme; document.documentElement.dataset.theme=THEME;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+});
+$('#bpSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  W=+b.dataset.w;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  paint();
+});
+$('#provBtn').addEventListener('click',e=>{
+  const on=document.body.classList.toggle('showprov');
+  e.target.setAttribute('aria-pressed',String(on));
+});
+['#cCanRespond','#cFullReview','#cHasCost','#cExpired','#cQueue','#cExpiry']
+  .forEach(s=>$(s).addEventListener('change',()=>{state={phase:'idle',problem:null};paint();}));
+$('#btnReset').onclick=()=>{state={phase:'idle',problem:null};say('row reset to idle.');paint();};
+$('#btnSettle').onclick=()=>{
+  if(state.phase!=='submitting'){ say('Nothing is submitting — approve something first.'); return; }
+  state={phase:'settled',problem:null};
+  say(`refreshed ConversationView no longer lists ${FIXTURE.waitId}.\n`+
+      `Only NOW does the row leave, and the dock returns to the ask composition.\n\n`+
+      `This is the difference between "the server said yes" and "the projection agrees".`);
+  $('#dockDecide').replaceChildren(renderDock(opts('ask')));
+  $('#vpDecide').textContent=`${W} · ${bp(W)} — queue empty, ask composition returns`;
+};
+window.addEventListener('resize',paint);
+paint();
+say('Idle. Flip a recorded outcome, then press Approve.');
+</script>
+</body>
+</html>

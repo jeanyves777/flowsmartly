@@ -71,6 +71,52 @@ picks a fitting existing piece or gets an entry here.
 
 ---
 
+## `/solutions/custom-automation` — three assets, in priority order
+
+The page is built and complete without any of them: the hero carries a real
+product panel, and every other visual is drawn from tokens. These would each
+raise it, and the first is the only one that replaces a compromise.
+
+### 1. `scenes/gcs-tech-team` — a real photograph of the team
+
+**Priority: highest, because it is the one place the page is currently making
+do.** The "Technology changes fast" band says *"FlowSmartly is backed by GCS
+Tech, the team building the platform"*. A stock portrait beside that sentence
+reads as a picture of that team, which is the same class of problem as a
+fabricated testimonial — so the band currently shows an abstract illustration
+instead.
+
+**This one cannot be generated.** It has to be an actual photograph of actual
+people at General Computing Solutions who have agreed to appear — working, at a
+desk or a whiteboard, not posed to camera. Landscape, roughly 3:2.
+
+**When it arrives:** register it and swap the `Media` name in
+`BackedByGcs()`; the comment there explains what it replaces.
+
+### 2. `editorial/custom-automation-hero` — the hero figure
+
+Optional. The hero currently runs copy-left, product-panel-right and is
+balanced as it stands; this would sit behind or beside the panel the way the
+reference mock does.
+
+**Brief:** a person at a laptop with the automation flowing out of it as light,
+abstract nodes — the same visual language as the other `editorial/` pieces, not
+a photograph. Must read at 520px wide.
+
+**Prompt, if generated:** *A friendly flat-vector illustration of a person
+working at a laptop, with abstract connected nodes and arrows floating out of
+the screen in blue and violet, on a soft light ground, generous margins, no
+text, no interface chrome.*
+
+### 3. Six step illustrations — deliberately **not** requested
+
+The reference mock gives each of the six engagement steps a circular
+illustration. Six placeholders is six holes, and the steps read perfectly well
+with the numbered chip and icon they have. Worth doing only as a set, by one
+hand, once the page has earned it.
+
+---
+
 ## Per-page unfurl cards — optional, later
 
 `Seo` takes `image` and `imageAlt`, so any route can override the default card
