@@ -271,7 +271,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           <Text style={styles.mobileLabel}>Log in</Text>
         </Pressable>
         <PrimaryButton
-          label="Start free"
+          label="Join early access"
           size="md"
           full
           trackId="header.mobile.start-free"
@@ -364,7 +364,7 @@ export function SiteHeader() {
                   <Text style={styles.signIn}>Log in</Text>
                 </Pressable>
                 <PrimaryButton
-                  label="Start free"
+                  label="Join early access"
                   size="sm"
                   trackId="header.start-free"
                   onPress={() => goToEarlyAccess()}

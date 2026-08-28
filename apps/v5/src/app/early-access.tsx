@@ -187,7 +187,7 @@ export default function EarlyAccessScreen() {
   return (
     <PageShell
       title="Early access"
-      description="FlowSmartly V5 opens in stages. Join early access and we will let you know the moment your place is ready."
+      description="FlowSmartly V5 is a new agentic business operating system, opening in stages. Join early access and we will tell you the moment your place is ready."
       cta={false}
       jsonLd={[
         breadcrumbJsonLd([
@@ -202,11 +202,20 @@ export default function EarlyAccessScreen() {
           <Reveal style={styles.pitch}>
             <SectionLabel>Early access</SectionLabel>
             <Heading level={1} style={styles.h1}>
-              Be among the first on FlowSmartly V5
+              FlowSmartly V5 is coming.
             </Heading>
             <Text style={styles.lede}>
-              V5 is a new FlowSmartly built around an agent that does the work rather than a toolbox
-              you operate. We are opening it in batches so every new workspace lands properly.
+              A new agentic business operating system designed to understand your goals, coordinate
+              tools and specialized agents, execute work, learn from feedback, and grow with the way
+              your organization operates.
+            </Text>
+            <Text style={styles.lede}>
+              From business growth and customer engagement to operations, analytics and agentic
+              engineering, V5 is being built to move AI beyond assistance.{' '}
+              <Text style={styles.ledeLead}>Into action.</Text>
+            </Text>
+            <Text style={styles.lede}>
+              We are opening it in batches so every new workspace lands properly.
             </Text>
             <View style={styles.promises}>
               {PROMISES.map((item) => (
@@ -554,6 +563,9 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
     h1: { ...ts.h1, color: t.text },
     h2: { ...ts.h2, color: t.text },
     lede: { ...ts.body, color: t.textMuted },
+    // "Into action." is the sentence the paragraph is built to reach, so it
+    // carries the copy colour rather than the muted one around it.
+    ledeLead: { color: t.text, fontWeight: '700' },
     body: { ...ts.body, color: t.textMuted },
     head: { gap: 12, maxWidth: 720, marginBottom: l.isPhone ? 20 : 28 },
 

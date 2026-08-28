@@ -272,7 +272,7 @@ export default function AboutPage() {
   return (
     <PageShell
       title="About"
-      description="FlowSmartly brings playbooks, AI, automation and insight together so every business can attract customers, close more deals and scale with confidence."
+      description="FlowSmartly is building an agentic business operating system: one intelligent system that can combine capabilities, tools, context and specialized agents to do work."
       jsonLd={[
         organizationJsonLd(),
         breadcrumbJsonLd([
@@ -286,12 +286,13 @@ export default function AboutPage() {
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Building the operating system real businesses run on.
+              Building the agentic operating system real businesses run on.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              FlowSmartly brings powerful growth tools—playbooks, AI, automation, and insights—together
-              in one platform so teams can attract customers, close more deals, and scale with
-              confidence.
+              FlowSmartly is not a collection of AI features. It is an agentic system that can
+              combine capabilities, tools, context, and specialized agents to execute work around
+              the way your organization operates — so a five-person team can run what used to need
+              a department.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -358,13 +359,14 @@ export default function AboutPage() {
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
             <Heading level={2} style={[type.h2, styles.missionTitle]}>
-              Make powerful growth tools accessible to every business.
+              Move AI beyond assistance, for organizations of every size.
             </Heading>
             <Text style={[type.body, styles.missionBody]}>
-              The tools that decide who wins have been priced and staffed for large companies for far
-              too long. We build the same capability — creation, automation, intelligence and reach —
-              into one platform a five-person team can run on a Tuesday afternoon, without hiring an
-              agency to translate it.
+              Assistance is not the hard part any more; getting work actually finished is. We build a
+              system that can understand a goal, coordinate the tools and specialized agents it
+              needs, execute inside the authority it has been given, check the result and continue —
+              and we build it so a five-person team can run it on a Tuesday afternoon, without hiring
+              an agency to translate it.
             </Text>
           </Reveal>
 

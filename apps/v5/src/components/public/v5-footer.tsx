@@ -552,7 +552,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
               ))}
             </View>
             <PrimaryButton
-              label={plan.price === 'Free' ? 'Start free' : `Choose ${plan.name}`}
+              label="Join early access"
               size="sm"
               full
               trackId={`footer.pricing.${plan.name.toLowerCase()}`}
@@ -649,16 +649,16 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
             <FontAwesome6 name="wand-magic-sparkles" size={l.isPhone ? 22 : 26} color={t.textOnBrand} />
           </View>
           <Heading level={2} style={[type.h2, styles.ctaTitle]}>
-            Ready to bring your business together?
+            Ready to move AI beyond assistance?
           </Heading>
           <Text style={[type.body, styles.ctaBody]}>
-            Connect your work, customers, content, systems, and decisions in one intelligent
-            workspace — with FlowAgent working safely alongside your team.
+            One intelligent system across your work, customers, content, tools and decisions — with
+            FlowAgent executing inside the authority you define.
           </Text>
         </View>
         <View style={styles.ctaPanel}>
           <PrimaryButton
-            label="Start free"
+            label="Join early access"
             size="md"
             full
             trackId="footer.cta.start-free"
@@ -674,7 +674,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
             onPress={bookDemo}
           />
           <Text style={[type.caption, styles.ctaProof]}>
-            No credit card • Human-approved AI • Upgrade anytime
+            No credit card • Governed authority • Leave the list anytime
           </Text>
         </View>
       </LinearGradient>
@@ -746,11 +746,11 @@ export function FooterNavigation() {
           contentPosition="left"
           alt="FlowSmartly"
         />
-        {/* Echoes the site's H1 rather than naming three commercial verbs — this
-            line sits under the logo on all 44 routes, including the nonprofit
-            and service-organization pages. */}
+        {/* Echoes the site's category claim rather than naming three commercial
+            verbs — this line sits under the logo on all 44 routes, including
+            the nonprofit and service-organization pages. */}
         <Text style={[type.bodySm, styles.tagline]}>
-          Run, connect, and grow your business with AI.
+          The agentic business operating system.
         </Text>
         <View style={styles.socials}>
           {socialProfiles.map(([icon, label, color, url]) => (

@@ -584,7 +584,7 @@ export default function AiStudioPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Open AI Studio"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   trackId="ai-studio.hero.open-studio"

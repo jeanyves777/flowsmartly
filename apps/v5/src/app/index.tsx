@@ -22,10 +22,11 @@ import {
   type SharedValue,
 } from "react-native-reanimated";
 import {
+  AnchorStatementSection,
+  CapabilityGroupsSection,
   ControlSection,
   FlowAgentAlongsideSection,
   IndustriesSection,
-  PillarsSection,
 } from "@/components/public/business-os-sections";
 import { CallAgentSection } from "@/components/public/call-agent-section";
 import { ConnectedChannelsSection } from "@/components/public/connected-channels-section";
@@ -860,44 +861,44 @@ function Hero() {
             {[
               <View key="eyebrow" style={styles.heroBadge}>
                 <View style={styles.heroLiveDot} />
-                <Text style={styles.heroBadgeText}>THE AI BUSINESS OPERATING SYSTEM</Text>
+                <Text style={styles.heroBadgeText}>THE AGENTIC BUSINESS OPERATING SYSTEM</Text>
               </View>,
               // The one h1 on the site root. react-native-web renders every
               // Text as a div, so without this the page ships no heading at all.
               /*
-               * The typing must not shove the page around. A ghost copy of the
-               * longest phrase holds the block open at exactly the height the
-               * live headline can ever need, and the live one is laid over it —
-               * so letters appear and disappear inside a box that never
-               * changes size. Reserving a guessed `minHeight` instead would be
-               * wrong at one type scale out of four.
+               * Static, and deliberately so. The headline used to type its own
+               * tail — "While you were away, FlowAgent prepared five tax-client
+               * follow-ups." — which is a marketing-operations anecdote in the
+               * one slot that has to carry the category claim. The typing was
+               * not deleted: it moved to the panel beside this copy, where an
+               * illustration of a run is exactly what it is.
                */
-              <View key="title" style={styles.heroTitleWrap}>
-                <Text aria-hidden style={[styles.heroTitle, styles.heroTitleGhost]}>
-                  {`${HERO_TITLE_LEAD} ${HERO_LONGEST_TAIL}`}
-                </Text>
-                <Heading level={1} style={[styles.heroTitle, styles.heroTitleLive]}>
-                  {HERO_TITLE_LEAD}{' '}
-                  <Text style={styles.heroTitleTail}>{tail}</Text>
-                </Heading>
-              </View>,
+              <Heading key="title" level={1} style={styles.heroTitle}>
+                Agentic AI built to operate, adapt, and scale with your business.
+              </Heading>,
               <Text key="body" style={styles.heroBody}>
-                One platform to run, connect and grow your business — working across everything you
-                already use, and waiting for your approval before anything leaves.
+                FlowSmartly is an agentic business operating system designed to understand goals,
+                coordinate tools, execute work, learn from feedback, and continuously improve across
+                your organization.
+              </Text>,
+              <Text key="body2" style={styles.heroBody}>
+                From marketing and customer engagement to engineering, operations, analytics, and
+                specialized workflows, FlowSmartly gives businesses an intelligent system that can do
+                more than assist. <Text style={styles.heroBodyLead}>It can act.</Text>
               </Text>,
               <View key="metric" style={styles.heroMetric}>
                 <Text ref={prepared.ref as never} style={styles.heroMetricValue}>
                   {Math.round(prepared.value).toLocaleString('en-US')}
                 </Text>
                 <Text style={styles.heroMetricLabel}>
-                  actions prepared this week · nothing sent without you
+                  actions prepared this week · none of them sent without approval
                 </Text>
               </View>,
               <View key="cta" style={styles.heroActions}>
                 <ButtonRow>
                   {/* full-width on phone so every CTA down the page shares one edge */}
                   <PrimaryButton
-                    label="Start building your workspace"
+                    label="Join early access"
                     size="lg"
                     full={l.isPhone}
                     trackId="home.hero.start-workspace"
@@ -960,6 +961,24 @@ function Hero() {
             </View>
           </View>
 
+          {/*
+            * The typed line, moved here out of the h1.
+            *
+            * A ghost copy of the longest phrase holds the block open at exactly
+            * the height the live line can ever need, and the live one is laid
+            * over it — so letters appear and disappear inside a box that never
+            * changes size. Reserving a guessed `minHeight` instead would be
+            * wrong at one type scale out of four.
+            */}
+          <View style={styles.heroTypedWrap}>
+            <Text aria-hidden style={[styles.heroTyped, styles.heroTypedGhost]}>
+              {`${HERO_TITLE_LEAD} ${HERO_LONGEST_TAIL}`}
+            </Text>
+            <Text style={[styles.heroTyped, styles.heroTypedLive]}>
+              {HERO_TITLE_LEAD} <Text style={styles.heroTypedTail}>{tail}</Text>
+            </Text>
+          </View>
+
           <View style={styles.heroDeck}>
             {deck.map((item, slot) => (
               // keyed by slot, not by item: the slot stays mounted and its
@@ -971,7 +990,7 @@ function Hero() {
       </View>
 
       <View style={styles.heroTrust}>
-        {['Human-approved automation', 'Secure integrations', 'Role-based access', 'Built for real businesses'].map(
+        {['Governed authority', 'Human approval where it counts', 'Verifiable, observable work', 'Built for real organizations'].map(
           (line) => (
             <Text key={line} style={styles.heroTrustText}>
               {line}
@@ -1745,9 +1764,9 @@ export default function HomeScreen() {
   // PageShell — the home page must not build its own chrome, or the two drift.
   return (
     <PageShell
-      title="The AI Business Operating System"
-      // 163 chars — the readiness audit fails a description over 165.
-      description="One intelligent platform to run, connect and grow your business: operate, create, serve, sell and understand, with a secure AI partner alongside your team."
+      title="The Agentic Business Operating System"
+      // 159 chars — the readiness audit fails a description over 165.
+      description="An agentic system that understands goals, coordinates tools and specialized agents, executes work within defined authority, and improves from verified results."
       footer="full"
       // The site root, so it carries the Organization and WebSite records as
       // well as its own breadcrumb.
@@ -1756,12 +1775,16 @@ export default function HomeScreen() {
         webSiteJsonLd(),
         breadcrumbJsonLd([{ name: "Home", path: ROUTES.home }]),
       ]}>
-      {/* Positioning first, then who it is for, then what it is, then the
-          product itself — the proof only lands once a visitor knows what they
-          are being shown. FlowAgent and the controls on it come as a pair. */}
+      {/* The category claim first, then the breadth it covers, then who it is
+          for, then the product itself — the proof only lands once a visitor
+          knows what they are being shown. A channel is never named before the
+          capability group that owns it. FlowAgent and the controls on it come
+          as a pair, because an agentic claim without its governance is the
+          overclaim this page exists to avoid. */}
       <Hero />
+      <AnchorStatementSection />
+      <CapabilityGroupsSection />
       <IndustriesSection />
-      <PillarsSection />
       <Dashboard />
       <FlowAgentAlongsideSection />
       <ControlSection />
@@ -1883,11 +1906,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       fontWeight: '800',
       letterSpacing: 1.1,
     },
-    heroTitleWrap: { position: 'relative', alignSelf: 'stretch' },
-    // holds the block open; never read, never seen
-    heroTitleGhost: { opacity: 0 },
-    heroTitleLive: { position: 'absolute', top: 0, left: 0, right: 0 },
-    heroTitleTail: { color: t.scrimAccent },
+    heroTypedWrap: { position: 'relative', alignSelf: 'stretch' },
+    heroTyped: { ...ty.caption, color: t.scrimTextMuted, fontWeight: '700' },
+    heroTypedGhost: { opacity: 0 },
+    heroTypedLive: { position: 'absolute', top: 0, left: 0, right: 0 },
+    heroTypedTail: { color: t.scrimAccent },
     heroMetric: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
     heroMetricValue: {
       ...ty.h3,
@@ -2006,6 +2029,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // near-white by necessity, like the badge above them.
     heroTitle: { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: 640 },
     heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: 620 },
+    // "It can act." is the sentence the paragraph is built to reach, so it
+    // carries the copy colour rather than the muted one around it.
+    heroBodyLead: { color: t.scrimText, fontWeight: '700' },
     heroActions: { marginTop: 4 },
     proof: { ...ty.caption, color: t.textSubtle },
     // The proof card and the channel map stay side by side at every width down

@@ -49,11 +49,19 @@ export const EXTERNAL = {
 /* ------------------------------------------------------------------ */
 
 /**
- * Every "Start free" / "Get started" / "Create account" button on the site.
+ * Every conversion CTA on the site.
  *
  * Registration is closed until V5 accounts open, so these lead to early
  * access. When V5 auth ships, this one function points at the real signup and
  * all ~40 call sites follow without being edited.
+ *
+ * **The label has to match the destination, and for now the destination is a
+ * waiting list.** Every call site therefore reads "Join early access" — not
+ * "Start free", not "Open AI Studio", not "Build a call agent". Those were the
+ * labels here until the sweep, and all thirty-nine of them promised an action
+ * that does not happen: the click opens a form. When this function starts
+ * pointing at a real signup, the labels become wrong in the other direction
+ * and have to be swept back — which is the trade for having them honest today.
  *
  * Uses expo-router's importable `router` rather than the `useRouter` hook so a
  * plain `onPress={goToEarlyAccess}` works from any call site — including the
