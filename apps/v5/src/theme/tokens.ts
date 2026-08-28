@@ -102,11 +102,21 @@ export type ThemeTokens = {
   /**
    * How strongly the veil covers the photograph, across the four gradient
    * stops. Per theme, because the two grounds do not behave alike: a dark veil
-   * deepens a photograph and it stays crisp, while a light one *milks* it, and
-   * the same opacities that read well in dark left the light hero looking like
-   * a faded print. Light therefore covers hard only where the copy sits and
-   * gets out of the way fast; grey does the same thing one notch firmer,
-   * because a mid veil has about half light's headroom over a photograph.
+   * deepens a photograph and it stays crisp, while a light one *milks* it, so
+   * the same opacity buys different amounts of picture in each.
+   *
+   * **The LAST stop is the contract.** The gradient runs left to right and the
+   * copy column only stops short of the right edge on a wide screen — stacked,
+   * it runs the full width, so the trailing stop is the alpha that has to carry
+   * body copy on its own. All three used to fade to a thin tail (light reached
+   * 0.08) on the reasoning that the photograph should open up on the right;
+   * what that actually did was put the end of every paragraph on a phone over
+   * bare photograph. A veil is only a guarantee where it is covering.
+   *
+   * Each theme's floor here is the LOWEST that carries a 4.5:1 caption over a
+   * worst-case frame — black under a light veil, white under a dark one — with
+   * an ink that palette can still print. Everything above the floor is shaped
+   * for the picture, not for the text.
    */
   scrimVeil: readonly [number, number, number, number];
   /** frosted panel on a photograph */
@@ -187,16 +197,47 @@ const light: ThemeTokens = {
   textSubtle: '#5b6486',
   textOnBrand: '#ffffff',
   textOnScrim: '#ffffff',
+  /*
+   * Measured against the WORST-CASE photograph, not against the one the hero
+   * happens to ship: the veil is translucent, so a black frame under it is the
+   * darkest ground a near-white veil can ever produce, and that is the ground
+   * these are picked on. Composited over black at the veil's own floor (0.60):
+   * 5.84:1 for this, 5.02 muted, 4.58 faint, 4.85 accent. Over a white frame
+   * every one of them is 13:1 or better, so the floor is the binding case.
+   *
+   * What was here scored 1.06 / 1.90 / 2.61 / 2.67 at the same point. Those
+   * are not "dark navy on a pale hero" — past x=0.6 the old veil was 0.24 and
+   * then 0.08, i.e. bare photograph, and on a phone the copy runs the full
+   * width and always ends there. That is the unreadable hero that was
+   * reported, and it is a colour defect end to end.
+   */
   scrimText: '#071449',
-  scrimTextMuted: '#33436c',
-  scrimTextFaint: '#4a587c',
+  scrimTextMuted: '#152354',
+  scrimTextFaint: '#1c2a5c',
   scrimBase: '246, 249, 255',
-  scrimVeil: [0.9, 0.68, 0.24, 0.08],
-  scrimGlass: 'rgba(10, 16, 30, 0.30)',
+  /*
+   * The tail is what matters, not the head.
+   *
+   * A veil only guarantees contrast where it is actually covering, so the
+   * trailing stops have to hold a floor everywhere the copy can reach — and on
+   * a phone the copy reaches the far edge. 0.60 is the lowest floor that
+   * carries a 4.5:1 caption over a black frame; below it no ink is dark enough,
+   * because a light veil over a dark photograph is itself dark. The photograph
+   * still reads at 40% through the thinnest part and 10% through the strongest.
+   */
+  scrimVeil: [0.9, 0.8, 0.7, 0.6],
+  scrimGlass: 'rgba(10, 16, 30, 0.62)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
-  scrimAccent: '#0a56b8',
-  scrimGood: '#4ed67f',
-  scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
+  // The headline tail, painted on the veil rather than on glass, so it is
+  // picked on the veil: 4.85:1 over a black frame at the floor. #0a56b8 was
+  // 2.67 there.
+  scrimAccent: '#0a2464',
+  scrimGood: '#d1fae5',
+  // A DARK green pill, not a light one. On glass over a bright photograph a
+  // light-green fill composites to rgb(120,131,136) and nothing readable sits
+  // on it - even white ink reaches only 3.87:1. Dark fill + light ink gives
+  // 6.20:1 and still reads as a success chip.
+  scrimGoodBg: 'rgba(6, 78, 59, 0.40)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
   scrimGlassBlur: 'blur(14px) saturate(120%)',
@@ -323,41 +364,34 @@ const grey: ThemeTokens = {
   // Glass over a photograph stays a dark tint in every theme, so its ink stays
   // white in every theme. See scrimGlass.
   textOnScrim: '#ffffff',
-  // The veil is now the page's own grey rather than a near-black, so the copy
-  // on it is the page's own ink. Measured on the *rendered* hero rather than on
-  // the token: 8.76:1 at 1440, 9.02 at 768, 10.13 at 390.
+  // The veil is the page's own grey rather than a near-black, so the copy on it
+  // is the page's own ink — deepened, because these are now measured against a
+  // BLACK frame under the veil rather than against the photograph the hero
+  // happens to ship. At the veil's floor (0.80): 5.91:1 here, 5.22 muted, 4.55
+  // faint, 4.80 accent. Over a white frame the same four are 8.2–10.7:1.
   scrimText: '#0A1020',
-  // 6.42 / 6.53 / 6.53 across the same three widths — and 5.02 at the worst
-  // point of all, the right-hand third of the body copy at 768, where the veil
-  // has thinned and the photograph is dark. That point is what set the veil.
-  scrimTextMuted: '#232B3C',
-  // A step deeper than `textSubtle`, which the two grounded tiers above reuse.
-  // #333B4B measured 4.40:1 on the rendered page at 768; this is 5.15–5.63
-  // across the three widths and 4.68 at its own worst third.
-  scrimTextFaint: '#2E3644',
+  // #232B3C was 3.30:1 against a black frame at the old 0.68 floor.
+  scrimTextMuted: '#141c38',
+  // #2E3644 was 2.83:1 there. A mid veil has about half light's headroom, so
+  // grey's three tiers sit closer together than light's — the hierarchy here is
+  // carried by size and weight, not by how far the ink can be lifted.
+  scrimTextFaint: '#1e2748',
   scrimBase: '174, 180, 190',
   /*
-   * Far firmer than light's [0.9, 0.68, 0.24, 0.08], and the tail is what
-   * matters rather than the head.
+   * Firmer than light's, and the tail is what matters rather than the head.
    *
    * A mid veil has roughly half light's headroom over a photograph, and the
    * hero copy is only inset from the left on a wide screen: at 768 and 390 it
-   * runs the full width and its last third sits under the veil's *thin* end.
-   * Measured there with light's curve transcribed, grey's body copy scored
-   * 2.84:1 at 768 and 2.77:1 at 390.
+   * runs the full width and its last third sits under the veil's thin end. So
+   * the trailing stop, not the leading one, is the floor the whole width has
+   * to satisfy — 0.80 is the lowest that carries a 4.5:1 caption over a black
+   * frame with an ink this palette can still print.
    *
-   * Worth recording, because it is the reason this is a grey-only change:
-   * LIGHT fails the same measurement harder — 1.94:1 at 768 and 1.48:1 at 390
-   * on the same words — and dark passes everywhere, because a near-black veil
-   * at any opacity is still dark. The defect belongs to light grounds, grey
-   * inherited it by transcription, and only grey is in scope here. Light's
-   * figures are recorded so the next person does not have to rediscover them.
-   *
-   * With this curve the worst third of any hero string is 4.68:1, at 768.
-   * The photograph pays for it: it reads as a soft ground rather than a picture
-   * at full strength. That is the trade, taken deliberately.
+   * The photograph pays for it: grey shows about 20% of the picture through the
+   * thinnest part of the veil, which is the least of the three themes. That is
+   * the trade a mid ground makes, taken deliberately.
    */
-  scrimVeil: [0.95, 0.9, 0.8, 0.68],
+  scrimVeil: [0.95, 0.9, 0.86, 0.8],
   // Deepened from light's 0.30, and measured rather than inherited. The glass
   // is a window onto the photograph and stays a dark tint in all three themes —
   // but it composites over the *veil*, and at 0.30 over a mid veil it landed at
@@ -369,9 +403,9 @@ const grey: ThemeTokens = {
   scrimGlass: 'rgba(10, 16, 30, 0.72)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.22)',
   // The headline tail, painted on the veil rather than on glass — so unlike the
-  // rest of this family it follows the theme. 5.56:1 measured on the rendered
-  // hero at 1440, where the tail actually falls.
-  scrimAccent: '#063572',
+  // rest of this family it follows the theme, and it is measured on the veil:
+  // 4.80:1 over a black frame at the floor. #063572 was 2.78 there.
+  scrimAccent: '#052350',
   // Lifted from the shared #4ed67f. It is a *label* on the hero's status pills,
   // not only the live dot, so it owes 4.5:1 — and the pill's ground is
   // scrimGoodBg over glass over the veil, the deepest stack of tints on the
@@ -464,14 +498,32 @@ const dark: ThemeTokens = {
   // 8.91 brandStrong, 7.03 violet, 9.38 green, 9.45 orange, 6.53 pink.
   textOnBrand: '#0b1220',
   textOnScrim: '#ffffff',
+  /*
+   * Dark's worst case is the mirror of the other two: a near-black veil over a
+   * WHITE frame is the lightest ground it can produce, and light ink on it is
+   * what fails. At the veil's floor (0.70) over white: 7.64:1 here, 5.13 muted,
+   * 4.65 faint, 4.72 accent — and 12:1 or better over a black frame.
+   *
+   * Two of the four are untouched. Dark was the theme that read well and it is
+   * left as close to what shipped as the measurement allows: only `faint` and
+   * the accent had to be lifted, because at 0.42 over white they were 1.15:1
+   * and 1.37:1 — the veil, not the ink, was doing the failing.
+   */
   scrimText: '#ffffff',
   scrimTextMuted: '#c8d4ee',
-  scrimTextFaint: '#93a4c9',
+  // #93a4c9 is still only 3.05:1 at this floor; this is the same tone lifted
+  // just past 4.5 rather than a new colour.
+  scrimTextFaint: '#bfcae4',
   scrimBase: '6, 10, 20',
-  scrimVeil: [0.95, 0.88, 0.62, 0.42],
+  // The trailing stop is the floor the whole width has to satisfy, because on a
+  // phone the copy runs to the far edge. 0.42 left the last third of every
+  // paragraph on bare photograph. The picture still reads at 30% through the
+  // thinnest part — the most of the three themes, since a dark veil deepens a
+  // photograph instead of milking it.
+  scrimVeil: [0.95, 0.88, 0.79, 0.7],
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
-  scrimAccent: '#7cb6ff',
+  scrimAccent: '#aecdff',
   scrimGood: '#4ed67f',
   scrimGoodBg: 'rgba(78, 214, 127, 0.16)',
   scrimGoodLine: 'rgba(78, 214, 127, 0.32)',
