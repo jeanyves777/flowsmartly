@@ -374,11 +374,47 @@ function FigureStrip({
   figures,
   styles,
   accentOf,
+  compact = false,
 }: {
   figures: { value: string; label: string; accent: Accent }[];
   styles: Styles;
   accentOf: (accent: Accent) => string;
+  /**
+   * PHONE RECOMPOSITION.
+   *
+   * Three figure tiles stacked one per row is the desktop composition made
+   * taller: 93px of tile for a two-character number, three times over, 279px in
+   * all. `compact` answers a 390px viewport with the shape a phone actually
+   * wants for three short facts — one bordered proof strip whose rows put the
+   * value and its label on the SAME line. Same three figures, 136px.
+   *
+   * It is opt-in rather than automatic because the hero strip is a different
+   * argument on a different lane, and this must not silently redraw it.
+   */
+  compact?: boolean;
 }) {
+  const l = useLayout();
+  const t = useTokens();
+
+  if (compact && l.isPhone) {
+    return (
+      <View style={styles.proofStrip}>
+        {figures.map((figure) => (
+          <View key={figure.label} style={styles.proofStripRow}>
+            <Text
+              numberOfLines={1}
+              style={[styles.proofStripValue, { color: accentText(accentOf(figure.accent), t) }]}>
+              {figure.value}
+            </Text>
+            <Text numberOfLines={2} style={styles.proofStripLabel}>
+              {figure.label}
+            </Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.figureRow}>
       {figures.map((figure) => (
@@ -417,6 +453,7 @@ function CountTile({
   delta,
   accent,
   styles,
+  row = false,
 }: {
   label: string;
   target: number;
@@ -426,6 +463,13 @@ function CountTile({
   delta: string;
   accent: string;
   styles: Styles;
+  /**
+   * One line — label left, value and delta right — instead of the stacked
+   * tile. Opt-in, because the caller knows how wide its cell is: the hero's
+   * projections are full-width on a phone and want the row; the performance
+   * tiles are two columns wide there and want the stack.
+   */
+  row?: boolean;
 }) {
   const t = useTokens();
   const counter = useCountUp(target, { decimals });
@@ -434,14 +478,16 @@ function CountTile({
       ? counter.value.toFixed(decimals)
       : Math.round(counter.value).toLocaleString('en-US');
   return (
-    <View ref={counter.ref as never} style={styles.countTile}>
-      <Text numberOfLines={1} style={styles.countLabel}>
+    <View ref={counter.ref as never} style={[styles.countTile, row ? styles.countTileRow : null]}>
+      <Text numberOfLines={1} style={[styles.countLabel, row ? styles.countLabelRow : null]}>
         {label}
       </Text>
-      <Text numberOfLines={1} style={styles.countValue}>
+      <Text numberOfLines={1} style={[styles.countValue, row ? styles.countFigureRow : null]}>
         {`${prefix}${shown}${suffix}`}
       </Text>
-      <Text numberOfLines={1} style={[styles.countDelta, { color: accentText(accent, t) }]}>
+      <Text
+        numberOfLines={1}
+        style={[styles.countDelta, row ? styles.countFigureRow : null, { color: accentText(accent, t) }]}>
         {delta}
       </Text>
     </View>
@@ -471,7 +517,12 @@ function ScoreRing({
   const filled = (circumference * value) / 100;
   return (
     <View style={[styles.ring, { width: size, height: size }]}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+      {/* Decoration: the ring redraws the "95%" and the label printed inside it,
+          so it is hidden rather than named twice. `aria-hidden` is the only
+          spelling that reaches the DOM — react-native-svg spreads its props
+          straight onto the <svg>, and `accessibilityElementsHidden` /
+          `importantForAccessibility` are inert on web. */}
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill} aria-hidden={true}>
         <Circle cx={size / 2} cy={size / 2} r={radius} stroke={track} strokeWidth={thickness} fill="none" />
         <Circle
           cx={size / 2}
@@ -524,7 +575,21 @@ function PerformanceChart({
 
   return (
     <View onLayout={onLayout} style={styles.chartBox}>
-      <Svg width={width} height={height}>
+      {/*
+        * This one CARRIES information: four indexed series a sighted visitor can
+        * read off the plot and nobody else can. So it is named rather than
+        * hidden, and the name states the takeaway rather than describing the
+        * drawing. `role`/`aria-label`, not `accessibilityRole`/
+        * `accessibilityLabel`: react-native-svg spreads props onto the <svg>
+        * element, so the RN spellings would land as unknown attributes that no
+        * assistive technology reads.
+        */}
+      <Svg
+        width={width}
+        height={height}
+        role="img"
+        aria-label="Eight weeks of performance, every series indexed to week one. Revenue rises fastest to 164, conversions to 152, ROAS to 126, and spend to 124 — revenue and conversions climb well ahead of spend."
+      >
         {gridlines.map((line) => (
           <Path
             key={`grid-${line}`}
@@ -611,6 +676,50 @@ export default function AdsPage() {
   const chartFallback = Math.max(240, contentWidth - (l.isPhone ? 32 : 44));
   const chartHeight = l.isPhone ? 168 : l.isTablet ? 196 : 224;
 
+  /*
+   * The hero's supporting proof: three figures and the customer line.
+   *
+   * It is ONE fragment rendered in ONE of two places, not two copies. Wide, it
+   * closes the copy column, which is the shorter of the two and would otherwise
+   * end 300px above the console beside it. On a phone there are no columns to
+   * balance, so it moves BELOW the console: the reading order a phone wants is
+   * claim → CTA → the product → the proof, and leaving it in the copy column
+   * put 470px of supporting material between the CTA and the thing it is
+   * selling.
+   */
+  const heroProof = (
+    <>
+      {/* `compact` is the phone-only proof strip: the same three figures as
+          rows of value + label rather than three 93px tiles. It is inert at
+          every other width. */}
+      <FigureStrip figures={HERO_FIGURES} styles={styles} accentOf={accentOf} compact />
+
+      <View style={styles.quoteCard}>
+        <FontAwesome6 name="quote-left" size={15} color={t.brand} aria-hidden={true} />
+        <Text style={styles.quoteText}>
+          We moved budget between networks in one afternoon and stopped paying twice for the same
+          conversion.
+        </Text>
+        <View style={styles.quoteWho}>
+          <Media
+            name="people/priya-shah"
+            alt="Priya Shah, Demand Generation Lead at Vantage Analytics"
+            style={styles.quoteAvatar}
+            radius={16}
+          />
+          <View style={styles.quoteWhoCopy}>
+            <Text numberOfLines={1} style={styles.quoteName}>
+              Priya Shah
+            </Text>
+            <Text numberOfLines={1} style={styles.quoteRole}>
+              Demand Generation Lead, Vantage Analytics
+            </Text>
+          </View>
+        </View>
+      </View>
+    </>
+  );
+
   return (
     <PageShell
       title="Ads"
@@ -633,10 +742,16 @@ export default function AdsPage() {
             <Heading level={1} style={[type.display, styles.heroTitle]}>
               Turn your best ideas into campaigns that perform.
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
-              Build once and launch across every network you sell on. FlowSmartly writes the
-              variants, assembles the audience from data you already own, and holds the spend until
-              you approve it.
+            {/* Two strings, not one clamped one. The wide sentence is written
+                for a 540px column; at 362px it runs to five lines and pushes
+                the CTA off the first screen. `numberOfLines` is kept as a
+                floor so a future edit cannot quietly restore that, but the
+                phone reads a sentence that ENDS rather than one cut
+                mid-clause. */}
+            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
+              {l.isPhone
+                ? 'Build once, launch everywhere you sell. Nothing spends until you approve it.'
+                : 'Build once and launch across every network you sell on. FlowSmartly writes the variants, assembles the audience from data you already own, and holds the spend until you approve it.'}
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -671,31 +786,7 @@ export default function AdsPage() {
               ))}
             </View>
 
-            <FigureStrip figures={HERO_FIGURES} styles={styles} accentOf={accentOf} />
-
-            <View style={styles.quoteCard}>
-              <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
-              <Text style={styles.quoteText}>
-                We moved budget between networks in one afternoon and stopped paying twice for the
-                same conversion.
-              </Text>
-              <View style={styles.quoteWho}>
-                <Media
-                  name="people/priya-shah"
-                  alt="Priya Shah, Demand Generation Lead at Vantage Analytics"
-                  style={styles.quoteAvatar}
-                  radius={16}
-                />
-                <View style={styles.quoteWhoCopy}>
-                  <Text numberOfLines={1} style={styles.quoteName}>
-                    Priya Shah
-                  </Text>
-                  <Text numberOfLines={1} style={styles.quoteRole}>
-                    Demand Generation Lead, Vantage Analytics
-                  </Text>
-                </View>
-              </View>
-            </View>
+            {l.isPhone ? null : heroProof}
           </View>
 
           <View style={styles.heroVisual}>
@@ -721,7 +812,12 @@ export default function AdsPage() {
               {/* builder */}
               <View style={styles.panel}>
                 <Text style={styles.panelTitle}>Campaign builder</Text>
-                {BUILDER_FIELDS.map((field) => (
+                {/* Three rows on a phone, four everywhere else. "Bid strategy:
+                    Maximize conversions" is the one row that is a setting
+                    rather than a fact about the campaign, and it is the row a
+                    reader learns nothing from at 362px. Name, objective and
+                    audience still say what is being assembled. */}
+                {(l.isPhone ? BUILDER_FIELDS.slice(0, 3) : BUILDER_FIELDS).map((field) => (
                   <View key={field.label} style={styles.field}>
                     <View style={styles.fieldIcon}>
                       <FontAwesome6 name={field.icon as never} size={11} color={t.textSubtle}  aria-hidden={true}/>
@@ -801,6 +897,7 @@ export default function AdsPage() {
                       delta={item.delta}
                       accent={accentOf(item.accent)}
                       styles={styles}
+                      row={l.isPhone}
                     />
                   </View>
                 ))}
@@ -818,14 +915,26 @@ export default function AdsPage() {
                   Waiting for Megan’s approval — no budget has been spent.
                 </Text>
                 {/* Illustration of the product, not a control — a fake button
-                    that silently does nothing is worse than a static mock. */}
-                <View style={styles.approveButton}>
-                  <FontAwesome6 name="check" size={11} color={t.textOnBrand}  aria-hidden={true}/>
-                  <Text style={styles.approveText}>Approve</Text>
-                </View>
+                    that silently does nothing is worse than a static mock.
+                    On a touch device that argument stops holding: a 44px brand
+                    pill reading "Approve" is indistinguishable from a control,
+                    and it is the one thing on this page a thumb will try. It
+                    is dropped on the phone, which also gives the sentence the
+                    full width instead of one line each side of a dead pill. */}
+                {l.isPhone ? null : (
+                  <View style={styles.approveButton}>
+                    <FontAwesome6 name="check" size={11} color={t.textOnBrand} aria-hidden={true} />
+                    <Text style={styles.approveText}>Approve</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
+
+          {/* Phone only — see `heroProof`. Wrapped so the quote card's own
+              18px offset from the figures stays inside the block instead of
+              becoming a second 28px row gap. */}
+          {l.isPhone ? <View>{heroProof}</View> : null}
         </View>
 
         {/* channels strip */}
@@ -860,12 +969,16 @@ export default function AdsPage() {
                   <View style={styles.pointTick}>
                     <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
-                  <Text style={styles.pointText}>{point}</Text>
+                  {/* Written for a 1440px column; hard-clamped so a phone can
+                      never turn one of them into a five-line paragraph. */}
+                  <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.pointText}>
+                    {point}
+                  </Text>
                 </View>
               ))}
             </View>
 
-            <FigureStrip figures={CROSS_CHANNEL_FIGURES} styles={styles} accentOf={accentOf} />
+            <FigureStrip figures={CROSS_CHANNEL_FIGURES} styles={styles} accentOf={accentOf} compact />
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -1781,6 +1894,31 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     countValue: { fontSize: l.isPhone ? 17 : 20, lineHeight: l.isPhone ? 22 : 25, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     countDelta: { ...type.micro, fontWeight: '800' },
 
+    /*
+     * PHONE RECOMPOSITION — the hero's three projections only.
+     *
+     * Wide, three projections sit side by side and the stacked label / value /
+     * delta reads as a tile. On a phone `projCell` is `cellBasis(1)`, so the
+     * same three numbers become three 92px stacked tiles — 292px, two thirds
+     * of it the whitespace of a three-line block holding a label and a
+     * four-character number.
+     *
+     * Three across is not the answer either: "Projected ROAS" measures ~102px
+     * and each cell would be 85px wide, so `numberOfLines={1}` would ellipsize
+     * the label on every phone. One per row is right; the ROW is what changes.
+     * Label left, value and delta right, one line: 44px a tile, 148px in all.
+     * The label takes all the slack so neither figure can be truncated.
+     *
+     * It is opt-in through CountTile's `row` prop rather than keyed off
+     * `l.isPhone` inside `countTile`, because the SAME tile is used two
+     * columns wide in the performance section, where a row of three items in a
+     * 173px cell would truncate. Same component, one caller asking for a
+     * different arrangement.
+     */
+    countTileRow: { flexDirection: 'row', alignItems: 'center', gap: 10, rowGap: 0 },
+    countLabelRow: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    countFigureRow: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+
     approvalRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1874,6 +2012,40 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     figureValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 30 : 33, fontWeight: '800' , fontFamily: FONT_SANS },
     figureLabel: { ...type.micro, color: t.textMuted, fontWeight: '600' },
+
+    /*
+      Phone-only proof strip (see FigureStrip `compact`). One card, three rows,
+      value and label on one line each: 13 + 30 + 10 + 30 + 10 + 30 + 13 = 136px
+      against 3 x 93 = 279px for the same three figures as stacked tiles.
+    */
+    proofStrip: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      gap: 10,
+    },
+    proofStripRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    proofStripValue: {
+      fontFamily: FONT_SANS,
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: '800',
+      flexGrow: 0,
+      flexShrink: 0,
+      minWidth: 40,
+    },
+    proofStripLabel: {
+      ...type.bodySm,
+      color: t.textMuted,
+      fontWeight: '600',
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
 
     quoteCard: {
       marginTop: 18,

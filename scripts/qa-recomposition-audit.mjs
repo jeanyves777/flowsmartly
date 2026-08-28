@@ -24,7 +24,16 @@
  *   node scripts/qa-recomposition-audit.mjs [--base URL] [--routes all]
  */
 import puppeteer from 'puppeteer';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+
+/*
+ * The register of sections that have been looked at and accepted, each with the
+ * reason and the height it was accepted at. A ratchet, not an exemption: an
+ * accepted section that grows past its recorded height fails again.
+ */
+const REG = 'scripts/qa-recomposition-accepted.json';
+const ACCEPTED = existsSync(REG) ? JSON.parse(readFileSync(REG, 'utf8')) : { tolerancePx: 0, accepted: [] };
+const acceptedFor = (route, txt) => ACCEPTED.accepted.find((a) => a.route === route && txt.startsWith(a.match));
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = arg('--base', 'http://127.0.0.1:8093');
@@ -96,6 +105,7 @@ if (!routes) {
 }
 
 const offenders = [];
+const accepted = [];
 let checked = 0;
 
 for (const route of routes) {
@@ -130,15 +140,33 @@ for (const route of routes) {
   }
   // keep only the outermost offender per branch, so one section is one finding
   const trimmed = hits.filter((h) => !hits.some((o) => o !== h && h.path.startsWith(o.path + '/')));
-  if (trimmed.length) offenders.push({ route, pageH: phone.pageH, hits: trimmed });
+  const fresh = [];
+  const held = [];
+  for (const h of trimmed) {
+    const a = acceptedFor(route, h.txt);
+    if (a && h.h <= a.acceptedAtPx + ACCEPTED.tolerancePx) held.push({ ...h, a });
+    else if (a) fresh.push({ ...h, grew: a });
+    else fresh.push(h);
+  }
+  accepted.push(...held.map((h) => ({ route, ...h })));
+  if (fresh.length) offenders.push({ route, pageH: phone.pageH, hits: fresh });
 
   process.stdout.write('    diag ' + JSON.stringify(diag) + '\n');
   process.stdout.write('  ' + route.padEnd(32) + String(phone.pageH).padStart(6) + 'px  ' +
-    (trimmed.length ? trimmed.length + ' stacked-only section(s)' : 'recomposed') + '\n');
+    (fresh.length ? fresh.length + ' UNREVIEWED' : held.length ? held.length + ' accepted' : 'recomposed') + '\n');
 }
 await browser.close();
 
-console.log('\n=== sections that only turned sideways at 390px ===');
+if (accepted.length) {
+  console.log('\n=== reviewed and accepted, with reasons ===');
+  for (const a of accepted) {
+    console.log('  ' + String(a.h).padStart(5) + 'px  ' + a.route.padEnd(30) + a.a.category);
+  }
+  console.log('  ' + accepted.length + ' accepted; each fails again if it grows more than +' +
+    ACCEPTED.tolerancePx + 'px past the height it was accepted at');
+}
+
+console.log('\n=== stacked-only and NOT yet reviewed ===');
 if (!offenders.length) {
   console.log('  none across ' + checked + ' route(s)');
 } else {

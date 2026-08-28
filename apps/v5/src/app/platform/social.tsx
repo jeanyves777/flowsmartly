@@ -480,9 +480,14 @@ export default function SocialPage() {
             <Heading level={1} style={[type.display, styles.heroTitle]}>
               Plan once. Publish everywhere. Learn from every interaction.
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
-              One calendar for every network, captions and media adapted to each one, and every
-              comment, mention and message waiting in a single inbox.
+            {/* Two strings, not one clamped one. The wide sentence is written
+                for a 540px column and runs to four lines at 362px; the phone
+                one keeps both claims — one calendar, one inbox — in two.
+                `numberOfLines` stays as a floor, not as the mechanism. */}
+            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
+              {l.isPhone
+                ? 'One calendar for every network. Every comment, mention and message in one inbox.'
+                : 'One calendar for every network, captions and media adapted to each one, and every comment, mention and message waiting in a single inbox.'}
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -525,19 +530,36 @@ export default function SocialPage() {
                     Content calendar
                   </Text>
                   <Text numberOfLines={1} style={styles.plannerSub}>
-                    Week of 6 April • 6 channels
+                    {l.isPhone
+                      ? 'Week of 6 April • 12 scheduled · 2 drafts'
+                      : 'Week of 6 April • 6 channels'}
                   </Text>
                 </View>
-                <View style={styles.plannerChip}>
-                  <FontAwesome6 name="calendar-check" size={11} color={t.chipText}  aria-hidden={true}/>
-                  <Text style={styles.plannerChipText}>12 scheduled · 2 drafts</Text>
-                </View>
+                {/* The chip does not shrink and measures ~200px. At 362px that
+                    left the title 128px for a string that needs 138, so
+                    "Content calendar" was ellipsized on every phone — a status
+                    chip winning a fight with the name of the thing. Its two
+                    counts move into the line above, which then has the full
+                    width, and the chip is gone at that width only. */}
+                {l.isPhone ? null : (
+                  <View style={styles.plannerChip}>
+                    <FontAwesome6 name="calendar-check" size={11} color={t.chipText} aria-hidden={true} />
+                    <Text style={styles.plannerChipText}>12 scheduled · 2 drafts</Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.plannerBody}>
                 <View style={styles.calendar}>
+                  {/* Four days on a phone, the full week everywhere else.
+                      Seven 47px day rows is 359px of one repeated shape, and
+                      the calendar's claim — every network on one grid, some
+                      posts scheduled and some still drafts — is made by four
+                      of them. Wed–Sat is the slice that keeps a media slot, a
+                      draft slot and the highlighted "today" row; the first
+                      four would drop today out of the picture. */}
                   <View style={styles.weekList}>
-                    {WEEK.map((day) => (
+                    {(l.isPhone ? WEEK.slice(2, 6) : WEEK).map((day) => (
                       <View key={day.day} style={day.today ? styles.dayRowToday : styles.dayRow}>
                         <View style={styles.dayStamp}>
                           <Text numberOfLines={1} style={styles.dayName}>
@@ -579,7 +601,12 @@ export default function SocialPage() {
 
                 <View style={styles.previewColumn}>
                   <Text style={styles.previewLabel}>LIVE THIS WEEK</Text>
-                  {CHANNEL_PREVIEWS.map((preview) => (
+                  {/* Four on a phone, six everywhere else. Each row is 71px of
+                      the same shape, so six is 489px — longer than the whole
+                      copy column above it. Four still shows four different
+                      networks with real captions and real counts, which is the
+                      claim; the fifth and sixth only repeat it. */}
+                  {(l.isPhone ? CHANNEL_PREVIEWS.slice(0, 4) : CHANNEL_PREVIEWS).map((preview) => (
                     <View key={preview.channel} style={styles.previewRow}>
                       <ChannelMark channel={preview.channel} size={16} styles={styles} />
                       <Text numberOfLines={1} style={styles.previewName}>
@@ -727,18 +754,54 @@ export default function SocialPage() {
                 argument rather than inside the picture, and it is what closes
                 the height gap between the two columns — the panel was running
                 290px longer than the copy beside it. */}
+            {/*
+              PHONE RECOMPOSITION.
+
+              Wide, this is four boxed rows, each carrying its own "Optimized"
+              tag on the right — which works because there is 500px of row to
+              put it on. At 390 the tag eats 79 of the 232px the sentence has
+              left, every row wraps to two lines, and the block is 261px of
+              four near-identical stacked boxes directly underneath three more
+              near-identical stacked tick rows.
+
+              These four are COMPARABLE items, so the phone gets the grid: the
+              repeated tag is promoted to one group label, the boxes come off
+              (they were separating rows that no longer sit in a stack), and the
+              four facts pair up two-across at 134px of text each. 21 + 7 + two
+              rows of 63 + 12 = 178px for the same four facts.
+            */}
             <View style={styles.optimizedList}>
-              {ADAPT_TICKS.map((item) => (
-                <View key={item} style={styles.optimizedRow}>
-                  <View style={styles.optimizedTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
+              {l.isPhone ? (
+                <>
+                  <Text style={styles.optimizedHead}>OPTIMIZED</Text>
+                  <View style={styles.optimizedGrid}>
+                    {ADAPT_TICKS.map((item) => (
+                      <View key={item} style={styles.optimizedCell}>
+                        <View style={styles.optimizedPair}>
+                          <View style={styles.optimizedTick}>
+                            <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
+                          </View>
+                          <Text numberOfLines={3} style={styles.optimizedText}>
+                            {item}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                  <Text numberOfLines={2} style={styles.optimizedText}>
-                    {item}
-                  </Text>
-                  <Text style={styles.optimizedTag}>Optimized</Text>
-                </View>
-              ))}
+                </>
+              ) : (
+                ADAPT_TICKS.map((item) => (
+                  <View key={item} style={styles.optimizedRow}>
+                    <View style={styles.optimizedTick}>
+                      <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
+                    </View>
+                    <Text numberOfLines={2} style={styles.optimizedText}>
+                      {item}
+                    </Text>
+                    <Text style={styles.optimizedTag}>Optimized</Text>
+                  </View>
+                ))
+              )}
             </View>
           </Reveal>
 
@@ -1021,8 +1084,15 @@ export default function SocialPage() {
                     <View style={styles.safetyIcon}>
                       <FontAwesome6 name={item.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                     </View>
-                    <Text style={styles.safetyTitle}>{item.title}</Text>
-                    <Text style={styles.safetyBody}>{item.body}</Text>
+                    {/* Titles and bodies were sized for a ~320px desktop cell.
+                        In a 135px phone cell they need a hard ceiling or the
+                        two cards in a row end up 60px apart in height. */}
+                    <Text numberOfLines={l.isPhone ? 2 : undefined} style={styles.safetyTitle}>
+                      {item.title}
+                    </Text>
+                    <Text numberOfLines={l.isPhone ? 4 : undefined} style={styles.safetyBody}>
+                      {item.body}
+                    </Text>
                   </View>
                 </Reveal>
               ))}
@@ -1168,7 +1238,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   const statColumns = columns(1, 3, 3, 3); // 3 tiles
   const ugcColumns = columns(2, 3, 3, 6); // 6 tiles
-  const safetyColumns = columns(1, 2, 2, 2); // 4 cards
+  /*
+    4 cards. Two on a phone, not one.
+    ---------------------------------
+    Four safety cards at one per row is the same card the desktop draws, only
+    350px wide instead of 320 - so each is 161px of cell and the block runs
+    660px on its own. Two columns is the composition a phone wants for four
+    COMPARABLE items: the card content narrows to 135px, the body clamps at four
+    lines, and the block lands at 447px for exactly the same four cards.
+  */
+  const safetyColumns = columns(2, 2, 2, 2); // 4 cards
   const integrationColumns = columns(1, 3, 3, 3); // 3 cards
 
   const cardBase: ViewStyle = {
@@ -1641,6 +1720,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     optimizedText: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    /* Phone only — the four rows above, recomposed two-across. */
+    optimizedHead: { ...type.caption, color: t.successText, fontWeight: '800', letterSpacing: 1.1 },
+    optimizedGrid: gridBase,
+    optimizedCell: cellBase(2),
+    optimizedPair: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
     optimizedTag: {
       ...type.caption,
       color: t.successText,
@@ -1790,7 +1874,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     statLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
     statValue: {
-      fontSize: l.isPhone ? 30 : 38,
+      fontSize: l.isPhone ? 30 : 38,
       fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 36 : 44,
       fontWeight: '800',

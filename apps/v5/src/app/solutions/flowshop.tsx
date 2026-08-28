@@ -347,13 +347,26 @@ function ScoreRing({
   );
 }
 
-function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeTokens }) {
+function Tick({
+  text,
+  styles,
+  t,
+  lines,
+}: {
+  text: string;
+  styles: Styles;
+  t: ThemeTokens;
+  /** Hard ceiling for a tick that has been moved into a narrow grid cell. */
+  lines?: number;
+}) {
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
         <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
-      <Text style={styles.tickText}>{text}</Text>
+      <Text numberOfLines={lines} style={styles.tickText}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -474,6 +487,39 @@ export default function FlowShopPage() {
      survive a 390px viewport without truncating the product name itself. */
   const wideTable = !l.isPhone;
 
+  /*
+   * "What happens to the catalog I already have" — one block, rendered in one
+   * of two places.
+   *
+   * Wide, it closes the copy column, which is ~300px shorter than the mock
+   * beside it; that is the whole reason it was written. A phone has no columns
+   * to balance, and there it was 282px of answer sitting between the CTA and
+   * the storefront the CTA is offering. On a phone the question only arises
+   * once you have seen the store, so it follows the mock instead.
+   */
+  const migration = (
+    <View style={styles.migrationCard}>
+      <Text style={styles.migrationHead}>ALREADY SELLING SOMEWHERE?</Text>
+      {MIGRATION.map((row) => (
+        <View key={row.key} style={styles.migrationRow}>
+          <View style={styles.migrationIcon}>
+            {row.brand ? (
+              <BrandLogo name={row.brand} size={16} />
+            ) : (
+              <FontAwesome6 name={row.icon as never} size={14} color={t.brand} aria-hidden={true} />
+            )}
+          </View>
+          <View style={styles.migrationCopy}>
+            <Text numberOfLines={1} style={styles.migrationLabel}>
+              {row.label}
+            </Text>
+            <Text style={styles.migrationNote}>{row.note}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <PageShell
       title="FlowShop"
@@ -493,9 +539,14 @@ export default function FlowShopPage() {
             <Heading level={1} style={[type.display, styles.heroTitle]}>
               Build a store that sells wherever customers discover you.
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
-              Storefront, catalog, checkout and orders in one system — and product data structured so
-              search engines and AI assistants can recommend you with confidence.
+            {/* Two strings, not one clamped one. The wide sentence is written
+                for a 560px column and runs to four lines at 362px; the phone
+                one says the same two things in two. `numberOfLines` stays as a
+                floor so a later edit cannot restore the four-line block. */}
+            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
+              {l.isPhone
+                ? 'Storefront, catalog, checkout and orders in one system — and a catalog AI assistants can recommend.'
+                : 'Storefront, catalog, checkout and orders in one system — and product data structured so search engines and AI assistants can recommend you with confidence.'}
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -532,27 +583,9 @@ export default function FlowShopPage() {
 
             {/* The storefront mock is nearly twice the height of this copy, so
                 the column answers the question the mock cannot: what happens to
-                the catalog you already have. */}
-            <View style={styles.migrationCard}>
-              <Text style={styles.migrationHead}>ALREADY SELLING SOMEWHERE?</Text>
-              {MIGRATION.map((row) => (
-                <View key={row.key} style={styles.migrationRow}>
-                  <View style={styles.migrationIcon}>
-                    {row.brand ? (
-                      <BrandLogo name={row.brand} size={16} />
-                    ) : (
-                      <FontAwesome6 name={row.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
-                    )}
-                  </View>
-                  <View style={styles.migrationCopy}>
-                    <Text numberOfLines={1} style={styles.migrationLabel}>
-                      {row.label}
-                    </Text>
-                    <Text style={styles.migrationNote}>{row.note}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+                the catalog you already have. Phone puts it after the mock —
+                see `migration`. */}
+            {l.isPhone ? null : migration}
           </Reveal>
 
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
@@ -611,8 +644,13 @@ export default function FlowShopPage() {
               </View>
 
               <Text style={styles.stripTitle}>Shop by category</Text>
+              {/* Two on a phone, four everywhere else. Four is two rows of the
+                  identical card — 274px of the storefront mock spent on
+                  repetition, when what the strip has to say is "the store has
+                  categories, with real photography and counts". One row of two
+                  says that; the second row only says it again. */}
               <View style={styles.categoryGrid}>
-                {CATEGORIES.map((category) => (
+                {(l.isPhone ? CATEGORIES.slice(0, 2) : CATEGORIES).map((category) => (
                   <View key={category.key} style={styles.categoryCell}>
                     <View style={styles.categoryCard}>
                       <Media
@@ -680,6 +718,11 @@ export default function FlowShopPage() {
               </View>
             </View>
           </Reveal>
+
+          {/* Phone only — see `migration`. `migrationCard` drops its own 26px
+              offset on the phone so this is separated by the row gap alone
+              rather than by both. */}
+          {l.isPhone ? migration : null}
         </View>
       </OpenSection>
 
@@ -695,10 +738,28 @@ export default function FlowShopPage() {
               styles={styles}
               type={type}
             />
-            <View style={styles.pointList}>
-              {BUILDER_POINTS.map((point) => (
-                <Tick key={point} text={point} styles={styles} t={t} />
-              ))}
+            {/*
+              PHONE RECOMPOSITION.
+
+              Four builder claims of 44-51 characters. Wide, they are a tick
+              list down the left column. At 390 that is four two-line rows plus
+              three 11px gaps = 223px of near-identical stacked rows.
+
+              They are COMPARABLE items rather than a sequence, so the phone
+              pairs them up: 163px of cell, 136px of text after the tick, three
+              lines each, two rows of 75px = 150px. Same four claims, same
+              14px type, 73px shorter and it reads as a set rather than a list.
+            */}
+            <View style={l.isPhone ? styles.pointGrid : styles.pointList}>
+              {BUILDER_POINTS.map((point) =>
+                l.isPhone ? (
+                  <View key={point} style={styles.pointCell}>
+                    <Tick text={point} styles={styles} t={t} lines={4} />
+                  </View>
+                ) : (
+                  <Tick key={point} text={point} styles={styles} t={t} />
+                ),
+              )}
             </View>
 
             {/* "Change anything you like" is the claim above — this is the list
@@ -965,16 +1026,45 @@ export default function FlowShopPage() {
                       <FontAwesome6 name={row.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.featureCopy}>
-                      <Text numberOfLines={1} style={styles.featureLabel}>
-                        {row.label}
+                      {/*
+                        PHONE RECOMPOSITION.
+
+                        icon + label + note + status chip is five columns of
+                        small facts on one line. At 1440 the note has 400px and
+                        reads in one line; at 390 the chip takes 79 of the 290px
+                        left, the note wraps to two, and four rows carry 56px of
+                        pure wrap. The phone therefore puts the chip on the
+                        label's line - the label is one short word - and gives
+                        the note the whole width, where every one of the four
+                        fits on a single line again.
+                      */}
+                      {l.isPhone ? (
+                        <View style={styles.featureLabelRow}>
+                          <Text numberOfLines={1} style={styles.featureLabelGrow}>
+                            {row.label}
+                          </Text>
+                          <View style={styles.featureValue}>
+                            <Text numberOfLines={1} style={styles.featureValueText}>
+                              {row.value}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text numberOfLines={1} style={styles.featureLabel}>
+                          {row.label}
+                        </Text>
+                      )}
+                      <Text numberOfLines={l.isPhone ? 2 : undefined} style={styles.featureNote}>
+                        {row.note}
                       </Text>
-                      <Text style={styles.featureNote}>{row.note}</Text>
                     </View>
-                    <View style={styles.featureValue}>
-                      <Text numberOfLines={1} style={styles.featureValueText}>
-                        {row.value}
-                      </Text>
-                    </View>
+                    {l.isPhone ? null : (
+                      <View style={styles.featureValue}>
+                        <Text numberOfLines={1} style={styles.featureValueText}>
+                          {row.value}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 );
               })}
@@ -1070,17 +1160,23 @@ export default function FlowShopPage() {
               {DATA_TICKS.map((item) => (
                 <View key={item.key} style={styles.dataCell}>
                   <View style={styles.dataRow}>
-                    <View style={styles.dataIcon}>
-                      <FontAwesome6 name={item.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
-                    </View>
+                    {l.isPhone ? null : (
+                      <View style={styles.dataIcon}>
+                        <FontAwesome6 name={item.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
+                      </View>
+                    )}
                     <View style={styles.dataCopy}>
                       <View style={styles.dataLabelRow}>
-                        <Text numberOfLines={1} style={styles.dataLabel}>
+                        <Text numberOfLines={l.isPhone ? 2 : 1} style={styles.dataLabel}>
                           {item.label}
                         </Text>
                         <FontAwesome6 name="circle-check" size={11} color={t.green}  aria-hidden={true}/>
                       </View>
-                      <Text style={styles.dataNote}>{item.note}</Text>
+                      {/* Notes written for a 300px desktop cell; three lines is
+                          the ceiling in a 163px one. */}
+                      <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.dataNote}>
+                        {item.note}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -1454,8 +1550,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
    * so "$248,760" was cut at *every* desktop width. Below the split the mock
    * column is the full page and the tiles fit, so the tile layout stays there
    * and the narrow column gets a compact one-per-line row instead.
+   *
+   * The phone takes the compact row for the opposite reason: the column is the
+   * full page there, so the three tiles fit — but stacked label / value / delta
+   * makes each one 86px, 294px for three figures whose longest is eight
+   * characters. Label left, value and delta right is 43px a stat, 165px in
+   * all, and nothing is at risk of truncation in a 298px line.
    */
-  const dashRow = !l.isStacked;
+  const dashRow = !l.isStacked || l.isPhone;
   const dashColumns = l.isPhone || dashRow ? 1 : 3;
   /**
    * Five channels is a prime count: only one and five columns divide it, so
@@ -1468,7 +1570,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const channelColumns = channelRow ? 1 : 5;
   const metricColumns = columns(1, 2, 4, 4);
   const themeColumns = columns(1, 2, 2, 4);
-  const dataColumns = l.isPhone ? 1 : 2;
+  /*
+    6 attribute records. Two columns everywhere, including the phone.
+    -----------------------------------------------------------------
+    One per row gave six identical 57px strips - 342px of the same shape six
+    times, which is the stacked-list failure this page is meant to be free of.
+    They are COMPARABLE items: label, a tick, one short note each. Two across at
+    163px with the 30px icon tile dropped (it is decorative, and on a phone it
+    was costing a quarter of the cell) puts them in three rows of ~85px, 255px
+    in all, and the section reads as a record rather than a queue.
+  */
+  const dataColumns = 2;
 
   const twoUp: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
 
@@ -1547,7 +1659,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
 
     migrationCard: {
-      marginTop: 26,
+      // 26 separates it from the proof row it follows in the copy column. On a
+      // phone it is a sibling of the mock column instead, so the hero row's
+      // own 26px gap is the separation and a second one would double it.
+      marginTop: l.isPhone ? 0 : 26,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 16,
@@ -1687,7 +1802,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ...(dashRow ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 } : null),
     },
     dashStatValue: {
-      fontSize: dashRow ? 16 : l.isPhone ? 17 : 19,
+      fontSize: dashRow ? 16 : l.isPhone ? 17 : 19,
       fontFamily: FONT_SANS,
       lineHeight: dashRow ? 21 : l.isPhone ? 22 : 24,
       fontWeight: '800',
@@ -1763,6 +1878,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     splitVisual: stacked ? { width: '100%', minWidth: 0 } : twoUp,
 
     pointList: { marginTop: 22, gap: 11 },
+    /* Phone only — the same four ticks, two across. */
+    pointGrid: { ...gridBase, marginTop: 22 - half },
+    pointCell: cellBase(2),
     rowList: { marginTop: 22, gap: 10 },
 
     editableCard: {
@@ -1988,6 +2106,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     featureCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     featureLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    /* Phone only — label and status chip share a line so the note gets the row. */
+    featureLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    featureLabelGrow: {
+      ...type.caption,
+      color: t.text,
+      fontWeight: '800',
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
     featureNote: { ...type.caption, color: t.textSubtle },
     featureValue: { flexGrow: 0, flexShrink: 0, borderRadius: 999, backgroundColor: t.chipBg, paddingHorizontal: 10, paddingVertical: 5 },
     featureValueText: { ...type.caption, lineHeight: 18, color: t.chipText, fontWeight: '800' },
