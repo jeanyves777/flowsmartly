@@ -51,6 +51,12 @@ step "responsive recomposition"
 node scripts/qa-recomposition-audit.mjs 2>&1 | grep -v '^    diag' | tail -12
 mark ${PIPESTATUS[0]} "no stacked-only sections"
 
+step "accessibility"
+node scripts/qa-a11y-audit.mjs 2>&1 | tail -8
+mark ${PIPESTATUS[0]} "axe-core + structural"
+node scripts/qa-a11y-assertions.mjs 2>&1 | tail -12
+mark ${PIPESTATUS[0]} "a11y regression assertions"
+
 step "mobile navigation"
 node scripts/qa-mobile-menu.mjs --shots ./qa-shots/menu 2>&1 | tail -18
 mark ${PIPESTATUS[0]} "mobile menu"

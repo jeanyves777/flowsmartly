@@ -372,8 +372,11 @@ export function ArrowLink({
 }) {
   const mid = height / 2;
   const tip = width;
+  // A drawn connector between two things that already name themselves. It
+  // carries no information of its own, so it stays out of the accessibility
+  // tree rather than being announced as an unnamed graphic.
   return (
-    <Svg width={width} height={height} pointerEvents="none">
+    <Svg width={width} height={height} pointerEvents="none" aria-hidden={true}>
       <Path
         d={`M0 ${mid} H ${tip - 6}`}
         stroke={color}
