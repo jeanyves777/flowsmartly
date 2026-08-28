@@ -86,3 +86,8 @@ Microsoft/
 # public/ is served — same reasoning as apps/v5 assets/images/v5cut/.
 public/Studio_Menus_Thumnail/Clone_Yourself/clone-*.png
 public/Studio_Menus_Thumnail/_training_thumbnail/ChatGPT Image*.png
+
+# Derived at build time by scripts/prisma-production-schema.mjs from prisma/schema.prisma.
+# Never edited by hand and never committed: a committed copy of a 6,542-line schema
+# differing in one line would drift, and the drift would surface in production.
+prisma/generated/

@@ -25,7 +25,10 @@
     "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose",
     "test:reel-render": "npx tsx scripts/test-reel-render.ts",
     "test:director-ui": "node scripts/test-director-composer-ui.mjs",
-    "test:voice-agent": "node scripts/test-voice-agent-ui.mjs"
+    "test:voice-agent": "node scripts/test-voice-agent-ui.mjs",
+    "prisma:schema:prod": "node scripts/prisma-production-schema.mjs",
+    "prisma:generate:prod": "node scripts/prisma-production-schema.mjs && prisma generate --schema prisma/generated/schema.production.prisma",
+    "build:prod": "npm run prisma:generate:prod && next build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.123",
