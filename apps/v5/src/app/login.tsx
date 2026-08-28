@@ -80,7 +80,7 @@ export default function LoginScreen() {
   return (
     <PageShell
       title="Sign in"
-      description="FlowSmartly V5 is rolling out progressively. Existing customers can reach their current workspace, and new visitors can join V5 early access."
+      description="FlowSmartly V5, the agentic business operating system, is rolling out in stages. Existing customers can reach their workspace; new visitors can join early access."
       cta={false}
       jsonLd={[
         breadcrumbJsonLd([
@@ -97,8 +97,8 @@ export default function LoginScreen() {
               FlowSmartly V5 is rolling out
             </Heading>
             <Text style={styles.lede}>
-              The new FlowSmartly is being enabled in stages. Pick the door that describes you — both
-              lead somewhere that works today.
+              The agentic business operating system is being enabled in stages. Pick the door that
+              describes you — both lead somewhere that works today.
             </Text>
           </View>
         </Reveal>

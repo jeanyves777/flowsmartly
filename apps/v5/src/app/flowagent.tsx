@@ -382,7 +382,7 @@ export default function FlowAiPage() {
     <PageShell
       title="FlowAgent"
       // 161 chars — the readiness audit fails a description over 165.
-      description="FlowAgent understands your goals, systems, permissions and rules, then researches, prepares and recommends. Nothing sensitive happens without approval."
+      description="FlowAgent turns an objective into planned, executed work: it coordinates agents and tools, acts within defined authority, and asks before anything consequential."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -395,12 +395,17 @@ export default function FlowAiPage() {
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>FLOWAGENT</SectionLabel>
             <Heading level={1} style={[type.h1, styles.heroTitle]}>
-              An AI operating partner that understands your business, works across your connected
-              systems, and keeps your team in control.
+              The agentic layer that turns objectives into work.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              FlowAgent can prepare, coordinate, create, analyze and execute work across your
-              organization — using your permissions, policies and approval rules.
+              FlowAgent understands an objective and the business context around it, builds a plan,
+              coordinates specialized agents and the tools they are allowed to operate, executes the
+              steps, requests approval where your rules require it, observes the real result,
+              recovers when something fails, and continues from what it learned.
+            </Text>
+            <Text style={[type.body, styles.heroBody]}>
+              Not a chatbot. Not a fixed automation. A system designed to move work forward — inside
+              the authority you define.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -539,13 +544,14 @@ export default function FlowAiPage() {
       {/* ------------------------------------------------ insight to impact */}
       <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>HOW IT WORKS</SectionLabel>
+          <SectionLabel>THE WORKING LOOP</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
             The same six steps, whatever the work is.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Detect, understand, prepare, approve, execute, verify. Step four is always yours, and
-            step six is how you know the rest of it actually happened.
+            Detect, understand, prepare, approve, execute, verify — then round again, carrying what
+            the last pass learned. Step four is always yours, and step six is how you know the rest
+            of it actually happened.
           </Text>
         </Reveal>
 
@@ -587,13 +593,14 @@ export default function FlowAiPage() {
       {/* ------------------------------------------------ capability groups */}
       <OpenSection>
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>FLOWAGENT CAPABILITIES</SectionLabel>
+          <SectionLabel>ACROSS THE CAPABILITY GROUPS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
-            FlowAgent works across your organization.
+            One agentic layer, over every group.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Eight areas of work it can prepare and coordinate, all against the same context — so
-            what it proposes in one never contradicts what it proposed in another.
+            Eight areas of work it can prepare and coordinate, reaching across business and growth,
+            operations and intelligence — all against the same context, so what it proposes in one
+            never contradicts what it proposed in another.
           </Text>
         </Reveal>
 
@@ -701,8 +708,8 @@ export default function FlowAiPage() {
             You&apos;re in control—always.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Autonomy is a dial, not a switch. Every one of these settings is yours before a single
-            agent runs.
+            Authority is a dial, not a switch — agentic is not the same word as unsupervised.
+            Every one of these settings is yours before a single agent runs.
           </Text>
         </Reveal>
 

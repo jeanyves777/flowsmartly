@@ -6,6 +6,7 @@ import { ArrowLink, Connectors, ConnectorSurface, useConnectorField, type Link a
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
+import { CapabilityGroupsSection } from '@/components/public/business-os-sections';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
@@ -738,7 +739,7 @@ export default function ProductPage() {
   return (
     <PageShell
       title="Product"
-      description="FlowSmartly brings content, campaigns, customer conversations, commerce, local visibility and analytics into one intelligent workspace."
+      description="One agentic system across five capability groups: business and growth, engineering, operations, intelligence and the agent platform they are all built on."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -749,14 +750,14 @@ export default function ProductPage() {
       <Reveal style={[open, asideBand]} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
-            <SectionLabel>THE AI BUSINESS OPERATING SYSTEM</SectionLabel>
+            <SectionLabel>THE AGENTIC BUSINESS OPERATING SYSTEM</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              One platform to operate, create, connect, serve, sell, and understand.
+              Not a collection of AI features. One agentic system.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              Six pillars over the systems your organization already runs — the daily work, the
-              content, the conversations, the sales and the numbers, in one place, with a secure AI
-              partner working alongside your team.
+              FlowSmartly combines capabilities, tools, context and specialized agents to execute
+              work around the way your organization operates — across the systems you already run,
+              inside the authority you define, with your team keeping the last word.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -801,16 +802,23 @@ export default function ProductPage() {
         </View>
       </Reveal>
 
+      {/* ------------------------------------------------ capability groups */}
+      {/* The same five groups as the home page, from the same module. Two
+          copies of a taxonomy is how two pages end up disagreeing about what
+          the product is. */}
+      <CapabilityGroupsSection />
+
       {/* ------------------------------------------------ the six pillars */}
       <OpenSection>
         <View style={styles.sectionHead}>
-          <SectionLabel>THE SIX PILLARS</SectionLabel>
+          <SectionLabel>A DAY IN THE SYSTEM</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
-            What the operating system actually does.
+            What the groups look like on a Tuesday.
           </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Six pillars over one system of record. Start with the one you need today — the other
-            five already know about it.
+            The groups say what the system can operate. These six are how that reaches a working
+            day — over one system of record, so starting with the one you need today does not cut
+            you off from the other five.
           </Text>
         </View>
 
@@ -878,12 +886,14 @@ export default function ProductPage() {
       {/* ------------------------------------------------ modules */}
       <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
         <View style={styles.sectionHead}>
-          <SectionLabel>EVERY MODULE</SectionLabel>
+          <SectionLabel>PRODUCT EXPERIENCES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
-            One system of record underneath all of it.
+            Underneath the groups, not beside them.
           </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Open the one you need today. Every other module already knows about it.
+            Each of these is a surface of the same system — the same agents, tools, memory,
+            permissions and governance. Open the one you need today; every other one already knows
+            about it.
           </Text>
         </View>
 

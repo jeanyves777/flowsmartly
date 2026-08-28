@@ -292,7 +292,7 @@ export default function PricingPage() {
   return (
     <PageShell
       title="Pricing"
-      description="Start lean and scale when growth demands it — simple plans, one credit balance, and usage-based pricing you can see before you spend."
+      description="One agentic system, one credit balance. Simple plans and usage-based pricing you can see before you spend — you pay for work done, not for seats."
       // Only the six questions the accordion actually shows, with the answer
       // text as written — a rich result must never promise copy the page does
       // not contain.
@@ -311,9 +311,9 @@ export default function PricingPage() {
             Start lean. Scale when growth demands it.
           </Heading>
           <Text style={[type.body, styles.heroBody]}>
-            One plan covers the whole workspace — operating, creating, connecting, serving, selling
-            and understanding. You pay for outcomes and for the usage those outcomes consume, never
-            for the platform thinking about them.
+            One plan covers the whole system — every capability group, the agents that operate them,
+            and the governance around both. You pay for the work that gets done and for the usage it
+            consumes, never for the platform thinking about it.
           </Text>
 
           <View style={styles.toggleWrap}>
@@ -552,7 +552,7 @@ export default function PricingPage() {
       {/* ------------------------------------------------ compare */}
       <Band tone="brand" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>INCLUDED PLATFORM CAPABILITIES</SectionLabel>
+          <SectionLabel>INCLUDED CAPABILITIES</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitle]}>
             What each plan includes.
           </Heading>

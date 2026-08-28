@@ -78,7 +78,7 @@ type Fact = { label: string; value: string };
  * Add each row back as it becomes real.
  */
 const FACTS: Fact[] = [
-  { label: 'Product', value: 'FlowSmartly — the AI Business Operating System' },
+  { label: 'Product', value: 'FlowSmartly — the Agentic Business Operating System' },
   { label: 'Leadership', value: 'Jean-Yves Koffi (Co-founder & CEO)' },
   { label: 'Press contact', value: 'press@flowsmartly.com' },
 ];

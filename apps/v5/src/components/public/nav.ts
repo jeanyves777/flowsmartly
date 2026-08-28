@@ -96,9 +96,9 @@ export const PLATFORM_GROUP: NavGroup = {
     { label: 'Social', href: ROUTES.social, icon: 'hashtag', description: 'Plan, publish and engage everywhere' },
     { label: 'Email + SMS', href: ROUTES.emailSms, icon: 'envelope', description: 'Campaigns and journeys that convert' },
     { label: 'Ads', href: ROUTES.ads, icon: 'bullhorn', description: 'Run cross-channel ads in one place' },
-    { label: 'Analytics', href: ROUTES.analytics, icon: 'chart-column', description: 'See what worked and what to do next' },
-    { label: 'Integrations', href: ROUTES.integrations, icon: 'plug', description: 'Connect the tools you already use' },
-    { label: 'Security', href: ROUTES.security, icon: 'lock', description: 'How we protect your data' },
+    { label: 'Analytics', href: ROUTES.analytics, icon: 'chart-column', description: 'Research, analysis and decision support' },
+    { label: 'Integrations', href: ROUTES.integrations, icon: 'plug', description: 'The tools your agents are allowed to operate' },
+    { label: 'Security', href: ROUTES.security, icon: 'lock', description: 'Permissions, authority and how we protect your data' },
     { label: 'Status', href: ROUTES.status, icon: 'signal', description: 'Live platform status' },
   ],
 };
@@ -108,7 +108,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
   links: [
     { label: 'FlowShop', href: ROUTES.flowshop, icon: 'bag-shopping', description: 'Sell wherever customers discover you' },
     { label: 'ListSmartly', href: ROUTES.listsmartly, icon: 'magnifying-glass', description: 'Local listings, reviews and AI visibility' },
-    { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'Your AI operating partner' },
+    { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'The agentic layer that turns objectives into work' },
     { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store', description: 'Hire vetted experts inside your workspace' },
     { label: 'Call Agent', href: ROUTES.callAgent, icon: 'comment-dots', description: 'An AI voice agent that answers 24/7' },
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
@@ -211,15 +211,26 @@ export const MAIN_NAV: MainNavItem[] = [
   {
     label: 'Product',
     href: ROUTES.product,
+    /*
+     * The columns are capability groups, not verbs.
+     *
+     * The first menu on the site is the first thing that says what the product
+     * is, and "Create / Engage / Operate" over six channel pages said "another
+     * AI marketing tool". These are the same five groups the home page argues,
+     * with the channels sitting *inside* Business & growth where they belong.
+     * Only groups with pages that exist today appear here; the other two are
+     * named on the product page, marked as opening through V5, rather than
+     * given a menu entry that leads nowhere.
+     */
     columns: [
-      { title: 'Create', links: [PLATFORM_GROUP.links[0], PLATFORM_GROUP.links[1]] },
-      { title: 'Engage', links: [PLATFORM_GROUP.links[2], PLATFORM_GROUP.links[3]] },
-      { title: 'Operate', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5]] },
+      { title: 'Business & growth', links: [PLATFORM_GROUP.links[0], PLATFORM_GROUP.links[1], PLATFORM_GROUP.links[2], PLATFORM_GROUP.links[3]] },
+      { title: 'Intelligence & operations', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5]] },
+      { title: 'Agent platform & trust', links: [PLATFORM_GROUP.links[6], PLATFORM_GROUP.links[7]] },
     ],
     overview: [
-      { label: 'The platform', href: ROUTES.product, icon: 'table-cells-large' },
+      { label: 'The whole system', href: ROUTES.product, icon: 'table-cells-large' },
+      { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles' },
       { label: 'Pricing', href: ROUTES.pricing, icon: 'tag' },
-      { label: 'Security', href: ROUTES.security, icon: 'lock' },
     ],
   },
   {
