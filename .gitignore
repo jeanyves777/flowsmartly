@@ -76,3 +76,8 @@ GoogleService-Info.plist
 
 # MediaPipe WASM is copied from node_modules at build time (next.config.ts), not committed
 public/mediapipe/wasm/
+
+# Derived at build time by scripts/prisma-production-schema.mjs from prisma/schema.prisma.
+# Never committed: a copy of a 6,500-line schema differing in one line would drift,
+# and the drift would surface in production.
+prisma/generated/
