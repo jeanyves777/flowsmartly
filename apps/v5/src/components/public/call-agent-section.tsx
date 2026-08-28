@@ -55,12 +55,19 @@ const TAU = Math.PI * 2;
 /** one pass of the phase; every bar's own rhythm is a whole multiple of it */
 const WAVE_LOOP_MS = 3000;
 
-const MODES: { icon: string; label: string; accent?: 'brand' | 'orange' }[] = [
-  { icon: 'headset', label: 'Receptionist' },
-  { icon: 'calendar-days', label: 'Booking' },
-  { icon: 'crosshairs', label: 'Lead Qualifier' },
-  { icon: 'cart-shopping', label: 'Orders & Support' },
-  { icon: 'phone-volume', label: 'Outbound Follow-up', accent: 'orange' },
+/**
+ * `short` is the phone label, not an abbreviation applied under duress.
+ *
+ * At 390px the five full labels are ~700px of chip and wrap to three rows. The
+ * short forms fit two, which is the difference between a capability list and a
+ * third screen of chrome.
+ */
+const MODES: { icon: string; label: string; short: string; accent?: 'brand' | 'orange' }[] = [
+  { icon: 'headset', label: 'Receptionist', short: 'Reception' },
+  { icon: 'calendar-days', label: 'Booking', short: 'Booking' },
+  { icon: 'crosshairs', label: 'Lead Qualifier', short: 'Leads' },
+  { icon: 'cart-shopping', label: 'Orders & Support', short: 'Orders' },
+  { icon: 'phone-volume', label: 'Outbound Follow-up', short: 'Follow-up', accent: 'orange' },
 ];
 
 /** `value` is the number that counts up; `suffix` keeps the unit intact. */
@@ -73,10 +80,10 @@ type Stat = { icon: string; label: string; value: number; suffix?: string; decim
  * happening. Deliberately not more numbers — the stat strip below already
  * carries those.
  */
-const REPLACES: { icon: string; text: string }[] = [
-  { icon: 'phone-slash', text: 'Voicemail that nobody calls back' },
-  { icon: 'file-lines', text: 'An answering service reading from a script' },
-  { icon: 'moon', text: 'Calls that go unanswered after hours and at weekends' },
+const REPLACES: { icon: string; text: string; short: string }[] = [
+  { icon: 'phone-slash', text: 'Voicemail that nobody calls back', short: 'Voicemail nobody returns' },
+  { icon: 'file-lines', text: 'An answering service reading from a script', short: 'Scripted answering services' },
+  { icon: 'moon', text: 'Calls that go unanswered after hours and at weekends', short: 'Missed after-hours calls' },
 ];
 
 const STATS: Stat[] = [
@@ -140,9 +147,47 @@ function LiveDot({ pulse, style }: { pulse: SharedValue<number>; style: TextStyl
   return <Animated.Text style={[style, animated]}>●</Animated.Text>;
 }
 
-function StatCell({ stat, styles, t, basis }: { stat: Stat; styles: Styles; t: ThemeTokens; basis: `${number}%` }) {
+/**
+ * Wide: icon beside a label/value pair. Phone: the icon goes and the number
+ * leads, because at 171px the icon eats a fifth of the cell to say nothing the
+ * label does not already say, and the label then has to wrap to two lines.
+ * Value first, label under it — one line each.
+ */
+function StatCell({
+  stat,
+  styles,
+  t,
+  basis,
+  phone,
+}: {
+  stat: Stat;
+  styles: Styles;
+  t: ThemeTokens;
+  basis: `${number}%`;
+  phone: boolean;
+}) {
   const decimals = stat.decimals ?? 0;
   const { value, ref } = useCountUp(stat.value, { decimals });
+
+  const figure = (
+    <Text style={styles.statValue} numberOfLines={1}>
+      {value.toFixed(decimals)}
+      {stat.suffix ?? ''}
+    </Text>
+  );
+
+  if (phone) {
+    return (
+      <View ref={ref as never} style={[styles.stat, { flexBasis: basis }]}>
+        <View style={styles.statText}>
+          {figure}
+          <Text style={styles.statLabel} numberOfLines={1}>
+            {stat.label}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View ref={ref as never} style={[styles.stat, { flexBasis: basis }]}>
@@ -151,10 +196,7 @@ function StatCell({ stat, styles, t, basis }: { stat: Stat; styles: Styles; t: T
         <Text style={styles.statLabel} numberOfLines={2}>
           {stat.label}
         </Text>
-        <Text style={styles.statValue} numberOfLines={1}>
-          {value.toFixed(decimals)}
-          {stat.suffix ?? ''}
-        </Text>
+        {figure}
       </View>
     </View>
   );
@@ -174,15 +216,35 @@ export function CallAgentSection() {
 
   /** copy above console below — the same 1120 threshold every feature section uses */
   const stacked = l.isStacked;
-  const outcomeColumns = l.isPhone ? 1 : 2;
-  const statColumns = l.isPhone ? 2 : 4;
+  const phone = l.isPhone;
   /**
-   * One column turns every outcome into a full-width band. A centred stack plus
-   * a corner tick left the ✓ ~120px from the text it belongs to, reading as a
-   * stray mark — so the single-column cell becomes a compact row and the tick
-   * sits next to the title.
+   * PHONE RECOMPOSITION
+   * ===================
+   * The console is the same object at every width, but at 390px it was the
+   * desktop console turned sideways: a full-width call panel, then four
+   * full-width outcome bands, then three rows of chips, then a 2x2 stat block —
+   * about 1,050px of it. Each of those is now composed for the column it is
+   * actually in:
+   *
+   *   outcomes  four full-width bands  ->  a 2-column grid of compact rows
+   *   modes     five long chips, 3 rows ->  five short chips, 2 rows
+   *   stats     icon + label + value    ->  value over label, no icon
+   *   call card a bordered card inside  ->  the console's own body, unboxed
+   *             the bordered console
+   *   controls  a mute/hangup/grip row  ->  dropped; the timer and the live dot
+   *                                         already say the call is running
+   *
+   * Nothing here is a font-size change and nothing is a `column` fallback.
    */
-  const outcomeRows = outcomeColumns === 1;
+  const outcomeColumns = 2;
+  const statColumns = phone ? 2 : 4;
+  /**
+   * A centred stack plus a corner tick left the ✓ ~120px from the text it
+   * belongs to, reading as a stray mark. In a 171px phone cell the outcome
+   * becomes a compact row — icon, then title and value — and the tick sits
+   * next to the title it confirms.
+   */
+  const outcomeRows = phone;
 
   /* --- live audio ------------------------------------------------- */
   const phase = useSharedValue(0);
@@ -203,12 +265,17 @@ export function CallAgentSection() {
     livePulse.value = withRepeat(withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }), -1, true);
   }, [reduced, livePulse]);
 
+  /**
+   * `short` is the phone value. "6 details saved" is 110px of 14px text and the
+   * phone cell gives it 105 — it would ellipsize in the one place the reader is
+   * closest to the screen. A shorter true value beats a clipped longer one.
+   */
   const outcomes = useMemo(
     () => [
-      { icon: 'calendar-days', title: 'Appointment booked', value: 'Thu 10:30 AM', color: t.green },
-      { icon: 'crosshairs', title: 'Lead qualified', value: 'High intent', color: t.violet },
-      { icon: 'database', title: 'CRM updated', value: '6 details saved', color: t.brand },
-      { icon: 'message', title: 'Follow-up SMS', value: 'Scheduled', color: t.orange },
+      { icon: 'calendar-days', title: 'Appointment booked', value: 'Thu 10:30 AM', short: 'Thu 10:30 AM', color: t.green },
+      { icon: 'crosshairs', title: 'Lead qualified', value: 'High intent', short: 'High intent', color: t.violet },
+      { icon: 'database', title: 'CRM updated', value: '6 details saved', short: '6 details', color: t.brand },
+      { icon: 'message', title: 'Follow-up SMS', value: 'Scheduled', short: 'Scheduled', color: t.orange },
     ],
     [t],
   );
@@ -221,7 +288,9 @@ export function CallAgentSection() {
         <Heading level={2} style={styles.title}>
           Never miss a call—or the opportunity behind it.
         </Heading>
-        <Text style={styles.body}>
+        {/* Written for a 560px column. At 390 it runs to five lines before the
+            first button, so the phone reads the first three and stops. */}
+        <Text style={styles.body} numberOfLines={phone ? 3 : undefined}>
           Deploy an AI voice agent that answers naturally, books appointments, qualifies leads, supports customers,
           takes orders, and follows up around the clock.
         </Text>
@@ -246,7 +315,9 @@ export function CallAgentSection() {
             onPress={() => router.push(contactHref('demo') as never)}
           />
         </ButtonRow>
-        <Text style={styles.proof}>Human handoff • Call recording controls • Complete call logs</Text>
+        <Text style={styles.proof} numberOfLines={2}>
+          {phone ? 'Human handoff • Recording controls • Full call logs' : 'Human handoff • Call recording controls • Complete call logs'}
+        </Text>
 
         <View style={styles.replaces}>
           <Text style={styles.replacesTitle}>What it replaces</Text>
@@ -255,7 +326,12 @@ export function CallAgentSection() {
               <View style={styles.replacesIcon}>
                 <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle} />
               </View>
-              <Text style={styles.replacesText}>{item.text}</Text>
+              {/* Three sentences written for a 560px column become six lines in
+                  a 390px one. The phone gets the same three facts as three
+                  single lines instead. */}
+              <Text style={styles.replacesText} numberOfLines={phone ? 1 : undefined}>
+                {phone ? item.short : item.text}
+              </Text>
             </View>
           ))}
         </View>
@@ -322,26 +398,38 @@ export function CallAgentSection() {
               ))}
             </View>
 
-            <Reveal style={styles.transcript} delay={260} distance={12}>
+            {/* Two bordered 83px boxes on a phone; unboxed, with the speaker
+                inline instead of on its own line, the same exchange is 100px. */}
+            <Reveal style={phone ? styles.transcriptPhone : styles.transcript} delay={260} distance={12}>
               <FontAwesome6 name="user" size={15} color={t.brand} />
-              <Text style={styles.transcriptText}>
-                <Text style={styles.speaker}>Caller{`\n`}</Text>I’d like to schedule a consultation for Thursday.
+              <Text style={styles.transcriptText} numberOfLines={phone ? 2 : undefined}>
+                <Text style={styles.speaker}>{phone ? 'Caller — ' : `Caller\n`}</Text>I’d like to schedule a
+                consultation for Thursday.
               </Text>
             </Reveal>
-            <Reveal style={[styles.transcript, styles.agentLine]} delay={370} distance={12}>
+            <Reveal
+              style={phone ? [styles.transcriptPhone, styles.agentLinePhone] : [styles.transcript, styles.agentLine]}
+              delay={370}
+              distance={12}>
               <FontAwesome6 name="wand-magic-sparkles" size={15} color={t.violet} />
-              <Text style={styles.transcriptText}>
-                <Text style={styles.speakerAgent}>Agent{`\n`}</Text>I found two openings. Would 10:30 AM work?
+              <Text style={styles.transcriptText} numberOfLines={phone ? 2 : undefined}>
+                <Text style={styles.speakerAgent}>{phone ? 'Agent — ' : `Agent\n`}</Text>I found two openings. Would
+                10:30 AM work?
               </Text>
             </Reveal>
 
-            <View style={styles.callControls}>
-              <FontAwesome6 name="microphone-slash" size={17} color={t.textMuted} />
-              <View style={styles.hangup}>
-                <FontAwesome6 name="phone" size={17} color={t.textOnBrand} />
+            {/* Mute / hang up / keypad are decoration: nothing here is a real
+                call, and the timer and the live dot already say it is running.
+                On a phone they cost 54px to say nothing. */}
+            {phone ? null : (
+              <View style={styles.callControls}>
+                <FontAwesome6 name="microphone-slash" size={17} color={t.textMuted} />
+                <View style={styles.hangup}>
+                  <FontAwesome6 name="phone" size={17} color={t.textOnBrand} />
+                </View>
+                <FontAwesome6 name="grip" size={17} color={t.textMuted} />
               </View>
-              <FontAwesome6 name="grip" size={17} color={t.textMuted} />
-            </View>
+            )}
           </View>
 
           {/* outcomes — a real grid: one divider between cells, none on the rim */}
@@ -362,7 +450,7 @@ export function CallAgentSection() {
                     ].filter(Boolean) as ViewStyle[]
                   }>
                   <View style={[styles.outcomeIcon, { backgroundColor: softFill(o.color, t) }]}>
-                    <FontAwesome6 name={o.icon as never} size={21} color={o.color} />
+                    <FontAwesome6 name={o.icon as never} size={outcomeRows ? 17 : 21} color={o.color} />
                   </View>
                   <View style={styles.outcomeText}>
                     <View style={styles.outcomeTitleRow}>
@@ -379,7 +467,7 @@ export function CallAgentSection() {
                       ) : null}
                     </View>
                     <Text style={[styles.outcomeValue, { color: accentText(o.color, t) }]} numberOfLines={1}>
-                      {o.value}
+                      {phone ? o.short : o.value}
                     </Text>
                   </View>
                   {outcomeRows ? null : (
@@ -399,9 +487,13 @@ export function CallAgentSection() {
         <View style={styles.agentModes}>
           {MODES.map((m) => (
             <View key={m.label} style={styles.mode}>
-              <FontAwesome6 name={m.icon as never} size={15} color={m.accent === 'orange' ? t.orange : t.brand} />
+              <FontAwesome6
+                name={m.icon as never}
+                size={phone ? 13 : 15}
+                color={m.accent === 'orange' ? t.orange : t.brand}
+              />
               <Text style={styles.modeText} numberOfLines={1}>
-                {m.label}
+                {phone ? m.short : m.label}
               </Text>
             </View>
           ))}
@@ -410,7 +502,7 @@ export function CallAgentSection() {
         {/* stats */}
         <View style={styles.stats}>
           {STATS.map((s) => (
-            <StatCell key={s.label} stat={s} styles={styles} t={t} basis={cellBasis(statColumns)} />
+            <StatCell key={s.label} stat={s} styles={styles} t={t} basis={cellBasis(statColumns)} phone={phone} />
           ))}
         </View>
       </Reveal>
@@ -438,9 +530,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     sectionStacked: {
       flexDirection: 'column',
       alignItems: 'stretch',
-      gap: 26,
+      gap: l.isPhone ? 22 : 26,
     },
-    columnFull: { ...stackFull, gap: 18 },
+    columnFull: { ...stackFull, gap: l.isPhone ? 14 : 18 },
     copyColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 18 },
     consoleColumn: { flexGrow: 1.45, flexShrink: 1, flexBasis: 0, minWidth: 0 },
 
@@ -450,17 +542,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     proof: { ...type.caption, color: t.textSubtle },
     replaces: {
       marginTop: 4,
-      paddingTop: 18,
+      paddingTop: l.isPhone ? 14 : 18,
       borderTopWidth: 1,
       borderTopColor: t.divider,
-      gap: 11,
+      gap: l.isPhone ? 8 : 11,
       maxWidth: 560,
     },
     replacesTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    replacesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    replacesRow: { flexDirection: 'row', alignItems: l.isPhone ? 'center' : 'flex-start', gap: 11 },
     replacesIcon: {
-      width: 26,
-      height: 26,
+      width: l.isPhone ? 24 : 26,
+      height: l.isPhone ? 24 : 26,
       flexGrow: 0,
       flexShrink: 0,
       borderRadius: 8,
@@ -471,13 +563,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     replacesText: {
-      ...type.bodySm,
+      ...(l.isPhone ? type.caption : type.bodySm),
       color: t.textMuted,
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
       minWidth: 0,
-      paddingTop: 3,
+      paddingTop: l.isPhone ? 0 : 3,
     },
 
     /* console ----------------------------------------------------- */
@@ -487,7 +579,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 18,
       backgroundColor: t.surfaceRaised,
       padding: l.isPhone ? 12 : 18,
-      gap: 14,
+      gap: l.isPhone ? 12 : 14,
       ...(elevation(t, 1) as ViewStyle),
     },
     consoleHeader: {
@@ -507,9 +599,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     headerText: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
     phoneCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: l.isPhone ? 42 : 48,
+      height: l.isPhone ? 42 : 48,
+      borderRadius: l.isPhone ? 21 : 24,
       borderWidth: 1,
       borderColor: t.border,
       backgroundColor: softFill(t.orange, t),
@@ -539,14 +631,22 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     panelFull: { ...stackFull },
     callPanel: { flexGrow: 1.1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     outcomeColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    callCard: {
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 13,
-      backgroundColor: t.surface,
-      padding: 14,
-      gap: 10,
-    },
+    /**
+     * On a phone the console is already a bordered card at the full width of
+     * the column, so a second bordered card inside it is a card in a card —
+     * 28px of padding and a rule that separates nothing. The live call becomes
+     * the console's own body instead.
+     */
+    callCard: l.isPhone
+      ? { gap: 10 }
+      : {
+          borderWidth: 1,
+          borderColor: t.border,
+          borderRadius: 13,
+          backgroundColor: t.surface,
+          padding: 14,
+          gap: 10,
+        },
 
     caller: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     callerText: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
@@ -567,7 +667,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     timer: { ...type.caption, color: t.text },
 
     wave: {
-      height: 46,
+      height: l.isPhone ? 38 : 46,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -586,6 +686,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 10,
     },
     agentLine: { backgroundColor: t.surfaceMuted, borderColor: t.divider },
+    /** phone: unboxed, speaker inline, two lines — 42px instead of 83 */
+    transcriptPhone: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 2,
+    },
+    agentLinePhone: {
+      backgroundColor: t.surfaceMuted,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
     transcriptText: { ...type.caption, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
     speaker: { color: accentText(t.brand, t), fontWeight: '700' },
     speakerAgent: { color: accentText(t.violet, t), fontWeight: '700' },
@@ -623,10 +736,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
           minWidth: 0,
           minHeight: 72,
           paddingVertical: 12,
-          paddingHorizontal: 12,
+          paddingHorizontal: 10,
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 12,
+          gap: 10,
         }
       : {
           flexGrow: 1,
@@ -641,8 +754,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     outcomeDividerRight: { borderRightWidth: 1, borderRightColor: t.divider },
     outcomeDividerBottom: { borderBottomWidth: 1, borderBottomColor: t.divider },
     outcomeIcon: {
-      width: 44,
-      height: 44,
+      width: rows ? 36 : 44,
+      height: rows ? 36 : 44,
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
@@ -675,14 +788,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     checkGlyph: { ...type.caption, color: t.successText, lineHeight: 18 },
 
     /* modes ------------------------------------------------------- */
-    agentModes: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+    agentModes: { flexDirection: 'row', flexWrap: 'wrap', gap: l.isPhone ? 8 : 9 },
     mode: {
-      minHeight: 42,
+      // Not a touch target — nothing here is pressable — so the phone chip is
+      // sized to the 14px label it carries rather than to the 44px floor.
+      minHeight: l.isPhone ? 34 : 42,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 10,
       backgroundColor: t.surface,
-      paddingHorizontal: 13,
+      paddingHorizontal: l.isPhone ? 10 : 13,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
@@ -697,12 +812,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
-      rowGap: 14,
+      rowGap: l.isPhone ? 12 : 14,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 12,
       backgroundColor: t.surface,
-      paddingVertical: 14,
+      paddingVertical: l.isPhone ? 12 : 14,
       paddingHorizontal: 10,
     },
     stat: {
@@ -712,11 +827,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 11,
+      gap: l.isPhone ? 0 : 11,
       paddingHorizontal: 4,
     },
-    statText: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    statText: {
+      flexGrow: 0,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+      alignItems: l.isPhone ? 'center' : 'flex-start',
+    },
     statLabel: { ...type.caption, color: t.textMuted },
-    statValue: { ...type.h3, color: t.text, marginTop: 2 },
+    statValue: { ...type.h3, color: t.text, marginTop: l.isPhone ? 0 : 2 },
   });
 }

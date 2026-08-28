@@ -8,6 +8,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { CapabilityGroupsSection } from '@/components/public/business-os-sections';
 import { PageShell } from '@/components/public/page-shell';
+import { CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
 import { breadcrumbJsonLd } from '@/components/public/seo';
 import { FONT_SANS,
   Band,
@@ -474,13 +475,28 @@ function useAccent() {
   );
 }
 
-function Bullet({ text, styles, t }: { text: string; styles: Styles; t: ThemeTokens }) {
+function Bullet({
+  text,
+  styles,
+  t,
+  phone = false,
+}: {
+  text: string;
+  styles: Styles;
+  t: ThemeTokens;
+  phone?: boolean;
+}) {
   return (
     <View style={styles.bulletRow}>
       <View style={styles.bulletDot}>
         <FontAwesome6 name="check" size={9} color={t.green} />
       </View>
-      <Text style={styles.bulletText}>{text}</Text>
+      {/* Two lines on a phone. These are written to sit on one line in a wide
+          column; the clamp is the guard that stops the longest of them turning
+          a three-bullet list into nine lines in a 330px one. */}
+      <Text numberOfLines={phone ? 2 : undefined} style={styles.bulletText}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -515,6 +531,11 @@ function PillarMock({
   styles: Styles;
   t: ThemeTokens;
 }) {
+  const l = useLayout();
+  // Three rows on a phone, four wide. The fourth row is always the meter, and
+  // a meter is the row a 362px card can least afford; the point of the picture
+  // is that the surface exists, not that it has exactly four lines on it.
+  const rows = l.isPhone ? mock.rows.slice(0, 3) : mock.rows;
   return (
     <View style={styles.mockCard}>
       <View style={styles.mockHead}>
@@ -525,7 +546,7 @@ function PillarMock({
           {mock.chip}
         </Text>
       </View>
-      {mock.rows.map((row) => (
+      {rows.map((row) => (
         <View key={row.label} style={styles.mockRow}>
           <Text numberOfLines={1} style={styles.mockLabel}>
             {row.label}
@@ -576,6 +597,7 @@ function PillarSection({
   styles: Styles;
   t: ThemeTokens;
 }) {
+  const l = useLayout();
   // Built up rather than inlined with ternaries: `Reveal`'s style prop takes a
   // ViewStyle array, and a `cond ? style : null` entry types as nullable.
   const row: ViewStyle[] = [styles.pillarRow];
@@ -597,10 +619,15 @@ function PillarSection({
         <Heading level={3} style={styles.pillarHeadline}>
           {pillar.headline}
         </Heading>
-        <Text style={styles.pillarBody}>{pillar.body}</Text>
+        {/* Written for a 560px column; six pillars of it unclamped is most of
+            the run. The three bullets below carry the specifics, so the
+            paragraph is the part that gives. */}
+        <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.pillarBody}>
+          {pillar.body}
+        </Text>
         <View style={styles.bulletList}>
           {pillar.bullets.map((bullet) => (
-            <Bullet key={bullet} text={bullet} styles={styles} t={t} />
+            <Bullet key={bullet} text={bullet} styles={styles} t={t} phone={l.isPhone} />
           ))}
         </View>
         <ExploreLink href={pillar.href} label={`Explore ${pillar.name}`} styles={styles} t={t} />
@@ -661,6 +688,84 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
       </View>
     );
   };
+
+  /*
+   * PHONE: the collage is not the wide collage stacked.
+   *
+   * Wide, the eight modules are two rows of four wired to the hub between
+   * them, and that reads as a system. At 390 the same markup is four rows of
+   * two tiles — 368px of identical boxes — and the wires run between rows that
+   * are no longer on either side of anything, so the diagram is not drawing a
+   * relationship any more, it is just tall.
+   *
+   * So the hub keeps its place as the product surface and the eight modules
+   * become a wrapping strip of named chips underneath it: same eight names,
+   * one third of the height, and no connector surface at all — which is also
+   * why nothing here has to worry about a transform detaching a wire.
+   */
+  if (l.isPhone) {
+    return (
+      <View style={styles.collage}>
+        <View style={styles.hub}>
+          <View style={styles.hubHead}>
+            <View style={styles.hubBadge}>
+              <FontAwesome6 name="table-cells-large" size={12} color={t.brand} />
+            </View>
+            <View style={styles.hubHeadCopy}>
+              <Text numberOfLines={1} style={styles.hubTitle}>
+                Command Center
+              </Text>
+              <Text numberOfLines={1} style={styles.hubSub}>
+                Last 30 days • every connected system
+              </Text>
+            </View>
+            <View style={styles.hubLive}>
+              <View style={styles.hubLiveDot} />
+              <Text style={styles.hubLiveText}>Live</Text>
+            </View>
+          </View>
+
+          <View ref={attachCounters} style={styles.statGrid}>
+            {STATS.map((stat, index) => {
+              const accent = accentOf(stat.accent);
+              return (
+                <View key={stat.key} style={styles.statCell}>
+                  <View style={styles.statTile}>
+                    <Text numberOfLines={2} style={styles.statLabel}>
+                      {stat.label}
+                    </Text>
+                    <Text numberOfLines={1} style={styles.statValue}>
+                      {`${stat.prefix}${values[index].toFixed(1)}${stat.suffix}`}
+                    </Text>
+                    <View style={styles.statDeltaRow}>
+                      <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon} />
+                      <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
+                        {stat.delta}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.chipStrip}>
+          {HERO_MODULES.map((m) => {
+            const accent = accentOf(m.accent);
+            return (
+              <View key={m.key} style={styles.chip}>
+                <FontAwesome6 name={m.icon as never} size={12} color={accent} />
+                <Text numberOfLines={1} style={styles.chipLabel}>
+                  {m.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ConnectorSurface field={field} style={styles.collage}>
@@ -754,7 +859,9 @@ export default function ProductPage() {
             <Heading level={1} style={[type.display, styles.heroTitle]}>
               Not a collection of AI features. One agentic system.
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
+            {/* Written for a 540px column. Unclamped it runs to seven lines in
+                a 362px one, which is most of a phone screen before the CTAs. */}
+            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
               FlowSmartly combines capabilities, tools, context and specialized agents to execute
               work around the way your organization operates — across the systems you already run,
               inside the authority you define, with your team keeping the last word.
@@ -852,6 +959,16 @@ export default function ProductPage() {
           </Text>
         </View>
 
+        {/* A horizontal workflow does not survive being turned sideways: the
+            arrows end up pointing down a column of equal-weight boxes and the
+            progression is lost. On a phone it becomes a numbered vertical flow
+            with a connecting rail — which is what a sequence looks like when it
+            is read top to bottom — and it is a third shorter for it. */}
+        {l.isPhone ? (
+          <View style={styles.flowStrip}>
+            <SteppedFlow steps={FLOW_STEPS.map((step) => ({ title: step.label, body: step.note }))} />
+          </View>
+        ) : (
         <View style={styles.flowStrip}>
           {FLOW_STEPS.map((step, index) => {
             const accent = accentOf(step.accent);
@@ -881,6 +998,7 @@ export default function ProductPage() {
             );
           })}
         </View>
+        )}
       </OpenSection>
 
       {/* ------------------------------------------------ modules */}
@@ -897,6 +1015,27 @@ export default function ProductPage() {
           </Text>
         </View>
 
+        {/* Six one-column cards, each carrying an icon, a name, a blurb, three
+            bullets and a link, is roughly 2,100px of identical slabs on a
+            phone. Two columns of the shared card puts the same six in three
+            rows and keeps the icon with the copy it belongs to; the blurb is
+            the description, and the bullets are the detail a 163px cell does
+            not have room to argue. */}
+        {l.isPhone ? (
+          <CardGrid style={styles.phoneGrid}>
+            {MODULE_CARDS.map((card) => (
+              <FeatureCard
+                key={card.key}
+                icon={card.icon}
+                title={card.name}
+                body={card.blurb}
+                accent={card.accent}
+                actionLabel="Explore"
+                onPress={() => router.push(card.href as never)}
+              />
+            ))}
+          </CardGrid>
+        ) : (
         <View style={styles.moduleGrid}>
           {MODULE_CARDS.map((card, index) => {
             const accent = accentOf(card.accent);
@@ -920,6 +1059,7 @@ export default function ProductPage() {
             );
           })}
         </View>
+        )}
       </Band>
 
       {/* ------------------------------------------------ customer intelligence */}
@@ -934,19 +1074,35 @@ export default function ProductPage() {
               Channels report on themselves. FlowSmartly reports on the person — one record, one
               history, one recommended next move.
             </Text>
-            <View style={styles.benefitList}>
-              {CUSTOMER_BENEFITS.map((benefit) => (
-                <View key={benefit.title} style={styles.benefitRow}>
-                  <View style={styles.benefitIcon}>
-                    <FontAwesome6 name={benefit.icon as never} size={14} color={t.brand} />
+            {/* Four stacked icon-and-paragraph rows is a column of prose on a
+                phone. Paired as cards they are two rows, and each keeps its
+                icon inside the copy it describes. */}
+            {l.isPhone ? (
+              <CardGrid style={styles.benefitGrid}>
+                {CUSTOMER_BENEFITS.map((benefit) => (
+                  <FeatureCard
+                    key={benefit.title}
+                    icon={benefit.icon}
+                    title={benefit.title}
+                    body={benefit.body}
+                  />
+                ))}
+              </CardGrid>
+            ) : (
+              <View style={styles.benefitList}>
+                {CUSTOMER_BENEFITS.map((benefit) => (
+                  <View key={benefit.title} style={styles.benefitRow}>
+                    <View style={styles.benefitIcon}>
+                      <FontAwesome6 name={benefit.icon as never} size={14} color={t.brand} />
+                    </View>
+                    <View style={styles.benefitCopy}>
+                      <Text style={styles.benefitTitle}>{benefit.title}</Text>
+                      <Text style={styles.benefitBody}>{benefit.body}</Text>
+                    </View>
                   </View>
-                  <View style={styles.benefitCopy}>
-                    <Text style={styles.benefitTitle}>{benefit.title}</Text>
-                    <Text style={styles.benefitBody}>{benefit.body}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -973,9 +1129,12 @@ export default function ProductPage() {
               </View>
 
               <View style={styles.timeline}>
-                {JOURNEY.map((event, index) => {
+                {/* Four events on a phone. The timeline's job is to show that
+                    one record carries the whole history, and four beats say
+                    that as clearly as five in half a screen less. */}
+                {(l.isPhone ? JOURNEY.slice(0, 4) : JOURNEY).map((event, index, shown) => {
                   const accent = accentOf(event.accent);
-                  const last = index === JOURNEY.length - 1;
+                  const last = index === shown.length - 1;
                   return (
                     <View key={event.label} style={styles.timelineRow}>
                       <View style={styles.timelineRail}>
@@ -1035,6 +1194,23 @@ export default function ProductPage() {
           </Text>
         </View>
 
+        {/* Two, so they pair exactly — the wide card's four bullets become the
+            blurb, which is the sentence they were always summarising. */}
+        {l.isPhone ? (
+          <CardGrid style={styles.phoneGrid}>
+            {SUITES.map((suite) => (
+              <FeatureCard
+                key={suite.key}
+                icon={suite.icon}
+                title={suite.name}
+                body={suite.blurb}
+                accent={suite.accent}
+                actionLabel="Explore"
+                onPress={() => router.push(suite.href as never)}
+              />
+            ))}
+          </CardGrid>
+        ) : (
         <View style={styles.suiteGrid}>
           {SUITES.map((suite, index) => {
             const accent = accentOf(suite.accent);
@@ -1062,6 +1238,7 @@ export default function ProductPage() {
             );
           })}
         </View>
+        )}
       </OpenSection>
 
       {/* ------------------------------------------------ trust */}
@@ -1076,6 +1253,20 @@ export default function ProductPage() {
           </Text>
         </View>
 
+        {/* Four claims, four rows, on a phone — paired, they are two. */}
+        {l.isPhone ? (
+          <CardGrid style={styles.phoneGrid}>
+            {TRUST.map((item) => (
+              <FeatureCard
+                key={item.title}
+                icon={item.icon}
+                title={item.title}
+                body={item.body}
+                accent={item.accent}
+              />
+            ))}
+          </CardGrid>
+        ) : (
         <View style={styles.trustGrid}>
           {TRUST.map((item, index) => {
             const accent = accentOf(item.accent);
@@ -1092,6 +1283,7 @@ export default function ProductPage() {
             );
           })}
         </View>
+        )}
       </Band>
     </PageShell>
   );
@@ -1203,6 +1395,29 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     moduleLabel: { ...type.micro, color: t.text, fontWeight: '700', textAlign: 'center' },
+
+    // Phone only: the eight modules as a wrapping strip of named chips instead
+    // of four rows of two tiles. Same eight names, a third of the height, and
+    // no connector surface to keep intact.
+    chipStrip: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: 8 },
+    chip: {
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+    },
+    chipLabel: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
+    /** the rhythm a phone `CardGrid` takes where a wide grid uses its own */
+    phoneGrid: { marginTop: 20 },
 
     hub: {
       borderWidth: 1,
@@ -1458,6 +1673,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     benefitList: { marginTop: 22, gap: 16 },
+    benefitGrid: { marginTop: 22 },
     benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
     benefitIcon: {
       width: 36,

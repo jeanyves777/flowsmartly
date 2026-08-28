@@ -145,8 +145,10 @@ if (!(await trigger.evaluate((e) => !!e))) {
   /* ---------- expand one, then several ---------- */
   const expandByLabel = (label) =>
     page.evaluate((lbl) => {
-      const els = [...document.querySelectorAll('[role="button"], button')];
-      const el = els.find((e) => (e.textContent || '').trim() === lbl && e.hasAttribute('aria-expanded'));
+      // select by aria-expanded, not by role: the rows carry the attribute and
+      // matching on role first missed every one of them.
+      const els = [...document.querySelectorAll('[aria-expanded]')];
+      const el = els.find((e) => (e.textContent || '').trim().startsWith(lbl));
       if (el) { el.click(); return true; }
       return false;
     }, label);

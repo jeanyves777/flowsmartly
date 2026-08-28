@@ -17,6 +17,7 @@ import { Connectors, ConnectorSurface, useConnectorField, type ConnectorField, t
 import { ImageAsset } from './media';
 import { Reveal } from './motion';
 import { ROUTES } from './nav';
+import { CardGrid } from './responsive-grid';
 import {
   ButtonRow,
   Heading,
@@ -125,11 +126,48 @@ const CARRIES: [string, string][] = [
   ['Analytics', 'what each channel actually returned, side by side'],
 ];
 
+/**
+ * The phone forms of the same five lines.
+ *
+ * A half-width card gives its body a 136px column — about eighteen 14px
+ * characters a line. "orders, carts and refunds against the customer who made
+ * them" is 3.2 lines in that column, so a three-line clamp would cut it mid
+ * clause. These are written to the measure instead, and the clamp is a guard.
+ */
+const CARRIES_PHONE: [string, string][] = [
+  ['Social', 'comments, DMs and post performance'],
+  ['Messaging', 'every thread on one contact'],
+  ['Commerce', 'orders, carts and refunds'],
+  ['Local', 'listings, reviews and questions'],
+  ['Analytics', 'what each channel actually returned, side by side'],
+];
+
+function carriesFor(name: string, phone = false): string {
+  const hit = (phone ? CARRIES_PHONE : CARRIES).find(([group]) => group === name);
+  return hit ? hit[1] : '';
+}
+
 const securityItems = [
   ['shield-halved', 'Secure OAuth', 'Enterprise-grade authorization'],
   ['rotate', 'Real-time sync', 'Always up-to-date, everywhere'],
   ['user-shield', 'Permission controls', 'Granular access, total control'],
   ['wave-square', 'Connection monitoring', 'Proactive alerts, 24/7'],
+] as const;
+
+/**
+ * The phone form of the same four assurances.
+ *
+ * Four icon+title+note rows are 264px of reassurance on a 390px screen, which
+ * is more room than a trust strip has earned. As chips the four titles fit two
+ * rows, and the notes go — "Enterprise-grade authorization" adds nothing to
+ * "Secure OAuth" that a visitor on a phone is going to stop and read.
+ * "Connection monitoring / Proactive alerts, 24/7" collapses to one chip.
+ */
+const PHONE_ASSURANCES = [
+  ['shield-halved', 'Secure OAuth'],
+  ['rotate', 'Real-time sync'],
+  ['user-shield', 'Permission controls'],
+  ['wave-square', 'Monitored 24/7'],
 ] as const;
 
 type Styles = ReturnType<typeof createStyles>;
@@ -163,6 +201,49 @@ function ChannelGroup({ group, field, styles, t }: { group: Group; field: Connec
           <ChannelTile key={item.key} item={item} field={field} styles={styles} t={t} />
         ))}
       </View>
+    </View>
+  );
+}
+
+/**
+ * The phone cell.
+ *
+ * On a phone the radial diagram has no wires — `radial` is false — so the map
+ * degrades to five labelled clusters of logo tiles, ~700px of grid, and the
+ * legend that explains them ("What comes across") is a *separate* 330px list
+ * further up the column. They are the same five groups said twice.
+ *
+ * Here they are one object: the group's logos, its name, and the one sentence
+ * that says what connecting it actually brings back. The tiles lose their text
+ * labels — a 30px logo in a 164px cell is recognised, not read — so each keeps
+ * an `accessibilityLabel` and the group name carries the reading.
+ */
+function GroupCard({
+  group,
+  full,
+  styles,
+  t,
+}: {
+  group: Group;
+  full: boolean;
+  styles: Styles;
+  t: ThemeTokens;
+}) {
+  return (
+    <View style={[styles.gcard, full ? styles.gcardFull : styles.gcardHalf]}>
+      <View style={styles.gcardLogos}>
+        {group.items.map((item) => (
+          <View key={item.key} style={styles.gcardLogo} accessible accessibilityLabel={item.label}>
+            <FontAwesome6 name={item.icon as never} size={16} color={brandColor(item.color, t)} />
+          </View>
+        ))}
+      </View>
+      <Text style={styles.gcardTitle} numberOfLines={1}>
+        {group.name}
+      </Text>
+      <Text style={styles.gcardBody} numberOfLines={2}>
+        {carriesFor(group.name, true)}
+      </Text>
     </View>
   );
 }
@@ -209,10 +290,71 @@ export function ConnectedChannelsSection() {
   const styles = useMemo(() => createStyles(t, l), [t, l]);
   const links = useMemo(() => buildLinks(t), [t]);
 
-  // The radial arrangement needs room for two three-icon clusters side by side.
-  // Below that it reads better as a hub above a plain grid, with no lines to
-  // cross over each other.
-  const radial = !l.isPhone;
+  const cta = (
+    <ButtonRow>
+      <PrimaryButton
+        label="View integrations"
+        full={l.isPhone}
+        trackId="home.channels.view-integrations"
+        onPress={() => router.push(ROUTES.integrations as never)}
+      />
+      <SecondaryButton
+        label="Explore API"
+        full={l.isPhone}
+        trackId="home.channels.explore-api"
+        onPress={() => router.push(ROUTES.apiDocs as never)}
+      />
+    </ButtonRow>
+  );
+
+  /**
+   * PHONE — a different composition, not the same one turned sideways.
+   *
+   * The wide section is copy beside a wired radial map, with a legend under the
+   * copy and a four-across assurance strip beneath both. None of that survives a
+   * 390px column: the map cannot draw a single wire, the legend repeats the map,
+   * and the strip becomes four full-width rows.
+   *
+   * So the phone gets: head → a two-column grid of channel-group cards, each
+   * holding its own logos and its own one-line promise → a two-row trust strip.
+   * No hub, because a hub with nothing wired to it is a logo in a content
+   * section, which is the one place the mark is not allowed to be.
+   */
+  if (l.isPhone) {
+    return (
+      <Band tone="surface" art={{ variant: 'docs', color: t.brand, side: 'right' }}>
+        <Reveal distance={22}>
+          <View style={styles.phoneHead}>
+            <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
+            <Heading level={2} style={[type.h1, styles.title]}>
+              Connect the channels you already use.
+            </Heading>
+            <Text style={[type.body, styles.body]} numberOfLines={2}>
+              Your customer data stays connected. Your workflow stays in one intelligent place.
+            </Text>
+            {cta}
+          </View>
+
+          <CardGrid style={styles.phoneCards}>
+            {GROUPS.map((group, i) => (
+              <GroupCard key={group.key} group={group} full={i === GROUPS.length - 1} styles={styles} t={t} />
+            ))}
+          </CardGrid>
+
+          <View style={styles.trustStrip}>
+            {PHONE_ASSURANCES.map(([icon, label]) => (
+              <View key={label} style={styles.trustChip}>
+                <FontAwesome6 name={icon as never} size={14} color={t.brand} />
+                <Text style={styles.trustChipText} numberOfLines={1}>
+                  {label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Reveal>
+      </Band>
+    );
+  }
 
   return (
     // A band: the diagram is the page's one large visual canvas, so it gets its
@@ -235,20 +377,7 @@ export function ConnectedChannelsSection() {
           <Text style={[type.body, styles.body]}>
             Your customer data stays connected. Your workflow stays in one intelligent place.
           </Text>
-          <ButtonRow>
-            <PrimaryButton
-              label="View integrations"
-              full={l.isPhone}
-              trackId="home.channels.view-integrations"
-              onPress={() => router.push(ROUTES.integrations as never)}
-            />
-            <SecondaryButton
-              label="Explore API"
-              full={l.isPhone}
-              trackId="home.channels.explore-api"
-              onPress={() => router.push(ROUTES.apiDocs as never)}
-            />
-          </ButtonRow>
+          {cta}
 
           <View style={styles.carries}>
             <Text style={[type.caption, styles.carriesTitle]}>What comes across</Text>
@@ -264,41 +393,31 @@ export function ConnectedChannelsSection() {
           </View>
         </View>
 
+        {/* The radial arrangement needs room for two three-icon clusters side
+            by side, which every width that reaches this branch has — the phone
+            composition returns above and never draws a wire. */}
         <ConnectorSurface field={field} style={styles.map}>
-          {radial ? (
-            <>
-              <Connectors
-                field={field}
-                links={links}
-                color={t.brand}
-                circular={['hub']}
-                strokeWidth={2}
-                dash="0.5 6"
-                flow
-              />
-              <View style={styles.mapRowTop}>
-                <ChannelGroup group={social} field={field} styles={styles} t={t} />
-                <ChannelGroup group={messaging} field={field} styles={styles} t={t} />
-              </View>
-              <View style={styles.mapRowMiddle}>
-                <ChannelGroup group={commerce} field={field} styles={styles} t={t} />
-                <Hub field={field} styles={styles} t={t} />
-                <ChannelGroup group={local} field={field} styles={styles} t={t} />
-              </View>
-              <View style={styles.mapRowBottom}>
-                <ChannelGroup group={analytics} field={field} styles={styles} t={t} />
-              </View>
-            </>
-          ) : (
-            <>
-              <Hub field={field} styles={styles} t={t} />
-              <View style={styles.phoneGrid}>
-                {GROUPS.map((group) => (
-                  <ChannelGroup key={group.key} group={group} field={field} styles={styles} t={t} />
-                ))}
-              </View>
-            </>
-          )}
+          <Connectors
+            field={field}
+            links={links}
+            color={t.brand}
+            circular={['hub']}
+            strokeWidth={2}
+            dash="0.5 6"
+            flow
+          />
+          <View style={styles.mapRowTop}>
+            <ChannelGroup group={social} field={field} styles={styles} t={t} />
+            <ChannelGroup group={messaging} field={field} styles={styles} t={t} />
+          </View>
+          <View style={styles.mapRowMiddle}>
+            <ChannelGroup group={commerce} field={field} styles={styles} t={t} />
+            <Hub field={field} styles={styles} t={t} />
+            <ChannelGroup group={local} field={field} styles={styles} t={t} />
+          </View>
+          <View style={styles.mapRowBottom}>
+            <ChannelGroup group={analytics} field={field} styles={styles} t={t} />
+          </View>
         </ConnectorSurface>
       </View>
 
@@ -345,6 +464,60 @@ function createStyles(t: ThemeTokens, l: Layout) {
       : { flexGrow: 1, flexShrink: 1, flexBasis: 380, minWidth: 300, gap: 20 },
     title: { marginTop: 4 },
     body: { maxWidth: 480 },
+
+    /* phone ------------------------------------------------------- */
+    phoneHead: { gap: 16 },
+    phoneCards: { marginTop: 22 },
+    gcard: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 12,
+      backgroundColor: t.surfaceRaised,
+      padding: 14,
+      gap: 8,
+      ...(elevation(t, 1) as object),
+    },
+    /** two up, and the fifth spans so the row never leaves a stretched orphan */
+    gcardHalf: { flexGrow: 1, flexShrink: 1, flexBasis: '46%', minWidth: 0 },
+    gcardFull: { flexGrow: 1, flexShrink: 1, flexBasis: '100%', minWidth: 0 },
+    gcardLogos: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    gcardLogo: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gcardTitle: { ...type.h4, color: t.text, fontWeight: '700' },
+    gcardBody: { ...type.caption, color: t.textMuted },
+    trustStrip: {
+      marginTop: 22,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: t.border,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    trustChip: {
+      minHeight: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surface,
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    trustChipText: { ...type.caption, color: t.text, fontWeight: '600' },
+
     /** the diagram's legend — what each cluster brings back once connected */
     carries: {
       marginTop: 4,
@@ -407,7 +580,6 @@ function createStyles(t: ThemeTokens, l: Layout) {
       gap: 16,
     },
     mapRowBottom: { alignItems: 'center' },
-    phoneGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'center', gap: 18 },
 
     group: { alignItems: 'center', gap: 10, minWidth: 0 },
     groupChip: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },

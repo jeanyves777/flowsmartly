@@ -625,8 +625,15 @@ const HERO_PREPARED: { key: string; icon: string; label: string; tail: string; a
   { key: 'callbacks', icon: 'phone', label: 'Six call-backs scheduled', tail: 'six call-backs to make.', accent: 'green' },
 ];
 
-/** How many of them are on screen at once. */
-const HERO_DECK = 3;
+/**
+ * How long one activity item holds before the next arrives.
+ *
+ * The block used to render three of them at once, permanently. Three static
+ * rows is a list, not an arrival — it takes three times the height, and it
+ * loses the one idea the block exists to carry: that this is happening while
+ * you watch. It shows ONE, and the next replaces it.
+ */
+const HERO_CYCLE_MS = 3600;
 
 /**
  * The software a workspace is usually already running.
@@ -648,88 +655,105 @@ const HERO_INTEGRATIONS = [
 ];
 
 /**
- * The typed tail of the headline.
+ * True while the element is on screen AND the tab is visible.
  *
- * Renders the *finished* first phrase on the server and on the first client
- * pass, then starts typing — the page has to read completely with JavaScript
- * off, and a headline that begins empty is the one element that would break
- * that outright. Reduced motion keeps the finished phrase and never moves.
+ * `useInView` in `motion` is a one-shot "has entered" trigger, which is exactly
+ * right for a reveal and exactly wrong for a loop: an ambient cycle has to STOP
+ * when it leaves the viewport, not fire once and then animate forever behind
+ * the fold. Where there is no IntersectionObserver at all the cycle runs rather
+ * than freezing — a static page is the worse failure of the two.
  */
-function useTypedTail(phrases: string[]): string {
-  const reduced = useReducedMotion();
-  const [text, setText] = useState(phrases[0]);
-  const [started, setStarted] = useState(false);
+function useAmbientActive() {
+  const ref = useRef<unknown>(null);
+  const [onScreen, setOnScreen] = useState(false);
+  const [tabVisible, setTabVisible] = useState(true);
 
   useEffect(() => {
-    if (reduced) return;
-    // one frame after mount, so the served markup is what a crawler reads
-    const kick = setTimeout(() => setStarted(true), 900);
-    return () => clearTimeout(kick);
-  }, [reduced]);
+    const node = ref.current as Element | null;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setOnScreen(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach((entry) => setOnScreen(entry.isIntersecting)),
+      { threshold: 0.1 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
-    if (!started || reduced) return;
-    let index = 0;
-    let cut = phrases[0].length;
-    let deleting = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const phrase = phrases[index % phrases.length];
-      cut = deleting ? cut - 1 : cut + 1;
-      setText(phrase.slice(0, cut));
-      if (!deleting && cut === phrase.length) {
-        deleting = true;
-        timer = setTimeout(tick, 1900);
-        return;
-      }
-      if (deleting && cut === 0) {
-        deleting = false;
-        index += 1;
-      }
-      timer = setTimeout(tick, deleting ? 26 : 58);
-    };
-    timer = setTimeout(tick, 400);
-    return () => clearTimeout(timer);
-  }, [started, reduced, phrases]);
+    if (typeof document === 'undefined') return;
+    const sync = () => setTabVisible(document.visibilityState !== 'hidden');
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, []);
 
-  return text;
+  return { ref, active: onScreen && tabVisible };
 }
 
 /**
- * One prepared item, arriving.
+ * One activity item at a time, the next replacing the last.
  *
- * It fades and lifts each time its slot takes a new item, which is what makes
- * the block read as work coming in rather than a static list. It mounts fully
- * visible, so the deck is complete with JavaScript off, and reduced motion
- * leaves it that way — the shared value simply never moves.
+ * The outgoing item leaves upward and the incoming one arrives from below, so
+ * it reads the way a notification does. Deliberately NOT a carousel: there are
+ * no dots and no arrows, because it is ambient — nobody is meant to operate it.
+ *
+ * It mounts settled (`step` starts at 1 and the first pass is skipped), so the
+ * served markup is a complete row and the no-JS render is finished work.
+ * Reduced motion never starts the interval, so one item is shown and held.
  */
-function HeroPrepared({
-  item,
-  styles,
-  reduced,
-}: {
-  item: (typeof HERO_PREPARED)[number];
-  styles: Styles;
-  reduced: boolean;
-}) {
-  const enter = useSharedValue(1);
+function useHeroCycle(length: number) {
+  const reduced = useReducedMotion();
+  const { ref, active } = useAmbientActive();
+  const [pair, setPair] = useState({ current: 0, previous: -1 });
+
   useEffect(() => {
-    if (reduced) return;
-    enter.value = 0;
-    enter.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
-  }, [item.key, reduced, enter]);
-  const animated = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateY: (1 - enter.value) * 14 }],
+    if (reduced || !active) return;
+    const timer = setInterval(() => {
+      setPair((p) => ({ current: (p.current + 1) % length, previous: p.current }));
+    }, HERO_CYCLE_MS);
+    return () => clearInterval(timer);
+  }, [reduced, active, length]);
+
+  const step = useSharedValue(1);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (reduced) {
+      step.value = 1;
+      return;
+    }
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    step.value = 0;
+    step.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
+  }, [pair.current, reduced, step]);
+
+  const enter = useAnimatedStyle(() => ({
+    opacity: Math.min(1, Math.max(0, (step.value - 0.3) / 0.7)),
+    transform: [{ translateY: (1 - step.value) * 18 }],
   }));
+  const leave = useAnimatedStyle(() => {
+    const out = Math.min(1, step.value / 0.45);
+    return { opacity: 1 - out, transform: [{ translateY: -out * 18 }] };
+  });
+
+  return { ref, current: pair.current, previous: pair.previous, enter, leave };
+}
+
+/** The row itself. Static — the ticker around it owns the motion. */
+function HeroActivityRow({ item, styles }: { item: (typeof HERO_PREPARED)[number]; styles: Styles }) {
   return (
-    <Animated.View style={[styles.heroCard, animated]}>
+    <View style={styles.heroCard}>
       <FontAwesome6 name={item.icon as never} size={12} color={onGlass[item.accent]} />
       <Text numberOfLines={1} style={styles.heroCardText}>
         {item.label}
       </Text>
       <Text style={styles.heroCardPill}>Ready</Text>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -796,39 +820,183 @@ function HeroSystem({
   );
 }
 
-function Hero() {
+/* ------------------------------------------------------------------ */
+/* hero — the phone composition                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One prepared item on the phone panel.
+ *
+ * The same row as the wide one, but on the page ground rather than on glass:
+ * the phone hero has no photograph under it, so the accents come from the
+ * theme instead of the dark-palette set the scrim needs. Static — the ticker
+ * around it owns the motion.
+ */
+function PhoneActivityRow({ item, styles }: { item: (typeof HERO_PREPARED)[number]; styles: Styles }) {
+  const t = useTokens();
+  const tone = t[item.accent];
+  return (
+    <View style={styles.phoneRow}>
+      <View style={[styles.phoneRowIcon, { backgroundColor: hexToRgba(tone, 0.14) }]}>
+        <FontAwesome6 name={item.icon as never} size={13} color={tone} />
+      </View>
+      <Text numberOfLines={1} style={styles.phoneRowText}>
+        {item.label}
+      </Text>
+      <Text style={styles.phoneRowPill}>Ready</Text>
+    </View>
+  );
+}
+
+/**
+ * The phone hero is COMPOSED, not stacked.
+ *
+ * Turned sideways, the wide hero becomes a full-width wall of copy followed by
+ * a full-width picture — the exact defect this rewrite exists to end. Three
+ * things change, and none of them is "add flexDirection: column":
+ *
+ *   1. The photograph goes. The stated direction is product-led rather than
+ *      stock photography, so the scrim, the two gradients and the room behind
+ *      them are not rendered at all on a phone; the product surface IS the
+ *      visual, on the page's own ground.
+ *   2. The ORDER changes. Wide reads copy-left / system-right. Phone reads
+ *      claim → the product doing the work → the explanation → the two CTAs, so
+ *      the proof arrives before the paragraph rather than after it.
+ *   3. The trust markers become a two-column grid instead of four full-width
+ *      lines, and the 300px connector field becomes a panel whose activity
+ *      feed shows ONE item at a time rather than three stacked forever.
+ *
+ * The headline, the sub-copy and both CTAs are all still here.
+ */
+function PhoneHero() {
+  const styles = useStyles();
+  const t = useTokens();
+  const router = useRouter();
+  const prepared = useCountUp(326);
+  const cycle = useHeroCycle(HERO_PREPARED.length);
+
+  return (
+    <View style={styles.phoneHero}>
+      <SectionLabel>THE AGENTIC BUSINESS OPERATING SYSTEM</SectionLabel>
+      {/* The one h1 on the site root — the wide hero is not rendered here, so
+          there is still exactly one. */}
+      <Heading level={1} style={styles.phoneHeroTitle}>
+        Agentic AI built to operate, adapt, and scale with your business.
+      </Heading>
+
+      <View style={styles.phonePanel}>
+        <View style={styles.phonePanelHead}>
+          {/* Chrome inside a mock: a brand-tinted tile, not the logo — rule 7
+              keeps the mark in the header and the footer. */}
+          <View style={styles.phonePanelMark}>
+            <FontAwesome6 name={"wand-magic-sparkles" as never} size={13} color={t.brand} />
+          </View>
+          <Text numberOfLines={1} style={styles.phonePanelTitle}>
+            FlowAgent Command Center
+          </Text>
+          <View style={styles.phonePanelLive}>
+            <View style={styles.phonePanelLiveDot} />
+            <Text style={styles.phonePanelLiveText}>Live</Text>
+          </View>
+        </View>
+        {/* The sentence, always complete and always naming the row below it.
+            Two lines are reserved, which is what the longest tail needs, so
+            the panel does not resize as items swap. */}
+        <Animated.Text numberOfLines={2} style={[styles.phoneLead, cycle.enter]}>
+          {HERO_TITLE_LEAD}{' '}
+          <Text style={styles.phoneLeadTail}>{HERO_PREPARED[cycle.current].tail}</Text>
+        </Animated.Text>
+        {/* One row at a time — the outgoing item leaves, the next arrives. */}
+        <View ref={cycle.ref as never} style={styles.phoneTicker}>
+          {cycle.previous >= 0 ? (
+            <Animated.View
+              key={`out-${cycle.previous}`}
+              style={[styles.phoneTickerSlot, cycle.leave]}
+              pointerEvents="none"
+              aria-hidden>
+              <PhoneActivityRow item={HERO_PREPARED[cycle.previous]} styles={styles} />
+            </Animated.View>
+          ) : null}
+          <Animated.View key={`in-${cycle.current}`} style={[styles.phoneTickerSlot, cycle.enter]}>
+            <PhoneActivityRow item={HERO_PREPARED[cycle.current]} styles={styles} />
+          </Animated.View>
+        </View>
+        <View style={styles.phonePanelFoot}>
+          <Text ref={prepared.ref as never} numberOfLines={2} style={styles.phonePanelFootText}>
+            {`${Math.round(prepared.value).toLocaleString('en-US')} actions prepared this week · none of them sent without approval`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Written for a 1440px column, so it is clamped rather than allowed to
+          run to seven lines in a 362px one. */}
+      <Text numberOfLines={3} style={styles.phoneHeroBody}>
+        FlowSmartly is an agentic business operating system designed to understand goals,
+        coordinate tools, execute work, learn from feedback, and continuously improve across
+        your organization.
+      </Text>
+
+      <ButtonRow>
+        <PrimaryButton
+          label="Join early access"
+          size="lg"
+          full
+          trackId="home.hero.start-workspace"
+          onPress={() => goToEarlyAccess()}
+        />
+        <SecondaryButton
+          label="See FlowAgent in action"
+          size="lg"
+          icon="play"
+          full
+          trackId="home.hero.see-in-action"
+          onPress={() => router.push(contactHref("demo") as never)}
+        />
+      </ButtonRow>
+
+      <View style={styles.phoneTrustGrid}>
+        {HERO_TRUST.map((line) => (
+          <View key={line} style={styles.phoneTrustItem}>
+            <FontAwesome6
+              name={"circle-check" as never}
+              size={12}
+              color={t.green}
+              style={styles.phoneTrustIcon}
+            />
+            <Text numberOfLines={2} style={styles.phoneTrustText}>
+              {line}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** The markers under the hero, on both compositions. */
+const HERO_TRUST = [
+  'Governed authority',
+  'Human approval where it counts',
+  'Verifiable, observable work',
+  'Built for real organizations',
+];
+
+function WideHero() {
   const styles = useStyles();
   const l = useLayout();
   const t = useTokens();
   const router = useRouter();
   const field = useConnectorField();
   const reduced = useReducedMotion();
-  const tail = useTypedTail(useMemo(() => HERO_PREPARED.map((p) => p.tail), []));
   const prepared = useCountUp(326);
+  const cycle = useHeroCycle(HERO_PREPARED.length);
 
   const links = useMemo<Link[]>(
     () => HERO_SYSTEMS.map((s) => ({ from: s.key, to: 'hub', color: onGlass[s.accent] })),
     [],
   );
 
-  /*
-   * Which prepared item is lit. All three are rendered at full opacity, so the
-   * block is complete without JavaScript and still under reduced motion — the
-   * cycle only moves the highlight.
-   */
-  const [offset, setOffset] = useState(0);
-  useEffect(() => {
-    if (reduced) return;
-    const timer = setInterval(() => setOffset((n) => (n + 1) % HERO_PREPARED.length), 2600);
-    return () => clearInterval(timer);
-  }, [reduced]);
-  const deck = Array.from(
-    { length: HERO_DECK },
-    (_, i) => HERO_PREPARED[(offset + i) % HERO_PREPARED.length],
-  );
-
   return (
-    <>
     <View style={styles.heroScene}>
       {/* The photograph is the ground. It is decorative — the headline beside
           it carries the meaning — so it takes an empty alt. */}
@@ -962,44 +1130,73 @@ function Hero() {
           </View>
 
           {/*
-            * The typed line, moved here out of the h1.
+            * The sentence, in sync with the row below it.
             *
-            * A ghost copy of the longest phrase holds the block open at exactly
-            * the height the live line can ever need, and the live one is laid
-            * over it — so letters appear and disappear inside a box that never
-            * changes size. Reserving a guessed `minHeight` instead would be
-            * wrong at one type scale out of four.
+            * It used to TYPE, letter by letter, through all seven tails on a
+            * clock of its own — so the visible line was routinely a fragment
+            * ("…prepared three appoi") and it named an item that was not the
+            * one on screen. It is now always the complete sentence for the
+            * item currently showing.
+            *
+            * A ghost copy of the longest phrase still holds the block open at
+            * exactly the height the live line can ever need, so the layout does
+            * not jump as the tail changes length. Reserving a guessed
+            * `minHeight` instead would be wrong at one type scale out of four.
             */}
           <View style={styles.heroTypedWrap}>
             <Text aria-hidden style={[styles.heroTyped, styles.heroTypedGhost]}>
               {`${HERO_TITLE_LEAD} ${HERO_LONGEST_TAIL}`}
             </Text>
-            <Text style={[styles.heroTyped, styles.heroTypedLive]}>
-              {HERO_TITLE_LEAD} <Text style={styles.heroTypedTail}>{tail}</Text>
-            </Text>
+            <Animated.Text style={[styles.heroTyped, styles.heroTypedLive, cycle.enter]}>
+              {HERO_TITLE_LEAD}{' '}
+              <Text style={styles.heroTypedTail}>{HERO_PREPARED[cycle.current].tail}</Text>
+            </Animated.Text>
           </View>
 
-          <View style={styles.heroDeck}>
-            {deck.map((item, slot) => (
-              // keyed by slot, not by item: the slot stays mounted and its
-              // contents change, which is what the arrival animation reacts to
-              <HeroPrepared key={`slot-${slot}`} item={item} styles={styles} reduced={reduced} />
-            ))}
+          {/* One row, cycling. The height is reserved by the wrapper so nothing
+              below it moves as an item is replaced. */}
+          <View ref={cycle.ref as never} style={styles.heroTicker}>
+            {cycle.previous >= 0 ? (
+              <Animated.View
+                key={`out-${cycle.previous}`}
+                style={[styles.heroTickerSlot, cycle.leave]}
+                pointerEvents="none"
+                aria-hidden>
+                <HeroActivityRow item={HERO_PREPARED[cycle.previous]} styles={styles} />
+              </Animated.View>
+            ) : null}
+            <Animated.View key={`in-${cycle.current}`} style={[styles.heroTickerSlot, cycle.enter]}>
+              <HeroActivityRow item={HERO_PREPARED[cycle.current]} styles={styles} />
+            </Animated.View>
           </View>
         </ConnectorSurface>
       </View>
 
       <View style={styles.heroTrust}>
-        {['Governed authority', 'Human approval where it counts', 'Verifiable, observable work', 'Built for real organizations'].map(
-          (line) => (
-            <Text key={line} style={styles.heroTrustText}>
-              {line}
-            </Text>
-          ),
-        )}
+        {HERO_TRUST.map((line) => (
+          <Text key={line} style={styles.heroTrustText}>
+            {line}
+          </Text>
+        ))}
       </View>
     </View>
-    <HeroIntegrations styles={styles} reduced={reduced} />
+  );
+}
+
+/**
+ * Two compositions, one hero. Split into separate components rather than
+ * branched inside one, so neither has to run the other's hooks — the phone
+ * hero never builds a connector field, never mounts the photograph and never
+ * measures a wire, and the wide composition is untouched by any of it.
+ */
+function Hero() {
+  const styles = useStyles();
+  const l = useLayout();
+  const reduced = useReducedMotion();
+  return (
+    <>
+      {l.isPhone ? <PhoneHero /> : <WideHero />}
+      <HeroIntegrations styles={styles} reduced={reduced} />
     </>
   );
 }
@@ -1155,7 +1352,12 @@ function MetricCards() {
 
   // Three, not six across: a metric card carries a label, a figure, a note and
   // a sparkline, and six of them on one line leaves each about 230px.
-  const columns = l.isPhone ? 1 : l.isCompact ? 2 : 3;
+  //
+  // Two on a phone, not one. Six full-width rows of label/figure/sparkline is
+  // half a screen of identical bars; paired, the six read as one stat block —
+  // and the sparkline comes out, because at 163px it is the part of the card
+  // that has to be squeezed and the figure is the part that matters.
+  const columns = l.isPhone ? 2 : l.isCompact ? 2 : 3;
   return (
     <View ref={attachCounters} style={styles.gridStack}>
       {chunk(metrics, columns).map((row, index) => (
@@ -1173,7 +1375,7 @@ function MetricCards() {
                   {item.delta}
                 </Text>
               </View>
-              <Sparkline color={item.color} />
+              {l.isPhone ? null : <Sparkline color={item.color} />}
             </View>
           ))}
         </View>
@@ -1196,6 +1398,7 @@ type PanelProps = { number: string };
 function AcrossOrganization({ number }: PanelProps) {
   const styles = useStyles();
   const t = useTokens();
+  const l = useLayout();
   const rows: [string, string, string, string][] = [
     ["file-invoice-dollar", t.violet, "Tax service", "12 clients missing required documents"],
     ["hand-holding-heart", t.pink, "Elder-care provider", "3 visits still need caregiver coverage"],
@@ -1206,7 +1409,10 @@ function AcrossOrganization({ number }: PanelProps) {
   ];
   return (
     <Panel number={number} title="Across your organization">
-      {rows.map(([icon, color, org, detail], index) => (
+      {/* Four on a phone, six wide. The panel makes its point — one queue,
+          several kinds of organisation — at four; the last two are breadth,
+          and breadth is what a phone can least afford. */}
+      {rows.slice(0, l.isPhone ? 4 : rows.length).map(([icon, color, org, detail], index) => (
         <Reveal key={org} delay={index * 70} distance={10} style={styles.orgRow}>
           <View style={[styles.miniIcon, { backgroundColor: color }]}>
             <FontAwesome6 name={icon as never} size={10} color={t.textOnBrand} />
@@ -1492,7 +1698,7 @@ function Dashboard() {
             <Heading level={2} style={styles.dashboardTitle}>
               Business Command Center
             </Heading>
-            <Text style={styles.dashboardSub}>
+            <Text numberOfLines={l.isPhone ? 2 : undefined} style={styles.dashboardSub}>
               See what needs attention, what FlowAgent completed, and how your organization is performing.
             </Text>
           </View>
@@ -1572,7 +1778,7 @@ function FlowShopSection() {
         <Heading level={2} style={styles.featureTitle}>
           Build once. Sell everywhere customers and AI agents shop.
         </Heading>
-        <Text style={styles.featureBody}>
+        <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.featureBody}>
           Launch a polished storefront, keep product data AI-ready, and turn every campaign into a direct path to
           purchase.
         </Text>
@@ -1623,10 +1829,14 @@ function FlowShopSection() {
             </View>
           </View>
           <View style={styles.productGrid}>
-            {products.map((product) => (
+            {/* Two on a phone, four wide. At 50% each, four products is two
+                rows of 155px squares — half a screen of catalogue inside what
+                is only a picture of a storefront. One row still says
+                "storefront"; the second row only says "more of the same". */}
+            {(l.isPhone ? products.slice(0, 2) : products).map((product) => (
               <View key={product.name} style={styles.productCard}>
                 <Image source={product.image} style={styles.productImage} contentFit="contain" transition={180} />
-                <Text numberOfLines={2} style={styles.productName}>
+                <Text numberOfLines={l.isPhone ? 1 : 2} style={styles.productName}>
                   {product.name}
                 </Text>
                 <Text style={styles.productPrice}>{product.price}</Text>
@@ -1675,7 +1885,7 @@ function CustomerIntelligence() {
         <Heading level={2} style={styles.featureTitle}>
           Every interaction makes the next action smarter.
         </Heading>
-        <Text style={styles.featureBody}>
+        <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.featureBody}>
           FlowAgent learns from every signal to recommend the right next step for every customer.
         </Text>
         <PrimaryButton
@@ -1687,21 +1897,45 @@ function CustomerIntelligence() {
         />
       </View>
       <View style={styles.intelligenceVisual}>
-        <View style={styles.signalColumn}>
-          {signals.map(([icon, color, title, note]) => (
-            <View key={title} style={styles.signalCard}>
-              <FontAwesome6 name={icon as never} size={20} color={color} />
-              <View style={styles.signalCopy}>
-                <Text numberOfLines={1} style={styles.signalTitle}>
-                  {title}
-                </Text>
-                <Text numberOfLines={1} style={styles.signalNote}>
-                  {note}
-                </Text>
+        {/* Three separate bordered cards is three separate objects, and on a
+            phone they arrive as three full-width slabs saying the same kind of
+            thing. They are one object — a signal feed — so on a phone they are
+            drawn as one: a single card holding three compact rows. */}
+        {l.isPhone ? (
+          <View style={styles.signalList}>
+            {signals.map(([icon, color, title, note]) => (
+              <View key={title} style={styles.signalRow}>
+                <View style={[styles.signalRowIcon, { backgroundColor: hexToRgba(color, 0.14) }]}>
+                  <FontAwesome6 name={icon as never} size={14} color={color} />
+                </View>
+                <View style={styles.signalCopy}>
+                  <Text numberOfLines={1} style={styles.signalTitle}>
+                    {title}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.signalNote}>
+                    {note}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.signalColumn}>
+            {signals.map(([icon, color, title, note]) => (
+              <View key={title} style={styles.signalCard}>
+                <FontAwesome6 name={icon as never} size={20} color={color} />
+                <View style={styles.signalCopy}>
+                  <Text numberOfLines={1} style={styles.signalTitle}>
+                    {title}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.signalNote}>
+                    {note}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={styles.profileCard}>
           <Image
             source={require("../../assets/images/v5/customer-sarah-johnson.png")}
@@ -1713,7 +1947,10 @@ function CustomerIntelligence() {
             <Text style={styles.profileTag}>Loyal customer</Text>
             <Text style={styles.profileTag}>High value</Text>
           </View>
-          {profileMeta.map(([icon, line]) => (
+          {/* Three lines on a phone: identity, how to reach us, and how long
+              they have been a customer. The last two are detail the wide card
+              has room for and a 163px-tall column of meta rows does not. */}
+          {profileMeta.slice(0, l.isPhone ? 3 : profileMeta.length).map(([icon, line]) => (
             <View key={line} style={styles.profileMetaRow}>
               <FontAwesome6
                 name={icon as never}
@@ -1742,11 +1979,24 @@ function CustomerIntelligence() {
               <Text style={styles.confidence}>High</Text>
             </View>
           </View>
-          {["Recent order", "SMS engagement", "Repeat buyer"].map((reason) => (
-            <View key={reason} style={styles.reason}>
-              <Text style={styles.reasonText}>✓ {reason}</Text>
+          {/* Three full-width blocks of one short phrase each is 160px of card
+              spent on three words apiece. On a phone they are chips on a
+              wrapping row — the same three reasons, one third of the height. */}
+          {l.isPhone ? (
+            <View style={styles.reasonRow}>
+              {["Recent order", "SMS engagement", "Repeat buyer"].map((reason) => (
+                <Text key={reason} numberOfLines={1} style={styles.reasonChip}>
+                  ✓ {reason}
+                </Text>
+              ))}
             </View>
-          ))}
+          ) : (
+            ["Recent order", "SMS engagement", "Repeat buyer"].map((reason) => (
+              <View key={reason} style={styles.reason}>
+                <Text style={styles.reasonText}>✓ {reason}</Text>
+              </View>
+            ))
+          )}
           {/* mockup chrome — this card illustrates FlowAgent's output */}
           <MockButton label="Review recommendation" />
         </View>
@@ -1933,6 +2183,119 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     heroTrustText: { ...ty.caption, color: t.scrimTextFaint },
 
+    /* ---------------------------------------------------------------- */
+    /* hero: the phone composition                                       */
+    /* ---------------------------------------------------------------- */
+
+    /*
+     * No photograph, so no scrim: everything here is on the page's own ground
+     * and takes the ordinary theme tokens. The gutter is supplied here because
+     * the hero sits outside `OpenSection`, exactly as the wide scene does.
+     */
+    phoneHero: { paddingHorizontal: l.gutter, paddingTop: 18, paddingBottom: 24, gap: 16 },
+    phoneHeroTitle: { ...ty.display, color: t.text },
+    phoneHeroBody: { ...ty.body, color: t.textMuted },
+
+    /* the product surface — the phone hero's visual */
+    phonePanel: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      padding: 12,
+      gap: 8,
+      ...card,
+    },
+    phonePanelHead: {
+      minHeight: 34,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 9,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: t.divider,
+    },
+    phonePanelMark: {
+      width: 28,
+      height: 28,
+      flexShrink: 0,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: t.brandSoft,
+    },
+    phonePanelTitle: { ...ty.caption, color: t.text, fontWeight: "800", flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    phonePanelLive: {
+      flexShrink: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      backgroundColor: t.successBg,
+    },
+    phonePanelLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.successText },
+    phonePanelLiveText: { ...ty.caption, color: t.successText, fontWeight: "800" },
+    // Two lines held open: the longest tail wraps to exactly two at 14/21 in
+    // this panel, so the block never resizes as the sentence changes.
+    phoneLead: { ...ty.caption, color: t.textMuted, minHeight: 42 },
+    phoneLeadTail: { color: accentText(t.brand, t), fontWeight: "700" },
+    // One row's worth of space. 14 padding + 2 border + a 28px icon tile.
+    phoneTicker: { height: 44, alignSelf: "stretch", position: "relative" },
+    phoneTickerSlot: { position: "absolute", top: 0, left: 0, right: 0 },
+    // 44px, so a row that is only an illustration today is already the right
+    // size the day it becomes a control.
+    phoneRow: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 11,
+      paddingHorizontal: 9,
+      paddingVertical: 7,
+      backgroundColor: t.surface,
+    },
+    phoneRowIcon: {
+      width: 28,
+      height: 28,
+      flexShrink: 0,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    phoneRowText: { ...ty.caption, color: t.text, fontWeight: "700", flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    phoneRowPill: {
+      ...ty.caption,
+      color: t.successText,
+      fontWeight: "800",
+      backgroundColor: t.successBg,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      overflow: "hidden",
+      flexShrink: 0,
+    },
+    phonePanelFoot: { marginTop: 2, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.divider },
+    phonePanelFootText: { ...ty.caption, color: t.textSubtle },
+
+    // Two columns rather than four full-width lines: the markers are short
+    // enough to pair up, and four stacked lines is a screen of list.
+    phoneTrustGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 10, columnGap: 12 },
+    phoneTrustItem: {
+      flexGrow: 0,
+      flexShrink: 1,
+      flexBasis: "47%",
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 7,
+    },
+    phoneTrustIcon: { marginTop: 3 },
+    phoneTrustText: { ...ty.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+
     /*
      * The band under the photograph. It was empty page between the hero and
      * the first section; the software a business already runs belongs there —
@@ -1991,7 +2354,19 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
 
     // In flow under the wires, not floating over them: absolutely positioned
     // it landed across the hub and both bottom systems.
-    heroDeck: { gap: 8, alignItems: 'center', flexGrow: 0, flexShrink: 0 },
+    //
+    // ONE row's worth of space, held open. The outgoing and incoming rows are
+    // both absolute inside it, so they cross over without the block resizing —
+    // and the three permanently-stacked rows this replaces are gone with it.
+    // 22 padding + 2 border + a 27px pill is 51; 52 covers the rounding.
+    heroTicker: {
+      height: 52,
+      alignSelf: 'stretch',
+      position: 'relative',
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    heroTickerSlot: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
     heroCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2368,19 +2743,21 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     gridStack: { gap: gridGap },
     gridRow: { flexDirection: "row", alignItems: "stretch", gap: gridGap },
     gridCell: { ...fluid, alignItems: "stretch" },
+    // Phone: a stat tile, two to a row, with no sparkline beside the figure.
+    // Wide: the original row, label block left and sparkline right.
     metricCard: {
       ...fluid,
-      minHeight: 76,
+      minHeight: l.isPhone ? 0 : 76,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 12,
       backgroundColor: t.surfaceRaised,
-      paddingHorizontal: 14,
+      paddingHorizontal: l.isPhone ? 11 : 14,
       paddingVertical: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
+      flexDirection: l.isPhone ? "column" : "row",
+      alignItems: l.isPhone ? "flex-start" : "center",
+      justifyContent: l.isPhone ? "flex-start" : "space-between",
+      gap: l.isPhone ? 0 : 10,
     },
     metricCopy: { flexShrink: 1, minWidth: 0 },
     metricLabel: { ...ty.caption, color: t.textMuted },
@@ -2411,7 +2788,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 6,
       backgroundColor: t.brand,
       color: t.textOnBrand,
-      fontSize: ty.caption.fontSize,
+      fontSize: ty.caption.fontSize,
       fontFamily: FONT_SANS,
       textAlign: "center",
       fontWeight: "800",
@@ -2638,7 +3015,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRightColor: t.divider,
     },
     productImage: { width: "100%", aspectRatio: 1, backgroundColor: t.surfaceMuted, borderRadius: 10 },
-    productName: { ...ty.caption, color: t.text, minHeight: 32, marginTop: 8 },
+    // The reserved second line exists so four cards in a row end level; with a
+    // single row of two on a phone there is nothing to level against.
+    productName: { ...ty.caption, color: t.text, minHeight: l.isPhone ? 0 : 32, marginTop: 8 },
     productPrice: { ...ty.caption, color: t.text, fontWeight: "800", marginTop: 2 },
     productStars: { ...ty.caption, color: t.orangeText, marginTop: 4 },
     reviewCount: { color: t.textSubtle },
@@ -2678,6 +3057,30 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       backgroundColor: t.surfaceRaised,
       ...card,
     },
+    // Phone: one card, three rows — not three cards.
+    signalList: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: "auto",
+      width: "100%",
+      minWidth: 0,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceRaised,
+      padding: 12,
+      gap: 4,
+      ...card,
+    },
+    signalRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10 },
+    signalRowIcon: {
+      width: 30,
+      height: 30,
+      flexShrink: 0,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     signalCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     signalTitle: { ...ty.caption, color: t.text, fontWeight: "800" },
     signalNote: { ...ty.caption, color: t.textMuted, marginTop: 4 },
@@ -2696,9 +3099,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       ...card,
     },
     profilePhoto: {
-      width: 124,
-      height: 124,
-      borderRadius: 62,
+      width: l.isPhone ? 76 : 124,
+      height: l.isPhone ? 76 : 124,
+      borderRadius: l.isPhone ? 38 : 62,
       backgroundColor: t.surfaceMuted,
     },
     profileName: { ...ty.h3, color: t.text, marginTop: 12, textAlign: "center" },
@@ -2745,5 +3148,18 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     confidence: { ...ty.h3, color: t.successText },
     reason: { padding: 11, borderRadius: 10, backgroundColor: t.surfaceMuted },
     reasonText: { ...ty.caption, color: t.text, fontWeight: "600" },
+    reasonRow: { flexDirection: "row", flexWrap: "wrap", rowGap: 8, columnGap: 8 },
+    reasonChip: {
+      ...ty.caption,
+      color: t.text,
+      fontWeight: "600",
+      backgroundColor: t.surfaceMuted,
+      borderRadius: 999,
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      overflow: "hidden",
+      flexShrink: 1,
+      minWidth: 0,
+    },
   });
 }
