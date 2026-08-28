@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly V5 — Agentic Business Operating System (positioning mock)</title>
+<style>
+/* ==========================================================================
+   FlowSmartly — V5 agentic-BOS positioning mock.
+   Tokens copied 1:1 from src/app/globals.css + tailwind.config.ts so this mock
+   is the real design system, not a lookalike. Self-contained, no network.
+   NOTE: the live public site is locked to .dark by MarketingShell; the theme
+   switcher here exists only so the reviewer can check every token set.
+   ========================================================================== */
+:root{
+  --background:0 0% 100%; --foreground:240 10% 3.9%;
+  --card:0 0% 100%; --card-foreground:240 10% 3.9%;
+  --popover:0 0% 100%; --popover-foreground:240 10% 3.9%;
+  --primary:199 89% 48%; --primary-foreground:0 0% 98%;
+  --secondary:240 4.8% 95.9%; --secondary-foreground:240 5.9% 10%;
+  --muted:240 4.8% 95.9%; --muted-foreground:240 3.8% 46.1%;
+  --border:240 5.9% 90%; --input:240 5.9% 90%; --ring:199 89% 48%;
+  --radius:0.625rem; color-scheme:light;
+
+  /* tailwind.config.ts palette */
+  --brand-300:#7dd3fc; --brand-400:#38bdf8; --brand-500:#0ea5e9; --brand-600:#0284c7;
+  --accent-purple:#8b5cf6; --accent-teal:#14b8a6; --accent-indigo:#6366f1;
+  --accent-gold:#eccb93; --accent-rose:#f43f5e; --accent-pink:#ec4899; --accent-orange:#f97316;
+  --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981;
+}
+html.dark{
+  color-scheme:dark;
+  --background:240 10% 3.9%; --foreground:0 0% 98%;
+  --card:240 10% 3.9%; --card-foreground:0 0% 98%;
+  --popover:240 7% 11%; --popover-foreground:0 0% 98%;
+  --secondary:240 3.7% 15.9%; --secondary-foreground:0 0% 98%;
+  --muted:240 3.7% 15.9%; --muted-foreground:240 5% 64.9%;
+  --border:240 3.7% 15.9%; --input:240 3.7% 15.9%;
+}
+html.grey{
+  color-scheme:dark;
+  --background:240 6% 14%; --foreground:0 0% 96%;
+  --card:240 5% 17%; --card-foreground:0 0% 96%;
+  --popover:240 5% 20%; --popover-foreground:0 0% 96%;
+  --secondary:240 5% 23%; --secondary-foreground:0 0% 96%;
+  --muted:240 5% 23%; --muted-foreground:240 5% 68%;
+  --border:240 5% 27%; --input:240 5% 27%; --ring:199 89% 55%;
+}
+
+*,*::before,*::after{box-sizing:border-box;border-color:hsl(var(--border));}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0; background:hsl(var(--background)); color:hsl(var(--foreground));
+  font-family:Inter,ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-feature-settings:"rlig" 1,"calt" 1; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+::selection{background:rgb(14 165 233 / .3);color:#fff;}
+h1,h2,h3,h4{margin:0;font-weight:800;letter-spacing:-.01em;}
+p{margin:0;}
+a{color:inherit;text-decoration:none;}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;}
+:focus-visible{outline:none;box-shadow:0 0 0 2px hsl(var(--background)),0 0 0 4px hsl(var(--ring));border-radius:12px;}
+svg{display:block;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:hsl(var(--muted-foreground)/.2);border-radius:999px;}
+
+/* --- shared utilities mirroring the Tailwind classes actually used ------- */
+.wrap{max-width:72rem;margin:0 auto;padding:0 1rem;}       /* max-w-6xl px-4 */
+@media(min-width:640px){.wrap{padding:0 1.5rem;}}
+@media(min-width:1024px){.wrap{padding:0 2rem;}}
+.section{position:relative;padding:5rem 0;}
+@media(min-width:640px){.section{padding:6rem 0;}}
+.eyebrow{font-size:.875rem;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:var(--brand-500);}
+html.dark .eyebrow,html.grey .eyebrow{color:var(--brand-400);}
+.h2{font-size:clamp(1.875rem,1.2rem + 2.6vw,3rem);line-height:1.1;font-weight:800;text-wrap:balance;}
+.h3{font-size:1.25rem;font-weight:700;}
+.lede{margin-top:1rem;font-size:1.125rem;line-height:1.75;color:hsl(var(--muted-foreground));max-width:46rem;}
+.muted{color:hsl(var(--muted-foreground));}
+.card{
+  border:1px solid hsl(var(--border));border-radius:1.5rem;
+  background:hsl(var(--card)/.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  padding:1.75rem;height:100%;
+}
+.grad-text{
+  background-image:linear-gradient(to right,var(--brand-400),var(--emerald-300),var(--accent-purple));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.chip-icon{
+  display:grid;place-items:center;width:3rem;height:3rem;border-radius:1rem;color:#fff;
+  box-shadow:0 10px 15px -3px rgb(0 0 0/.25);
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  height:2.75rem;padding:0 1.25rem;border-radius:.75rem;font-weight:700;font-size:.9375rem;
+  transition:opacity .2s,background-color .2s,border-color .2s,transform .2s;white-space:nowrap;
+}
+.btn-primary{background-image:linear-gradient(to right,var(--brand-500),var(--accent-purple));color:#fff;box-shadow:0 10px 20px -8px rgb(14 165 233/.6);}
+.btn-primary:hover{opacity:.9;}
+.btn-outline{border:1px solid hsl(var(--border));background:hsl(var(--card)/.5);}
+.btn-outline:hover{border-color:rgb(14 165 233/.5);}
+.btn-lg{height:3.5rem;padding:0 2rem;border-radius:1rem;font-size:1rem;font-weight:800;}
+.pill{
+  display:inline-flex;align-items:center;gap:.5rem;border:1px solid hsl(var(--border));
+  background:hsl(var(--card)/.7);border-radius:999px;padding:.375rem .75rem;
+  font-size:.75rem;font-weight:600;backdrop-filter:blur(6px);
+}
+.dot{width:.5rem;height:.5rem;border-radius:999px;background:var(--emerald-500);box-shadow:0 0 12px 2px rgb(16 185 129/.7);}
+
+/* --- aurora backdrop (motion/primitives.tsx AuroraBackdrop) -------------- */
+.aurora{position:absolute;inset:0;overflow:hidden;pointer-events:none;filter:blur(64px);opacity:.4;}
+html.dark .aurora,html.grey .aurora{opacity:.7;}
+.aurora span{position:absolute;border-radius:999px;mix-blend-mode:screen;animation:float 16s ease-in-out infinite;}
+.aurora .b1{left:6%;top:-8%;width:520px;height:520px;background:radial-gradient(circle,rgba(14,165,233,.9),transparent 60%);}
+.aurora .b2{right:4%;top:0;width:560px;height:560px;background:radial-gradient(circle,rgba(139,92,246,.85),transparent 60%);animation-delay:-5s;}
+.aurora .b3{left:38%;top:12%;width:460px;height:460px;background:radial-gradient(circle,rgba(16,185,129,.8),transparent 60%);animation-delay:-9s;}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(30px,-28px) scale(1.12);}}
+
+/* --- reveal on scroll (Reveal / RevealGroup) ---------------------------- */
+.rv{opacity:0;transform:translateY(28px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1);}
+.rv.in{opacity:1;transform:none;}
+@media(prefers-reduced-motion:reduce){
+  .rv{opacity:1;transform:none;transition:none;}
+  .aurora span{animation:none;}
+}
+
+/* ---------------------------------------------------------------- header */
+.hdr{position:fixed;inset-inline:0;top:0;z-index:50;padding:.75rem .5rem 0;transition:padding .3s;}
+.hdr.scrolled{padding-top:.25rem;}
+.hdr-bar{
+  position:relative;max-width:72rem;margin:0 auto;display:flex;align-items:center;justify-content:space-between;
+  gap:.75rem;height:72px;padding:0 1rem;border:1px solid hsl(var(--border));border-radius:1rem;
+  background:hsl(var(--background)/.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 10px 30px -12px rgb(0 0 0/.5);transition:height .3s;
+}
+.hdr.scrolled .hdr-bar{height:62px;}
+@media(min-width:640px){.hdr-bar{padding:0 1.5rem;}}
+.logo{display:flex;align-items:center;gap:.5rem;font-weight:800;font-size:1.0625rem;letter-spacing:-.02em;}
+.logo .mark{display:grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:.625rem;background-image:linear-gradient(135deg,var(--brand-500),var(--accent-purple));color:#fff;}
+.nav{display:none;align-items:center;gap:.125rem;}
+@media(min-width:1100px){.nav{display:flex;}}
+.nav button,.nav a{
+  display:inline-flex;align-items:center;gap:.25rem;padding:.5rem .75rem;border-radius:.5rem;
+  font-size:.875rem;font-weight:600;color:hsl(var(--muted-foreground));transition:color .2s;
+}
+.nav button:hover,.nav a:hover{color:hsl(var(--foreground));}
+.nav [data-open="true"]{color:var(--brand-300);}
+html:not(.dark):not(.grey) .nav [data-open="true"]{color:var(--brand-600);}
+.nav .caret{transition:transform .2s;}
+.nav [data-open="true"] .caret{transform:rotate(180deg);}
+.hdr-cta{display:none;align-items:center;gap:.5rem;}
+@media(min-width:1100px){.hdr-cta{display:flex;}}
+.hdr-cta .login{padding:.5rem .75rem;font-size:.875rem;font-weight:600;color:hsl(var(--muted-foreground));}
+.burger{display:grid;place-items:center;width:2.5rem;height:2.5rem;border-radius:.625rem;}
+@media(min-width:1100px){.burger{display:none;}}
+
+.mega-host{position:absolute;left:0;right:0;top:100%;padding-top:.5rem;}
+.mega{
+  overflow:hidden;border:1px solid hsl(var(--border));border-radius:1rem;
+  background:hsl(var(--popover));color:hsl(var(--popover-foreground));
+  box-shadow:0 30px 60px -20px rgb(0 0 0/.65);
+}
+.mega-head{
+  display:flex;align-items:center;gap:.5rem;padding:.875rem 1.25rem .5rem;
+  font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:hsl(var(--muted-foreground));
+}
+.mega-cols{display:grid;gap:.25rem;padding:.25rem 1rem 1rem;grid-template-columns:1fr;}
+@media(min-width:900px){.mega-cols.c5{grid-template-columns:repeat(5,1fr);} .mega-cols.c3{grid-template-columns:repeat(3,1fr);} .mega-cols.c2{grid-template-columns:repeat(2,1fr);}}
+.mega-col{padding:.5rem;}
+.mega-col > .t{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;font-weight:800;margin-bottom:.5rem;}
+.mega-col .k{font-size:.6875rem;color:hsl(var(--muted-foreground));margin:0 0 .5rem 1.75rem;line-height:1.4;}
+.mega-link{display:block;padding:.375rem .5rem;border-radius:.5rem;font-size:.8125rem;font-weight:600;color:hsl(var(--muted-foreground));transition:background-color .15s,color .15s;}
+.mega-link:hover{background:hsl(var(--muted));color:hsl(var(--foreground));}
+.mega-link .d{display:block;font-weight:500;font-size:.6875rem;opacity:.75;}
+.mega-foot{border-top:1px solid hsl(var(--border));background:hsl(var(--muted)/.4);padding:.75rem 1.25rem;font-size:.75rem;color:hsl(var(--muted-foreground));display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;justify-content:space-between;}
+
+/* mobile sheet */
+.sheet{position:fixed;inset:0;z-index:60;display:none;}
+.sheet[data-open="true"]{display:block;}
+.sheet .scrim{position:absolute;inset:0;background:rgb(0 0 0/.6);backdrop-filter:blur(2px);}
+.sheet .panel{
+  position:absolute;right:0;top:0;bottom:0;width:min(21rem,90vw);overflow-y:auto;
+  background:hsl(var(--background));border-left:1px solid hsl(var(--border));padding:1.25rem;
+}
+.sheet .grp{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground));margin:1.25rem 0 .5rem;}
+.sheet a{display:block;padding:.5rem;border-radius:.5rem;font-size:.875rem;font-weight:600;}
+.sheet a:hover{background:hsl(var(--muted));}
+
+/* ------------------------------------------------------------------ hero */
+.hero{position:relative;isolation:isolate;overflow:hidden;padding:8rem 0 4rem;}
+@media(min-width:640px){.hero{padding:10rem 0 4rem;}}
+.hero-grid{position:relative;z-index:10;display:grid;gap:3rem;align-items:center;}
+@media(min-width:1024px){.hero-grid{grid-template-columns:1.05fr 1fr;}}
+.hero h1{margin-top:1.25rem;font-size:clamp(2.25rem,1.3rem + 3.6vw,3.75rem);line-height:1.05;font-weight:800;text-wrap:balance;}
+.hero .body{margin-top:1.25rem;font-size:1.125rem;line-height:1.75;color:hsl(var(--muted-foreground));max-width:38rem;}
+.hero .body + .body{margin-top:.875rem;}
+.hero .act{margin-top:1.75rem;display:flex;flex-wrap:wrap;gap:.75rem;}
+.hero .assure{margin-top:1.25rem;display:flex;flex-wrap:wrap;gap:1rem;font-size:.875rem;color:hsl(var(--muted-foreground));}
+.hero .assure span{display:inline-flex;align-items:center;gap:.5rem;}
+
+/* agent console visual (stands in for AgentComposer) */
+.console{
+  position:relative;border:1px solid hsl(var(--border));border-radius:1.5rem;
+  background:hsl(var(--card)/.7);backdrop-filter:blur(20px);padding:.875rem;
+  box-shadow:0 25px 50px -12px rgb(0 0 0/.5);outline:1px solid rgb(14 165 233/.15);
+}
+.console .bar{display:flex;align-items:center;gap:.5rem;padding:.25rem .25rem .75rem;font-size:.75rem;color:hsl(var(--muted-foreground));}
+.console .bar i{width:.625rem;height:.625rem;border-radius:999px;display:block;}
+.console .body{border-radius:1rem;background:hsl(var(--muted)/.4);padding:1rem;}
+.obj{display:flex;gap:.75rem;align-items:flex-start;}
+.obj .av{display:grid;place-items:center;width:2rem;height:2rem;flex:0 0 auto;border-radius:.75rem;background-image:linear-gradient(135deg,var(--brand-500),var(--accent-purple));color:#fff;}
+.obj p{font-size:.9375rem;line-height:1.6;}
+.plan{margin-top:1rem;display:grid;gap:.5rem;}
+.step{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;color:hsl(var(--muted-foreground));}
+.step .s{display:grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:999px;flex:0 0 auto;background:rgb(16 185 129/.15);color:var(--emerald-400);}
+.step.now{color:hsl(var(--foreground));font-weight:600;}
+.step.now .s{background:rgb(14 165 233/.15);color:var(--brand-400);}
+.step .tag{margin-left:auto;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:1px solid hsl(var(--border));border-radius:999px;padding:.0625rem .375rem;}
+.spin{animation:spin 1.6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.lanes{margin-top:1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;}
+.lane{border:1px solid hsl(var(--border));border-radius:.75rem;padding:.5rem;background:hsl(var(--background)/.5);}
+.lane .n{font-size:.625rem;font-weight:700;color:hsl(var(--muted-foreground));text-transform:uppercase;letter-spacing:.05em;}
+.lane .v{margin-top:.25rem;font-size:.75rem;font-weight:600;}
+.lane .m{margin-top:.375rem;height:.25rem;border-radius:999px;background:hsl(var(--muted));overflow:hidden;}
+.lane .m i{display:block;height:100%;border-radius:999px;background-image:linear-gradient(to right,var(--brand-500),var(--accent-purple));}
+.console .gov{margin-top:.75rem;display:flex;flex-wrap:wrap;gap:.375rem;}
+.gov .g{font-size:.6875rem;font-weight:600;border:1px solid hsl(var(--border));border-radius:999px;padding:.1875rem .5rem;color:hsl(var(--muted-foreground));}
+
+/* ------------------------------------------------------- one system band */
+.onesys{border-top:1px solid hsl(var(--border));border-bottom:1px solid hsl(var(--border));background:hsl(var(--muted)/.2);}
+.onesys .stack{display:grid;gap:2rem;align-items:start;}
+@media(min-width:1024px){.onesys .stack{grid-template-columns:1fr 1fr;gap:3rem;}}
+.bigline{font-family:Inter,system-ui,sans-serif;font-size:clamp(1.75rem,1.1rem + 2.6vw,2.75rem);font-weight:800;line-height:1.15;text-wrap:balance;}
+.bigline span{display:block;}
+
+/* anchor pull-quote */
+.anchor{position:relative;overflow:hidden;}
+.anchor .q{
+  border:1px solid hsl(var(--border));border-radius:1.5rem;padding:2rem;
+  background:hsl(var(--card)/.6);backdrop-filter:blur(12px);
+  font-size:clamp(1.125rem,.9rem + 1.1vw,1.625rem);line-height:1.5;font-weight:700;text-wrap:balance;
+}
+.anchor .use{margin-top:1rem;display:flex;flex-wrap:wrap;gap:.5rem;}
+.anchor .use b{font-size:.6875rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid hsl(var(--border));border-radius:999px;padding:.25rem .625rem;color:hsl(var(--muted-foreground));}
+
+/* --------------------------------------------------- capability groups */
+.groups{display:grid;gap:1rem;grid-template-columns:1fr;}
+@media(min-width:700px){.groups{grid-template-columns:repeat(2,1fr);}}
+@media(min-width:1100px){.groups{grid-template-columns:repeat(3,1fr);}}
+.group .chip-icon{margin-bottom:1.125rem;}
+.group h3{font-size:1.25rem;}
+.group p{margin-top:.5rem;line-height:1.75;color:hsl(var(--muted-foreground));font-size:.9375rem;}
+.group .exp{margin-top:1rem;padding-top:1rem;border-top:1px solid hsl(var(--border));display:flex;flex-wrap:wrap;gap:.375rem;}
+.group .exp i{font-style:normal;font-size:.6875rem;font-weight:700;border-radius:999px;padding:.1875rem .5rem;background:hsl(var(--muted));color:hsl(var(--muted-foreground));}
+
+/* verticals strip */
+.verts{display:grid;gap:.75rem;grid-template-columns:repeat(2,1fr);}
+@media(min-width:700px){.verts{grid-template-columns:repeat(4,1fr);}}
+@media(min-width:1100px){.verts{grid-template-columns:repeat(6,1fr);}}
+.vert{
+  border:1px solid hsl(var(--border));border-radius:1rem;padding:.875rem;
+  background:hsl(var(--card)/.5);transition:transform .25s,border-color .25s;
+}
+.vert:hover{transform:translateY(-3px);border-color:rgb(14 165 233/.4);}
+.vert .i{display:grid;place-items:center;width:2rem;height:2rem;border-radius:.625rem;color:#fff;margin-bottom:.625rem;}
+.vert .n{font-size:.8125rem;font-weight:700;}
+.vert .g{margin-top:.1875rem;font-size:.6875rem;color:hsl(var(--muted-foreground));}
+
+/* -------------------------------------------------------- feature blocks */
+.split{display:grid;gap:2.5rem;align-items:center;}
+@media(min-width:1024px){.split{grid-template-columns:1fr 1fr;gap:4rem;}.split.rev > :first-child{order:2;}}
+.beats{margin-top:1.5rem;display:grid;gap:.625rem;}
+.beat{display:flex;gap:.625rem;align-items:flex-start;font-size:.9375rem;line-height:1.6;}
+.beat .b{display:grid;place-items:center;width:1.375rem;height:1.375rem;border-radius:999px;flex:0 0 auto;margin-top:.125rem;background:rgb(14 165 233/.15);color:var(--brand-400);}
+.negs{margin-top:1.25rem;display:flex;flex-wrap:wrap;gap:.5rem;}
+.negs b{font-size:.75rem;font-weight:700;border:1px dashed hsl(var(--border));border-radius:999px;padding:.25rem .625rem;color:hsl(var(--muted-foreground));}
+
+/* loop diagram */
+.loop{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;}
+@media(min-width:520px){.loop{grid-template-columns:repeat(4,1fr);}}
+.loop .n{
+  border:1px solid hsl(var(--border));border-radius:.875rem;padding:.75rem .5rem;text-align:center;
+  background:hsl(var(--card)/.6);font-size:.75rem;font-weight:700;
+}
+.loop .n em{display:block;font-style:normal;font-size:.625rem;font-weight:600;color:hsl(var(--muted-foreground));margin-top:.25rem;}
+.loop .n.acc{border-color:rgb(139 92 246/.5);box-shadow:0 0 0 1px rgb(139 92 246/.15) inset;}
+
+/* ladder for scalability */
+.ladder{display:grid;gap:.75rem;}
+.rung{
+  display:flex;align-items:center;gap:1rem;border:1px solid hsl(var(--border));border-radius:1rem;
+  padding:1rem 1.125rem;background:hsl(var(--card)/.6);
+}
+.rung .num{display:grid;place-items:center;width:2rem;height:2rem;flex:0 0 auto;border-radius:.625rem;font-size:.8125rem;font-weight:800;background-image:linear-gradient(135deg,var(--brand-500),var(--accent-purple));color:#fff;}
+.rung .t{font-weight:700;font-size:.9375rem;}
+.rung .s{font-size:.8125rem;color:hsl(var(--muted-foreground));margin-top:.125rem;}
+.rung .w{margin-left:auto;width:22%;min-width:60px;height:.375rem;border-radius:999px;background:hsl(var(--muted));overflow:hidden;}
+.rung .w i{display:block;height:100%;background-image:linear-gradient(to right,var(--brand-500),var(--accent-purple));}
+
+/* enterprise band */
+.ent{border-top:1px solid hsl(var(--border));border-bottom:1px solid hsl(var(--border));background:hsl(var(--muted)/.15);position:relative;overflow:hidden;}
+.entgrid{display:grid;gap:.75rem;grid-template-columns:repeat(2,1fr);margin-top:1.5rem;}
+@media(min-width:900px){.entgrid{grid-template-columns:repeat(3,1fr);}}
+.ent .t{border:1px solid hsl(var(--border));border-radius:1rem;padding:1rem;background:hsl(var(--card)/.6);}
+.ent .t .n{display:flex;align-items:center;gap:.5rem;font-size:.875rem;font-weight:700;}
+.ent .t .d{margin-top:.375rem;font-size:.8125rem;line-height:1.55;color:hsl(var(--muted-foreground));}
+
+/* launch */
+.launch{position:relative;overflow:hidden;text-align:center;}
+.launch .card{max-width:52rem;margin:0 auto;padding:2.5rem 1.5rem;text-align:center;}
+@media(min-width:640px){.launch .card{padding:3rem;}}
+.launch h2{font-size:clamp(1.75rem,1.1rem + 2.4vw,2.75rem);line-height:1.15;}
+.launch p{margin-top:1rem;font-size:1.0625rem;line-height:1.75;color:hsl(var(--muted-foreground));}
+.launch .act{margin-top:1.75rem;display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center;}
+
+/* ------------------------------------------------------------ spec panel */
+.spec{border-top:1px solid hsl(var(--border));background:hsl(var(--muted)/.25);}
+.spec .flag{display:inline-flex;align-items:center;gap:.5rem;font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;border:1px dashed var(--accent-gold);color:var(--accent-gold);border-radius:999px;padding:.3125rem .75rem;}
+.tblwrap{margin-top:1.5rem;overflow-x:auto;border:1px solid hsl(var(--border));border-radius:1rem;background:hsl(var(--card)/.6);}
+table{border-collapse:collapse;width:100%;min-width:44rem;font-size:.8125rem;}
+th,td{text-align:left;padding:.75rem .875rem;border-bottom:1px solid hsl(var(--border));vertical-align:top;}
+th{font-size:.6875rem;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground));background:hsl(var(--muted)/.5);position:sticky;top:0;}
+tbody tr:last-child td{border-bottom:0;}
+td code{font-family:ui-monospace,"JetBrains Mono","Fira Code",monospace;font-size:.75rem;background:hsl(var(--muted));border-radius:.375rem;padding:.0625rem .3125rem;}
+.arrow{color:var(--brand-400);font-weight:800;}
+.kill{text-decoration:line-through;opacity:.6;}
+.notes{margin-top:1.5rem;display:grid;gap:.75rem;grid-template-columns:1fr;}
+@media(min-width:900px){.notes{grid-template-columns:repeat(2,1fr);}}
+.note{border:1px solid hsl(var(--border));border-left:3px solid var(--accent-rose);border-radius:.875rem;padding:.875rem 1rem;background:hsl(var(--card)/.6);}
+.note.ok{border-left-color:var(--emerald-500);}
+.note .n{font-size:.8125rem;font-weight:800;}
+.note .d{margin-top:.25rem;font-size:.8125rem;line-height:1.55;color:hsl(var(--muted-foreground));}
+
+/* footer */
+footer{border-top:1px solid hsl(var(--border));background:hsl(var(--muted)/.2);}
+.fgrid{display:grid;gap:2rem;grid-template-columns:repeat(2,1fr);padding:3rem 0;}
+@media(min-width:900px){.fgrid{grid-template-columns:1.4fr repeat(4,1fr);}}
+.fcol h4{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground));font-weight:700;}
+.fcol a{display:block;margin-top:.625rem;font-size:.875rem;color:hsl(var(--muted-foreground));}
+.fcol a:hover{color:hsl(var(--foreground));}
+.fbot{border-top:1px solid hsl(var(--border));padding:1.25rem 0;font-size:.75rem;color:hsl(var(--muted-foreground));display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;}
+
+/* theme switcher (mock-only chrome) */
+.themebar{
+  position:fixed;right:.75rem;bottom:.75rem;z-index:70;display:flex;gap:.25rem;padding:.25rem;
+  border:1px solid hsl(var(--border));border-radius:999px;background:hsl(var(--popover));
+  box-shadow:0 12px 30px -10px rgb(0 0 0/.6);
+}
+.themebar button{font-size:.6875rem;font-weight:700;padding:.375rem .625rem;border-radius:999px;color:hsl(var(--muted-foreground));}
+.themebar button[aria-pressed="true"]{background:hsl(var(--muted));color:hsl(var(--foreground));}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="i-sparkles" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></g>
+  <g id="i-arrow" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g>
+  <g id="i-caret" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></g>
+  <g id="i-check" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></g>
+  <g id="i-loader" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></g>
+  <g id="i-growth" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></g>
+  <g id="i-code" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></g>
+  <g id="i-ops" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M3 20h3"/><path d="M9 20a3 3 0 1 0-6 0"/><path d="M12 12h9"/><path d="M3 12h3"/><path d="M21 4h-9"/><path d="M3 4h6"/><circle cx="15" cy="12" r="3"/><circle cx="11" cy="4" r="2"/></g>
+  <g id="i-intel" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2"/><path d="M15 2v2"/><path d="M9 20v2"/><path d="M15 20v2"/><path d="M2 9h2"/><path d="M2 15h2"/><path d="M20 9h2"/><path d="M20 15h2"/></g>
+  <g id="i-agent" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></g>
+  <g id="i-shield" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.7 9a1.9 1.9 0 0 1-1.3 0C6.8 20.5 3.3 18 3.3 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.9 1.9 0 0 1 2.5 0C14.8 3.8 17.3 5 19.3 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></g>
+  <g id="i-pulse" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></g>
+  <g id="i-layers" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></g>
+  <g id="i-mem" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></g>
+  <g id="i-menu" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></g>
+  <g id="i-x" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6 18 18"/><path d="M18 6 6 18"/></g>
+  <g id="i-build" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/></g>
+  <g id="i-flag" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></g>
+</defs></svg>
+
+<!-- ======================================================== HEADER / NAV -->
+<header class="hdr" id="hdr">
+  <div class="hdr-bar" id="hdrbar">
+    <a class="logo" href="#top">
+      <span class="mark"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span>
+      FlowSmartly
+    </a>
+
+    <nav class="nav" id="nav">
+      <button type="button" data-menu="platform" data-open="false">Platform <svg class="caret" width="16" height="16" viewBox="0 0 24 24"><use href="#i-caret"/></svg></button>
+      <button type="button" data-menu="capabilities" data-open="false">Capabilities <svg class="caret" width="16" height="16" viewBox="0 0 24 24"><use href="#i-caret"/></svg></button>
+      <button type="button" data-menu="solutions" data-open="false">Solutions <svg class="caret" width="16" height="16" viewBox="0 0 24 24"><use href="#i-caret"/></svg></button>
+      <a href="#pricing-note">Pricing</a>
+      <button type="button" data-menu="resources" data-open="false">Resources <svg class="caret" width="16" height="16" viewBox="0 0 24 24"><use href="#i-caret"/></svg></button>
+    </nav>
+
+    <div class="hdr-cta">
+      <a class="login" href="#">Log in</a>
+      <a class="btn btn-outline" href="#flowagent">Explore FlowSmartly</a>
+      <a class="btn btn-primary" href="#launch">Join V5 Early Access</a>
+    </div>
+
+    <button class="burger" id="burger" aria-label="Open menu"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-menu"/></svg></button>
+
+    <!-- mega menus -->
+    <div class="mega-host" id="megahost" hidden>
+      <div class="mega" data-panel="platform" hidden>
+        <div class="mega-head"><svg width="14" height="14" viewBox="0 0 24 24" style="color:var(--brand-400)"><use href="#i-sparkles"/></svg> One agentic system · not a feature list</div>
+        <div class="mega-cols c3">
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--brand-400)"><use href="#i-agent"/></svg> FlowAgent</div>
+            <a class="mega-link" href="#flowagent">The agentic layer<span class="d">Objectives into planned, executed work</span></a>
+            <a class="mega-link" href="#flowagent">Specialized agents<span class="d">Roles that collaborate on one objective</span></a>
+            <a class="mega-link" href="#flowagent">Tools &amp; connections<span class="d">What the agents are allowed to operate</span></a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-purple)"><use href="#i-mem"/></svg> Context</div>
+            <a class="mega-link" href="#flowagent">Memory<span class="d">What the system carries between runs</span></a>
+            <a class="mega-link" href="#flowagent">Business context<span class="d">How your organization actually works</span></a>
+            <a class="mega-link" href="#continuous">Continuous operation<span class="d">Work that does not stop at one task</span></a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--emerald-400)"><use href="#i-shield"/></svg> Control</div>
+            <a class="mega-link" href="#enterprise">Permissions &amp; authority<span class="d">Clearly defined boundaries</span></a>
+            <a class="mega-link" href="#enterprise">Governance &amp; approvals<span class="d">Human control where it matters</span></a>
+            <a class="mega-link" href="#enterprise">Verification &amp; observability<span class="d">See and check what was done</span></a>
+          </div>
+        </div>
+        <div class="mega-foot">
+          <span>FlowSmartly is not a collection of AI features. It is an agentic system.</span>
+          <a class="mega-link" href="#flowagent" style="color:var(--brand-400)">See how FlowAgent works &rarr;</a>
+        </div>
+      </div>
+
+      <div class="mega" data-panel="capabilities" hidden>
+        <div class="mega-head"><svg width="14" height="14" viewBox="0 0 24 24" style="color:var(--brand-400)"><use href="#i-layers"/></svg> Five capability groups · product experiences sit underneath</div>
+        <div class="mega-cols c5">
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--brand-400)"><use href="#i-growth"/></svg> Business &amp; Growth</div>
+            <p class="k">Marketing, engagement, commerce and analytics as capabilities of the system.</p>
+            <a class="mega-link" href="#verticals">Social</a>
+            <a class="mega-link" href="#verticals">Email + SMS</a>
+            <a class="mega-link" href="#verticals">Ads</a>
+            <a class="mega-link" href="#verticals">CRM / Leads</a>
+            <a class="mega-link" href="#verticals">FlowShop</a>
+            <a class="mega-link" href="#verticals">ListSmartly</a>
+            <a class="mega-link" href="#verticals">AI Studio</a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-indigo)"><use href="#i-code"/></svg> Engineering &amp; Technology</div>
+            <p class="k">Agentic engineering across specialized models, inside defined boundaries.</p>
+            <a class="mega-link" href="#engineering">Autonomous Engineering</a>
+            <a class="mega-link" href="#engineering">Testing &amp; review</a>
+            <a class="mega-link" href="#engineering">Deployment &amp; recovery</a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-teal)"><use href="#i-ops"/></svg> Operations</div>
+            <p class="k">Execution, approvals, monitoring and recurring processes.</p>
+            <a class="mega-link" href="#verticals">Automation</a>
+            <a class="mega-link" href="#verticals">Approvals &amp; monitoring</a>
+            <a class="mega-link" href="#verticals">Reporting</a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-gold)"><use href="#i-intel"/></svg> Intelligence</div>
+            <p class="k">Research, analysis, planning and organizational knowledge.</p>
+            <a class="mega-link" href="#verticals">Analytics</a>
+            <a class="mega-link" href="#verticals">Decision support</a>
+            <a class="mega-link" href="#verticals">Business context</a>
+          </div>
+          <div class="mega-col">
+            <div class="t"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-purple)"><use href="#i-agent"/></svg> Agent Platform</div>
+            <p class="k">Build the agents, the tools and the rules they operate under.</p>
+            <a class="mega-link" href="#verticals">Custom Agents</a>
+            <a class="mega-link" href="#verticals">Multi-agent collaboration</a>
+            <a class="mega-link" href="#enterprise">Governance &amp; observability</a>
+          </div>
+        </div>
+        <div class="mega-foot">
+          <span>Capabilities of one system &mdash; not nine separate products.</span>
+          <a class="mega-link" href="#groups" style="color:var(--brand-400)">All capability groups &rarr;</a>
+        </div>
+      </div>
+
+      <div class="mega" data-panel="solutions" hidden>
+        <div class="mega-cols c2" style="padding-top:1rem">
+          <div class="mega-col">
+            <a class="mega-link" href="#enterprise">Enterprise<span class="d">Agentic infrastructure for modern enterprises</span></a>
+            <a class="mega-link" href="#engineering">Autonomous engineering<span class="d">From assisted development to a controlled engineering system</span></a>
+          </div>
+          <div class="mega-col">
+            <a class="mega-link" href="#continuous">Continuous operations<span class="d">AI that doesn't stop at the first task</span></a>
+            <a class="mega-link" href="#scale">Scale<span class="d">One workflow to an agentic organization</span></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="mega" data-panel="resources" hidden>
+        <div class="mega-cols c2" style="padding-top:1rem">
+          <div class="mega-col">
+            <a class="mega-link" href="#">Help center<span class="d">Guides &amp; walkthroughs</span></a>
+            <a class="mega-link" href="#">Compliance<span class="d">Consent, TCPA &amp; policy</span></a>
+          </div>
+          <div class="mega-col">
+            <a class="mega-link" href="#">Trust &amp; governance<span class="d">Permissions, authority, verification</span></a>
+            <a class="mega-link" href="#">Terms &amp; privacy<span class="d">How the platform works</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="sheet" id="sheet" data-open="false">
+  <div class="scrim" data-close></div>
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="logo"><span class="mark"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span>FlowSmartly</span>
+      <button data-close aria-label="Close menu"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+    </div>
+    <p class="grp">Platform</p>
+    <a href="#flowagent" data-close>FlowAgent</a>
+    <a href="#continuous" data-close>Continuous operation</a>
+    <a href="#enterprise" data-close>Governance &amp; verification</a>
+    <p class="grp">Capabilities</p>
+    <a href="#groups" data-close>Business &amp; Growth</a>
+    <a href="#groups" data-close>Engineering &amp; Technology</a>
+    <a href="#groups" data-close>Operations</a>
+    <a href="#groups" data-close>Intelligence</a>
+    <a href="#groups" data-close>Agent Platform</a>
+    <p class="grp">Solutions</p>
+    <a href="#enterprise" data-close>Enterprise</a>
+    <a href="#engineering" data-close>Autonomous engineering</a>
+    <a href="#scale" data-close>Scale</a>
+    <p class="grp">Company</p>
+    <a href="#pricing-note" data-close>Pricing</a>
+    <a href="#" data-close>Log in</a>
+    <div style="margin-top:1.25rem;display:grid;gap:.5rem">
+      <a class="btn btn-outline" href="#flowagent" data-close>Explore FlowSmartly</a>
+      <a class="btn btn-primary" href="#launch" data-close>Join V5 Early Access</a>
+    </div>
+  </div>
+</div>
+
+<main id="top">
+
+<!-- ================================================================= HERO -->
+<section class="hero">
+  <div class="aurora" aria-hidden="true"><span class="b1"></span><span class="b2"></span><span class="b3"></span></div>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div class="rv">
+        <span class="pill"><span class="dot"></span> Agentic business operating system</span>
+        <h1>Agentic AI built to <span class="grad-text">operate, adapt, and scale</span> with your business.</h1>
+        <p class="body">FlowSmartly is an agentic business operating system designed to understand goals, coordinate tools, execute work, learn from feedback, and continuously improve across your organization.</p>
+        <p class="body">From marketing and customer engagement to autonomous engineering, operations, analytics, and specialized workflows, FlowSmartly gives businesses an intelligent system that can do more than assist.</p>
+        <p class="body" style="color:hsl(var(--foreground));font-weight:700;font-size:1.25rem">It can act.</p>
+        <div class="act">
+          <a class="btn btn-primary btn-lg" href="#flowagent">Explore FlowSmartly <svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn-outline btn-lg" href="#launch">Join V5 Early Access</a>
+        </div>
+        <div class="assure">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--emerald-500)"><use href="#i-check"/></svg> Governed authority</span>
+          <span><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--emerald-500)"><use href="#i-check"/></svg> Human approval where it counts</span>
+          <span><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--emerald-500)"><use href="#i-check"/></svg> Verifiable, observable work</span>
+        </div>
+      </div>
+
+      <div class="rv">
+        <div class="console">
+          <div class="bar">
+            <i style="background:rgb(251 113 133/.7)"></i><i style="background:rgb(251 191 36/.7)"></i><i style="background:rgb(52 211 153/.7)"></i>
+            <span style="margin-left:.5rem;font-weight:600">FlowSmartly · FlowAgent</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:.375rem;font-size:.6875rem;font-weight:700;color:var(--brand-400)">
+              <svg class="spin" width="12" height="12" viewBox="0 0 24 24"><use href="#i-loader"/></svg> operating
+            </span>
+          </div>
+          <div class="body">
+            <div class="obj">
+              <span class="av"><svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span>
+              <p><strong>Objective</strong> — Open the Q4 region: brief the market, prepare the launch, stand up the service workflow, and keep it running.</p>
+            </div>
+            <div class="plan">
+              <div class="step"><span class="s"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-check"/></svg></span> Understood the objective &amp; business context <span class="tag">context</span></div>
+              <div class="step"><span class="s"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-check"/></svg></span> Built a plan, assigned specialized agents <span class="tag">plan</span></div>
+              <div class="step now"><span class="s"><svg class="spin" width="12" height="12" viewBox="0 0 24 24"><use href="#i-loader"/></svg></span> Coordinating tools &amp; executing steps <span class="tag">act</span></div>
+              <div class="step"><span class="s" style="background:hsl(var(--muted));color:hsl(var(--muted-foreground))"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-shield"/></svg></span> Requesting approval — spend above threshold <span class="tag">approval</span></div>
+              <div class="step"><span class="s" style="background:hsl(var(--muted));color:hsl(var(--muted-foreground))"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-pulse"/></svg></span> Observe the result, evaluate, continue <span class="tag">adapt</span></div>
+            </div>
+            <div class="lanes">
+              <div class="lane"><div class="n">Growth</div><div class="v">Campaign live</div><div class="m"><i style="width:82%"></i></div></div>
+              <div class="lane"><div class="n">Engineering</div><div class="v">Service deployed</div><div class="m"><i style="width:64%"></i></div></div>
+              <div class="lane"><div class="n">Operations</div><div class="v">Workflow running</div><div class="m"><i style="width:47%"></i></div></div>
+            </div>
+          </div>
+          <div class="gov">
+            <span class="g">memory</span><span class="g">business context</span><span class="g">tools</span>
+            <span class="g">permissions</span><span class="g">governance</span><span class="g">verification</span><span class="g">observability</span>
+          </div>
+        </div>
+        <p style="margin-top:.5rem;padding:0 .25rem;font-size:.6875rem;color:hsl(var(--muted-foreground))">Illustrative view of a governed agentic run — plan, act, request approval, evaluate, continue.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== ONE SYSTEM -->
+<section class="section onesys" id="onesystem">
+  <div class="wrap stack">
+    <div class="rv">
+      <p class="eyebrow">One system</p>
+      <p class="bigline" style="margin-top:1rem">
+        <span>One intelligent system.</span>
+        <span class="grad-text">Many capabilities.</span>
+        <span>Built around how your business actually works.</span>
+      </p>
+    </div>
+    <div class="rv">
+      <p class="lede" style="margin-top:.25rem">FlowSmartly brings agents, tools, workflows, business context, permissions, and governance into one operating system — so AI can work across the organization instead of remaining trapped inside isolated prompts.</p>
+      <div class="loop" style="margin-top:1.75rem">
+        <div class="n">Agents<em>specialized roles</em></div>
+        <div class="n">Tools<em>what they operate</em></div>
+        <div class="n">Workflows<em>how work runs</em></div>
+        <div class="n">Business context<em>how you work</em></div>
+        <div class="n acc">Permissions<em>who may do what</em></div>
+        <div class="n acc">Governance<em>boundaries &amp; approvals</em></div>
+        <div class="n acc">Verification<em>was it correct</em></div>
+        <div class="n acc">Observability<em>what happened</em></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= ANCHOR SENTENCE -->
+<section class="section anchor" style="padding-top:4rem;padding-bottom:2rem">
+  <div class="wrap rv">
+    <p class="q">FlowSmartly is not a collection of AI features. It is an <span class="grad-text">agentic system</span> that can combine capabilities, tools, context, and specialized agents to execute work around the way your organization operates.</p>
+    <div class="use">
+      <b>Reused on</b><b>Homepage</b><b>Product</b><b>FlowAgent</b><b>Enterprise</b><b>V5 launch</b><b>About (adapted)</b>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== CAPABILITY GROUPS -->
+<section class="section" id="groups">
+  <div class="wrap">
+    <div class="rv" style="max-width:44rem">
+      <p class="eyebrow">Capability groups</p>
+      <h2 class="h2" style="margin-top:.75rem">What the system can do — grouped by the work, not the channel.</h2>
+      <p class="lede">Five capability groups describe everything FlowSmartly can operate. Individual product experiences live underneath them.</p>
+    </div>
+
+    <div class="groups" style="margin-top:2.5rem">
+      <div class="group card rv">
+        <span class="chip-icon" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span>
+        <h3 class="h3">Business &amp; Growth</h3>
+        <p>Social media, content, email, SMS, advertising, CRM, customer engagement, local presence, commerce, and analytics.</p>
+        <div class="exp"><i>Social</i><i>Email + SMS</i><i>Ads</i><i>CRM / Leads</i><i>FlowShop</i><i>ListSmartly</i><i>AI Studio</i></div>
+      </div>
+
+      <div class="group card rv">
+        <span class="chip-icon" style="background-image:linear-gradient(135deg,var(--accent-indigo),var(--accent-purple))"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-code"/></svg></span>
+        <h3 class="h3">Engineering &amp; Technology</h3>
+        <p>Agentic coding, architecture, testing, review, deployment, recovery, infrastructure operations, and multi-model engineering workflows.</p>
+        <div class="exp"><i>Autonomous Engineering</i></div>
+      </div>
+
+      <div class="group card rv">
+        <span class="chip-icon" style="background-image:linear-gradient(135deg,var(--accent-teal),var(--emerald-500))"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-ops"/></svg></span>
+        <h3 class="h3">Operations</h3>
+        <p>Workflow execution, approvals, monitoring, recurring processes, reporting, coordination, and business operations.</p>
+        <div class="exp"><i>Automation</i></div>
+      </div>
+
+      <div class="group card rv">
+        <span class="chip-icon" style="background-image:linear-gradient(135deg,var(--accent-gold),var(--accent-orange))"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-intel"/></svg></span>
+        <h3 class="h3">Intelligence</h3>
+        <p>Research, analysis, planning, decision support, organizational knowledge, business context, and continuous learning.</p>
+        <div class="exp"><i>Analytics</i></div>
+      </div>
+
+      <div class="group card rv">
+        <span class="chip-icon" style="background-image:linear-gradient(135deg,var(--accent-purple),var(--accent-pink))"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-agent"/></svg></span>
+        <h3 class="h3">Agent Platform</h3>
+        <p>Custom agents, specialized roles, multi-agent collaboration, tools, permissions, memory, governance, verification, observability, and continuous operation.</p>
+        <div class="exp"><i>Custom Agents</i></div>
+      </div>
+
+      <div class="group card rv" style="display:flex;flex-direction:column;justify-content:center;background:transparent;border-style:dashed">
+        <p class="eyebrow" style="letter-spacing:2px">The order matters</p>
+        <p style="margin-top:.75rem;font-size:.9375rem;line-height:1.7;color:hsl(var(--muted-foreground))">
+          Groups first. Products second. A visitor should read <em>business operating system</em> before they read <em>social</em>, <em>email</em> or <em>ads</em> — those are capabilities the system operates, not the thing being sold.
+        </p>
+        <a class="btn btn-outline" style="margin-top:1.25rem;align-self:flex-start" href="#verticals">See the product experiences <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-arrow"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================= VERTICAL/PRODUCT EXPERIENCES -->
+<section class="section" id="verticals" style="padding-top:0">
+  <div class="wrap">
+    <div class="rv" style="max-width:44rem">
+      <p class="eyebrow">Underneath the groups</p>
+      <h2 class="h2" style="margin-top:.75rem;font-size:clamp(1.5rem,1.1rem + 1.6vw,2.25rem)">Product experiences the system operates.</h2>
+      <p class="lede" style="font-size:1rem">Each one is a surface of the same operating system — it shares the same agents, tools, memory, permissions and governance.</p>
+    </div>
+
+    <div class="verts rv" style="margin-top:2rem">
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">Social</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">Email + SMS</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">Ads</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">CRM / Leads</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--accent-gold),var(--accent-orange))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-intel"/></svg></span><div class="n">Analytics</div><div class="g">Intelligence</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">FlowShop</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-growth"/></svg></span><div class="n">ListSmartly</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--brand-400),var(--brand-600))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span><div class="n">AI Studio</div><div class="g">Business &amp; Growth</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--accent-teal),var(--emerald-500))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-ops"/></svg></span><div class="n">Automation</div><div class="g">Operations</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--accent-indigo),var(--accent-purple))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-code"/></svg></span><div class="n">Autonomous Engineering</div><div class="g">Engineering &amp; Technology</div></div>
+      <div class="vert"><span class="i" style="background-image:linear-gradient(135deg,var(--accent-purple),var(--accent-pink))"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-agent"/></svg></span><div class="n">Custom Agents</div><div class="g">Agent Platform</div></div>
+      <div class="vert" style="display:flex;align-items:center;justify-content:center;border-style:dashed;background:transparent">
+        <a href="#groups" style="font-size:.75rem;font-weight:700;color:var(--brand-400)">All capabilities &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ FLOWAGENT -->
+<section class="section" id="flowagent" style="border-top:1px solid hsl(var(--border))">
+  <div class="wrap split">
+    <div class="rv">
+      <p class="eyebrow">FlowAgent</p>
+      <h2 class="h2" style="margin-top:.75rem">The agentic layer that turns objectives into work.</h2>
+      <p class="lede">FlowAgent can understand an objective, build a plan, coordinate specialized agents and tools, execute steps, request approval where needed, observe the result, and continue working from what it learns.</p>
+      <div class="negs">
+        <b class="kill">Not just a chatbot.</b>
+        <b class="kill">Not just automation.</b>
+      </div>
+      <p style="margin-top:1rem;font-size:1.125rem;font-weight:700">A system designed to move work forward.</p>
+      <div class="act" style="margin-top:1.75rem;display:flex;gap:.75rem;flex-wrap:wrap">
+        <a class="btn btn-primary" href="#launch">Explore FlowSmartly <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-arrow"/></svg></a>
+      </div>
+    </div>
+    <div class="rv">
+      <div class="card">
+        <p class="eyebrow" style="font-size:.6875rem;letter-spacing:2px">The working loop</p>
+        <div class="loop" style="margin-top:1rem;grid-template-columns:repeat(2,1fr)">
+          <div class="n">Understand<em>objective + context</em></div>
+          <div class="n">Plan<em>steps &amp; agents</em></div>
+          <div class="n">Coordinate<em>agents &amp; tools</em></div>
+          <div class="n">Execute<em>do the work</em></div>
+          <div class="n acc">Request approval<em>where needed</em></div>
+          <div class="n">Observe<em>the real result</em></div>
+          <div class="n">Learn<em>from feedback</em></div>
+          <div class="n">Continue<em>next step</em></div>
+        </div>
+        <div class="beats" style="margin-top:1.5rem">
+          <div class="beat"><span class="b"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-check"/></svg></span> Specialized agents collaborate on one objective.</div>
+          <div class="beat"><span class="b"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-check"/></svg></span> Tools, memory and business context travel with the work.</div>
+          <div class="beat"><span class="b"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-check"/></svg></span> Authority is defined — the system asks when it should.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== ENTERPRISE -->
+<section class="section ent" id="enterprise">
+  <div class="aurora" aria-hidden="true" style="opacity:.18"><span class="b2"></span></div>
+  <div class="wrap" style="position:relative">
+    <div class="rv" style="max-width:46rem">
+      <p class="eyebrow">Enterprise</p>
+      <h2 class="h2" style="margin-top:.75rem">Agentic infrastructure for modern enterprises</h2>
+      <p class="lede">Build AI agents around your architecture, policies, workflows, permissions, and operating requirements.</p>
+      <p class="lede" style="margin-top:.75rem">FlowSmartly helps organizations coordinate specialized agents across complex environments while maintaining governance, verification, observability, human control, and clearly defined authority.</p>
+    </div>
+    <div class="entgrid rv">
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--brand-400)"><use href="#i-layers"/></svg> Your architecture</div><div class="d">Agents built around the systems and environments you already run.</div></div>
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--emerald-400)"><use href="#i-shield"/></svg> Policies &amp; permissions</div><div class="d">What each agent may operate, and on whose authority.</div></div>
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-purple)"><use href="#i-ops"/></svg> Workflows</div><div class="d">Coordination across teams, tools and departments.</div></div>
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-gold)"><use href="#i-check"/></svg> Verification</div><div class="d">Work is checked, not assumed — before it counts as done.</div></div>
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-teal)"><use href="#i-pulse"/></svg> Observability</div><div class="d">See what ran, what it touched, and what it produced.</div></div>
+      <div class="t"><div class="n"><svg width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-rose)"><use href="#i-agent"/></svg> Human control</div><div class="d">Clearly defined authority. Consequential work stays governed.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================== AUTONOMOUS ENGINEERING -->
+<section class="section" id="engineering">
+  <div class="wrap split rev">
+    <div class="rv">
+      <div class="card">
+        <p class="eyebrow" style="font-size:.6875rem;letter-spacing:2px">A controlled engineering system</p>
+        <div class="ladder" style="margin-top:1rem">
+          <div class="rung"><span class="num"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-build"/></svg></span><div><div class="t">Plan &amp; architect</div><div class="s">Project context preserved across the whole run</div></div></div>
+          <div class="rung"><span class="num"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-code"/></svg></span><div><div class="t">Code across specialized models</div><div class="s">Multi-model engineering workflows, coordinated</div></div></div>
+          <div class="rung"><span class="num"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-check"/></svg></span><div><div class="t">Test, review, verify</div><div class="s">Work is verified — not declared finished by its author</div></div></div>
+          <div class="rung"><span class="num"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-shield"/></svg></span><div><div class="t">Deploy &amp; recover</div><div class="s">Inside defined engineering and governance boundaries</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="rv">
+      <p class="eyebrow">Engineering &amp; Technology</p>
+      <h2 class="h2" style="margin-top:.75rem">From assisted development to autonomous engineering</h2>
+      <p class="lede">FlowAgent can coordinate planning, architecture, coding, testing, review, recovery, and deployment across specialized AI models.</p>
+      <p class="lede" style="margin-top:.75rem">The goal isn't simply faster code generation. It's a controlled engineering system that can preserve project context, coordinate multiple agents, verify work, recover from failures, and keep development moving within defined engineering and governance boundaries.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================ CONTINUOUS OPERATIONS -->
+<section class="section" id="continuous" style="border-top:1px solid hsl(var(--border));background:hsl(var(--muted)/.15)">
+  <div class="wrap">
+    <div class="rv" style="max-width:46rem">
+      <p class="eyebrow">Continuous operations</p>
+      <h2 class="h2" style="margin-top:.75rem">AI that doesn't stop at the first task</h2>
+      <p class="lede">FlowSmartly is designed for continuous operation. Agents can observe, execute, return results, evaluate outcomes, respond to feedback, recover when necessary, and continue working within defined authority and governance boundaries.</p>
+      <p class="lede" style="margin-top:.75rem;color:hsl(var(--foreground));font-weight:600">That moves AI from isolated prompts toward persistent operational systems.</p>
+    </div>
+    <div class="loop rv" style="margin-top:2rem;grid-template-columns:repeat(2,1fr)">
+      <div class="n">Observe<em>what is happening</em></div>
+      <div class="n">Execute<em>the next step</em></div>
+      <div class="n">Return results<em>to the people who asked</em></div>
+      <div class="n">Evaluate<em>the outcome</em></div>
+      <div class="n">Respond to feedback<em>and adjust</em></div>
+      <div class="n">Recover<em>when necessary</em></div>
+      <div class="n acc">Continue<em>within defined authority</em></div>
+      <div class="n acc">Stay governed<em>boundaries hold</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ SCALABILITY -->
+<section class="section" id="scale">
+  <div class="wrap split">
+    <div class="rv">
+      <p class="eyebrow">Scale</p>
+      <h2 class="h2" style="margin-top:.75rem">Built to grow from one workflow to an agentic organization</h2>
+      <p class="lede">Start with one workflow. Add specialized agents. Connect teams, tools, and departments. Coordinate them under shared business context, governance, permissions, and objectives.</p>
+      <p class="lede" style="margin-top:.75rem">FlowSmartly is designed to grow with the complexity of your organization — not force the organization into a fixed AI workflow.</p>
+    </div>
+    <div class="rv">
+      <div class="ladder">
+        <div class="rung"><span class="num">1</span><div><div class="t">Start with one workflow</div><div class="s">A single objective, executed end to end</div></div><span class="w"><i style="width:22%"></i></span></div>
+        <div class="rung"><span class="num">2</span><div><div class="t">Add specialized agents</div><div class="s">Roles that know a part of the work</div></div><span class="w"><i style="width:45%"></i></span></div>
+        <div class="rung"><span class="num">3</span><div><div class="t">Connect teams, tools &amp; departments</div><div class="s">The system reaches across the organization</div></div><span class="w"><i style="width:72%"></i></span></div>
+        <div class="rung"><span class="num">4</span><div><div class="t">Coordinate under shared context</div><div class="s">Governance, permissions and objectives in common</div></div><span class="w"><i style="width:100%"></i></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================== V5 LAUNCH / EARLY ACCESS -->
+<section class="section launch" id="launch">
+  <div class="aurora" aria-hidden="true"><span class="b1"></span><span class="b2"></span></div>
+  <div class="wrap" style="position:relative">
+    <div class="card rv">
+      <span class="pill"><span class="dot"></span> V5 early access</span>
+      <h2 style="margin-top:1.25rem">FlowSmartly V5 is coming.</h2>
+      <p>A new agentic business operating system designed to understand your goals, coordinate tools and specialized agents, execute work, learn from feedback, and grow with the way your organization operates.</p>
+      <p>From business growth and customer engagement to operations, analytics and autonomous engineering, V5 is being built to move AI beyond assistance.</p>
+      <p style="color:hsl(var(--foreground));font-weight:800;font-size:1.375rem;margin-top:1rem">Into action.</p>
+      <div class="act">
+        <a class="btn btn-primary btn-lg" href="#launch">Join V5 Early Access <svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-outline btn-lg" href="#flowagent">Explore FlowSmartly</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ NAV ARCHITECTURE SPEC PANEL -->
+<section class="section spec" id="nav-spec">
+  <div class="wrap">
+    <span class="flag"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-flag"/></svg> Specification — not page content</span>
+    <h2 class="h2" style="margin-top:1rem">Proposed nav architecture</h2>
+    <p class="lede">The current top nav is a channel/surface list. Under the packet it becomes a system list: <strong>Platform</strong> (what the system is), <strong>Capabilities</strong> (what it can do), <strong>Solutions</strong> (who it is for). The nine existing surfaces do not disappear — they become leaves under a capability group.</p>
+
+    <h3 class="h3" style="margin-top:2rem">Top-level items</h3>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th style="width:34%">Current</th><th style="width:6%"></th><th style="width:34%">Proposed</th><th style="width:26%">Why</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Product ▾</strong><br><span class="muted">mega = 9 surfaces (Create, Print, Publish, Grow, Sell, Web, Outreach, Leads, Business)</span></td><td class="arrow">→</td><td><strong>Platform ▾</strong><br><span class="muted">FlowAgent · specialized agents · tools · memory · business context · permissions · governance · verification · observability · continuous operation</span></td><td>First menu must say <em>system</em>, not <em>surface</em>.</td></tr>
+          <tr><td><strong>Surfaces</strong> <code>/#surfaces</code></td><td class="arrow">→</td><td><strong>Capabilities ▾</strong><br><span class="muted">5 columns = the 5 groups; product experiences are the leaf links</span></td><td>Groups outrank channels; channels stay reachable.</td></tr>
+          <tr><td><strong>How it works</strong> <code>/#work</code></td><td class="arrow">→</td><td>folded into <strong>Platform → FlowAgent</strong> <code>/flowagent</code></td><td>"How it works" is the FlowAgent story now.</td></tr>
+          <tr><td><span class="muted">— none —</span></td><td class="arrow">→</td><td><strong>Solutions ▾</strong><br><span class="muted">Enterprise · Autonomous engineering · Continuous operations · Scale</span></td><td>The packet's four positioning sections need a home.</td></tr>
+          <tr><td><strong>Pricing</strong> <code>/pricing</code></td><td class="arrow">→</td><td><strong>Pricing</strong> <code>/pricing</code> <span class="muted">(unchanged)</span></td><td>Packet is silent on pricing — leave it.</td></tr>
+          <tr><td><strong>Resources ▾</strong><br><span class="muted">Help center · Compliance · Terms &amp; privacy</span></td><td class="arrow">→</td><td><strong>Resources ▾</strong><br><span class="muted">+ Trust &amp; governance</span></td><td>Governance is a claim; it needs a page to land on.</td></tr>
+          <tr><td><strong>Log in</strong></td><td class="arrow">→</td><td><strong>Log in</strong> <span class="muted">(unchanged)</span></td><td>—</td></tr>
+          <tr><td><strong>Watch it work</strong> <span class="muted">(outline)</span> <code>/#work</code></td><td class="arrow">→</td><td><strong>Explore FlowSmartly</strong> <span class="muted">(outline)</span> <code>/flowagent</code></td><td>Packet PRIMARY CTA.</td></tr>
+          <tr><td><strong>Start free</strong> <span class="muted">(gradient)</span> <code>/register</code></td><td class="arrow">→</td><td><strong>Join V5 Early Access</strong> <span class="muted">(gradient)</span> <code>/v5</code> <span style="color:var(--accent-rose)">(route does not exist)</span></td><td>Packet SECONDARY CTA — needs a new route.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="h3" style="margin-top:2rem">Where the nine surfaces land</h3>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th style="width:22%">Current surface</th><th style="width:6%"></th><th style="width:30%">Capability group</th><th style="width:42%">Product experience (packet name)</th></tr></thead>
+        <tbody>
+          <tr><td>Create <code>/surfaces/create</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>AI Studio</td></tr>
+          <tr><td>Print <code>/surfaces/print</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>AI Studio</td></tr>
+          <tr><td>Publish <code>/surfaces/publish</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>Social</td></tr>
+          <tr><td>Grow <code>/surfaces/grow</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>Ads</td></tr>
+          <tr><td>Sell <code>/surfaces/sell</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>FlowShop</td></tr>
+          <tr><td>Web <code>/surfaces/web</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td><span style="color:var(--accent-rose)">no packet name</span> — sits under Social/AI Studio or needs one</td></tr>
+          <tr><td>Outreach <code>/surfaces/outreach</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>Email + SMS · ListSmartly</td></tr>
+          <tr><td>Leads <code>/surfaces/leads</code></td><td class="arrow">→</td><td>Business &amp; Growth</td><td>CRM / Leads</td></tr>
+          <tr><td>Business <code>/surfaces/business</code></td><td class="arrow">→</td><td>Intelligence <span class="muted">+ Operations</span></td><td>Analytics</td></tr>
+          <tr><td><span class="muted">— nothing today —</span></td><td class="arrow">→</td><td>Engineering &amp; Technology</td><td>Autonomous Engineering <span style="color:var(--accent-rose)">(no public page exists)</span></td></tr>
+          <tr><td><span class="muted">— nothing today —</span></td><td class="arrow">→</td><td>Operations</td><td>Automation <span style="color:var(--accent-rose)">(no public page exists)</span></td></tr>
+          <tr><td><span class="muted">— nothing today —</span></td><td class="arrow">→</td><td>Agent Platform</td><td>Custom Agents <span style="color:var(--accent-rose)">(no public page exists)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="h3" style="margin-top:2rem">Conflicts with what the site claims today</h3>
+    <div class="notes">
+      <div class="note"><div class="n">Hero contradicts the LEAD RULE</div><div class="d">Live: badge "Your AI marketing team — in one chat", H1 "One agent runs your whole marketing." That leads with marketing — the exact thing the packet forbids leading with.</div></div>
+      <div class="note"><div class="n">Site metadata leads with channels</div><div class="d"><code>src/app/layout.tsx</code> title "AI-Powered Content Creation &amp; Marketing Platform"; keywords are social/email/SMS/ads; the JSON-LD <code>SoftwareApplication</code> describes a marketing platform. SEO says "AI marketing tool" while the page would say "operating system".</div></div>
+      <div class="note"><div class="n">All nine surfaces collapse into one group</div><div class="d">Every existing surface maps to <em>Business &amp; Growth</em>. Four of the five capability groups have zero public surface today — the packet promises a breadth the site cannot yet show.</div></div>
+      <div class="note"><div class="n">"Agent" is already taken</div><div class="d"><code>/hire-agent</code>, <code>/agent/*</code> and the marketplace use "agent" to mean a <em>human freelancer</em>. "FlowAgent" and "specialized agents" collide with that meaning in the same product.</div></div>
+      <div class="note"><div class="n">Named products were deliberately buried</div><div class="d"><code>LEGACY_SURFACE_REDIRECTS</code> folds <code>/flowshop</code>→Sell and <code>/listsmartly-details</code>→Outreach. The packet re-elevates FlowShop and ListSmartly as named experiences — that reverses a shipped IA decision.</div></div>
+      <div class="note"><div class="n">Both packet CTAs are new routes</div><div class="d">"Explore FlowSmartly" and "Join V5 Early Access" have no destination. The hero's email capture currently posts straight to <code>/register?email=</code>. Early access needs its own route and capture, or the CTA lies.</div></div>
+      <div class="note"><div class="n">Credits vs. enterprise</div><div class="d">The live site sells on "Pay for work, not seats" and per-action credit pricing. The packet is silent on commercial model but talks to enterprises about policy, authority and architecture. Those two stories need reconciling before the pricing page is touched.</div></div>
+      <div class="note ok"><div class="n">Dark-only is not a bug</div><div class="d"><code>MarketingShell</code> hard-codes <code>.dark</code>, so the public site ignores the user's theme. This mock defaults to dark to match; the light/grey switcher is mock chrome only.</div></div>
+    </div>
+
+    <h3 class="h3" style="margin-top:2rem" id="pricing-note">Wording guard applied throughout</h3>
+    <p class="lede" style="font-size:.9375rem">"Agentic" describes the system. "Autonomous" appears only where the packet uses it — <em>Autonomous Engineering</em> and <em>autonomous engineering</em> as a workload. Every claim of independent action in this mock is paired with authority, approval or governance; nothing implies unlimited independent authority.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div class="fcol">
+        <span class="logo"><span class="mark"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span>FlowSmartly</span>
+        <p style="margin-top:.875rem;font-size:.8125rem;line-height:1.6;color:hsl(var(--muted-foreground));max-width:22rem">An agentic business operating system — agents, tools, context, permissions and governance in one system.</p>
+      </div>
+      <div class="fcol"><h4>Platform</h4><a href="#flowagent">FlowAgent</a><a href="#continuous">Continuous operation</a><a href="#enterprise">Governance</a><a href="#enterprise">Verification</a></div>
+      <div class="fcol"><h4>Capabilities</h4><a href="#groups">Business &amp; Growth</a><a href="#groups">Engineering &amp; Technology</a><a href="#groups">Operations</a><a href="#groups">Intelligence</a><a href="#groups">Agent Platform</a></div>
+      <div class="fcol"><h4>Solutions</h4><a href="#enterprise">Enterprise</a><a href="#engineering">Autonomous engineering</a><a href="#scale">Scale</a><a href="#launch">V5 early access</a></div>
+      <div class="fcol"><h4>Legal</h4><a href="#">Privacy</a><a href="#">Terms</a><a href="#">GDPR</a><a href="#">SMS terms</a></div>
+    </div>
+    <div class="fbot"><span>&copy; FlowSmartly — positioning mock, not production copy.</span><span>design/v5-agentic-bos-positioning.html</span></div>
+  </div>
+</footer>
+
+<div class="themebar" role="group" aria-label="Preview theme">
+  <button data-theme="dark" aria-pressed="true">Dark</button>
+  <button data-theme="grey" aria-pressed="false">Grey</button>
+  <button data-theme="light" aria-pressed="false">Light</button>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+
+  /* theme switcher (mock chrome only — live site is .dark always) */
+  document.querySelectorAll('.themebar button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var t=b.dataset.theme;
+      root.classList.remove('dark','grey');
+      if(t!=='light') root.classList.add(t);
+      document.querySelectorAll('.themebar button').forEach(function(o){
+        o.setAttribute('aria-pressed', String(o===b));
+      });
+    });
+  });
+
+  /* header shrink on scroll (mirrors PublicHeader) */
+  var hdr=document.getElementById('hdr');
+  function onScroll(){ hdr.classList.toggle('scrolled', window.scrollY>16); }
+  onScroll(); window.addEventListener('scroll',onScroll,{passive:true});
+
+  /* mega menus: hover on pointer devices, click everywhere */
+  var host=document.getElementById('megahost');
+  var bar=document.getElementById('hdrbar');
+  var current=null;
+  function open(key){
+    current=key;
+    host.hidden = key===null;
+    host.querySelectorAll('[data-panel]').forEach(function(p){ p.hidden = p.dataset.panel!==key; });
+    document.querySelectorAll('#nav [data-menu]').forEach(function(b){
+      b.dataset.open = String(b.dataset.menu===key);
+    });
+  }
+  document.querySelectorAll('#nav [data-menu]').forEach(function(b){
+    b.addEventListener('mouseenter',function(){ open(b.dataset.menu); });
+    b.addEventListener('click',function(){ open(current===b.dataset.menu?null:b.dataset.menu); });
+  });
+  document.querySelectorAll('#nav a').forEach(function(a){
+    a.addEventListener('mouseenter',function(){ open(null); });
+  });
+  bar.addEventListener('mouseleave',function(){ open(null); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ open(null); closeSheet(); } });
+
+  /* mobile sheet */
+  var sheet=document.getElementById('sheet');
+  function closeSheet(){ sheet.dataset.open='false'; }
+  document.getElementById('burger').addEventListener('click',function(){ sheet.dataset.open='true'; });
+  sheet.querySelectorAll('[data-close]').forEach(function(el){ el.addEventListener('click',closeSheet); });
+
+  /* Reveal-on-scroll (framer-motion Reveal equivalent) */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = document.querySelectorAll('.rv');
+  if(reduced || !('IntersectionObserver' in window)){
+    items.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    },{rootMargin:'0px 0px -12% 0px'});
+    items.forEach(function(el,i){ el.style.transitionDelay=(Math.min(i,3)*60)+'ms'; io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>
