@@ -94,3 +94,4 @@ prisma/generated/
 qa-shots/
 qa-typography-*.json
 scripts/vendor/
+qa-fixtures/

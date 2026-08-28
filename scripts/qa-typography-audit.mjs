@@ -38,13 +38,24 @@ const WIDTH = Number(arg('--width', '390'));
 const HEIGHT = WIDTH <= 430 ? 844 : WIDTH <= 820 ? 1024 : 900;
 const SHOTS = arg('--shots', '');
 /*
- * Text over a photo FAILS by default.
+ * Text over a photo is now SCORED, against a guaranteed bound.
  *
- * The ground is not computable there, and the design rule now says hero copy
- * must sit on a surface or an opaque gradient rather than on "the photo happens
- * to be dark enough just here". Dark navy body copy crossing a bright window
- * and then a face is what settled it. Pass --allow-media to demote these back
- * to a note.
+ * This rule has been wrong twice in opposite directions. First it invented a
+ * number by scoring hero copy against the page behind the photo. Then it
+ * refused to score at all and failed anything over an image - which was right
+ * while the design put no text on photography, and useless the moment the
+ * design deliberately does, because it can neither pass such a design nor
+ * prove it unsafe.
+ *
+ * The bound settles it. The photo's pixels are unknowable, but every photo
+ * lies between black and white, so compositing the MEASURED scrim over both
+ * extremes brackets every possible ground. Scoring against the worse of the
+ * two yields a guarantee: "whatever the photograph is, this text clears X:1".
+ * A scrim can then be tuned against evidence rather than against how one
+ * particular image happens to look.
+ *
+ * `unverified` therefore no longer fires for photographs, and --allow-media
+ * is kept only for the case of a background nothing can be bracketed from.
  */
 const NO_STRICT_MEDIA = process.argv.includes('--allow-media');
 
@@ -52,7 +63,7 @@ const FLOOR = 14;          // nothing on the public site sits below this
 const LABEL_FLOOR = 12;    // except a short uppercase tracked signpost
 const LABEL_MAX_CHARS = 28;
 
-const ROUTES = [
+const ROUTES = arg("--routes", "") ? arg("--routes", "").split(",") : [
   '/', '/product', '/pricing', '/flowagent', '/login', '/early-access',
   '/solutions/custom-automation', '/platform/ads', '/resources/templates',
   '/company/about', '/legal/terms', '/education/ai-fluency',
@@ -73,6 +84,7 @@ const findings = [];
 const byCategory = new Map();
 const pageStats = [];
 const unverified = [];
+let overPhotoScored = 0;
 
 for (const route of ROUTES) {
   let res;
@@ -269,7 +281,33 @@ for (const route of ROUTES) {
       for (let i = stack.length - 1; i >= 0; i--) {   // topmost first
         if (branches.every((br) => br.a >= 0.999)) break;
         const L = stack[i];
-        if (L.kind === 'image') return { unverified: true, grounds: [] };
+        if (L.kind === 'image') {
+          /*
+           * A photograph, reached before the stack turned opaque. The pixels
+           * are unknowable from computed styles - but the ANSWER is not.
+           *
+           * Whatever the photo shows, it is somewhere between black and white,
+           * so compositing the scrim we HAVE measured over each of those two
+           * extremes brackets every possible ground. Score against both and
+           * take the worse: the result is then a guarantee - "no matter what
+           * the photograph is, this text clears X:1" - rather than an opinion
+           * about one particular image.
+           *
+           * This replaces refusing to score. Refusing was right while the
+           * design put no text on photography; it is useless for a design that
+           * deliberately does, because it can neither pass it nor prove it
+           * unsafe. A bound can do both, and it is what lets a scrim be tuned
+           * against evidence instead of against how one photo happens to look.
+           */
+          const bracketed = [];
+          for (const br of branches) {
+            const w = 1 - br.a;
+            for (const extreme of [0, 255]) {
+              bracketed.push([br.c[0] + extreme * w, br.c[1] + extreme * w, br.c[2] + extreme * w]);
+            }
+          }
+          return { unverified: false, overPhoto: true, grounds: bracketed };
+        }
         const cols = L.kind === 'gradient'
           ? L.stops.slice(0, 3).map((s) => ({ rgb: s.rgb, a: s.a * (L.op === undefined ? 1 : L.op) }))
           : [{ rgb: L.rgb, a: L.a }];
@@ -317,7 +355,7 @@ for (const route of ROUTES) {
       const bg = effBg(node);
       out.push({
         text: txt.slice(0, 46), size: parseFloat(cs.fontSize), weight: cs.fontWeight,
-        color: cs.color, grounds: bg.grounds, unverified: bg.unverified,
+        color: cs.color, grounds: bg.grounds, unverified: bg.unverified, overPhoto: !!bg.overPhoto,
         transform: cs.textTransform, family, cat: category(node),
       });
     }
@@ -377,12 +415,24 @@ for (const route of ROUTES) {
         }
       } else if (!transparent && n.grounds && n.grounds.length) {
         const fg = [p[0], p[1], p[2]];
-        const cr = Math.min.apply(null, n.grounds.map((g) => ratio(fg, g)));
+        /*
+         * Report the ground that PRODUCED the worst ratio, not grounds[0].
+         * Printing the first candidate showed "1.41:1 #ffffff on #000000" -
+         * white on black, which is 21:1 - so the number and the colours told
+         * different stories and the colours were the wrong one.
+         */
+        let worstGround = n.grounds[0];
+        let cr = Infinity;
+        for (const g of n.grounds) {
+          const r = ratio(fg, g);
+          if (r < cr) { cr = r; worstGround = g; }
+        }
         if (cr < cat.worst) { cat.worst = cr; cat.worstText = n.text; }
         const large = n.size >= 24 || (n.size >= 18.66 && Number(n.weight) >= 700);
         const need = large ? 3.0 : 4.5;
+        if (n.overPhoto) overPhotoScored++;
         if (cr < need) {
-          findings.push({ route, kind: 'contrast', cr: +cr.toFixed(2), fg: hx(fg), bg: hx(n.grounds[0]), size: n.size, cat: n.cat, text: n.text, detail: cr.toFixed(2) + ':1 < ' + need + ' at ' + n.size + 'px [' + n.cat + '] ' + hx(fg) + ' on ' + hx(n.grounds[0]) + ' "' + n.text + '"' });
+          findings.push({ route, kind: 'contrast', cr: +cr.toFixed(2), fg: hx(fg), bg: hx(worstGround), size: n.size, cat: n.cat, text: n.text, detail: cr.toFixed(2) + ':1 < ' + need + ' at ' + n.size + 'px [' + n.cat + '] ' + hx(fg) + ' on ' + hx(worstGround) + ' "' + n.text + '"' });
         }
       }
     }
@@ -427,6 +477,12 @@ if (unverified.length) {
   const byRoute = {};
   for (const u of unverified) byRoute[u.route] = (byRoute[u.route] || 0) + 1;
   for (const [rt, ct] of Object.entries(byRoute)) console.log('      ' + rt.padEnd(30) + ct + ' nodes - needs a visual check');
+}
+if (overPhotoScored) {
+  console.log('');
+  console.log('  ' + overPhotoScored + ' text node(s) sit over a photograph and were scored against a GUARANTEED bound:');
+  console.log('  the measured scrim composited over both black and white, worse of the two reported.');
+  console.log('  A pass here means legible whatever the photograph turns out to be.');
 }
 console.log('');
 console.log('=== page length at ' + WIDTH + 'px (viewport ' + HEIGHT + 'px tall) ===');

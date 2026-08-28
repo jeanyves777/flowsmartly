@@ -40,6 +40,10 @@ SERVER=$!
 sleep 3
 curl -s -o /dev/null -w '  server: %{http_code}\n' "http://127.0.0.1:$PORT/" --max-time 10
 
+step "contrast gate self-test"
+node scripts/qa-selftest-contrast.mjs 2>&1 | tail -5
+mark ${PIPESTATUS[0]} "the gate can still fail"
+
 step "typography, contrast, overflow"
 for W in 390 768 1440; do
   node scripts/qa-typography-audit.mjs --width "$W" --shots "./qa-shots/$W" 2>&1 \
