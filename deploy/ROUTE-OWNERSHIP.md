@@ -5,7 +5,14 @@ The definitive table. If a path is not in it, it is **unowned** and returns V5's
 fallthrough to V4, so a route can never start working by accident.
 
 Configs: [`nginx-flowsmartly-v5.conf`](nginx-flowsmartly-v5.conf) (apex),
-[`nginx-legacy-v4.conf`](nginx-legacy-v4.conf) (legacy host).
+[`nginx-legacy-v4.conf`](nginx-legacy-v4.conf) (legacy host),
+[`nginx-upstream-v4.conf`](nginx-upstream-v4.conf) (shared `upstream v4_app` and
+the `limit_req` zones — a separate file so a rollback of the apex cannot take the
+legacy host down with it).
+
+Every row below is asserted by [`../scripts/precheck-v5-routes.mjs`](../scripts/precheck-v5-routes.mjs),
+which parses the config and emulates Nginx's own resolution order rather than
+grepping for strings. A row that stops being true fails CI.
 
 ## Owners
 
@@ -27,7 +34,8 @@ Configs: [`nginx-flowsmartly-v5.conf`](nginx-flowsmartly-v5.conf) (apex),
 | `/product` | `V5_STATIC` | `product.html` | — | — | |
 | `/pricing` | `V5_STATIC` | `pricing.html` | — | — | Replaces V4's `/pricing` |
 | `/flowagent` | `V5_STATIC` | `flowagent.html` | — | — | |
-| `/flow-ai` | `V5_STATIC` | `flow-ai/index.html` | → `/flowagent` | — | Client-side redirect stub in the export. Free on the apex only because V4's authenticated `/flow-ai` moved to the legacy host |
+| `/flow-ai` | `REDIRECT_V5` | **301** | `/flowagent` | yes | A real server 301, which `apps/v5/scripts/agent-assets.js` asks for by name — the export's `flow-ai/index.html` stub carries `rel=canonical` but cannot consolidate ranking signals. The stub still serves `/flow-ai/`. Free on the apex only because V4's authenticated `/flow-ai` moved to the legacy host. **The V4 deploy health check is unaffected**: `scripts/deploy-vps.sh` checks `127.0.0.1:3000/flow-ai`, straight to the upstream, bypassing Nginx |
+| `<any V5 route>.html` | `REDIRECT_V5` | **301** | the clean URL | yes | `expo export` writes `flowagent.html`; serving it at that URL makes expo-router match nothing and render its not-found page **with a 200**. Scoped to the V5 namespace so customer-published `.html` URLs under `/sites/*` and `/store/*` are untouched. See `scripts/qa-serve.mjs` |
 | `/login` | `V5_STATIC` | `login.html` | — | — | Transition page, **not** authentication |
 | `/early-access` | `V5_STATIC` | `early-access.html` | — | — | Lead funnel |
 | `/solutions/*` | `V5_STATIC` | export | — | — | 11 routes |
@@ -40,6 +48,7 @@ Configs: [`nginx-flowsmartly-v5.conf`](nginx-flowsmartly-v5.conf) (apex),
 | `/_expo/*` | `V5_STATIC` | export | — | — | Content-hashed, `immutable`, 1y |
 | `/assets/*` | `V5_STATIC` | export | — | — | 30d |
 | `/favicon.ico` | `V5_STATIC` | export | — | — | |
+| `/api/v1/leads` | `V5_API` | V4 `:3000` **(TEMPORARY BRIDGE)** | — | — | The V5 public lead contract, implemented at `src/app/api/v1/leads/route.ts`. An exact-match `location` with its own rate limit — it is the only unauthenticated write surface on the apex. The V5 frontend knows only this path and this shape; retiring the bridge is one `proxy_pass` change plus a data migration, with **zero frontend change** |
 | `/api/v1/*` | `V5_API` | V4 `:3000` **(temporary)** | — | — | V5 contract. One `proxy_pass` line moves it to the real V5 API |
 | `/api/*` | `V4_API` | V4 `:3000` | — | — | **Unchanged on purpose** — 21 vendor-registered callbacks + 8 cron entries |
 | `/p/*` `/store/*` `/sites/*` `/form/*` `/ad/*` `/m/*` `/t/*` `/ref/*` `/optin/*` `/survey/*` `/event/*` `/bp/*` `/pf/*` `/follow-up/*` `/ticket` | `V4_LEGACY_PUBLIC_CONTENT` | V4 `:3000` | — | yes (proxied) | Published in campaigns, QR codes and print. Must not move |
@@ -48,7 +57,7 @@ Configs: [`nginx-flowsmartly-v5.conf`](nginx-flowsmartly-v5.conf) (apex),
 | `/terms` | `REDIRECT_V5` | 301 | `/legal/terms` | yes | |
 | `/sms-terms` | `REDIRECT_V5` | 301 | `/legal/sms-terms` | yes | Cited in carrier campaign registration |
 | `/gdpr` | `REDIRECT_V5` | 301 | `/legal/gdpr` | yes | |
-| `/register` `/signup` `/get-started` `/start` | `REDIRECT_V5` | **302** | `/early-access` | no | 302, not 301: these become real V5 registration later and a cached 301 would outlive that |
+| `/register` `/signup` `/get-started` `/start` | `REDIRECT_V5` | **302** | `/early-access` | yes | 302, not 301: these become real V5 registration later and a cached 301 would outlive that. The query is preserved because these are the URLs paid and referral traffic lands on — dropping it destroys the `utm_*` attribution for exactly the visitors the funnel exists to measure |
 | `/book-demo` | `REDIRECT_V5` | 301 | `/company/contact?topic=demo` | no | |
 | `/reset-password` | `REDIRECT_LEGACY` | 301 | `legacy…/reset-password` | **yes — critical** | Live tokens in already-sent email |
 | `/verify-email` | `REDIRECT_LEGACY` | 301 | `legacy…/verify-email` | **yes — critical** | Live tokens in already-sent email |
