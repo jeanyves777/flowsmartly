@@ -592,7 +592,7 @@ export function SectionArt({ variant, color, side = 'right', bleed = false }: Se
               transform: flip ? [...flip] : undefined,
             },
           ]}>
-          <FontAwesome6 name={n.icon as never} size={15} color={mark} />
+          <FontAwesome6 name={n.icon as never} size={15} color={mark}  aria-hidden={true}/>
         </View>
       ))}
     </View>
@@ -931,7 +931,7 @@ export function SectionAside({
             asideStyles.glyph,
             { left: `${(n.x / ASIDE_W) * 100}%`, top: `${(n.y / ASIDE_FIELD) * 100}%` },
           ]}>
-          <FontAwesome6 name={n.icon as never} size={Math.round((n.r * 0.62 * height) / ASIDE_FIELD)} color={mark} />
+          <FontAwesome6 name={n.icon as never} size={Math.round((n.r * 0.62 * height) / ASIDE_FIELD)} color={mark}  aria-hidden={true}/>
         </View>
       ))}
     </View>
@@ -1144,9 +1144,9 @@ export function PrimaryButton({
           justifyContent: 'center',
           gap: 9,
         }}>
-        {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand} /> : null}
+        {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand}  aria-hidden={true}/> : null}
         <Text style={{ color: t.textOnBrand, fontSize: s.font, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
-        {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand} /> : null}
+        {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand}  aria-hidden={true}/> : null}
       </LinearGradient>
     </Pressable>
   );
@@ -1190,9 +1190,9 @@ export function SecondaryButton({
         },
         full ? { width: '100%' } : null,
       ]}>
-      {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text} /> : null}
+      {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text}  aria-hidden={true}/> : null}
       <Text style={{ color: t.text, fontSize: s.font, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
-      {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text} /> : null}
+      {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text}  aria-hidden={true}/> : null}
     </Pressable>
   );
 }
@@ -1236,7 +1236,7 @@ export function TextLink({
         opacity: pressed ? 0.7 : 1,
       })}>
       <Text style={{ color: accentText(t.brand, t), fontSize: 14, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
-      <FontAwesome6 name={icon as never} size={12} color={t.brand} />
+      <FontAwesome6 name={icon as never} size={12} color={t.brand}  aria-hidden={true}/>
     </Pressable>
   );
 }

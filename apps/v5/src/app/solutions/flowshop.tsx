@@ -351,7 +351,7 @@ function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeToken
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{text}</Text>
     </View>
@@ -521,7 +521,7 @@ export default function FlowShopPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -541,7 +541,7 @@ export default function FlowShopPage() {
                     {row.brand ? (
                       <BrandLogo name={row.brand} size={16} />
                     ) : (
-                      <FontAwesome6 name={row.icon as never} size={14} color={t.brand} />
+                      <FontAwesome6 name={row.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                     )}
                   </View>
                   <View style={styles.migrationCopy}>
@@ -565,13 +565,13 @@ export default function FlowShopPage() {
                   <View style={[styles.browserDot, { backgroundColor: t.green }]} />
                 </View>
                 <View style={styles.urlPill}>
-                  <FontAwesome6 name="lock" size={9} color={t.textSubtle} />
+                  <FontAwesome6 name="lock" size={9} color={t.textSubtle}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.urlText}>
                     yourbrand.flowshop.com
                   </Text>
                 </View>
                 <View style={styles.cartPill}>
-                  <FontAwesome6 name="bag-shopping" size={11} color={t.brand} />
+                  <FontAwesome6 name="bag-shopping" size={11} color={t.brand}  aria-hidden={true}/>
                   <Text style={styles.cartCount}>3</Text>
                 </View>
               </View>
@@ -709,7 +709,7 @@ export default function FlowShopPage() {
               {EDITABLE.map((row) => (
                 <View key={row.key} style={styles.editableRow}>
                   <View style={styles.editableIcon}>
-                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.editableCopy}>
                     <Text numberOfLines={1} style={styles.editableLabel}>
@@ -736,7 +736,7 @@ export default function FlowShopPage() {
                           styles.radio,
                           selected ? { borderColor: t.brand, backgroundColor: t.brand } : null,
                         ]}>
-                        {selected ? <FontAwesome6 name="check" size={8} color={t.textOnBrand} /> : null}
+                        {selected ? <FontAwesome6 name="check" size={8} color={t.textOnBrand}  aria-hidden={true}/> : null}
                       </View>
                       <View style={styles.themeCopy}>
                         <Text numberOfLines={1} style={styles.themeName}>
@@ -762,7 +762,7 @@ export default function FlowShopPage() {
                     Aurora preview
                   </Text>
                   <View style={styles.previewChip}>
-                    <FontAwesome6 name="mobile-screen" size={10} color={t.chipText} />
+                    <FontAwesome6 name="mobile-screen" size={10} color={t.chipText}  aria-hidden={true}/>
                     <Text style={styles.previewChipText}>Mobile checked</Text>
                   </View>
                 </View>
@@ -902,7 +902,7 @@ export default function FlowShopPage() {
             <View style={styles.aiCard}>
               <View style={styles.aiHead}>
                 <View style={styles.aiIcon}>
-                  <FontAwesome6 name="wand-magic-sparkles" size={14} color={t.violet} />
+                  <FontAwesome6 name="wand-magic-sparkles" size={14} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <View style={styles.aiHeadCopy}>
                   <Text numberOfLines={1} style={styles.aiTitle}>
@@ -922,7 +922,7 @@ export default function FlowShopPage() {
               <View style={styles.chipWrap}>
                 {COPY_PARTS.map((part) => (
                   <View key={part} style={styles.softChip}>
-                    <FontAwesome6 name="check" size={8} color={t.green} />
+                    <FontAwesome6 name="check" size={8} color={t.green}  aria-hidden={true}/>
                     <Text style={styles.softChipText}>{part}</Text>
                   </View>
                 ))}
@@ -962,7 +962,7 @@ export default function FlowShopPage() {
                 return (
                   <View key={row.key} style={styles.featureRow}>
                     <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={row.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={row.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.featureCopy}>
                       <Text numberOfLines={1} style={styles.featureLabel}>
@@ -988,7 +988,7 @@ export default function FlowShopPage() {
                   Checkout
                 </Text>
                 <View style={styles.secureChip}>
-                  <FontAwesome6 name="lock" size={9} color={t.successText} />
+                  <FontAwesome6 name="lock" size={9} color={t.successText}  aria-hidden={true}/>
                   <Text style={styles.secureText}>Secure</Text>
                 </View>
               </View>
@@ -1035,7 +1035,7 @@ export default function FlowShopPage() {
               </View>
 
               <View style={styles.payButton}>
-                <FontAwesome6 name="lock" size={12} color={t.textOnBrand} />
+                <FontAwesome6 name="lock" size={12} color={t.textOnBrand}  aria-hidden={true}/>
                 <Text style={styles.payText}>Pay $187.94</Text>
               </View>
 
@@ -1071,14 +1071,14 @@ export default function FlowShopPage() {
                 <View key={item.key} style={styles.dataCell}>
                   <View style={styles.dataRow}>
                     <View style={styles.dataIcon}>
-                      <FontAwesome6 name={item.icon as never} size={12} color={t.brand} />
+                      <FontAwesome6 name={item.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <View style={styles.dataCopy}>
                       <View style={styles.dataLabelRow}>
                         <Text numberOfLines={1} style={styles.dataLabel}>
                           {item.label}
                         </Text>
-                        <FontAwesome6 name="circle-check" size={11} color={t.green} />
+                        <FontAwesome6 name="circle-check" size={11} color={t.green}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.dataNote}>{item.note}</Text>
                     </View>
@@ -1091,7 +1091,7 @@ export default function FlowShopPage() {
           <Reveal style={styles.splitVisual} distance={16} delay={80}>
             <View style={styles.codeCard}>
               <View style={styles.codeHead}>
-                <FontAwesome6 name="code" size={12} color={t.brand} />
+                <FontAwesome6 name="code" size={12} color={t.brand}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.codeTitle}>
                   Structured catalog
                 </Text>
@@ -1151,7 +1151,7 @@ export default function FlowShopPage() {
                       <View style={[styles.trackFill, { width, backgroundColor: accent }]} />
                     </View>
                     <View style={styles.channelState}>
-                      <FontAwesome6 name="circle-check" size={10} color={t.green} />
+                      <FontAwesome6 name="circle-check" size={10} color={t.green}  aria-hidden={true}/>
                       <Text numberOfLines={1} style={styles.channelStateText}>
                         {channel.state}
                       </Text>
@@ -1183,7 +1183,7 @@ export default function FlowShopPage() {
             </View>
             <View style={styles.attributionCard}>
               <View style={styles.attributionIcon}>
-                <FontAwesome6 name="chart-line" size={13} color={t.green} />
+                <FontAwesome6 name="chart-line" size={13} color={t.green}  aria-hidden={true}/>
               </View>
               <Text style={styles.attributionText}>
                 Spring drop • 62 orders • $8,412 attributed
@@ -1215,7 +1215,7 @@ export default function FlowShopPage() {
                     <Fragment key={step.key}>
                       <View style={styles.chainRow}>
                         <View style={[styles.chainIcon, { backgroundColor: softFill(accent, t) }]}>
-                          <FontAwesome6 name={step.icon as never} size={13} color={accent} />
+                          <FontAwesome6 name={step.icon as never} size={13} color={accent}  aria-hidden={true}/>
                         </View>
                         <View style={styles.chainCopy}>
                           <Text numberOfLines={1} style={styles.chainLabel}>
@@ -1228,7 +1228,7 @@ export default function FlowShopPage() {
                       </View>
                       {index < CHAIN.length - 1 ? (
                         <View style={styles.chainArrow}>
-                          <FontAwesome6 name="arrow-down" size={12} color={t.borderStrong} />
+                          <FontAwesome6 name="arrow-down" size={12} color={t.borderStrong}  aria-hidden={true}/>
                         </View>
                       ) : null}
                     </Fragment>
@@ -1263,7 +1263,7 @@ export default function FlowShopPage() {
             <View style={styles.chatCard}>
               <View style={styles.chatHead}>
                 <View style={styles.chatAvatar}>
-                  <FontAwesome6 name="headset" size={13} color={t.brand} />
+                  <FontAwesome6 name="headset" size={13} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.chatHeadCopy}>
                   <Text numberOfLines={1} style={styles.chatTitle}>
@@ -1313,7 +1313,7 @@ export default function FlowShopPage() {
               </View>
 
               <View style={styles.chatFoot}>
-                <FontAwesome6 name="user-check" size={11} color={t.textSubtle} />
+                <FontAwesome6 name="user-check" size={11} color={t.textSubtle}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.chatFootText}>
                   Hand over to a person any time
                 </Text>
@@ -1346,7 +1346,7 @@ export default function FlowShopPage() {
         <View style={styles.recoverRow}>
           <View style={styles.recoverCard}>
             <View style={styles.recoverIcon}>
-              <FontAwesome6 name="cart-shopping" size={15} color={t.orange} />
+              <FontAwesome6 name="cart-shopping" size={15} color={t.orange}  aria-hidden={true}/>
             </View>
             <View style={styles.recoverCopy}>
               <Text numberOfLines={1} style={styles.recoverTitle}>
@@ -1359,14 +1359,14 @@ export default function FlowShopPage() {
             {/* Illustration of the product surface, not a control. */}
             <View style={styles.recoverButton}>
               <Text style={styles.recoverButtonText}>Recover</Text>
-              <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+              <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
             </View>
           </View>
 
           <View style={styles.toolStrip}>
             {GROWTH_TOOLS.map((tool) => (
               <View key={tool.key} style={styles.toolChip}>
-                <FontAwesome6 name={tool.icon as never} size={12} color={t.brand} />
+                <FontAwesome6 name={tool.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.toolText}>
                   {tool.label}
                 </Text>

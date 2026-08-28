@@ -442,7 +442,7 @@ function KpiTile({
     <View ref={counter.ref as never} style={styles.kpiTile}>
       <View style={styles.kpiHead}>
         <View style={[styles.kpiIcon, { backgroundColor: hexToRgba(accent, 0.14) }]}>
-          <FontAwesome6 name={icon as never} size={12} color={accent} />
+          <FontAwesome6 name={icon as never} size={12} color={accent}  aria-hidden={true}/>
         </View>
         {/* two lines as a backstop, so a long label wraps rather than loses a word */}
         <Text numberOfLines={2} style={styles.kpiLabel}>
@@ -453,7 +453,7 @@ function KpiTile({
         {`${prefix}${shown}${suffix}`}
       </Text>
       <View style={styles.kpiDeltaRow}>
-        <FontAwesome6 name="arrow-trend-up" size={10} color={accent} />
+        <FontAwesome6 name="arrow-trend-up" size={10} color={accent}  aria-hidden={true}/>
         <Text numberOfLines={1} style={[styles.kpiDelta, { color: accentText(accent, t) }]}>
           {`${delta} vs last period`}
         </Text>
@@ -489,7 +489,7 @@ function StatTile({
     <View ref={counter.ref as never} style={styles.statTile}>
       {icon ? (
         <View style={[styles.statIcon, { backgroundColor: hexToRgba(accent, 0.14) }]}>
-          <FontAwesome6 name={icon as never} size={13} color={accent} />
+          <FontAwesome6 name={icon as never} size={13} color={accent}  aria-hidden={true}/>
         </View>
       ) : null}
       <Text numberOfLines={1} style={[styles.statValue, { color: accentText(accent, t) }]}>
@@ -764,7 +764,7 @@ export default function TrainingAnalyticsPage() {
                 accessibilityLabel="Back to the FlowLearner overview"
                 onPress={() => router.push(ROUTES.flowLearner as never)}
                 style={({ pressed }) => [styles.backLink, pressed ? styles.pressed : null]}>
-                <FontAwesome6 name="arrow-left" size={10} color={t.textMuted} />
+                <FontAwesome6 name="arrow-left" size={10} color={t.textMuted}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.backLinkText}>
                   All of FlowLearner
                 </Text>
@@ -803,7 +803,7 @@ export default function TrainingAnalyticsPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -819,7 +819,7 @@ export default function TrainingAnalyticsPage() {
                 return (
                   <View key={item.key} style={styles.factRow}>
                     <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.factCopy}>
                       <Text style={styles.factTitle}>{item.title}</Text>
@@ -835,7 +835,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.dashboard}>
               <View style={styles.dashHead}>
                 <View style={styles.dashBadge}>
-                  <FontAwesome6 name="chart-column" size={13} color={t.brand} />
+                  <FontAwesome6 name="chart-column" size={13} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.dashHeadCopy}>
                   <Text numberOfLines={1} style={styles.dashTitle}>
@@ -1090,7 +1090,7 @@ export default function TrainingAnalyticsPage() {
                   <View style={styles.funnelFoot}>
                     {lost > 0 ? (
                       <View style={styles.dropChip}>
-                        <FontAwesome6 name="arrow-trend-down" size={9} color={t.warnText} />
+                        <FontAwesome6 name="arrow-trend-down" size={9} color={t.warnText}  aria-hidden={true}/>
                         <Text numberOfLines={1} style={styles.dropChipText}>
                           {`−${lost.toLocaleString('en-US')}`}
                         </Text>
@@ -1140,7 +1140,7 @@ export default function TrainingAnalyticsPage() {
           <View style={styles.panelCard}>
             <View style={styles.panelHead}>
               <View style={styles.panelIcon}>
-                <FontAwesome6 name="gauge-high" size={14} color={t.brand} />
+                <FontAwesome6 name="gauge-high" size={14} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text numberOfLines={1} style={styles.panelCardTitle}>
                 Engagement score by format
@@ -1203,7 +1203,7 @@ export default function TrainingAnalyticsPage() {
           <View style={styles.panelCard}>
             <View style={styles.panelHead}>
               <View style={styles.panelIcon}>
-                <FontAwesome6 name="triangle-exclamation" size={14} color={t.brand} />
+                <FontAwesome6 name="triangle-exclamation" size={14} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text numberOfLines={1} style={styles.panelCardTitle}>
                 Hardest questions
@@ -1261,7 +1261,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="certificate" size={14} color={t.brand} />
+                  <FontAwesome6 name="certificate" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Issued per month
@@ -1284,7 +1284,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="graduation-cap" size={14} color={t.brand} />
+                  <FontAwesome6 name="graduation-cap" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Issued by course
@@ -1345,7 +1345,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="coins" size={14} color={t.brand} />
+                  <FontAwesome6 name="coins" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Revenue detail
@@ -1373,7 +1373,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="chart-line" size={14} color={t.brand} />
+                  <FontAwesome6 name="chart-line" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Training-influenced pipeline
@@ -1392,10 +1392,10 @@ export default function TrainingAnalyticsPage() {
                 onPress={() => router.push(ROUTES.analytics as never)}
                 style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
                 <View style={styles.linkIcon}>
-                  <FontAwesome6 name="chart-column" size={12} color={t.brand} />
+                  <FontAwesome6 name="chart-column" size={12} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.linkText}>See how attribution works in Analytics</Text>
-                <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
               </Pressable>
             </View>
           </Reveal>
@@ -1421,7 +1421,7 @@ export default function TrainingAnalyticsPage() {
               <View style={styles.panelCard}>
                 <View style={styles.panelHead}>
                   <View style={styles.panelIcon}>
-                    <FontAwesome6 name={segment.icon as never} size={14} color={t.brand} />
+                    <FontAwesome6 name={segment.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.panelCardTitle}>
                     {segment.title}
@@ -1462,7 +1462,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="envelope-open-text" size={14} color={t.brand} />
+                  <FontAwesome6 name="envelope-open-text" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Scheduled reports
@@ -1476,7 +1476,7 @@ export default function TrainingAnalyticsPage() {
                 {SCHEDULED_REPORTS.map((report) => (
                   <View key={report.key} style={styles.reportRow}>
                     <View style={styles.reportIcon}>
-                      <FontAwesome6 name={report.icon as never} size={12} color={t.brand} />
+                      <FontAwesome6 name={report.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <View style={styles.reportCopy}>
                       <Text numberOfLines={1} style={styles.reportTitle}>
@@ -1496,7 +1496,7 @@ export default function TrainingAnalyticsPage() {
                     controls. */}
                 {EXPORT_FORMATS.map((format) => (
                   <View key={format.label} style={styles.exportChip}>
-                    <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted} />
+                    <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.exportChipText}>
                       {format.label}
                     </Text>
@@ -1510,7 +1510,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="users" size={14} color={t.brand} />
+                  <FontAwesome6 name="users" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
                   Shared with
@@ -1540,7 +1540,7 @@ export default function TrainingAnalyticsPage() {
               </View>
 
               <View style={styles.shareFoot}>
-                <FontAwesome6 name="shield-halved" size={11} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={11} color={t.green}  aria-hidden={true}/>
                 <Text numberOfLines={3} style={styles.shareFootText}>
                   Sharing is role-based: an instructor sees their own cohort, a manager sees their
                   team, and a viewer sees the totals without the individual records.

@@ -93,3 +93,4 @@ public/Studio_Menus_Thumnail/_training_thumbnail/ChatGPT Image*.png
 prisma/generated/
 qa-shots/
 qa-typography-*.json
+scripts/vendor/

@@ -411,7 +411,7 @@ function Stars({ size, color }: { size: number; color: string }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[0, 1, 2, 3, 4].map((index) => (
-        <FontAwesome6 key={index} name="star" size={size} color={color} solid />
+        <FontAwesome6 key={index} name="star" size={size} color={color} solid  aria-hidden={true}/>
       ))}
     </View>
   );
@@ -440,7 +440,7 @@ function ExpertCard({
             <Text numberOfLines={1} style={styles.expertName}>
               {expert.name}
             </Text>
-            <FontAwesome6 name="circle-check" size={12} color={t.brand} />
+            <FontAwesome6 name="circle-check" size={12} color={t.brand}  aria-hidden={true}/>
           </View>
           <Text numberOfLines={1} style={styles.expertRole}>
             {expert.role}
@@ -460,7 +460,7 @@ function ExpertCard({
           ({expert.reviews})
         </Text>
         <View style={styles.verifiedChip}>
-          <FontAwesome6 name="shield-halved" size={9} color={t.chipText} />
+          <FontAwesome6 name="shield-halved" size={9} color={t.chipText}  aria-hidden={true}/>
           <Text style={styles.verifiedText}>Verified</Text>
         </View>
       </View>
@@ -582,7 +582,7 @@ export default function AgentMarketplacePage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -598,7 +598,7 @@ export default function AgentMarketplacePage() {
               {INSTEAD_OF.map((row) => (
                 <View key={row.key} style={styles.insteadRow}>
                   <View style={styles.insteadIcon}>
-                    <FontAwesome6 name={row.icon as never} size={13} color={t.textSubtle} />
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.textSubtle}  aria-hidden={true}/>
                   </View>
                   <View style={styles.insteadCopy}>
                     <Text style={styles.insteadBefore}>{row.before}</Text>
@@ -612,7 +612,7 @@ export default function AgentMarketplacePage() {
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
             <View style={styles.searchCard}>
               <View style={styles.searchBar}>
-                <FontAwesome6 name="magnifying-glass" size={12} color={t.textSubtle} />
+                <FontAwesome6 name="magnifying-glass" size={12} color={t.textSubtle}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.searchText}>
                   Search 4,281 vetted experts
                 </Text>
@@ -628,7 +628,7 @@ export default function AgentMarketplacePage() {
                         {filterItem.value}
                       </Text>
                     </View>
-                    <FontAwesome6 name="chevron-down" size={9} color={t.textSubtle} />
+                    <FontAwesome6 name="chevron-down" size={9} color={t.textSubtle}  aria-hidden={true}/>
                   </View>
                 ))}
               </View>
@@ -660,7 +660,7 @@ export default function AgentMarketplacePage() {
             return (
               <View key={service.key} style={styles.serviceChip}>
                 <View style={[styles.serviceIcon, { backgroundColor: softFill(accent, t) }]}>
-                  <FontAwesome6 name={service.icon as never} size={13} color={accent} />
+                  <FontAwesome6 name={service.icon as never} size={13} color={accent}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.serviceLabel}>
                   {service.label}
@@ -712,7 +712,7 @@ export default function AgentMarketplacePage() {
                 return (
                   <View key={step.key} style={styles.matchRow}>
                     <View style={[styles.matchIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={step.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={step.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.matchCopy}>
                       <View style={styles.matchTitleRow}>
@@ -775,7 +775,7 @@ export default function AgentMarketplacePage() {
                 })}
               </View>
               <View style={styles.matchFoot}>
-                <FontAwesome6 name="shield-halved" size={11} color={t.textSubtle} />
+                <FontAwesome6 name="shield-halved" size={11} color={t.textSubtle}  aria-hidden={true}/>
                 <Text numberOfLines={2} style={styles.matchFootText}>
                   Matching reads your account only with your permission, and never shares it with an
                   expert you have not hired.
@@ -805,7 +805,7 @@ export default function AgentMarketplacePage() {
                 <View style={styles.flowCell}>
                   <View style={styles.flowStep}>
                     <View style={[styles.flowIcon, { backgroundColor: softFill(accent, t), borderColor: accent }]}>
-                      <FontAwesome6 name={step.icon as never} size={l.isPhone ? 16 : 18} color={accent} />
+                      <FontAwesome6 name={step.icon as never} size={l.isPhone ? 16 : 18} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={styles.flowLabel}>
                       {step.label}
@@ -818,7 +818,7 @@ export default function AgentMarketplacePage() {
                 {index < HIRE_FLOW.length - 1 ? (
                   <View style={styles.flowArrow}>
                     {l.isPhone ? (
-                      <FontAwesome6 name="arrow-down" size={12} color={t.borderStrong} />
+                      <FontAwesome6 name="arrow-down" size={12} color={t.borderStrong}  aria-hidden={true}/>
                     ) : (
                       <ArrowLink width={l.isDesktop ? 40 : 24} height={12} color={t.borderStrong} />
                     )}
@@ -846,7 +846,7 @@ export default function AgentMarketplacePage() {
                 return (
                   <View key={feature.key} style={styles.featureRow}>
                     <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={feature.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={feature.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.featureCopy}>
                       <Text numberOfLines={1} style={styles.featureTitle}>
@@ -915,7 +915,7 @@ export default function AgentMarketplacePage() {
               {MILESTONE_POINTS.map((point) => (
                 <View key={point} style={styles.tickRow}>
                   <View style={styles.tickDot}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.tickText}>{point}</Text>
                 </View>
@@ -948,7 +948,7 @@ export default function AgentMarketplacePage() {
                           name={paid ? 'check' : escrow ? 'lock' : 'clock'}
                           size={11}
                           color={paid ? t.green : escrow ? t.brand : t.textSubtle}
-                        />
+                         aria-hidden={true}/>
                       </View>
                       <View style={styles.milestoneCopy}>
                         <Text numberOfLines={1} style={styles.milestoneLabel}>
@@ -1013,7 +1013,7 @@ export default function AgentMarketplacePage() {
           {REPORTING_POINTS.map((point) => (
             <View key={point} style={styles.tickRow}>
               <View style={styles.tickDot}>
-                <FontAwesome6 name="check" size={9} color={t.green} />
+                <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
               </View>
               <Text style={styles.tickText}>{point}</Text>
             </View>
@@ -1038,7 +1038,7 @@ export default function AgentMarketplacePage() {
                   <View key={item.key} style={styles.trustCell}>
                     <View style={styles.trustCard}>
                       <View style={[styles.trustIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={item.icon as never} size={15} color={accent} />
+                        <FontAwesome6 name={item.icon as never} size={15} color={accent}  aria-hidden={true}/>
                       </View>
                       <Text numberOfLines={2} style={styles.trustTitle}>
                         {item.title}
@@ -1090,7 +1090,7 @@ export default function AgentMarketplacePage() {
               </View>
 
               <View style={styles.guaranteeRow}>
-                <FontAwesome6 name="shield-halved" size={13} color={t.successText} />
+                <FontAwesome6 name="shield-halved" size={13} color={t.successText}  aria-hidden={true}/>
                 <Text numberOfLines={2} style={styles.guaranteeText}>
                   If a milestone is not delivered as agreed, you are not charged for it.
                 </Text>
@@ -1123,7 +1123,7 @@ export default function AgentMarketplacePage() {
               {AGENT_BENEFITS.map((benefit) => (
                 <View key={benefit} style={styles.tickRow}>
                   <View style={styles.tickDot}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.tickText}>{benefit}</Text>
                 </View>
@@ -1159,7 +1159,7 @@ export default function AgentMarketplacePage() {
             radius={l.isPhone ? 34 : 44}
           />
           <View style={styles.quoteCopy}>
-            <FontAwesome6 name="quote-left" size={18} color={t.brand} />
+            <FontAwesome6 name="quote-left" size={18} color={t.brand}  aria-hidden={true}/>
             <Text style={[type.h3, styles.quoteText]}>
               FlowSmartly made it easy to find the right expert and work together seamlessly. Our ROAS
               increased 32% in 60 days.

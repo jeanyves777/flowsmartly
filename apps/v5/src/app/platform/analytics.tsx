@@ -446,7 +446,7 @@ function KpiTile({
     <View ref={counter.ref as never} style={styles.kpiTile}>
       <View style={styles.kpiHead}>
         <View style={[styles.kpiIcon, { backgroundColor: hexToRgba(accent, 0.14) }]}>
-          <FontAwesome6 name={icon as never} size={12} color={accent} />
+          <FontAwesome6 name={icon as never} size={12} color={accent}  aria-hidden={true}/>
         </View>
         {/* two lines as a backstop: the longest label fits its tile exactly at
             1440, and wrapping is better than losing a word if it ever does not */}
@@ -852,7 +852,7 @@ export default function AnalyticsPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -870,7 +870,7 @@ export default function AnalyticsPage() {
                       name={channel.icon as never}
                       size={11}
                       color={accentOf(channel.accent)}
-                    />
+                     aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.ledgerChipText}>
                       {channel.name}
                     </Text>
@@ -884,7 +884,7 @@ export default function AnalyticsPage() {
             </View>
 
             <View style={styles.quoteCard}>
-              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.quoteText}>
                 The weekly report used to be three spreadsheets that disagreed. Now it is one number
                 nobody argues with.
@@ -912,7 +912,7 @@ export default function AnalyticsPage() {
             <View style={styles.dashboard}>
               <View style={styles.dashHead}>
                 <View style={styles.dashBadge}>
-                  <FontAwesome6 name="chart-column" size={13} color={t.brand} />
+                  <FontAwesome6 name="chart-column" size={13} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.dashHeadCopy}>
                   <Text numberOfLines={1} style={styles.dashTitle}>
@@ -1045,7 +1045,7 @@ export default function AnalyticsPage() {
                         return (
                           <View key={action.key} style={styles.actionRow}>
                             <View style={[styles.actionIcon, { backgroundColor: softFill(accent, t) }]}>
-                              <FontAwesome6 name={action.icon as never} size={11} color={accent} />
+                              <FontAwesome6 name={action.icon as never} size={11} color={accent}  aria-hidden={true}/>
                             </View>
                             <View style={styles.actionCopy}>
                               <Text numberOfLines={1} style={styles.actionTitle}>
@@ -1055,7 +1055,7 @@ export default function AnalyticsPage() {
                                 {action.note}
                               </Text>
                             </View>
-                            <FontAwesome6 name="arrow-right" size={10} color={t.textSubtle} />
+                            <FontAwesome6 name="arrow-right" size={10} color={t.textSubtle}  aria-hidden={true}/>
                           </View>
                         );
                       })}
@@ -1091,7 +1091,7 @@ export default function AnalyticsPage() {
               <Reveal key={channel.key} style={styles.channelCell} distance={14} delay={index * 55}>
                 <View style={styles.channelCard}>
                   <View style={[styles.channelIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={channel.icon as never} size={15} color={accent} />
+                    <FontAwesome6 name={channel.icon as never} size={15} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.channelName}>
                     {channel.name}
@@ -1143,7 +1143,7 @@ export default function AnalyticsPage() {
               <View key={step.key} style={styles.journeyGroup}>
                 <View style={styles.journeyCard}>
                   <View style={[styles.journeyIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={step.icon as never} size={15} color={accent} />
+                    <FontAwesome6 name={step.icon as never} size={15} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.journeyLabel}>
                     {step.label}
@@ -1160,7 +1160,7 @@ export default function AnalyticsPage() {
                 </View>
                 <View style={styles.journeyArrow}>
                   {index === JOURNEY.length - 1 ? null : l.isStacked ? (
-                    <FontAwesome6 name="arrow-down" size={13} color={t.borderStrong} />
+                    <FontAwesome6 name="arrow-down" size={13} color={t.borderStrong}  aria-hidden={true}/>
                   ) : (
                     <ArrowLink width={26} height={12} color={t.borderStrong} />
                   )}
@@ -1321,7 +1321,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="envelope" size={14} color={t.brand} />
+                  <FontAwesome6 name="envelope" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Email
@@ -1345,7 +1345,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="comment-sms" size={14} color={t.brand} />
+                  <FontAwesome6 name="comment-sms" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   SMS
@@ -1516,7 +1516,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="comments" size={14} color={t.brand} />
+                  <FontAwesome6 name="comments" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Top caller intents
@@ -1572,7 +1572,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="bag-shopping" size={14} color={t.brand} />
+                  <FontAwesome6 name="bag-shopping" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Top products
@@ -1651,7 +1651,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="robot" size={14} color={t.brand} />
+                  <FontAwesome6 name="robot" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Share of AI answers
@@ -1695,7 +1695,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="envelope-open-text" size={14} color={t.brand} />
+                  <FontAwesome6 name="envelope-open-text" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Weekly briefing
@@ -1731,7 +1731,7 @@ export default function AnalyticsPage() {
                 return (
                   <View key={anomaly.key} style={styles.anomalyRow}>
                     <View style={[styles.anomalyIcon, { backgroundColor: tone.bg }]}>
-                      <FontAwesome6 name={anomaly.icon as never} size={13} color={tone.fg} />
+                      <FontAwesome6 name={anomaly.icon as never} size={13} color={tone.fg}  aria-hidden={true}/>
                     </View>
                     <View style={styles.anomalyCopy}>
                       <Text numberOfLines={2} style={styles.anomalyTitle}>
@@ -1767,7 +1767,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="sliders" size={14} color={t.brand} />
+                  <FontAwesome6 name="sliders" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Report builder
@@ -1777,7 +1777,7 @@ export default function AnalyticsPage() {
               <View style={styles.chipWrap}>
                 {REPORT_METRICS.map((metric, index) => (
                   <View key={metric} style={[styles.metricChip, index < 4 ? styles.metricChipOn : null]}>
-                    {index < 4 ? <FontAwesome6 name="check" size={9} color={t.chipText} /> : null}
+                    {index < 4 ? <FontAwesome6 name="check" size={9} color={t.chipText}  aria-hidden={true}/> : null}
                     <Text numberOfLines={1} style={[styles.metricChipText, index < 4 ? styles.metricChipTextOn : null]}>
                       {metric}
                     </Text>
@@ -1790,7 +1790,7 @@ export default function AnalyticsPage() {
               <View style={styles.chipWrap}>
                 {EXPORT_FORMATS.map((format) => (
                   <View key={format.label} style={styles.exportChip}>
-                    <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted} />
+                    <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.exportChipText}>
                       {format.label}
                     </Text>
@@ -1798,7 +1798,7 @@ export default function AnalyticsPage() {
                 ))}
               </View>
               <View style={styles.scheduleRow}>
-                <FontAwesome6 name="clock" size={12} color={t.textSubtle} />
+                <FontAwesome6 name="clock" size={12} color={t.textSubtle}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.scheduleText}>
                   Scheduled every Monday at 8:00am
                 </Text>
@@ -1810,7 +1810,7 @@ export default function AnalyticsPage() {
             <View style={styles.duoCard}>
               <View style={styles.duoHead}>
                 <View style={styles.duoIcon}>
-                  <FontAwesome6 name="users" size={14} color={t.brand} />
+                  <FontAwesome6 name="users" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.duoTitle}>
                   Shared with
@@ -1838,7 +1838,7 @@ export default function AnalyticsPage() {
                 ))}
               </View>
               <View style={styles.shareFoot}>
-                <FontAwesome6 name="shield-halved" size={11} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={11} color={t.green}  aria-hidden={true}/>
                 <Text numberOfLines={2} style={styles.shareFootText}>
                   Permissions are per report — a viewer sees the numbers, never the customer records
                   behind them.

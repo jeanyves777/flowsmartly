@@ -190,7 +190,7 @@ export const FeatureCard = memo(function FeatureCard({
   const content = (
     <>
       <View style={s.iconWrap}>
-        <FontAwesome6 name={icon as never} size={l.isPhone ? 18 : 20} color={tone} />
+        <FontAwesome6 name={icon as never} size={l.isPhone ? 18 : 20} color={tone}  aria-hidden={true}/>
       </View>
       <Text style={s.title}>{title}</Text>
       {/*
@@ -204,7 +204,7 @@ export const FeatureCard = memo(function FeatureCard({
       {actionLabel ? (
         <View style={s.action}>
           <Text style={s.actionText}>{actionLabel}</Text>
-          <FontAwesome6 name={"arrow-right" as never} size={11} color={t.brand} />
+          <FontAwesome6 name={"arrow-right" as never} size={11} color={t.brand}  aria-hidden={true}/>
         </View>
       ) : null}
       {status ? <Text style={s.status}>{status}</Text> : null}

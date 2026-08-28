@@ -232,7 +232,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -296,7 +296,7 @@ function Stars({ size = 14 }: { size?: number }) {
       style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
       accessibilityLabel="Rated five out of five">
       {[0, 1, 2, 3, 4].map((index) => (
-        <FontAwesome6 key={index} name="star" size={size} color={t.orange} />
+        <FontAwesome6 key={index} name="star" size={size} color={t.orange}  aria-hidden={true}/>
       ))}
     </View>
   );
@@ -413,6 +413,7 @@ function Stories() {
               key={item}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={`Show ${item} stories`}
               onPress={() => setIndustry(item)}
               style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -432,7 +433,7 @@ function Stories() {
 
       {visible.length === 0 ? (
         <View style={styles.emptyState}>
-          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No published stories in ${industry} yet. Pick another industry, or tell us about yours.`}
           </Text>
@@ -491,7 +492,7 @@ function Stories() {
                   <Text style={[styles.linkText, { color: accentText(accent(t, story.tone), t) }]}>
                     Read the story
                   </Text>
-                  <FontAwesome6 name="arrow-right" size={12} color={accent(t, story.tone)} />
+                  <FontAwesome6 name="arrow-right" size={12} color={accent(t, story.tone)}  aria-hidden={true}/>
                 </View>
               </View>
             </View>
@@ -519,7 +520,7 @@ function PullQuote() {
         </View>
 
         <View style={styles.quoteCopy}>
-          <FontAwesome6 name="quote-left" size={26} color={t.brand} />
+          <FontAwesome6 name="quote-left" size={26} color={t.brand}  aria-hidden={true}/>
           <Text style={styles.quoteText}>
             We replaced four tools and a freelancer with one platform, and the reporting finally
             agrees with itself. The first month paid for the year.

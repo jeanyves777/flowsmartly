@@ -39,6 +39,54 @@ function isRouteActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * The id of the page's `<main>`, and the target of the skip link below.
+ *
+ * It is declared **here** rather than in `PageShell` because the link itself
+ * has to live inside the banner. A control floating outside every landmark is
+ * exactly the orphaned content the landmark structure exists to remove, and
+ * axe only forgives a skip link it can recognise by its `href` — which a
+ * single-page app cannot hand it without pushing a fragment onto the router.
+ * `PageShell` imports the id from here, so the dependency stays one-way: it
+ * already imports this header.
+ */
+export const MAIN_CONTENT_ID = 'fs-main';
+
+/**
+ * "Skip to main content" — the first focusable thing on every page.
+ *
+ * Hidden by a transform, not by `display:none`, `visibility` or a zero size:
+ * hidden-but-focusable is the whole point, and every one of those removes the
+ * element from the tab order. It stays in the layer above the header (it is a
+ * child of the banner, which already owns a stacking context), so on focus it
+ * slides into the corner over the bar rather than under it.
+ *
+ * It **moves focus**; it does not merely scroll. `<main>` carries
+ * `tabIndex={-1}` so it can accept focus programmatically without ever
+ * becoming a tab stop of its own, and focusing it brings it into view — so the
+ * next Tab continues *inside* the content instead of resuming in the
+ * navigation the visitor just asked to skip.
+ */
+function SkipToContent() {
+  const styles = useHeaderStyles();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel="Skip to main content"
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onPress={() => {
+        if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+        const main = document.getElementById(MAIN_CONTENT_ID);
+        if (main && typeof main.focus === 'function') main.focus();
+      }}
+      style={[styles.skipLink, focused && styles.skipLinkVisible]}>
+      <Text style={styles.skipLinkText}>Skip to main content</Text>
+    </Pressable>
+  );
+}
+
 function Brand() {
   const styles = useHeaderStyles();
   return (
@@ -80,7 +128,7 @@ function ThemeToggle({ bare }: { bare?: boolean } = {}) {
         name={mode === 'dark' ? 'moon' : mode === 'grey' ? 'circle-half-stroke' : 'sun'}
         size={bare ? 17 : 16}
         color={bare ? t.textMuted : t.text}
-      />
+       aria-hidden={true}/>
     </Pressable>
   );
 }
@@ -132,7 +180,7 @@ function NavTrigger({
             size={9}
             color={highlight ? t.chipText : t.textMuted}
             style={styles.caret}
-          />
+           aria-hidden={true}/>
         ) : null}
       </Link>
     </View>
@@ -151,7 +199,7 @@ function MegaLink({ link, onNavigate }: { link: NavLink; onNavigate: () => void 
         accessibilityRole="link"
         style={[styles.megaLink, hovered && styles.megaLinkActive] as never}>
         {link.icon ? (
-          <FontAwesome6 name={link.icon as never} size={17} color={t.brand} style={styles.megaIcon} />
+          <FontAwesome6 name={link.icon as never} size={17} color={t.brand} style={styles.megaIcon}  aria-hidden={true}/>
         ) : null}
         <Text style={[styles.megaLinkText, hovered && { color: t.brand }]}>{link.label}</Text>
       </Link>
@@ -223,7 +271,7 @@ function MegaFootLink({ link, onNavigate }: { link: NavLink; onNavigate: () => v
             size={14}
             color={hovered ? t.brand : t.textSubtle}
             style={styles.megaFootIcon}
-          />
+           aria-hidden={true}/>
         ) : null}
         <Text style={[styles.megaFootText, hovered && { color: t.brand }]}>{link.label}</Text>
       </Link>
@@ -359,7 +407,7 @@ function NavAffordance({ open }: { open: boolean }) {
   const t = useTokens();
   return (
     <View style={styles.navAffordance}>
-      <FontAwesome6 name={open ? 'chevron-up' : 'chevron-down'} size={15} color={t.textMuted} />
+      <FontAwesome6 name={open ? 'chevron-up' : 'chevron-down'} size={15} color={t.textMuted}  aria-hidden={true}/>
     </View>
   );
 }
@@ -389,6 +437,7 @@ function OverlayChildRow({
         // `accessibilityState` is inert on web - react-native-web dropped it -
         // so "you are here" is said in the label, which every platform reads.
         accessibilityState={{ selected: active }}
+        aria-current={active ? 'page' : undefined}
         accessibilityLabel={active ? `${link.label}, current page` : undefined}
         style={
           [
@@ -497,7 +546,18 @@ function MobileNavOverlay({
   );
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+    // The sheet IS a dialog: react-native-web's `ModalContent` puts
+    // `role="dialog"` and `aria-modal` on its own View once the modal is
+    // active, and that element is the one screen readers announce — so the
+    // name has to reach it. Modal spreads every prop it does not consume onto
+    // that View, so `aria-label` lands exactly there. Without it the dialog
+    // opens unnamed, which is the `aria-dialog-name` violation.
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      aria-label="Navigation menu"
+      onRequestClose={onClose}>
       <View id={NAV_ID.root} style={styles.overlay}>
         {/* FlowSmartly's own gradient, kept as a wash rather than a fill so no
             label ever reads on top of a mid-tone. Painted first, so the rows
@@ -535,13 +595,21 @@ function MobileNavOverlay({
                 styles.plainIconButton,
                 pressed && styles.plainIconButtonPressed,
               ]}>
-              <FontAwesome6 name="xmark" size={22} color={t.text} />
+              <FontAwesome6 name="xmark" size={22} color={t.text}  aria-hidden={true}/>
             </Pressable>
           </View>
         </View>
 
+        {/* The sheet's list of routes IS the navigation on a compact
+            viewport — the desktop `<nav>` is not rendered at all below the
+            breakpoint, so this is the page's one nav landmark while the sheet
+            is up, and it carries the same name. react-native-web forwards the
+            role to the scroller's own element, so `#fs-nav-scroll` in the html
+            shell still matches it. */}
         <ScrollView
           id={NAV_ID.scroll}
+          role="navigation"
+          aria-label="Main"
           style={styles.overlayScroll}
           contentContainerStyle={styles.overlayScrollContent}
           showsVerticalScrollIndicator={false}>
@@ -559,6 +627,7 @@ function MobileNavOverlay({
                     onPress={onClose}
                     accessibilityRole="link"
                     accessibilityState={{ selected: active }}
+                    aria-current={active ? 'page' : undefined}
                     accessibilityLabel={active ? `${item.label}, current page` : undefined}
                     style={styles.overlayRow as never}>
                     <Text style={[styles.overlayLabel, active && styles.overlayLabelActive]}>
@@ -648,7 +717,16 @@ export function SiteHeader() {
   }, [compact, menuOpen]);
 
   return (
-    <SafeAreaView edges={['top']} style={styles.headerSafe}>
+    // `role`, not `accessibilityRole`: react-native's own `AccessibilityRole`
+    // union has never carried the document-structure roles, while `Role` does
+    // — and react-native-web reads `props.role || props.accessibilityRole`,
+    // then renders the REAL element for it (`banner` → `<header>`,
+    // `navigation` → `<nav>`, `main` → `<main>`, `contentinfo` → `<footer>`).
+    // So this is the typed spelling and the one that reaches the DOM.
+    <SafeAreaView edges={['top']} role="banner" style={styles.headerSafe}>
+      {/* First focusable element on the page, and deliberately inside the
+          banner so it is not itself a node outside every landmark. */}
+      <SkipToContent />
       {/* The hover region spans the bar *and* the panel, so moving down into
           the menu keeps it open. */}
       <View onPointerLeave={() => setOpenMenu(null)}>
@@ -665,12 +743,14 @@ export function SiteHeader() {
                 accessibilityState={{ expanded: menuOpen }}
                 aria-expanded={menuOpen}
                 style={styles.iconButton}>
-                <FontAwesome6 name={menuOpen ? 'xmark' : 'bars'} size={18} color={t.text} />
+                <FontAwesome6 name={menuOpen ? 'xmark' : 'bars'} size={18} color={t.text}  aria-hidden={true}/>
               </Pressable>
             </View>
           ) : (
             <>
               <View
+                role="navigation"
+                aria-label="Main"
                 style={styles.navWrap}
                 onLayout={(event) => setNavWidth(event.nativeEvent.layout.width)}>
                 <View style={styles.nav}>
@@ -769,6 +849,32 @@ function createStyles(
   const accent = accentText(t.brand, t);
 
   return StyleSheet.create({
+    /* ---------- skip link ---------- */
+    // Parked off-screen with a transform rather than hidden. `display:none`,
+    // `visibility:hidden` and a zero size all take it out of the tab order,
+    // which would defeat the one thing it exists for; `opacity: 0` on its own
+    // would leave a 44px invisible bar over the wordmark eating clicks. Moving
+    // it does neither. 44px tall and t.text on t.surfaceRaised — the same
+    // 4.5:1 pairing every paragraph on the site uses — once it is focused.
+    skipLink: {
+      position: 'absolute',
+      top: 8,
+      left: l.gutter,
+      zIndex: 100,
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: t.brand,
+      backgroundColor: t.surfaceRaised,
+      opacity: 0,
+      transform: [{ translateY: -200 }],
+      ...(elevation(t, 3) as object),
+    },
+    skipLinkVisible: { opacity: 1, transform: [{ translateY: 0 }] },
+    skipLinkText: { ...type.bodySm, color: t.text, fontWeight: '700' },
+
     headerSafe: {
       backgroundColor: t.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,

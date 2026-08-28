@@ -393,7 +393,7 @@ function Bullet({ text, styles, t }: { text: string; styles: Styles; t: ThemeTok
   return (
     <View style={styles.bulletRow}>
       <View style={styles.bulletDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.bulletText}>{text}</Text>
     </View>
@@ -402,9 +402,9 @@ function Bullet({ text, styles, t }: { text: string; styles: Styles; t: ThemeTok
 
 /** check / dash / cross, in one place so the table and the phone cards agree. */
 function MarkGlyph({ mark, t }: { mark: Mark; t: ThemeTokens }) {
-  if (mark === 'yes') return <FontAwesome6 name="check" size={13} color={t.green} />;
-  if (mark === 'partial') return <FontAwesome6 name="minus" size={13} color={t.warnText} />;
-  return <FontAwesome6 name="xmark" size={13} color={t.textSubtle} />;
+  if (mark === 'yes') return <FontAwesome6 name="check" size={13} color={t.green}  aria-hidden={true}/>;
+  if (mark === 'partial') return <FontAwesome6 name="minus" size={13} color={t.warnText}  aria-hidden={true}/>;
+  return <FontAwesome6 name="xmark" size={13} color={t.textSubtle}  aria-hidden={true}/>;
 }
 
 /**
@@ -429,7 +429,7 @@ function AudienceBoard({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
       <View {...field.node('board')} style={styles.boardCard}>
         <View style={styles.boardHead}>
           <View style={styles.boardBadge}>
-            <FontAwesome6 name="table-cells-large" size={12} color={t.brand} />
+            <FontAwesome6 name="table-cells-large" size={12} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.boardHeadCopy}>
             <Text numberOfLines={1} style={styles.boardTitle}>
@@ -451,7 +451,7 @@ function AudienceBoard({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
             return (
               <View key={row.label} style={styles.boardRow}>
                 <View style={[styles.boardRowIcon, { backgroundColor: softFill(accent, t) }]}>
-                  <FontAwesome6 name={row.icon as never} size={12} color={accent} />
+                  <FontAwesome6 name={row.icon as never} size={12} color={accent}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.boardRowLabel}>
                   {row.label}
@@ -472,7 +472,7 @@ function AudienceBoard({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
             <View key={audience.key} style={styles.audienceCell}>
               <View {...field.node(audience.key)} style={styles.audienceCard}>
                 <View style={[styles.audienceIcon, { backgroundColor: softFill(accent, t) }]}>
-                  <FontAwesome6 name={audience.icon as never} size={l.isPhone ? 13 : 15} color={accent} />
+                  <FontAwesome6 name={audience.icon as never} size={l.isPhone ? 13 : 15} color={accent}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={2} style={styles.audienceLabel}>
                   {audience.label}
@@ -567,7 +567,7 @@ export default function SolutionsPage() {
                 return (
                   <View key={step.key} style={styles.startRow}>
                     <View style={[styles.startIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={step.icon as never} size={13} color={accent} />
+                      <FontAwesome6 name={step.icon as never} size={13} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.startCopy}>
                       <Text numberOfLines={1} style={styles.startTitle}>
@@ -609,6 +609,7 @@ export default function SolutionsPage() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
+                  aria-pressed={selected}
                   accessibilityLabel={item.label}
                   onPress={() => setSelectedType(item.key)}
                   style={({ pressed }) => [
@@ -621,7 +622,7 @@ export default function SolutionsPage() {
                       styles.typeIcon,
                       { backgroundColor: selected ? t.surfaceRaised : softFill(accent, t) },
                     ]}>
-                    <FontAwesome6 name={item.icon as never} size={17} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={17} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={2} style={styles.typeLabel}>
                     {item.label}
@@ -631,7 +632,7 @@ export default function SolutionsPage() {
                   </Text>
                   <View style={styles.typeCheck}>
                     {selected ? (
-                      <FontAwesome6 name="circle-check" size={14} color={accent} />
+                      <FontAwesome6 name="circle-check" size={14} color={accent}  aria-hidden={true}/>
                     ) : (
                       <Text numberOfLines={1} style={styles.typeSelectHint}>
                         Select
@@ -664,7 +665,7 @@ export default function SolutionsPage() {
               <Reveal key={outcome.key} style={styles.outcomeCell} distance={16} delay={index * 70}>
                 <View style={styles.outcomeCard}>
                   <View style={[styles.outcomeIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={outcome.icon as never} size={18} color={accent} />
+                    <FontAwesome6 name={outcome.icon as never} size={18} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.outcomeTitle}>{outcome.title}</Text>
                   <Text style={styles.outcomeLine}>{outcome.line}</Text>
@@ -673,7 +674,7 @@ export default function SolutionsPage() {
                       in the anchor's Text host is invalid on native. */}
                   <Link href={outcome.href as never} accessibilityLabel={`${outcome.title} — see how`} style={styles.outcomeFoot as never}>
                     <Text style={styles.outcomeCta}>See how</Text>
-                    <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+                    <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
                   </Link>
                 </View>
               </Reveal>
@@ -691,7 +692,7 @@ export default function SolutionsPage() {
         <Band tone="brand" art={{ variant: 'api', color: t.brand, side: 'left' }}>
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle} />
+              <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle}  aria-hidden={true}/>
             </View>
             <Heading level={2} style={[type.h3, styles.emptyTitle]}>
               We haven&apos;t written up {selectedLabel} yet.
@@ -749,7 +750,7 @@ export default function SolutionsPage() {
                       return (
                         <View key={row.label} style={styles.mockRow}>
                           <View style={[styles.mockRowIcon, { backgroundColor: softFill(rowAccent, t) }]}>
-                            <FontAwesome6 name={row.icon as never} size={12} color={rowAccent} />
+                            <FontAwesome6 name={row.icon as never} size={12} color={rowAccent}  aria-hidden={true}/>
                           </View>
                           <Text numberOfLines={2} style={styles.mockRowLabel}>
                             {row.label}
@@ -786,7 +787,7 @@ export default function SolutionsPage() {
             return (
               <View key={industry.key} style={styles.chip}>
                 <View style={[styles.chipIcon, { backgroundColor: softFill(accent, t) }]}>
-                  <FontAwesome6 name={industry.icon as never} size={13} color={accent} />
+                  <FontAwesome6 name={industry.icon as never} size={13} color={accent}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.chipLabel}>
                   {industry.label}
@@ -861,7 +862,7 @@ export default function SolutionsPage() {
             <View style={styles.testimonialCard}>
               <View style={styles.starRow}>
                 {[0, 1, 2, 3, 4].map((star) => (
-                  <FontAwesome6 key={star} name="star" size={13} color={t.orange} />
+                  <FontAwesome6 key={star} name="star" size={13} color={t.orange}  aria-hidden={true}/>
                 ))}
               </View>
               <Text style={styles.quote}>
@@ -901,7 +902,7 @@ export default function SolutionsPage() {
                   }}
                   style={({ pressed }) => [styles.deeperRow, pressed ? styles.deeperRowPressed : null]}>
                   <View style={styles.deeperIcon}>
-                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.deeperCopy}>
                     <Text numberOfLines={1} style={styles.deeperLabel}>
@@ -911,7 +912,7 @@ export default function SolutionsPage() {
                       {item.note}
                     </Text>
                   </View>
-                  <FontAwesome6 name="arrow-right" size={12} color={t.textSubtle} />
+                  <FontAwesome6 name="arrow-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
                 </Pressable>
               ))}
             </View>

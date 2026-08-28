@@ -331,7 +331,7 @@ function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeToken
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={10} color={t.green} />
+        <FontAwesome6 name="check" size={10} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{text}</Text>
     </View>
@@ -410,7 +410,7 @@ function ComposerMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Lay
       <View style={styles.composerBar}>
         <View style={styles.composerBarCopy}>
           <View style={styles.composerBadge}>
-            <FontAwesome6 name="envelope-open-text" size={13} color={t.brand} />
+            <FontAwesome6 name="envelope-open-text" size={13} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.composerBarText}>
             <Text numberOfLines={1} style={styles.composerTitle}>
@@ -422,7 +422,7 @@ function ComposerMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Lay
           </View>
         </View>
         <View style={styles.readyChip}>
-          <FontAwesome6 name="circle-check" size={11} color={t.successText} />
+          <FontAwesome6 name="circle-check" size={11} color={t.successText}  aria-hidden={true}/>
           <Text style={styles.readyChipText}>Ready</Text>
         </View>
       </View>
@@ -468,7 +468,7 @@ function ComposerMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Lay
             <View style={styles.phoneNotch} />
             <View style={styles.phoneHead}>
               <View style={styles.phoneAvatar}>
-                <FontAwesome6 name="store" size={11} color={t.brand} />
+                <FontAwesome6 name="store" size={11} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text numberOfLines={1} style={styles.phoneName}>
                 Aurora Home
@@ -604,7 +604,7 @@ export default function EmailSmsPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -643,7 +643,7 @@ export default function EmailSmsPage() {
               {BUILDER_INCLUDED.map((item) => (
                 <View key={item.title} style={styles.includeRow}>
                   <View style={styles.includeIcon}>
-                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.includeCopy}>
                     <Text style={styles.includeTitle}>{item.title}</Text>
@@ -660,7 +660,7 @@ export default function EmailSmsPage() {
               <View style={styles.blockWrap}>
                 {BLOCKS.map((block) => (
                   <View key={block} style={styles.blockChip}>
-                    <FontAwesome6 name="grip-vertical" size={9} color={t.textSubtle} />
+                    <FontAwesome6 name="grip-vertical" size={9} color={t.textSubtle}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.blockChipText}>
                       {block}
                     </Text>
@@ -671,9 +671,9 @@ export default function EmailSmsPage() {
               <View style={styles.canvasList}>
                 {CANVAS_ROWS.map((row) => (
                   <View key={row.label} style={styles.canvasRow}>
-                    <FontAwesome6 name="grip-vertical" size={12} color={t.textSubtle} />
+                    <FontAwesome6 name="grip-vertical" size={12} color={t.textSubtle}  aria-hidden={true}/>
                     <View style={styles.canvasIcon}>
-                      <FontAwesome6 name={row.icon as never} size={12} color={t.brand} />
+                      <FontAwesome6 name={row.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <View style={styles.canvasCopy}>
                       <Text numberOfLines={1} style={styles.canvasLabel}>
@@ -690,7 +690,7 @@ export default function EmailSmsPage() {
               <View style={styles.assistCard}>
                 <View style={styles.assistHead}>
                   <View style={styles.assistIcon}>
-                    <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.violet} />
+                    <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.violet}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.assistTitle}>
                     Copy assistant
@@ -737,7 +737,7 @@ export default function EmailSmsPage() {
                   <View style={styles.phoneNotch} />
                   <View style={styles.phoneHead}>
                     <View style={styles.phoneAvatar}>
-                      <FontAwesome6 name="store" size={11} color={t.brand} />
+                      <FontAwesome6 name="store" size={11} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={styles.phoneName}>
                       Aurora Home
@@ -799,11 +799,11 @@ export default function EmailSmsPage() {
               <Reveal key={journey.title} style={styles.journeyCell} distance={16} delay={index * 65}>
                 <View style={styles.journeyCard}>
                   <View style={[styles.journeyIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={journey.icon as never} size={18} color={accent} />
+                    <FontAwesome6 name={journey.icon as never} size={18} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.journeyTitle]}>{journey.title}</Text>
                   <View style={styles.triggerRow}>
-                    <FontAwesome6 name="bolt" size={9} color={t.textSubtle} />
+                    <FontAwesome6 name="bolt" size={9} color={t.textSubtle}  aria-hidden={true}/>
                     <Text numberOfLines={2} style={styles.triggerText}>
                       {journey.trigger}
                     </Text>
@@ -863,7 +863,7 @@ export default function EmailSmsPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="filter" size={14} color={t.brand} />
+                  <FontAwesome6 name="filter" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -880,7 +880,7 @@ export default function EmailSmsPage() {
                   <View key={rule} style={styles.ruleGroup}>
                     <View style={styles.ruleRow}>
                       <View style={styles.ruleIcon}>
-                        <FontAwesome6 name="check" size={9} color={t.brand} />
+                        <FontAwesome6 name="check" size={9} color={t.brand}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.ruleText}>{rule}</Text>
                     </View>
@@ -925,7 +925,7 @@ export default function EmailSmsPage() {
           <Reveal style={styles.deliverCell} distance={16}>
             <View style={styles.deliverCard}>
               <View style={[styles.deliverIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                <FontAwesome6 name="lock" size={16} color={t.brand} />
+                <FontAwesome6 name="lock" size={16} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text style={styles.deliverLabel}>Authentication</Text>
               <View style={styles.authList}>
@@ -935,7 +935,7 @@ export default function EmailSmsPage() {
                       {row.label}
                     </Text>
                     <View style={styles.authPass}>
-                      <FontAwesome6 name="check" size={8} color={t.successText} />
+                      <FontAwesome6 name="check" size={8} color={t.successText}  aria-hidden={true}/>
                       <Text style={styles.authPassText}>{row.value}</Text>
                     </View>
                   </View>
@@ -950,7 +950,7 @@ export default function EmailSmsPage() {
               <Reveal key={tile.label} style={styles.deliverCell} distance={16} delay={(index + 1) * 65}>
                 <View style={styles.deliverCard}>
                   <View style={[styles.deliverIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={tile.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={tile.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.deliverLabel}>{tile.label}</Text>
                   <Text style={styles.deliverValue}>{tile.value}</Text>
@@ -980,7 +980,7 @@ export default function EmailSmsPage() {
                 <Reveal key={item.title} style={styles.consentCell} distance={14} delay={index * 60}>
                   <View style={styles.consentCard}>
                     <View style={styles.consentIcon}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={t.brand} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <Text style={styles.consentTitle}>{item.title}</Text>
                     <Text style={styles.consentBody}>{item.body}</Text>
@@ -994,7 +994,7 @@ export default function EmailSmsPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="sliders" size={14} color={t.brand} />
+                  <FontAwesome6 name="sliders" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -1025,7 +1025,7 @@ export default function EmailSmsPage() {
 
               <View style={styles.optOutCard}>
                 <View style={styles.optOutIcon}>
-                  <FontAwesome6 name="right-from-bracket" size={12} color={t.textMuted} />
+                  <FontAwesome6 name="right-from-bracket" size={12} color={t.textMuted}  aria-hidden={true}/>
                 </View>
                 <View style={styles.optOutCopy}>
                   <Text numberOfLines={1} style={styles.optOutTitle}>
@@ -1040,7 +1040,7 @@ export default function EmailSmsPage() {
               <View style={styles.complianceRow}>
                 {COMPLIANCE.map((item) => (
                   <View key={item} style={styles.complianceChip}>
-                    <FontAwesome6 name="check" size={9} color={t.successText} />
+                    <FontAwesome6 name="check" size={9} color={t.successText}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.complianceText}>
                       {item}
                     </Text>
@@ -1069,7 +1069,7 @@ export default function EmailSmsPage() {
             <View style={styles.pairCard}>
               <View style={styles.pairHead}>
                 <View style={[styles.pairIcon, { backgroundColor: softFill(t.violet, t) }]}>
-                  <FontAwesome6 name="code-branch" size={16} color={t.violet} />
+                  <FontAwesome6 name="code-branch" size={16} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <View style={styles.pairHeadCopy}>
                   <Text style={[type.h4, styles.pairTitle]}>A/B subject line test</Text>
@@ -1118,7 +1118,7 @@ export default function EmailSmsPage() {
             <View style={styles.pairCard}>
               <View style={styles.pairHead}>
                 <View style={[styles.pairIcon, { backgroundColor: softFill(t.orange, t) }]}>
-                  <FontAwesome6 name="clock" size={16} color={t.orange} />
+                  <FontAwesome6 name="clock" size={16} color={t.orange}  aria-hidden={true}/>
                 </View>
                 <View style={styles.pairHeadCopy}>
                   <Text style={[type.h4, styles.pairTitle]}>Send-time optimisation</Text>
@@ -1148,7 +1148,7 @@ export default function EmailSmsPage() {
               </View>
 
               <View style={styles.bestSlot}>
-                <FontAwesome6 name="star" size={11} color={t.warnText} />
+                <FontAwesome6 name="star" size={11} color={t.warnText}  aria-hidden={true}/>
                 <Text style={styles.bestSlotText}>
                   6:30pm on Thursday is this audience&apos;s strongest slot — scheduled by default.
                 </Text>

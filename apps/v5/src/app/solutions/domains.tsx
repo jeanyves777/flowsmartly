@@ -300,7 +300,7 @@ export default function DomainsPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -314,7 +314,7 @@ export default function DomainsPage() {
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
             <View style={styles.searchCard}>
               <View style={styles.searchField}>
-                <FontAwesome6 name="magnifying-glass" size={13} color={t.textSubtle} />
+                <FontAwesome6 name="magnifying-glass" size={13} color={t.textSubtle}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.searchText}>
                   brightsmiledental
                 </Text>
@@ -332,7 +332,7 @@ export default function DomainsPage() {
                       name={result.state === 'taken' ? 'xmark' : 'check'}
                       size={9}
                       color={stateColor(result.state)}
-                    />
+                     aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.resultName}>
                     {result.name}
@@ -353,7 +353,7 @@ export default function DomainsPage() {
             <View style={styles.includedStrip}>
               {['WHOIS privacy', 'HTTPS', 'DNS', 'Email forwarding'].map((item) => (
                 <View key={item} style={styles.includedChip}>
-                  <FontAwesome6 name="check" size={9} color={t.green} />
+                  <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.includedChipText}>
                     {item}
                   </Text>
@@ -379,7 +379,7 @@ export default function DomainsPage() {
               <View style={styles.stepCard}>
                 <View style={styles.stepTop}>
                   <View style={[styles.stepIcon, { backgroundColor: softFill(accentOf(step.accent), t) }]}>
-                    <FontAwesome6 name={step.icon as never} size={16} color={accentOf(step.accent)} />
+                    <FontAwesome6 name={step.icon as never} size={16} color={accentOf(step.accent)}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.stepNumber}>
                     {step.step}
@@ -411,7 +411,7 @@ export default function DomainsPage() {
             <Reveal key={item.key} style={styles.includeCell} distance={14} delay={index * 50}>
               <View style={styles.includeCard}>
                 <View style={[styles.includeIcon, { backgroundColor: softFill(accentOf(item.accent), t) }]}>
-                  <FontAwesome6 name={item.icon as never} size={17} color={accentOf(item.accent)} />
+                  <FontAwesome6 name={item.icon as never} size={17} color={accentOf(item.accent)}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.includeTitle}>{item.title}</Text>
                 <Text style={styles.includeBody}>{item.body}</Text>
@@ -489,7 +489,7 @@ export default function DomainsPage() {
             <Reveal key={target.key} style={styles.targetCell} distance={14} delay={index * 60}>
               <View style={styles.targetCard}>
                 <View style={[styles.targetIcon, { backgroundColor: softFill(accentOf(target.accent), t) }]}>
-                  <FontAwesome6 name={target.icon as never} size={16} color={accentOf(target.accent)} />
+                  <FontAwesome6 name={target.icon as never} size={16} color={accentOf(target.accent)}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.targetTitle}>{target.title}</Text>
                 <Text style={styles.targetBody}>{target.body}</Text>
@@ -575,7 +575,7 @@ export default function DomainsPage() {
             <Reveal key={item.key} style={styles.transferCell} distance={14} delay={index * 70}>
               <View style={styles.transferCard}>
                 <View style={styles.transferIcon}>
-                  <FontAwesome6 name={item.icon as never} size={16} color={t.brand} />
+                  <FontAwesome6 name={item.icon as never} size={16} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.transferTitle}>{item.title}</Text>
                 <Text style={styles.transferBody}>{item.body}</Text>

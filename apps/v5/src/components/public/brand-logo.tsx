@@ -105,14 +105,14 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
   const fa = FA_BRANDS[key];
   if (fa) {
     const tint = color ?? (monochrome ? t.text : brandColor(FA_TINTS[key] ?? t.text, t));
-    return <FontAwesome6 name={fa as never} size={size} color={tint} accessibilityLabel={label ?? name} />;
+    return <FontAwesome6 name={fa as never} size={size} color={tint} accessibilityRole="image" accessibilityLabel={label ?? name} />;
   }
 
   const icon = SIMPLE[SI_BRANDS[key] ?? ''];
   if (icon) {
     const tint = color ?? (monochrome ? t.text : brandColor(`#${icon.hex}`, t));
     return (
-      <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityLabel={label ?? icon.title}>
+      <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityRole="image" accessibilityLabel={label ?? icon.title}>
         <Path d={icon.path} fill={tint} />
       </Svg>
     );
@@ -139,6 +139,7 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
   const fontSize = Math.max(12, Math.round(size * (initials.length > 2 ? 0.3 : 0.4)));
   return (
     <View
+      accessibilityRole="image"
       accessibilityLabel={label ?? name}
       style={{
         minWidth: size,

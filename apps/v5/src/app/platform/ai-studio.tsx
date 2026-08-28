@@ -370,7 +370,7 @@ function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeToken
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={10} color={t.green} />
+        <FontAwesome6 name="check" size={10} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{text}</Text>
     </View>
@@ -389,7 +389,7 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
       <View style={styles.studioBar}>
         <View style={styles.studioBarCopy}>
           <View style={styles.studioBadge}>
-            <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.brand} />
+            <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.studioBarText}>
             <Text numberOfLines={1} style={styles.studioTitle}>
@@ -404,7 +404,7 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
           </View>
         </View>
         <View style={styles.approvalChip}>
-          <FontAwesome6 name="circle-check" size={11} color={t.successText} />
+          <FontAwesome6 name="circle-check" size={11} color={t.successText}  aria-hidden={true}/>
           <Text style={styles.approvalText}>On brand</Text>
         </View>
       </View>
@@ -417,7 +417,7 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
                 name={item.icon as never}
                 size={12}
                 color={item.active ? t.brand : t.textSubtle}
-              />
+               aria-hidden={true}/>
               <Text
                 numberOfLines={1}
                 style={[styles.railLabel, item.active ? styles.railLabelActive : null]}>
@@ -436,15 +436,15 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
             </Text>
             <View style={styles.promptFoot}>
               <View style={styles.promptChip}>
-                <FontAwesome6 name="palette" size={10} color={t.chipText} />
+                <FontAwesome6 name="palette" size={10} color={t.chipText}  aria-hidden={true}/>
                 <Text style={styles.promptChipText}>Brand Kit on</Text>
               </View>
               <View style={styles.promptChip}>
-                <FontAwesome6 name="crop-simple" size={10} color={t.chipText} />
+                <FontAwesome6 name="crop-simple" size={10} color={t.chipText}  aria-hidden={true}/>
                 <Text style={styles.promptChipText}>1080 × 1350</Text>
               </View>
               <View style={styles.generateChip}>
-                <FontAwesome6 name="bolt" size={10} color={t.textOnBrand} />
+                <FontAwesome6 name="bolt" size={10} color={t.textOnBrand}  aria-hidden={true}/>
                 <Text style={styles.generateText}>Generate</Text>
               </View>
             </View>
@@ -473,7 +473,7 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
 
               <View style={styles.kitLogoRow}>
                 <View style={styles.kitLogoTile}>
-                  <FontAwesome6 name="shapes" size={15} color={t.violet} />
+                  <FontAwesome6 name="shapes" size={15} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <View style={styles.kitLogoCopy}>
                   <Text numberOfLines={1} style={styles.kitRowTitle}>
@@ -520,7 +520,7 @@ function StudioMock({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: Layou
       </View>
 
       <View style={styles.studioFoot}>
-        <FontAwesome6 name="shield-halved" size={11} color={t.textSubtle} />
+        <FontAwesome6 name="shield-halved" size={11} color={t.textSubtle}  aria-hidden={true}/>
         <Text style={styles.studioFootText}>
           {l.isPhone
             ? 'Every asset waits for approval.'
@@ -604,7 +604,7 @@ export default function AiStudioPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -640,7 +640,7 @@ export default function AiStudioPage() {
               <Reveal key={format.title} style={styles.formatCell} distance={16} delay={index * 55}>
                 <View style={styles.formatCard}>
                   <View style={[styles.formatIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={format.icon as never} size={18} color={accent} />
+                    <FontAwesome6 name={format.icon as never} size={18} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.formatTitle]}>{format.title}</Text>
                   <Text style={styles.formatBody}>{format.body}</Text>
@@ -685,7 +685,7 @@ export default function AiStudioPage() {
             </View>
 
             <View style={styles.quoteCard}>
-              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.quoteText}>
                 Every draft already looks like us. The team edits words now, not brand mistakes.
               </Text>
@@ -712,7 +712,7 @@ export default function AiStudioPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="palette" size={14} color={t.brand} />
+                  <FontAwesome6 name="palette" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -726,7 +726,7 @@ export default function AiStudioPage() {
 
               <View style={styles.kitInlineRow}>
                 <View style={styles.kitInlineTile}>
-                  <FontAwesome6 name="shapes" size={16} color={t.violet} />
+                  <FontAwesome6 name="shapes" size={16} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <View style={styles.swatchRow}>
                   {[t.brand, t.violet, t.pink, t.orange, t.green].map((colour) => (
@@ -745,7 +745,7 @@ export default function AiStudioPage() {
               </View>
 
               <View style={styles.panelNote}>
-                <FontAwesome6 name="circle-info" size={11} color={t.chipText} />
+                <FontAwesome6 name="circle-info" size={11} color={t.chipText}  aria-hidden={true}/>
                 <Text style={styles.panelNoteText}>
                   Drafts are generated from your own library first, and stock only when you ask.
                 </Text>
@@ -787,7 +787,7 @@ export default function AiStudioPage() {
 
           <View style={styles.briefArrow}>
             {l.isStacked ? (
-              <FontAwesome6 name="arrow-right" size={14} color={t.borderStrong} style={styles.arrowDown} />
+              <FontAwesome6 name="arrow-right" size={14} color={t.borderStrong} style={styles.arrowDown}  aria-hidden={true}/>
             ) : (
               <ArrowLink width={44} height={12} color={t.borderStrong} />
             )}
@@ -833,7 +833,7 @@ export default function AiStudioPage() {
             <View style={styles.pairCard}>
               <View style={styles.pairHead}>
                 <View style={[styles.pairIcon, { backgroundColor: softFill(t.violet, t) }]}>
-                  <FontAwesome6 name="wand-magic-sparkles" size={17} color={t.violet} />
+                  <FontAwesome6 name="wand-magic-sparkles" size={17} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <View style={styles.pairHeadCopy}>
                   <Text style={[type.h3, styles.pairTitle]}>AI image editor</Text>
@@ -851,7 +851,7 @@ export default function AiStudioPage() {
                   radius={12}
                 />
                 <View style={styles.stageBadge}>
-                  <FontAwesome6 name="scissors" size={10} color={t.textOnBrand} />
+                  <FontAwesome6 name="scissors" size={10} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text style={styles.stageBadgeText}>Background removed</Text>
                 </View>
               </View>
@@ -872,7 +872,7 @@ export default function AiStudioPage() {
             <View style={styles.pairCard}>
               <View style={styles.pairHead}>
                 <View style={[styles.pairIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                  <FontAwesome6 name="film" size={17} color={t.brand} />
+                  <FontAwesome6 name="film" size={17} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.pairHeadCopy}>
                   <Text style={[type.h3, styles.pairTitle]}>AI video builder</Text>
@@ -890,7 +890,7 @@ export default function AiStudioPage() {
                   radius={12}
                 />
                 <View style={styles.playBadge}>
-                  <FontAwesome6 name="play" size={13} color={t.textOnBrand} />
+                  <FontAwesome6 name="play" size={13} color={t.textOnBrand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.durationBadge}>
                   <Text style={styles.durationText}>0:18</Text>
@@ -945,7 +945,7 @@ export default function AiStudioPage() {
                   <Reveal key={item.title} style={styles.collabCell} distance={14} delay={index * 60}>
                     <View style={styles.collabCard}>
                       <View style={[styles.collabIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={item.icon as never} size={15} color={accent} />
+                        <FontAwesome6 name={item.icon as never} size={15} color={accent}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.collabTitle}>{item.title}</Text>
                       <Text style={styles.collabBody}>{item.body}</Text>
@@ -960,7 +960,7 @@ export default function AiStudioPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="clock-rotate-left" size={14} color={t.brand} />
+                  <FontAwesome6 name="clock-rotate-left" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -1022,11 +1022,11 @@ export default function AiStudioPage() {
 
               <View style={styles.publishRow}>
                 <View style={styles.publishChip}>
-                  <FontAwesome6 name="circle-check" size={11} color={t.successText} />
+                  <FontAwesome6 name="circle-check" size={11} color={t.successText}  aria-hidden={true}/>
                   <Text style={styles.publishChipText}>Approved</Text>
                 </View>
                 <View style={styles.publishButton}>
-                  <FontAwesome6 name="paper-plane" size={11} color={t.textOnBrand} />
+                  <FontAwesome6 name="paper-plane" size={11} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text style={styles.publishButtonText}>Publish</Text>
                 </View>
               </View>
@@ -1055,6 +1055,7 @@ export default function AiStudioPage() {
                 key={item}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
+                aria-selected={active}
                 accessibilityLabel={`Show ${item} templates`}
                 onPress={() => setIndustry(item)}
                 style={[styles.industryChip, active ? styles.industryChipActive : null]}>
@@ -1070,7 +1071,7 @@ export default function AiStudioPage() {
 
         {templates.length === 0 ? (
           <View style={styles.templateEmpty}>
-            <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+            <FontAwesome6 name="folder-open" size={18} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.templateEmptyTitle}>No templates for that industry yet</Text>
             <Text style={styles.templateEmptyBody}>
               Pick another industry, or start from a blank brief — the studio writes the opener from
@@ -1153,7 +1154,7 @@ export default function AiStudioPage() {
                 <Reveal key={item.title} style={styles.trustCell} distance={16} delay={index * 60}>
                   <View style={styles.trustCard}>
                     <View style={[styles.trustIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={16} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={16} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text style={styles.trustTitle}>{item.title}</Text>
                     <Text style={styles.trustBody}>{item.body}</Text>

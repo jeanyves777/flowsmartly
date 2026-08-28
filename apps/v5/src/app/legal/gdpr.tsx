@@ -93,7 +93,7 @@ function RightsGrid() {
       {RIGHTS.map((right) => (
         <View key={right.label} style={styles.rightCard}>
           <View style={styles.rightIcon}>
-            <FontAwesome6 name={right.icon as never} size={16} color={t.brand} />
+            <FontAwesome6 name={right.icon as never} size={16} color={t.brand}  aria-hidden={true}/>
           </View>
           <Text style={styles.rightLabel}>{right.label}</Text>
         </View>

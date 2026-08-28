@@ -7,8 +7,8 @@ import { useTokens } from '@/theme/v5-theme-provider';
 import { pageView } from '@/lib/analytics';
 import { ConsentNotice } from './consent';
 import { Seo, type SeoProps } from './seo';
-import { SiteHeader } from './site-header';
-import { V5PublicFooter } from './v5-footer';
+import { MAIN_CONTENT_ID, SiteHeader } from './site-header';
+import { V5PageEnd, V5SiteFooter } from './v5-footer';
 import { SectionSequence } from '@/components/public/ui';
 
 export type PageShellProps = Omit<SeoProps, 'title' | 'description'> & {
@@ -48,15 +48,33 @@ export function PageShell({
       <SiteHeader />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Hands each section its position on the page, so the separator
-              between two of them is drawn without every route asking. */}
-          <SectionSequence>{children}</SectionSequence>
-          <V5PublicFooter
-            showProof={footer === 'full'}
-            showIntegrations={false}
-            showPricing={footer === 'full'}
-            showCta={cta}
-          />
+          {/*
+            THE PAGE'S ONE `<main>`.
+
+            `role="main"` is the typed spelling react-native-web turns into a
+            real `<main>` element (see the note in `site-header.tsx`), and
+            `tabIndex={-1}` is what lets the skip link put focus *in here*
+            rather than only scrolling to it — the element is never a tab stop
+            of its own.
+
+            The marketing stack that closes a page lives inside it, because
+            outcomes, pricing and the growth CTA are page content. Only the
+            link directory and the legal bar are `contentinfo`, and they are
+            deliberately a SIBLING below: a `<footer role="contentinfo">`
+            nested inside `<main>` is its own violation.
+          */}
+          <View nativeID={MAIN_CONTENT_ID} role="main" tabIndex={-1}>
+            {/* Hands each section its position on the page, so the separator
+                between two of them is drawn without every route asking. */}
+            <SectionSequence>{children}</SectionSequence>
+            <V5PageEnd
+              showProof={footer === 'full'}
+              showIntegrations={false}
+              showPricing={footer === 'full'}
+              showCta={cta}
+            />
+          </View>
+          <V5SiteFooter />
         </View>
       </ScrollView>
       {/* Outside the ScrollView so the notice pins to the viewport rather than

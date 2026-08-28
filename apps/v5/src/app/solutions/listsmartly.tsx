@@ -384,7 +384,7 @@ function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeToken
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{text}</Text>
     </View>
@@ -395,7 +395,7 @@ function Stars({ count, size, color }: { count: number; size: number; color: str
   return (
     <View style={{ flexDirection: 'row', gap: 3 }}>
       {[0, 1, 2, 3, 4].map((index) => (
-        <FontAwesome6 key={index} name="star" size={size} color={index < count ? color : hexToRgba(color, 0.28)} solid />
+        <FontAwesome6 key={index} name="star" size={size} color={index < count ? color : hexToRgba(color, 0.28)} solid  aria-hidden={true}/>
       ))}
     </View>
   );
@@ -443,7 +443,7 @@ function MockPrimarySm({
           justifyContent: 'center',
           gap: 9,
         }}>
-        <FontAwesome6 name={icon as never} size={13} color={t.textOnBrand} />
+        <FontAwesome6 name={icon as never} size={13} color={t.textOnBrand}  aria-hidden={true}/>
         <Text style={{ color: t.textOnBrand, fontSize: ty.caption.fontSize, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       </LinearGradient>
     </View>
@@ -480,7 +480,7 @@ function MockSecondarySm({
         },
         full ? { width: '100%' as const } : null,
       ]}>
-      <FontAwesome6 name={icon as never} size={13} color={t.text} />
+      <FontAwesome6 name={icon as never} size={13} color={t.text}  aria-hidden={true}/>
       <Text style={{ color: t.text, fontSize: ty.caption.fontSize, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
     </View>
   );
@@ -634,7 +634,7 @@ export default function ListSmartlyPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -650,7 +650,7 @@ export default function ListSmartlyPage() {
               {CHECK_FINDS.map((row) => (
                 <View key={row.key} style={styles.checkRow}>
                   <View style={styles.checkIcon}>
-                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.checkCopy}>
                     <Text numberOfLines={1} style={styles.checkLabel}>
@@ -676,7 +676,7 @@ export default function ListSmartlyPage() {
                           name={item.icon as never}
                           size={12}
                           color={active ? t.brand : t.textSubtle}
-                        />
+                         aria-hidden={true}/>
                         <Text numberOfLines={1} style={[styles.railLabel, active ? styles.railLabelActive : null]}>
                           {item.label}
                         </Text>
@@ -789,7 +789,7 @@ export default function ListSmartlyPage() {
                                 name="location-dot"
                                 size={10}
                                 color={location.ok ? t.green : t.orange}
-                              />
+                               aria-hidden={true}/>
                             </View>
                             <View style={styles.locationCopy}>
                               <Text numberOfLines={1} style={styles.locationName}>
@@ -810,13 +810,13 @@ export default function ListSmartlyPage() {
                       <View style={styles.mapGridCol} />
                       <View style={styles.mapGridColRight} />
                       <View style={[styles.mapPin, styles.mapPinOne]}>
-                        <FontAwesome6 name="location-dot" size={14} color={t.brand} />
+                        <FontAwesome6 name="location-dot" size={14} color={t.brand}  aria-hidden={true}/>
                       </View>
                       <View style={[styles.mapPin, styles.mapPinTwo]}>
-                        <FontAwesome6 name="location-dot" size={14} color={t.green} />
+                        <FontAwesome6 name="location-dot" size={14} color={t.green}  aria-hidden={true}/>
                       </View>
                       <View style={[styles.mapPin, styles.mapPinThree]}>
-                        <FontAwesome6 name="location-dot" size={14} color={t.orange} />
+                        <FontAwesome6 name="location-dot" size={14} color={t.orange}  aria-hidden={true}/>
                       </View>
                       <View style={styles.mapChip}>
                         <Text numberOfLines={1} style={styles.mapChipText}>
@@ -859,7 +859,7 @@ export default function ListSmartlyPage() {
 
               <View {...field.node('profile')} style={styles.profileHub}>
                 <View style={styles.profileHubIcon}>
-                  <FontAwesome6 name="shield-halved" size={15} color={t.brand} />
+                  <FontAwesome6 name="shield-halved" size={15} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.profileHubCopy}>
                   <Text numberOfLines={1} style={styles.profileHubTitle}>
@@ -870,7 +870,7 @@ export default function ListSmartlyPage() {
                   </Text>
                 </View>
                 <View style={styles.syncChip}>
-                  <FontAwesome6 name="arrows-rotate" size={10} color={t.successText} />
+                  <FontAwesome6 name="arrows-rotate" size={10} color={t.successText}  aria-hidden={true}/>
                   <Text style={styles.syncChipText}>In sync</Text>
                 </View>
               </View>
@@ -895,7 +895,7 @@ export default function ListSmartlyPage() {
             />
             <View style={styles.verifyRow}>
               <View style={styles.verifyIcon}>
-                <FontAwesome6 name="circle-check" size={14} color={t.green} />
+                <FontAwesome6 name="circle-check" size={14} color={t.green}  aria-hidden={true}/>
               </View>
               <Text style={styles.verifyText}>
                 Every field is verified against a source, and re-checked on a schedule.
@@ -915,7 +915,7 @@ export default function ListSmartlyPage() {
                 {PROFILE_FIELDS.map((fieldRow) => (
                   <View key={fieldRow.key} style={styles.fieldRow}>
                     <View style={styles.fieldIcon}>
-                      <FontAwesome6 name={fieldRow.icon as never} size={12} color={t.brand} />
+                      <FontAwesome6 name={fieldRow.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <View style={styles.fieldCopy}>
                       <Text numberOfLines={1} style={styles.fieldLabel}>
@@ -925,7 +925,7 @@ export default function ListSmartlyPage() {
                         {fieldRow.value}
                       </Text>
                     </View>
-                    <FontAwesome6 name="circle-check" size={13} color={t.green} />
+                    <FontAwesome6 name="circle-check" size={13} color={t.green}  aria-hidden={true}/>
                   </View>
                 ))}
               </View>
@@ -952,7 +952,7 @@ export default function ListSmartlyPage() {
               <View style={styles.duplicateCard}>
                 <View style={styles.duplicateHead}>
                   <View style={styles.flagIcon}>
-                    <FontAwesome6 name="triangle-exclamation" size={13} color={t.warnText} />
+                    <FontAwesome6 name="triangle-exclamation" size={13} color={t.warnText}  aria-hidden={true}/>
                   </View>
                   <View style={styles.duplicateCopy}>
                     {/* The "Duplicate" chip leaves ~156px on a phone, and
@@ -991,7 +991,7 @@ export default function ListSmartlyPage() {
                     buttons. They stay visually identical but are not pressable. */}
                 <View style={styles.duplicateActions}>
                   <View style={styles.primaryAction}>
-                    <FontAwesome6 name="code-merge" size={11} color={t.textOnBrand} />
+                    <FontAwesome6 name="code-merge" size={11} color={t.textOnBrand}  aria-hidden={true}/>
                     <Text style={styles.primaryActionText}>Merge</Text>
                   </View>
                   <View style={styles.ghostAction}>
@@ -1017,7 +1017,7 @@ export default function ListSmartlyPage() {
                     name={isError ? 'circle-exclamation' : 'triangle-exclamation'}
                     size={12}
                     color={isError ? t.pink : t.orange}
-                  />
+                   aria-hidden={true}/>
                 </View>
                 <View style={styles.errorCopy}>
                   <Text numberOfLines={1} style={styles.errorLabel}>
@@ -1098,7 +1098,7 @@ export default function ListSmartlyPage() {
               <View style={styles.replyCard}>
                 <View style={styles.replyHead}>
                   <View style={styles.replyIcon}>
-                    <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.violet} />
+                    <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.violet}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={l.isPhone ? 2 : 1} style={styles.replyTitle}>
                     FlowAgent suggested reply
@@ -1192,11 +1192,11 @@ export default function ListSmartlyPage() {
                   are illustration, not controls on this marketing page. */}
               <View style={styles.pageActions}>
                 <View style={[styles.primaryAction, styles.pageAction]}>
-                  <FontAwesome6 name="diamond-turn-right" size={12} color={t.textOnBrand} />
+                  <FontAwesome6 name="diamond-turn-right" size={12} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text style={styles.primaryActionText}>Directions</Text>
                 </View>
                 <View style={[styles.ghostAction, styles.pageAction]}>
-                  <FontAwesome6 name="calendar-check" size={12} color={t.brand} />
+                  <FontAwesome6 name="calendar-check" size={12} color={t.brand}  aria-hidden={true}/>
                   <Text style={styles.ghostActionText}>Book</Text>
                 </View>
               </View>
@@ -1236,13 +1236,13 @@ export default function ListSmartlyPage() {
                       87
                     </Text>
                     <View style={styles.scoreDelta}>
-                      <FontAwesome6 name="arrow-up" size={9} color={t.successText} />
+                      <FontAwesome6 name="arrow-up" size={9} color={t.successText}  aria-hidden={true}/>
                       <Text style={styles.scoreDeltaText}>+17 in 90 days</Text>
                     </View>
                   </View>
                 </View>
                 <ScoreRing value={87} size={l.isPhone ? 72 : 82} stroke={8} color={t.brand} track={t.surfaceInset}>
-                  <FontAwesome6 name="robot" size={18} color={t.brand} />
+                  <FontAwesome6 name="robot" size={18} color={t.brand}  aria-hidden={true}/>
                 </ScoreRing>
               </View>
 
@@ -1438,7 +1438,7 @@ export default function ListSmartlyPage() {
                         name={allowed ? 'circle-check' : 'minus'}
                         size={11}
                         color={allowed ? t.green : t.textSubtle}
-                      />
+                       aria-hidden={true}/>
                       <Text numberOfLines={1} style={[styles.roleTagText, { color: allowed ? t.successText : t.textSubtle }]}>
                         {ROLE_LABELS[index]}
                       </Text>
@@ -1471,7 +1471,7 @@ export default function ListSmartlyPage() {
                       name={allowed ? 'circle-check' : 'minus'}
                       size={13}
                       color={allowed ? t.green : t.textSubtle}
-                    />
+                     aria-hidden={true}/>
                   </View>
                 ))}
               </View>
@@ -1499,7 +1499,7 @@ export default function ListSmartlyPage() {
               <Reveal key={action.key} style={styles.actionReveal} distance={14} delay={index * 60}>
                 <View style={[styles.actionRow, l.isPhone ? styles.actionRowCompact : null]}>
                   <View style={[styles.actionIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={action.icon as never} size={15} color={accent} />
+                    <FontAwesome6 name={action.icon as never} size={15} color={accent}  aria-hidden={true}/>
                   </View>
                   <View style={styles.actionCopy}>
                     <Text numberOfLines={2} style={styles.actionTitle}>
@@ -1522,7 +1522,7 @@ export default function ListSmartlyPage() {
                   {/* Row action drawn inside the product mockup — illustration. */}
                   <View style={[styles.doButton, l.isPhone ? styles.doButtonFull : null]}>
                     <Text style={styles.doButtonText}>Do it</Text>
-                    <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                    <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
                   </View>
                 </View>
               </Reveal>
@@ -1541,7 +1541,7 @@ export default function ListSmartlyPage() {
             radius={l.isPhone ? 34 : 44}
           />
           <View style={styles.quoteCopy}>
-            <FontAwesome6 name="quote-left" size={18} color={t.brand} />
+            <FontAwesome6 name="quote-left" size={18} color={t.brand}  aria-hidden={true}/>
             <Text style={[type.h3, styles.quoteText]}>
               ListSmartly made our locations easier to find, our info more accurate, and our reviews
               our superpower.

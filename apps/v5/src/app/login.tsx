@@ -108,7 +108,7 @@ export default function LoginScreen() {
             {/* A door is an interactive object, so it keeps its box (rule 15). */}
             <Card style={styles.door} level={2}>
               <View style={[styles.doorIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                <FontAwesome6 name="right-to-bracket" size={17} color={accentText(t.brand, t)} />
+                <FontAwesome6 name="right-to-bracket" size={17} color={accentText(t.brand, t)}  aria-hidden={true}/>
               </View>
               <Heading level={2} style={styles.doorTitle}>
                 Already a customer
@@ -141,7 +141,7 @@ export default function LoginScreen() {
 
             <Card style={styles.door} level={2}>
               <View style={[styles.doorIcon, { backgroundColor: softFill(t.violet, t) }]}>
-                <FontAwesome6 name="star" size={17} color={accentText(t.violet, t)} />
+                <FontAwesome6 name="star" size={17} color={accentText(t.violet, t)}  aria-hidden={true}/>
               </View>
               <Heading level={2} style={styles.doorTitle}>
                 New to FlowSmartly
@@ -182,7 +182,7 @@ export default function LoginScreen() {
           <View style={styles.reassure}>
             {RECOGNISE.map((item) => (
               <View key={item.title} style={styles.reassureCell}>
-                <FontAwesome6 name={item.icon as never} size={15} color={accentText(t.brand, t)} />
+                <FontAwesome6 name={item.icon as never} size={15} color={accentText(t.brand, t)}  aria-hidden={true}/>
                 <Heading level={3} style={styles.reassureTitle}>
                   {item.title}
                 </Heading>

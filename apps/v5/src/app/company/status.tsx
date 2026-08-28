@@ -341,7 +341,7 @@ function Hero() {
         </View>
 
         <View style={styles.note}>
-          <FontAwesome6 name="circle-info" size={14} color={t.textSubtle} />
+          <FontAwesome6 name="circle-info" size={14} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.noteText}>
             This page is an illustrative example of how FlowSmartly reports status. Every figure, bar and
             incident below is static and written by hand — it is not a live feed.
@@ -478,10 +478,10 @@ function Incidents() {
                 <View style={styles.incidentCopy}>
                   <Text style={styles.incidentTitle}>{incident.title}</Text>
                   <View style={styles.incidentMeta}>
-                    <FontAwesome6 name="calendar-day" size={11} color={t.textSubtle} />
+                    <FontAwesome6 name="calendar-day" size={11} color={t.textSubtle}  aria-hidden={true}/>
                     <Text style={styles.metaText}>{incident.date}</Text>
                     <View style={styles.metaDot} />
-                    <FontAwesome6 name="stopwatch" size={11} color={t.textSubtle} />
+                    <FontAwesome6 name="stopwatch" size={11} color={t.textSubtle}  aria-hidden={true}/>
                     <Text style={styles.metaText}>{incident.duration}</Text>
                     <View style={styles.metaDot} />
                     <Text style={styles.metaText}>{incident.components.join(', ')}</Text>
@@ -538,7 +538,7 @@ function Maintenance() {
 
       <Reveal style={styles.maintenanceCard} distance={12}>
         <View style={styles.maintenanceIcon}>
-          <FontAwesome6 name="screwdriver-wrench" size={20} color={t.violet} />
+          <FontAwesome6 name="screwdriver-wrench" size={20} color={t.violet}  aria-hidden={true}/>
         </View>
         <View style={styles.maintenanceCopy}>
           <View style={styles.maintenanceChips}>
@@ -577,7 +577,7 @@ function Subscribe() {
     <Band tone="brand" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
-          <FontAwesome6 name="bell" size={22} color={t.brand} />
+          <FontAwesome6 name="bell" size={22} color={t.brand}  aria-hidden={true}/>
         </View>
         <Heading level={2} style={styles.subscribeTitle}>
           Get told before your customers do
@@ -589,7 +589,7 @@ function Subscribe() {
 
         <View style={styles.subscribeRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="envelope" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="envelope" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={email}
               onChangeText={setEmail}

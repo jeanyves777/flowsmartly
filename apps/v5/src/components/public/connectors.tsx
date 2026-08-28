@@ -332,6 +332,7 @@ export function Connectors({
       height={size.height}
       style={[StyleSheet.absoluteFill, { opacity }]}
       pointerEvents="none"
+      aria-hidden={true}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       {drawn.map((item) => (

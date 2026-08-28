@@ -122,6 +122,7 @@ function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) =
               key={item}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={`Show ${item} changes`}
               onPress={() => onFilter(item)}
               style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -176,7 +177,7 @@ function Timeline({ filter }: { filter: Filter }) {
 
       {total === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="code-branch" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="code-branch" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No ${filter} entries in the releases shown here. Switch the tag above to see the rest of the history.`}
           </Text>
@@ -196,7 +197,7 @@ function Timeline({ filter }: { filter: Filter }) {
             <View style={styles.monthRow}>
               {l.isPhone ? null : <View style={styles.dateSpacer} />}
               <View style={styles.monthMarker}>
-                <FontAwesome6 name="calendar" size={13} color={t.chipText} />
+                <FontAwesome6 name="calendar" size={13} color={t.chipText}  aria-hidden={true}/>
               </View>
               <Text style={styles.monthLabel}>{group.month}</Text>
             </View>
@@ -214,7 +215,7 @@ function Timeline({ filter }: { filter: Filter }) {
                     </Text>
                   )}
                   <View style={[styles.dot, { borderColor: color }]}>
-                    <FontAwesome6 name={kindIcon(entry.kind) as never} size={12} color={color} />
+                    <FontAwesome6 name={kindIcon(entry.kind) as never} size={12} color={color}  aria-hidden={true}/>
                   </View>
 
                   <View style={styles.entryCard}>
@@ -236,7 +237,7 @@ function Timeline({ filter }: { filter: Filter }) {
                         accessibilityLabel={`Read more about ${entry.title}`}
                         style={styles.moreRow as never}>
                         <Text style={[styles.moreText, { color }]}>Read more</Text>
-                        <FontAwesome6 name="arrow-right" size={12} color={color} />
+                        <FontAwesome6 name="arrow-right" size={12} color={color}  aria-hidden={true}/>
                       </Link>
                     ) : null}
                   </View>
@@ -272,7 +273,7 @@ function Subscribe() {
     <Band tone="brand" style={styles.subscribe}>
       <Reveal style={styles.subscribeInner} distance={14}>
         <View style={styles.subscribeIcon}>
-          <FontAwesome6 name="bell" size={22} color={t.brand} />
+          <FontAwesome6 name="bell" size={22} color={t.brand}  aria-hidden={true}/>
         </View>
         <Heading level={2} style={styles.subscribeTitle}>
           Get the changelog by email
@@ -284,7 +285,7 @@ function Subscribe() {
 
         <View style={styles.subscribeRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="envelope" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="envelope" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={email}
               onChangeText={setEmail}

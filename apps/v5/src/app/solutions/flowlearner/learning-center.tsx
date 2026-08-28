@@ -575,7 +575,7 @@ function Certificate({
   return (
     <View style={[styles.certCard, compact ? styles.certCardCompact : null]}>
       <View style={styles.certSeal}>
-        <FontAwesome6 name="certificate" size={compact ? 15 : 20} color={t.brand} />
+        <FontAwesome6 name="certificate" size={compact ? 15 : 20} color={t.brand}  aria-hidden={true}/>
       </View>
       <Text numberOfLines={1} style={styles.certKicker}>
         CERTIFICATE OF COMPLETION
@@ -648,7 +648,7 @@ export default function LearningCenterPage() {
                 accessibilityLabel="Back to the FlowLearner overview"
                 onPress={() => router.push(ROUTES.flowLearner as never)}
                 style={({ pressed }) => [styles.backLink, pressed ? styles.pressed : null]}>
-                <FontAwesome6 name="arrow-left" size={10} color={t.textMuted} />
+                <FontAwesome6 name="arrow-left" size={10} color={t.textMuted}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.backLinkText}>
                   All of FlowLearner
                 </Text>
@@ -689,7 +689,7 @@ export default function LearningCenterPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -705,7 +705,7 @@ export default function LearningCenterPage() {
                 return (
                   <View key={item.key} style={styles.factRow}>
                     <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.factCopy}>
                       <Text style={styles.factTitle}>{item.title}</Text>
@@ -722,7 +722,7 @@ export default function LearningCenterPage() {
             <View style={styles.portal}>
               <View style={styles.portalHead}>
                 <View style={styles.portalBadge}>
-                  <FontAwesome6 name="graduation-cap" size={13} color={t.brand} />
+                  <FontAwesome6 name="graduation-cap" size={13} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.portalHeadCopy}>
                   <Text numberOfLines={1} style={styles.portalTitle}>
@@ -750,7 +750,7 @@ export default function LearningCenterPage() {
                     radius={10}
                   />
                   <View style={styles.resumePlay} pointerEvents="none">
-                    <FontAwesome6 name="play" size={10} color={t.textOnBrand} />
+                    <FontAwesome6 name="play" size={10} color={t.textOnBrand}  aria-hidden={true}/>
                   </View>
                 </View>
                 <View style={styles.resumeCopy}>
@@ -803,7 +803,7 @@ export default function LearningCenterPage() {
                   />
                   <View style={styles.playerOverlay} pointerEvents="none">
                     <View style={styles.playerPlay}>
-                      <FontAwesome6 name="play" size={14} color={t.textOnBrand} />
+                      <FontAwesome6 name="play" size={14} color={t.textOnBrand}  aria-hidden={true}/>
                     </View>
                   </View>
                   <View style={styles.playerBar} pointerEvents="none">
@@ -831,7 +831,7 @@ export default function LearningCenterPage() {
                             name={done ? 'check' : active ? 'play' : 'circle'}
                             size={done ? 8 : 7}
                             color={done ? t.successText : active ? t.textOnBrand : t.textSubtle}
-                          />
+                           aria-hidden={true}/>
                         </View>
                         <Text numberOfLines={1} style={styles.chapterLabel}>
                           {chapter.label}
@@ -870,14 +870,14 @@ export default function LearningCenterPage() {
               <Reveal key={mode.key} style={styles.trioCell} distance={14} delay={index * 70}>
                 <View style={styles.featureCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={mode.icon as never} size={17} color={accent} />
+                    <FontAwesome6 name={mode.icon as never} size={17} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{mode.title}</Text>
                   <Text style={styles.featureBody}>{mode.body}</Text>
                   <View style={styles.pointList}>
                     {mode.points.map((point) => (
                       <View key={point} style={styles.pointRow}>
-                        <FontAwesome6 name="check" size={9} color={accent} />
+                        <FontAwesome6 name="check" size={9} color={accent}  aria-hidden={true}/>
                         <Text style={styles.pointText}>{point}</Text>
                       </View>
                     ))}
@@ -906,7 +906,7 @@ export default function LearningCenterPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="circle-play" size={14} color={t.brand} />
+                  <FontAwesome6 name="circle-play" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelTitle}>
                   Handling objections
@@ -925,7 +925,7 @@ export default function LearningCenterPage() {
                 />
                 <View style={styles.playerOverlay} pointerEvents="none">
                   <View style={styles.playerPlay}>
-                    <FontAwesome6 name="play" size={14} color={t.textOnBrand} />
+                    <FontAwesome6 name="play" size={14} color={t.textOnBrand}  aria-hidden={true}/>
                   </View>
                 </View>
                 <View style={styles.playerBar} pointerEvents="none">
@@ -962,7 +962,7 @@ export default function LearningCenterPage() {
                 return (
                   <View key={feature.key} style={styles.rowItem}>
                     <View style={[styles.rowIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={feature.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={feature.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.rowCopy}>
                       <Text numberOfLines={1} style={styles.rowTitle}>
@@ -993,7 +993,7 @@ export default function LearningCenterPage() {
         <Reveal style={styles.chipWrap} distance={12}>
           {QUESTION_TYPES.map((question) => (
             <View key={question} style={styles.typeChip}>
-              <FontAwesome6 name="circle-question" size={10} color={t.chipText} />
+              <FontAwesome6 name="circle-question" size={10} color={t.chipText}  aria-hidden={true}/>
               <Text numberOfLines={1} style={styles.typeChipText}>
                 {question}
               </Text>
@@ -1006,7 +1006,7 @@ export default function LearningCenterPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="clipboard-question" size={14} color={t.brand} />
+                  <FontAwesome6 name="clipboard-question" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelTitle}>
                   Question 6 of 10
@@ -1041,7 +1041,7 @@ export default function LearningCenterPage() {
                             name={correct ? 'check' : 'xmark'}
                             size={9}
                             color={correct ? t.successText : t.warnText}
-                          />
+                           aria-hidden={true}/>
                         ) : null}
                       </View>
                       <Text numberOfLines={2} style={styles.optionText}>
@@ -1053,7 +1053,7 @@ export default function LearningCenterPage() {
               </View>
 
               <View style={styles.feedbackRow}>
-                <FontAwesome6 name="bolt" size={11} color={t.successText} />
+                <FontAwesome6 name="bolt" size={11} color={t.successText}  aria-hidden={true}/>
                 <Text style={styles.feedbackText}>
                   Correct. Price is usually a stand-in for value, timing or trust — find out which
                   before you discount anything.
@@ -1069,7 +1069,7 @@ export default function LearningCenterPage() {
                   8 / 10
                 </Text>
                 <View style={styles.passChip}>
-                  <FontAwesome6 name="circle-check" size={11} color={t.successText} />
+                  <FontAwesome6 name="circle-check" size={11} color={t.successText}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.passChipText}>
                     Passed
                   </Text>
@@ -1115,7 +1115,7 @@ export default function LearningCenterPage() {
               <Reveal key={rule.key} style={styles.quadCell} distance={14} delay={index * 60}>
                 <View style={styles.featureCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={rule.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={rule.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{rule.title}</Text>
                   <Text style={styles.featureBody}>{rule.body}</Text>
@@ -1143,7 +1143,7 @@ export default function LearningCenterPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="chart-line" size={14} color={t.brand} />
+                  <FontAwesome6 name="chart-line" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelTitle}>
                   Your progress
@@ -1180,7 +1180,7 @@ export default function LearningCenterPage() {
 
               <View style={styles.nextRow}>
                 <View style={styles.nextIcon}>
-                  <FontAwesome6 name="forward" size={12} color={t.brand} />
+                  <FontAwesome6 name="forward" size={12} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.nextCopy}>
                   <Text numberOfLines={1} style={styles.nextLabel}>
@@ -1190,7 +1190,7 @@ export default function LearningCenterPage() {
                     Answering without arguing · 4m 22s
                   </Text>
                 </View>
-                <FontAwesome6 name="arrow-right" size={11} color={t.textSubtle} />
+                <FontAwesome6 name="arrow-right" size={11} color={t.textSubtle}  aria-hidden={true}/>
               </View>
             </View>
           </Reveal>
@@ -1199,7 +1199,7 @@ export default function LearningCenterPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="award" size={14} color={t.brand} />
+                  <FontAwesome6 name="award" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text numberOfLines={1} style={styles.panelTitle}>
                   Badges
@@ -1226,7 +1226,7 @@ export default function LearningCenterPage() {
                             name={(badge.earned ? badge.icon : 'lock') as never}
                             size={14}
                             color={badge.earned ? accent : t.textSubtle}
-                          />
+                           aria-hidden={true}/>
                         </View>
                         <Text numberOfLines={2} style={styles.badgeLabel}>
                           {badge.label}
@@ -1290,7 +1290,7 @@ export default function LearningCenterPage() {
                 return (
                   <View key={rule.key} style={styles.rowItem}>
                     <View style={[styles.rowIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={rule.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={rule.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.rowCopy}>
                       <Text numberOfLines={1} style={styles.rowTitle}>
@@ -1325,7 +1325,7 @@ export default function LearningCenterPage() {
               <Reveal key={mode.key} style={styles.quadCell} distance={14} delay={index * 60}>
                 <View style={styles.priceCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={mode.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={mode.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.priceTitle}>
                     {mode.title}
@@ -1348,7 +1348,7 @@ export default function LearningCenterPage() {
             <Reveal key={point.key} style={styles.trioCell} distance={14} delay={index * 60}>
               <View style={styles.commerceCard}>
                 <View style={styles.commerceIcon}>
-                  <FontAwesome6 name={point.icon as never} size={14} color={t.brand} />
+                  <FontAwesome6 name={point.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.commerceCopy}>
                   <Text numberOfLines={1} style={styles.rowTitle}>
@@ -1367,12 +1367,12 @@ export default function LearningCenterPage() {
           onPress={() => router.push(ROUTES.flowshop as never)}
           style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
           <View style={styles.linkIcon}>
-            <FontAwesome6 name="bag-shopping" size={12} color={t.brand} />
+            <FontAwesome6 name="bag-shopping" size={12} color={t.brand}  aria-hidden={true}/>
           </View>
           <Text style={styles.linkText}>
             Checkout, tax and payouts run on the same FlowShop commerce engine as your store.
           </Text>
-          <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+          <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
         </Pressable>
       </Band>
 
@@ -1395,7 +1395,7 @@ export default function LearningCenterPage() {
               <Reveal key={item.key} style={styles.quadCell} distance={14} delay={index * 60}>
                 <View style={styles.featureCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{item.title}</Text>
                   <Text style={styles.featureBody}>{item.body}</Text>
@@ -1425,7 +1425,7 @@ export default function LearningCenterPage() {
               <Reveal key={device.key} style={styles.trioCell} distance={14} delay={index * 70}>
                 <View style={styles.deviceCard}>
                   <View style={[styles.deviceIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={device.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={device.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{device.title}</Text>
                   <Text style={styles.featureBody}>{device.body}</Text>
@@ -1437,7 +1437,7 @@ export default function LearningCenterPage() {
 
         <View style={styles.assurance}>
           <View style={styles.assuranceIcon}>
-            <FontAwesome6 name="wifi" size={14} color={t.successText} />
+            <FontAwesome6 name="wifi" size={14} color={t.successText}  aria-hidden={true}/>
           </View>
           <Text style={styles.assuranceText}>
             Nothing to install. A learner opens a link, signs in, and the lesson resumes at the
@@ -1490,7 +1490,7 @@ export default function LearningCenterPage() {
               ].map((step) => (
                 <View key={step.label} style={styles.closeStep}>
                   <View style={styles.closeStepIcon}>
-                    <FontAwesome6 name={step.icon as never} size={12} color={t.brand} />
+                    <FontAwesome6 name={step.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={2} style={styles.closeStepText}>
                     {step.label}

@@ -266,7 +266,7 @@ function IconTile({ icon, tone, size = 46 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -329,7 +329,7 @@ function Hero() {
           {OVERVIEW_CONTENTS.map((line) => (
             <View key={line} style={styles.overviewRow}>
               <View style={styles.overviewDot}>
-                <FontAwesome6 name="check" size={9} color={t.green} />
+                <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
               </View>
               <Text style={styles.overviewText}>{line}</Text>
             </View>
@@ -511,7 +511,7 @@ function IncidentResponse() {
             return (
               <View key={step.key} style={styles.timelineItem}>
                 <View style={[styles.timelineDot, { borderColor: color }]}>
-                  <FontAwesome6 name={step.icon as never} size={15} color={color} />
+                  <FontAwesome6 name={step.icon as never} size={15} color={color}  aria-hidden={true}/>
                 </View>
                 <View style={styles.timelineCopy}>
                   <Text style={[styles.timelineLabel, { color }]}>{step.label}</Text>
@@ -592,7 +592,7 @@ function Residency() {
               {REGIONS.map((item) => (
                 <View key={item.region} style={styles.regionRow}>
                   <View style={styles.regionIcon}>
-                    <FontAwesome6 name={item.icon as never} size={14} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.regionCopy}>
                     <Text style={styles.regionName}>{item.region}</Text>
@@ -631,7 +631,7 @@ function Vulnerability() {
 
         <View style={styles.addressRow}>
           <View style={styles.addressIcon}>
-            <FontAwesome6 name="envelope" size={16} color={t.brand} />
+            <FontAwesome6 name="envelope" size={16} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.addressCopy}>
             <Text style={styles.addressLabel}>Dedicated address</Text>
@@ -648,7 +648,7 @@ function Vulnerability() {
           {DISCLOSURE.map((line) => (
             <View key={line} style={styles.disclosureRow}>
               <View style={styles.disclosureDot}>
-                <FontAwesome6 name="circle-check" size={13} color={t.green} />
+                <FontAwesome6 name="circle-check" size={13} color={t.green}  aria-hidden={true}/>
               </View>
               <Text style={styles.disclosureText}>{line}</Text>
             </View>

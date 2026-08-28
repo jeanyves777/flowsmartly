@@ -223,7 +223,7 @@ function FlowTile({
   return (
     <View {...field.node(node.key)} style={styles.flowTile}>
       <View style={[styles.flowIcon, { backgroundColor: softFill(accent, t) }]}>
-        <FontAwesome6 name={node.icon as never} size={16} color={accent} />
+        <FontAwesome6 name={node.icon as never} size={16} color={accent}  aria-hidden={true}/>
       </View>
       <Text style={styles.flowLabel}>{node.label}</Text>
       <Text numberOfLines={2} style={styles.flowNote}>
@@ -380,7 +380,7 @@ export default function AboutPage() {
                 return (
                   <View key={principle.title} style={styles.principleCard}>
                     <View style={[styles.principleIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={principle.icon as never} size={16} color={accent} />
+                      <FontAwesome6 name={principle.icon as never} size={16} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.principleCopy}>
                       <Text style={styles.principleTitle}>{principle.title}</Text>
@@ -459,7 +459,7 @@ export default function AboutPage() {
           onPress={() => router.push(ROUTES.careers as never)}
           style={({ pressed }) => [styles.teamLink, pressed ? styles.teamLinkPressed : null]}>
           <Text style={styles.teamLinkText}>Meet the wider team</Text>
-          <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+          <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
         </Pressable>
       </Band>
 
@@ -479,7 +479,7 @@ export default function AboutPage() {
               <Reveal key={value.title} style={styles.valueCell} distance={16} delay={index * 60}>
                 <View style={styles.valueCard}>
                   <View style={[styles.valueIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={value.icon as never} size={17} color={accent} />
+                    <FontAwesome6 name={value.icon as never} size={17} color={accent}  aria-hidden={true}/>
                   </View>
                   <View style={styles.valueCopy}>
                     <Text style={[type.h4, styles.valueTitle]}>{value.title}</Text>
@@ -498,7 +498,7 @@ export default function AboutPage() {
           <Reveal style={styles.closeCell} distance={16}>
             <View style={styles.closeCard}>
               <View style={[styles.closeIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                <FontAwesome6 name="users" size={18} color={t.brand} />
+                <FontAwesome6 name="users" size={18} color={t.brand}  aria-hidden={true}/>
               </View>
               <Heading level={3} style={[type.h3, styles.closeTitle]}>
                 Join our mission
@@ -520,7 +520,7 @@ export default function AboutPage() {
           <Reveal style={styles.closeCell} distance={16} delay={80}>
             <View style={styles.closeCard}>
               <View style={[styles.closeIcon, { backgroundColor: softFill(t.orange, t) }]}>
-                <FontAwesome6 name="handshake" size={18} color={t.orange} />
+                <FontAwesome6 name="handshake" size={18} color={t.orange}  aria-hidden={true}/>
               </View>
               <Heading level={3} style={[type.h3, styles.closeTitle]}>
                 Partner with FlowSmartly

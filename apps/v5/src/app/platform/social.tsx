@@ -507,7 +507,7 @@ export default function SocialPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -529,7 +529,7 @@ export default function SocialPage() {
                   </Text>
                 </View>
                 <View style={styles.plannerChip}>
-                  <FontAwesome6 name="calendar-check" size={11} color={t.chipText} />
+                  <FontAwesome6 name="calendar-check" size={11} color={t.chipText}  aria-hidden={true}/>
                   <Text style={styles.plannerChipText}>12 scheduled · 2 drafts</Text>
                 </View>
               </View>
@@ -587,13 +587,13 @@ export default function SocialPage() {
                       </Text>
                       <View style={styles.previewStats}>
                         <View style={styles.previewStat}>
-                          <FontAwesome6 name="heart" size={9} color={t.textSubtle} />
+                          <FontAwesome6 name="heart" size={9} color={t.textSubtle}  aria-hidden={true}/>
                           <Text numberOfLines={1} style={styles.previewStatText}>
                             {preview.likes}
                           </Text>
                         </View>
                         <View style={styles.previewStat}>
-                          <FontAwesome6 name="comment" size={9} color={t.textSubtle} />
+                          <FontAwesome6 name="comment" size={9} color={t.textSubtle}  aria-hidden={true}/>
                           <Text numberOfLines={1} style={styles.previewStatText}>
                             {preview.comments}
                           </Text>
@@ -648,7 +648,7 @@ export default function SocialPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="calendar-days" size={14} color={t.brand} />
+                  <FontAwesome6 name="calendar-days" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -663,7 +663,7 @@ export default function SocialPage() {
               <View style={styles.queueList}>
                 {QUEUE.map((item) => (
                   <View key={item.time} style={styles.queueRow}>
-                    <FontAwesome6 name="grip-vertical" size={12} color={t.textSubtle} />
+                    <FontAwesome6 name="grip-vertical" size={12} color={t.textSubtle}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.queueTime}>
                       {item.time}
                     </Text>
@@ -676,7 +676,7 @@ export default function SocialPage() {
                       />
                     ) : (
                       <View style={styles.queueThumbBlank}>
-                        <FontAwesome6 name="align-left" size={11} color={t.textSubtle} />
+                        <FontAwesome6 name="align-left" size={11} color={t.textSubtle}  aria-hidden={true}/>
                       </View>
                     )}
                     <View style={styles.queueCopy}>
@@ -695,7 +695,7 @@ export default function SocialPage() {
               </View>
 
               <View style={styles.hintRow}>
-                <FontAwesome6 name="lightbulb" size={11} color={t.warnText} />
+                <FontAwesome6 name="lightbulb" size={11} color={t.warnText}  aria-hidden={true}/>
                 <Text style={styles.hintText}>
                   Best time for this audience is 6:30pm — one tap moves the whole day.
                 </Text>
@@ -731,7 +731,7 @@ export default function SocialPage() {
               {ADAPT_TICKS.map((item) => (
                 <View key={item} style={styles.optimizedRow}>
                   <View style={styles.optimizedTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={2} style={styles.optimizedText}>
                     {item}
@@ -856,7 +856,7 @@ export default function SocialPage() {
                   </Text>
                 </View>
                 <View style={styles.composerSend}>
-                  <FontAwesome6 name="paper-plane" size={12} color={t.textOnBrand} />
+                  <FontAwesome6 name="paper-plane" size={12} color={t.textOnBrand}  aria-hidden={true}/>
                 </View>
               </View>
             </View>
@@ -885,7 +885,7 @@ export default function SocialPage() {
                   <View style={styles.flowCard}>
                     <View style={styles.flowTopRow}>
                       <View style={[styles.flowIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={step.icon as never} size={17} color={accent} />
+                        <FontAwesome6 name={step.icon as never} size={17} color={accent}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.flowIndex}>{`0${index + 1}`}</Text>
                     </View>
@@ -896,7 +896,7 @@ export default function SocialPage() {
                 {index < LEAD_FLOW.length - 1 ? (
                   <View style={styles.flowArrow}>
                     {l.isStacked ? (
-                      <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
+                      <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong}  aria-hidden={true}/>
                     ) : (
                       <ArrowLink width={36} height={12} color={t.borderStrong} />
                     )}
@@ -909,7 +909,7 @@ export default function SocialPage() {
 
         <View style={styles.assurance}>
           <View style={styles.assuranceIcon}>
-            <FontAwesome6 name="shield-halved" size={15} color={t.successText} />
+            <FontAwesome6 name="shield-halved" size={15} color={t.successText}  aria-hidden={true}/>
           </View>
           <Text style={styles.assuranceText}>
             You choose which questions trigger it, and every automatic reply is one you approved in
@@ -944,7 +944,7 @@ export default function SocialPage() {
             return (
               <View key={rec.title} style={styles.recRow}>
                 <View style={[styles.recIcon, { backgroundColor: softFill(accent, t) }]}>
-                  <FontAwesome6 name={rec.icon as never} size={14} color={accent} />
+                  <FontAwesome6 name={rec.icon as never} size={14} color={accent}  aria-hidden={true}/>
                 </View>
                 <View style={styles.recCopy}>
                   <Text style={styles.recTitle}>{rec.title}</Text>
@@ -1019,7 +1019,7 @@ export default function SocialPage() {
                 <Reveal key={item.title} style={styles.safetyCell} distance={14} delay={index * 60}>
                   <View style={styles.safetyCard}>
                     <View style={styles.safetyIcon}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={t.brand} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <Text style={styles.safetyTitle}>{item.title}</Text>
                     <Text style={styles.safetyBody}>{item.body}</Text>
@@ -1033,7 +1033,7 @@ export default function SocialPage() {
             <View style={styles.panel}>
               <View style={styles.panelHead}>
                 <View style={styles.panelIcon}>
-                  <FontAwesome6 name="circle-check" size={14} color={t.brand} />
+                  <FontAwesome6 name="circle-check" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelHeadCopy}>
                   <Text numberOfLines={1} style={styles.panelTitle}>
@@ -1054,7 +1054,7 @@ export default function SocialPage() {
                       <View style={styles.chainRail}>
                         {last ? null : <View style={styles.chainLine} />}
                         <View style={[styles.chainDot, { backgroundColor: softFill(accent, t), borderColor: accent }]}>
-                          <FontAwesome6 name="check" size={9} color={accent} />
+                          <FontAwesome6 name="check" size={9} color={accent}  aria-hidden={true}/>
                         </View>
                       </View>
                       <Media name={step.media} alt={step.person} style={styles.chainAvatar} radius={14} />
@@ -1091,7 +1091,7 @@ export default function SocialPage() {
               </View>
 
               <View style={styles.hintRow}>
-                <FontAwesome6 name="lock" size={11} color={t.chipText} />
+                <FontAwesome6 name="lock" size={11} color={t.chipText}  aria-hidden={true}/>
                 <Text style={styles.hintTextBrand}>
                   Publishing rights are per channel — a reviewer can approve without being able to
                   post.
@@ -1129,7 +1129,7 @@ export default function SocialPage() {
               <Reveal key={card.title} style={styles.integrationCell} distance={16} delay={index * 70}>
                 <View style={styles.integrationCard}>
                   <View style={[styles.integrationIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={card.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={card.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.integrationTitle}>{card.title}</Text>
                   <Text style={styles.integrationBody}>{card.body}</Text>
@@ -1147,7 +1147,7 @@ function Tick({ text, styles, t }: { text: string; styles: Styles; t: ThemeToken
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={10} color={t.green} />
+        <FontAwesome6 name="check" size={10} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{text}</Text>
     </View>

@@ -662,7 +662,7 @@ export default function AdsPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -674,7 +674,7 @@ export default function AdsPage() {
             <FigureStrip figures={HERO_FIGURES} styles={styles} accentOf={accentOf} />
 
             <View style={styles.quoteCard}>
-              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.quoteText}>
                 We moved budget between networks in one afternoon and stopped paying twice for the
                 same conversion.
@@ -702,7 +702,7 @@ export default function AdsPage() {
             <View style={styles.console}>
               <View style={styles.consoleHead}>
                 <View style={styles.consoleBadge}>
-                  <FontAwesome6 name="bullhorn" size={13} color={t.brand} />
+                  <FontAwesome6 name="bullhorn" size={13} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.consoleHeadCopy}>
                   <Text numberOfLines={1} style={styles.consoleTitle}>
@@ -724,7 +724,7 @@ export default function AdsPage() {
                 {BUILDER_FIELDS.map((field) => (
                   <View key={field.label} style={styles.field}>
                     <View style={styles.fieldIcon}>
-                      <FontAwesome6 name={field.icon as never} size={11} color={t.textSubtle} />
+                      <FontAwesome6 name={field.icon as never} size={11} color={t.textSubtle}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={styles.fieldLabel}>
                       {field.label}
@@ -742,7 +742,7 @@ export default function AdsPage() {
                       <Text numberOfLines={1} style={[styles.channelChipText, chip.on ? styles.channelChipTextOn : null]}>
                         {chip.label}
                       </Text>
-                      {chip.on ? <FontAwesome6 name="check" size={9} color={t.brand} /> : null}
+                      {chip.on ? <FontAwesome6 name="check" size={9} color={t.brand}  aria-hidden={true}/> : null}
                     </View>
                   ))}
                 </View>
@@ -820,7 +820,7 @@ export default function AdsPage() {
                 {/* Illustration of the product, not a control — a fake button
                     that silently does nothing is worse than a static mock. */}
                 <View style={styles.approveButton}>
-                  <FontAwesome6 name="check" size={11} color={t.textOnBrand} />
+                  <FontAwesome6 name="check" size={11} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text style={styles.approveText}>Approve</Text>
                 </View>
               </View>
@@ -858,7 +858,7 @@ export default function AdsPage() {
               {CROSS_CHANNEL_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>
@@ -924,7 +924,7 @@ export default function AdsPage() {
               {BOOST_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>
@@ -936,7 +936,7 @@ export default function AdsPage() {
             <View style={styles.boostRow}>
               <View style={styles.boostCard}>
                 <View style={styles.boostBadge}>
-                  <FontAwesome6 name="arrow-trend-up" size={10} color={t.green} />
+                  <FontAwesome6 name="arrow-trend-up" size={10} color={t.green}  aria-hidden={true}/>
                   <Text style={styles.boostBadgeText}>Top post this week</Text>
                 </View>
                 <Media
@@ -963,7 +963,7 @@ export default function AdsPage() {
 
               <View style={styles.boostArrow}>
                 {l.isStacked ? (
-                  <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
+                  <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong}  aria-hidden={true}/>
                 ) : (
                   <ArrowLink width={34} height={12} color={t.borderStrong} />
                 )}
@@ -971,7 +971,7 @@ export default function AdsPage() {
 
               <View style={styles.boostCard}>
                 <View style={[styles.boostBadge, styles.boostBadgeBrand]}>
-                  <FontAwesome6 name="bullhorn" size={10} color={t.brand} />
+                  <FontAwesome6 name="bullhorn" size={10} color={t.brand}  aria-hidden={true}/>
                   <Text style={[styles.boostBadgeText, styles.boostBadgeTextBrand]}>Ad draft</Text>
                 </View>
                 <Media
@@ -1021,7 +1021,7 @@ export default function AdsPage() {
                     </Text>
                     {variant.winner ? (
                       <View style={styles.winnerChip}>
-                        <FontAwesome6 name="trophy" size={9} color={t.successText} />
+                        <FontAwesome6 name="trophy" size={9} color={t.successText}  aria-hidden={true}/>
                         <Text style={styles.winnerChipText}>Winning</Text>
                       </View>
                     ) : null}
@@ -1060,7 +1060,7 @@ export default function AdsPage() {
                 {BRAND_POINTS.map((point) => (
                   <View key={point} style={styles.pointRow}>
                     <View style={styles.pointTick}>
-                      <FontAwesome6 name="check" size={9} color={t.green} />
+                      <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                     </View>
                     <Text style={styles.pointText}>{point}</Text>
                   </View>
@@ -1102,7 +1102,7 @@ export default function AdsPage() {
                 <View key={source.key} style={styles.audienceSourceCell}>
                   <View {...audience.node(source.key)} style={styles.audienceSource}>
                     <View style={[styles.audienceSourceIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={source.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={source.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.audienceSourceCopy}>
                       <Text numberOfLines={1} style={styles.audienceSourceLabel}>
@@ -1121,7 +1121,7 @@ export default function AdsPage() {
           <View style={styles.audienceHubWrap}>
             <View {...audience.node('audience')} style={styles.audienceHub}>
               <View style={styles.audienceHubIcon}>
-                <FontAwesome6 name="users-viewfinder" size={17} color={t.brand} />
+                <FontAwesome6 name="users-viewfinder" size={17} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text numberOfLines={2} style={styles.audienceHubTitle}>
                 High value audience
@@ -1160,7 +1160,7 @@ export default function AdsPage() {
                 return (
                   <View key={guard.key} style={styles.guardRow}>
                     <View style={[styles.guardIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={guard.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={guard.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.guardCopy}>
                       <View style={styles.guardHead}>
@@ -1188,7 +1188,7 @@ export default function AdsPage() {
             <View style={styles.approvalCard}>
               <View style={styles.approvalCardHead}>
                 <View style={styles.approvalCardIcon}>
-                  <FontAwesome6 name="user-check" size={15} color={t.brand} />
+                  <FontAwesome6 name="user-check" size={15} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.approvalCardCopy}>
                   <Text numberOfLines={1} style={styles.approvalCardTitle}>
@@ -1238,7 +1238,7 @@ export default function AdsPage() {
               <View style={styles.approvalActions}>
                 {/* Part of the approval mock, not live controls. */}
                 <View style={styles.approveWide}>
-                  <FontAwesome6 name="check" size={12} color={t.textOnBrand} />
+                  <FontAwesome6 name="check" size={12} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text style={styles.approveText}>Approve & launch</Text>
                 </View>
                 <View style={styles.ghostButton}>
@@ -1247,7 +1247,7 @@ export default function AdsPage() {
               </View>
 
               <View style={styles.approvalFoot}>
-                <FontAwesome6 name="shield-halved" size={11} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={11} color={t.green}  aria-hidden={true}/>
                 <Text numberOfLines={2} style={styles.approvalFootText}>
                   Nothing spends until someone on your team approves it.
                 </Text>
@@ -1340,7 +1340,7 @@ export default function AdsPage() {
               <Reveal key={rec.key} style={styles.recWrap} distance={14} delay={index * 70}>
                 <View style={styles.recRow}>
                   <View style={[styles.recIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={rec.icon as never} size={15} color={accent} />
+                    <FontAwesome6 name={rec.icon as never} size={15} color={accent}  aria-hidden={true}/>
                   </View>
                   <View style={styles.recCopy}>
                     <Text numberOfLines={2} style={styles.recTitle}>
@@ -1357,7 +1357,7 @@ export default function AdsPage() {
                       it is not a control on a marketing page. */}
                   <View style={styles.applyButton}>
                     <Text style={styles.applyText}>Apply</Text>
-                    <FontAwesome6 name="arrow-right" size={10} color={t.brand} />
+                    <FontAwesome6 name="arrow-right" size={10} color={t.brand}  aria-hidden={true}/>
                   </View>
                 </View>
               </Reveal>
@@ -1382,7 +1382,7 @@ export default function AdsPage() {
               {DISCLOSURE_POINTS.map((item) => (
                 <View key={item.title} style={styles.discRow}>
                   <View style={styles.discIcon}>
-                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.discCopy}>
                     <Text style={styles.discTitle}>{item.title}</Text>
@@ -1403,11 +1403,11 @@ export default function AdsPage() {
               />
               <View style={styles.discLabelRow}>
                 <View style={styles.discLabelChip}>
-                  <FontAwesome6 name="wand-magic-sparkles" size={10} color={t.chipText} />
+                  <FontAwesome6 name="wand-magic-sparkles" size={10} color={t.chipText}  aria-hidden={true}/>
                   <Text style={styles.discLabelChipText}>AI-generated</Text>
                 </View>
                 <View style={styles.discLabelChipMuted}>
-                  <FontAwesome6 name="user-check" size={10} color={t.textSubtle} />
+                  <FontAwesome6 name="user-check" size={10} color={t.textSubtle}  aria-hidden={true}/>
                   <Text style={styles.discLabelChipMutedText}>Approved by Daniel Kim</Text>
                 </View>
               </View>

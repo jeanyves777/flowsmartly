@@ -444,7 +444,7 @@ function FlowColumn({
     <View style={styles.flowCard}>
       <View style={styles.flowHead}>
         <View style={[styles.flowHeadIcon, { backgroundColor: softFill(accent, t) }]}>
-          <FontAwesome6 name={icon as never} size={15} color={accent} />
+          <FontAwesome6 name={icon as never} size={15} color={accent}  aria-hidden={true}/>
         </View>
         <View style={styles.flowHeadCopy}>
           <Text numberOfLines={1} style={styles.flowTitle}>
@@ -462,7 +462,7 @@ function FlowColumn({
             <View style={styles.flowRail}>
               {index === steps.length - 1 ? null : <View style={styles.flowLine} />}
               <View style={[styles.flowDot, { borderColor: accent, backgroundColor: softFill(accent, t) }]}>
-                <FontAwesome6 name={step.icon as never} size={10} color={accent} />
+                <FontAwesome6 name={step.icon as never} size={10} color={accent}  aria-hidden={true}/>
               </View>
             </View>
             <View style={styles.flowStepCopy}>
@@ -547,7 +547,7 @@ export default function CallAgentPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -562,7 +562,7 @@ export default function CallAgentPage() {
             <View style={styles.heroQuote}>
               <View style={styles.heroQuoteStars}>
                 {[0, 1, 2, 3, 4].map((star) => (
-                  <FontAwesome6 key={star} name="star" size={12} color={t.orange} solid />
+                  <FontAwesome6 key={star} name="star" size={12} color={t.orange} solid  aria-hidden={true}/>
                 ))}
               </View>
               <Text style={styles.heroQuoteText}>
@@ -650,7 +650,7 @@ export default function CallAgentPage() {
                       return (
                         <View key={action.key} style={styles.actionRow}>
                           <View style={[styles.actionIcon, { backgroundColor: softFill(accent, t) }]}>
-                            <FontAwesome6 name={action.icon as never} size={11} color={accent} />
+                            <FontAwesome6 name={action.icon as never} size={11} color={accent}  aria-hidden={true}/>
                           </View>
                           <View style={styles.actionCopy}>
                             <Text numberOfLines={1} style={styles.actionLabel}>
@@ -679,7 +679,7 @@ export default function CallAgentPage() {
                       name={control.icon as never}
                       size={14}
                       color={control.danger ? t.textOnBrand : t.textMuted}
-                    />
+                     aria-hidden={true}/>
                   </View>
                 ))}
               </View>
@@ -706,7 +706,7 @@ export default function CallAgentPage() {
               <Reveal key={role.key} style={styles.roleCell} distance={16} delay={index * 60}>
                 <View style={styles.roleCard}>
                   <View style={[styles.roleIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={role.icon as never} size={18} color={accent} />
+                    <FontAwesome6 name={role.icon as never} size={18} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.roleTitle]}>{role.title}</Text>
                   <Text style={styles.roleBody}>{role.body}</Text>
@@ -731,7 +731,7 @@ export default function CallAgentPage() {
               {CONFIG_ROWS.map((row) => (
                 <View key={row.key} style={styles.configRow}>
                   <View style={styles.configIcon}>
-                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.configLabel}>
                     {row.label}
@@ -748,7 +748,7 @@ export default function CallAgentPage() {
             <View style={styles.previewCard}>
               <View style={styles.previewHead}>
                 <View style={styles.previewIcon}>
-                  <FontAwesome6 name="headset" size={15} color={t.brand} />
+                  <FontAwesome6 name="headset" size={15} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.previewHeadCopy}>
                   <Text numberOfLines={1} style={styles.previewTitle}>
@@ -768,7 +768,7 @@ export default function CallAgentPage() {
                       {scenario.ask}
                     </Text>
                     <View style={styles.scenarioArrow}>
-                      <FontAwesome6 name="arrow-right" size={10} color={t.textSubtle} />
+                      <FontAwesome6 name="arrow-right" size={10} color={t.textSubtle}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={3} style={styles.scenarioDoes}>
                       {scenario.does}
@@ -778,7 +778,7 @@ export default function CallAgentPage() {
               </View>
 
               <View style={styles.previewFoot}>
-                <FontAwesome6 name="shield-halved" size={11} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={11} color={t.green}  aria-hidden={true}/>
                 <Text numberOfLines={2} style={styles.previewFootText}>
                   Test it on your own phone before a single customer hears it.
                 </Text>
@@ -807,7 +807,7 @@ export default function CallAgentPage() {
                 <View style={[styles.voiceCard, voice.selected ? styles.voiceCardOn : null]}>
                   <View style={styles.voiceHead}>
                     <View style={[styles.voiceIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name="waveform" size={16} color={accent} />
+                      <FontAwesome6 name="waveform" size={16} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.voiceHeadCopy}>
                       <Text numberOfLines={1} style={styles.voiceName}>
@@ -819,7 +819,7 @@ export default function CallAgentPage() {
                     </View>
                     {voice.selected ? (
                       <View style={styles.voiceSelected}>
-                        <FontAwesome6 name="check" size={9} color={t.chipText} />
+                        <FontAwesome6 name="check" size={9} color={t.chipText}  aria-hidden={true}/>
                         <Text style={styles.voiceSelectedText}>Selected</Text>
                       </View>
                     ) : null}
@@ -835,7 +835,7 @@ export default function CallAgentPage() {
                       router.push(contactHref('demo') as never);
                     }}
                     style={({ pressed }) => [styles.voiceButton, pressed ? styles.pressed : null]}>
-                    <FontAwesome6 name="play" size={10} color={t.brand} />
+                    <FontAwesome6 name="play" size={10} color={t.brand}  aria-hidden={true}/>
                     <Text style={styles.voiceButtonText}>Hear a sample</Text>
                   </Pressable>
                 </View>
@@ -847,7 +847,7 @@ export default function CallAgentPage() {
         <Reveal style={styles.cloneWrap} distance={14} delay={120}>
           <View style={styles.cloneRow}>
             <View style={styles.cloneIcon}>
-              <FontAwesome6 name="microphone-lines" size={17} color={t.violet} />
+              <FontAwesome6 name="microphone-lines" size={17} color={t.violet}  aria-hidden={true}/>
             </View>
             <View style={styles.cloneCopy}>
               <Text style={styles.cloneTitle}>Or answer in your own voice</Text>
@@ -865,7 +865,7 @@ export default function CallAgentPage() {
               }}
               style={({ pressed }) => [styles.cloneButton, pressed ? styles.pressed : null]}>
               <Text style={styles.cloneButtonText}>Join early access</Text>
-              <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+              <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
             </Pressable>
           </View>
         </Reveal>
@@ -924,7 +924,7 @@ export default function CallAgentPage() {
             <View style={styles.capCard}>
               <View style={styles.capHead}>
                 <View style={[styles.capIcon, { backgroundColor: softFill(t.green, t) }]}>
-                  <FontAwesome6 name="calendar-check" size={16} color={t.green} />
+                  <FontAwesome6 name="calendar-check" size={16} color={t.green}  aria-hidden={true}/>
                 </View>
                 <Text style={[type.h4, styles.capTitle]}>Appointment booking</Text>
               </View>
@@ -943,7 +943,7 @@ export default function CallAgentPage() {
                     </Text>
                     {index === 1 ? (
                       <View style={styles.slotChip}>
-                        <FontAwesome6 name="check" size={8} color={t.successText} />
+                        <FontAwesome6 name="check" size={8} color={t.successText}  aria-hidden={true}/>
                         <Text style={styles.slotChipText}>Booked</Text>
                       </View>
                     ) : (
@@ -962,7 +962,7 @@ export default function CallAgentPage() {
             <View style={styles.capCard}>
               <View style={styles.capHead}>
                 <View style={[styles.capIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                  <FontAwesome6 name="user-check" size={16} color={t.brand} />
+                  <FontAwesome6 name="user-check" size={16} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text style={[type.h4, styles.capTitle]}>Lead capture</Text>
               </View>
@@ -997,7 +997,7 @@ export default function CallAgentPage() {
             <View style={styles.capCard}>
               <View style={styles.capHead}>
                 <View style={[styles.capIcon, { backgroundColor: softFill(t.orange, t) }]}>
-                  <FontAwesome6 name="receipt" size={16} color={t.orange} />
+                  <FontAwesome6 name="receipt" size={16} color={t.orange}  aria-hidden={true}/>
                 </View>
                 <Text style={[type.h4, styles.capTitle]}>Order taking</Text>
               </View>
@@ -1047,7 +1047,7 @@ export default function CallAgentPage() {
             <View style={styles.capCard}>
               <View style={styles.capHead}>
                 <View style={[styles.capIcon, { backgroundColor: softFill(t.violet, t) }]}>
-                  <FontAwesome6 name="life-ring" size={16} color={t.violet} />
+                  <FontAwesome6 name="life-ring" size={16} color={t.violet}  aria-hidden={true}/>
                 </View>
                 <Text style={[type.h4, styles.capTitle]}>Customer support</Text>
               </View>
@@ -1058,7 +1058,7 @@ export default function CallAgentPage() {
               <View style={styles.resolution}>
                 <View style={styles.resolutionHead}>
                   <View style={styles.resolutionBadge}>
-                    <FontAwesome6 name="circle-check" size={10} color={t.successText} />
+                    <FontAwesome6 name="circle-check" size={10} color={t.successText}  aria-hidden={true}/>
                     <Text style={styles.resolutionBadgeText}>Resolved</Text>
                   </View>
                   <Text numberOfLines={1} style={styles.resolutionTime}>
@@ -1094,7 +1094,7 @@ export default function CallAgentPage() {
               {SUMMARY_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>
@@ -1106,7 +1106,7 @@ export default function CallAgentPage() {
             <View style={styles.summaryCard}>
               <View style={styles.summaryHead}>
                 <View style={styles.summaryIcon}>
-                  <FontAwesome6 name="file-lines" size={15} color={t.brand} />
+                  <FontAwesome6 name="file-lines" size={15} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.summaryHeadCopy}>
                   <Text numberOfLines={1} style={styles.summaryTitle}>
@@ -1127,7 +1127,7 @@ export default function CallAgentPage() {
                 {EXTRACTED.map((item) => (
                   <View key={item.key} style={styles.extractRow}>
                     <View style={styles.extractIcon}>
-                      <FontAwesome6 name={item.icon as never} size={10} color={t.textSubtle} />
+                      <FontAwesome6 name={item.icon as never} size={10} color={t.textSubtle}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={styles.extractLabel}>
                       {item.label}
@@ -1186,7 +1186,7 @@ export default function CallAgentPage() {
               <Reveal key={card.key} style={styles.trustCell} distance={16} delay={index * 65}>
                 <View style={styles.trustCard}>
                   <View style={[styles.trustIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={card.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={card.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.trustTitle}>{card.title}</Text>
                   <Text style={styles.trustBody}>{card.body}</Text>
@@ -1266,7 +1266,7 @@ export default function CallAgentPage() {
               {PRICING_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>

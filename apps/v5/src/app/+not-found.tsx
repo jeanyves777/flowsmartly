@@ -187,7 +187,7 @@ export default function NotFoundScreen() {
                   accessibilityLabel={`Go to ${item.label}`}
                   style={styles.row as never}>
                   <View style={[styles.rowIcon, { backgroundColor: softFill(color, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={16} color={color} />
+                    <FontAwesome6 name={item.icon as never} size={16} color={color}  aria-hidden={true}/>
                   </View>
                   <View style={styles.rowCopy}>
                     <Text style={styles.rowLabel} numberOfLines={1}>
@@ -197,7 +197,7 @@ export default function NotFoundScreen() {
                       {item.body}
                     </Text>
                   </View>
-                  <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+                  <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
                 </Link>
               </Reveal>
             );

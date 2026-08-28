@@ -387,7 +387,7 @@ function IconTile({ icon, color, size = 44 }: { icon: string; color: string; siz
         justifyContent: 'center',
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -603,7 +603,7 @@ export function CapabilityGroupsSection() {
                     channel and no date: see the note on CAPABILITY_GROUPS. */}
                 {item.unreleased ? (
                   <View style={styles.unreleased}>
-                    <FontAwesome6 name="circle-info" size={11} color={t.textMuted} />
+                    <FontAwesome6 name="circle-info" size={11} color={t.textMuted}  aria-hidden={true}/>
                     <Text style={styles.unreleasedText}>Not available yet</Text>
                   </View>
                 ) : null}
@@ -693,7 +693,7 @@ export function FlowAgentAlongsideSection() {
             {AGENT_LOOP.map((step, index) => (
               <Reveal key={step.line} delay={index * 45} distance={8} style={styles.agentRow}>
                 <View style={styles.agentTick}>
-                  <FontAwesome6 name="check" size={10} color={t.successText} />
+                  <FontAwesome6 name="check" size={10} color={t.successText}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.agentRowText}>{step.line}</Text>
               </Reveal>

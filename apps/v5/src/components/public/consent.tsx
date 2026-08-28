@@ -187,7 +187,7 @@ export function ConsentNotice() {
                 three; the phone banner is two lines and the actions. */}
             {l.isPhone ? null : (
               <View style={styles.bannerIcon}>
-                <FontAwesome6 name="cookie-bite" size={16} color={t.brand} />
+                <FontAwesome6 name="cookie-bite" size={16} color={t.brand}  aria-hidden={true}/>
               </View>
             )}
             <View style={styles.bannerCopy}>
@@ -255,7 +255,7 @@ export function ConsentNotice() {
                 accessibilityLabel="Close cookie preferences"
                 onPress={() => setPanelOpen(false)}
                 style={({ pressed }) => [styles.panelClose, pressed ? styles.pressed : null]}>
-                <FontAwesome6 name="xmark" size={15} color={t.textMuted} />
+                <FontAwesome6 name="xmark" size={15} color={t.textMuted}  aria-hidden={true}/>
               </Pressable>
             </View>
 
@@ -266,7 +266,7 @@ export function ConsentNotice() {
 
               {gpc ? (
                 <View style={styles.gpcNote}>
-                  <FontAwesome6 name="shield-halved" size={12} color={t.textMuted} />
+                  <FontAwesome6 name="shield-halved" size={12} color={t.textMuted}  aria-hidden={true}/>
                   <Text style={styles.gpcNoteText}>
                     Your browser is sending a Global Privacy Control signal, so marketing storage stays
                     off on this browser whatever you choose here.
@@ -287,7 +287,7 @@ export function ConsentNotice() {
                   <View key={category.key} style={styles.category}>
                     <View style={styles.categoryTop}>
                       <View style={styles.categoryIcon}>
-                        <FontAwesome6 name={category.icon as never} size={13} color={t.brand} />
+                        <FontAwesome6 name={category.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.categoryTitle}>{category.title}</Text>
                       {category.locked ? (
@@ -431,7 +431,7 @@ export function ConsentFooterLink() {
       accessibilityLabel="Open cookie settings"
       onPress={openConsentPreferences}
       style={({ pressed }) => [styles.footerLink, pressed ? styles.pressed : null]}>
-      <FontAwesome6 name="sliders" size={11} color={t.textSubtle} />
+      <FontAwesome6 name="sliders" size={11} color={t.textSubtle}  aria-hidden={true}/>
       <Text style={styles.footerLinkText}>Cookie settings</Text>
       <Text style={styles.footerLinkState}>{state}</Text>
     </Pressable>
@@ -449,7 +449,7 @@ export function ConsentPreferencesButton() {
       accessibilityLabel="Open cookie settings"
       onPress={openConsentPreferences}
       style={({ pressed }) => [styles.withdraw, styles.withdrawPrimary, pressed ? styles.pressed : null]}>
-      <FontAwesome6 name="sliders" size={12} color={t.textOnBrand} />
+      <FontAwesome6 name="sliders" size={12} color={t.textOnBrand}  aria-hidden={true}/>
       <Text style={[styles.withdrawText, styles.withdrawTextPrimary]}>Cookie settings</Text>
     </Pressable>
   );
@@ -466,7 +466,7 @@ export function ConsentWithdrawButton() {
       accessibilityLabel="Withdraw consent and clear the stored choice"
       onPress={() => resetConsent()}
       style={({ pressed }) => [styles.withdraw, pressed ? styles.pressed : null]}>
-      <FontAwesome6 name="rotate-left" size={12} color={t.text} />
+      <FontAwesome6 name="rotate-left" size={12} color={t.text}  aria-hidden={true}/>
       <Text style={styles.withdrawText}>Withdraw consent</Text>
     </Pressable>
   );

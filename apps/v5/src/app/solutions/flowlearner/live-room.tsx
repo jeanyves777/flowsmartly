@@ -419,7 +419,7 @@ function MockGoLive({ label, icon, t }: { label: string; icon: string; t: ThemeT
           justifyContent: 'center',
           gap: 9,
         }}>
-        <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand} />
+        <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand}  aria-hidden={true}/>
         <Text style={{ color: t.textOnBrand, fontSize: 15, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       </LinearGradient>
     </View>
@@ -522,7 +522,7 @@ export default function LiveRoomPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -535,9 +535,9 @@ export default function LiveRoomPage() {
               accessibilityLabel="See how FlowLearner fits together"
               onPress={() => router.push(ROUTES.flowLearner as never)}
               style={({ pressed }) => [styles.backLink, pressed ? styles.pressed : null]}>
-              <FontAwesome6 name="graduation-cap" size={12} color={t.brand} />
+              <FontAwesome6 name="graduation-cap" size={12} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.backLinkText}>See how FlowLearner fits together</Text>
-              <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+              <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
             </Pressable>
           </View>
 
@@ -553,7 +553,7 @@ export default function LiveRoomPage() {
                   41:26
                 </Text>
                 <View style={styles.headCount}>
-                  <FontAwesome6 name="user-group" size={11} color={t.textMuted} />
+                  <FontAwesome6 name="user-group" size={11} color={t.textMuted}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.headCountText}>
                     128 participants
                   </Text>
@@ -574,7 +574,7 @@ export default function LiveRoomPage() {
                       radius={13}
                     />
                     <View style={styles.presenterBadge}>
-                      <FontAwesome6 name="microphone" size={9} color={t.textOnBrand} />
+                      <FontAwesome6 name="microphone" size={9} color={t.textOnBrand}  aria-hidden={true}/>
                       <Text numberOfLines={1} style={styles.presenterName}>
                         Megan Roberts
                       </Text>
@@ -649,7 +649,7 @@ export default function LiveRoomPage() {
                             </View>
                             {person.hand ? (
                               <View style={styles.handChip}>
-                                <FontAwesome6 name="hand" size={9} color={t.warnText} />
+                                <FontAwesome6 name="hand" size={9} color={t.warnText}  aria-hidden={true}/>
                               </View>
                             ) : null}
                             <View style={styles.micChip}>
@@ -657,7 +657,7 @@ export default function LiveRoomPage() {
                                 name={person.mic === 'on' ? 'microphone' : 'microphone-slash'}
                                 size={9}
                                 color={person.mic === 'on' ? t.successText : t.textSubtle}
-                              />
+                               aria-hidden={true}/>
                             </View>
                           </View>
                         );
@@ -718,7 +718,7 @@ export default function LiveRoomPage() {
                       name={control.icon as never}
                       size={14}
                       color={control.danger ? t.textOnBrand : control.on ? t.brand : t.textMuted}
-                    />
+                     aria-hidden={true}/>
                   </View>
                 ))}
               </View>
@@ -745,7 +745,7 @@ export default function LiveRoomPage() {
               <Reveal key={item.key} style={styles.featureCell} distance={16} delay={index * 60}>
                 <View style={styles.featureCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{item.title}</Text>
                   <Text style={styles.featureBody}>{item.body}</Text>
@@ -760,7 +760,7 @@ export default function LiveRoomPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelCardHead}>
                 <View style={styles.panelCardIcon}>
-                  <FontAwesome6 name="chart-simple" size={14} color={t.brand} />
+                  <FontAwesome6 name="chart-simple" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelCardCopy}>
                   <Text numberOfLines={1} style={styles.panelCardTitle}>
@@ -800,7 +800,7 @@ export default function LiveRoomPage() {
                   const accent = accentOf(reaction.accent);
                   return (
                     <View key={reaction.key} style={styles.reactionChip}>
-                      <FontAwesome6 name={reaction.icon as never} size={12} color={accent} />
+                      <FontAwesome6 name={reaction.icon as never} size={12} color={accent}  aria-hidden={true}/>
                       <Text numberOfLines={1} style={styles.reactionCount}>
                         {reaction.count}
                       </Text>
@@ -815,7 +815,7 @@ export default function LiveRoomPage() {
             <View style={styles.panelCard}>
               <View style={styles.panelCardHead}>
                 <View style={styles.panelCardIcon}>
-                  <FontAwesome6 name="circle-question" size={14} color={t.brand} />
+                  <FontAwesome6 name="circle-question" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.panelCardCopy}>
                   <Text numberOfLines={1} style={styles.panelCardTitle}>
@@ -830,7 +830,7 @@ export default function LiveRoomPage() {
                 {QUESTIONS.map((question) => (
                   <View key={question.key} style={styles.questionRow}>
                     <View style={styles.voteBox}>
-                      <FontAwesome6 name="caret-up" size={12} color={t.brand} />
+                      <FontAwesome6 name="caret-up" size={12} color={t.brand}  aria-hidden={true}/>
                       <Text style={styles.voteCount}>{question.votes}</Text>
                     </View>
                     <View style={styles.questionCopy}>
@@ -841,7 +841,7 @@ export default function LiveRoomPage() {
                     </View>
                     {question.answered ? (
                       <View style={styles.answeredChip}>
-                        <FontAwesome6 name="check" size={8} color={t.successText} />
+                        <FontAwesome6 name="check" size={8} color={t.successText}  aria-hidden={true}/>
                         <Text style={styles.answeredChipText}>Answered</Text>
                       </View>
                     ) : null}
@@ -849,7 +849,7 @@ export default function LiveRoomPage() {
                 ))}
               </View>
               <View style={styles.handQueue}>
-                <FontAwesome6 name="hand" size={12} color={t.warnText} />
+                <FontAwesome6 name="hand" size={12} color={t.warnText}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.handQueueText}>
                   2 hands raised — David, then Aisha
                 </Text>
@@ -869,7 +869,7 @@ export default function LiveRoomPage() {
                   Everyone can draw
                 </Text>
                 <View style={styles.lockChip}>
-                  <FontAwesome6 name="lock-open" size={10} color={t.chipText} />
+                  <FontAwesome6 name="lock-open" size={10} color={t.chipText}  aria-hidden={true}/>
                   <Text style={styles.lockChipText}>Unlocked</Text>
                 </View>
               </View>
@@ -914,7 +914,7 @@ export default function LiveRoomPage() {
                     <View
                       key={cursor.key}
                       style={[styles.cursor, { left: cursor.left, top: cursor.top }]}>
-                      <FontAwesome6 name="arrow-pointer" size={11} color={accent} />
+                      <FontAwesome6 name="arrow-pointer" size={11} color={accent}  aria-hidden={true}/>
                       <View style={[styles.cursorTag, { backgroundColor: accent }]}>
                         <Text numberOfLines={1} style={styles.cursorName}>
                           {cursor.name}
@@ -925,7 +925,7 @@ export default function LiveRoomPage() {
                 })}
               </View>
               <View style={styles.sharedBoardFootRow}>
-                <FontAwesome6 name="floppy-disk" size={12} color={t.successText} />
+                <FontAwesome6 name="floppy-disk" size={12} color={t.successText}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.sharedBoardFoot}>
                   Saved to “Selling without a script” · step 4
                 </Text>
@@ -951,7 +951,7 @@ export default function LiveRoomPage() {
                 return (
                   <View key={feature.key} style={styles.rowItem}>
                     <View style={[styles.rowIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={feature.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={feature.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.rowCopy}>
                       <Text style={styles.rowTitle}>{feature.title}</Text>
@@ -1024,7 +1024,7 @@ export default function LiveRoomPage() {
                               name={allowed ? 'check' : 'minus'}
                               size={10}
                               color={allowed ? t.green : t.textSubtle}
-                            />
+                             aria-hidden={true}/>
                           </View>
                         </View>
                       );
@@ -1051,7 +1051,7 @@ export default function LiveRoomPage() {
               {BREAKOUT_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>
@@ -1071,7 +1071,7 @@ export default function LiveRoomPage() {
                   </Text>
                 </View>
                 <View style={styles.breakoutTimer}>
-                  <FontAwesome6 name="clock" size={10} color={t.chipText} />
+                  <FontAwesome6 name="clock" size={10} color={t.chipText}  aria-hidden={true}/>
                   <Text style={styles.breakoutTimerText}>07:12</Text>
                 </View>
               </View>
@@ -1118,7 +1118,7 @@ export default function LiveRoomPage() {
               {/* Breakout controls inside the mockup — illustration only. */}
               <View style={styles.breakoutFoot}>
                 <View style={styles.ghostButton}>
-                  <FontAwesome6 name="shuffle" size={11} color={t.brand} />
+                  <FontAwesome6 name="shuffle" size={11} color={t.brand}  aria-hidden={true}/>
                   <Text style={styles.ghostButtonText}>Auto-assign</Text>
                 </View>
                 <View style={styles.solidButton}>
@@ -1148,7 +1148,7 @@ export default function LiveRoomPage() {
               <Reveal key={item.key} style={styles.replayCell} distance={16} delay={index * 65}>
                 <View style={styles.featureCard}>
                   <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.featureTitle]}>{item.title}</Text>
                   <Text style={styles.featureBody}>{item.body}</Text>
@@ -1170,14 +1170,14 @@ export default function LiveRoomPage() {
                 </Text>
               </View>
               <View style={styles.recordedChip}>
-                <FontAwesome6 name="circle-dot" size={10} color={t.successText} />
+                <FontAwesome6 name="circle-dot" size={10} color={t.successText}  aria-hidden={true}/>
                 <Text style={styles.recordedChipText}>Recorded</Text>
               </View>
             </View>
 
             <View style={styles.scrubRow}>
               <View style={styles.scrubButton}>
-                <FontAwesome6 name="play" size={11} color={t.brand} />
+                <FontAwesome6 name="play" size={11} color={t.brand}  aria-hidden={true}/>
               </View>
               <View style={styles.scrubTrack}>
                 <View style={styles.scrubFill} />
@@ -1211,7 +1211,7 @@ export default function LiveRoomPage() {
                     </View>
                   )}
                   <View style={styles.clipButton}>
-                    <FontAwesome6 name="scissors" size={10} color={t.brand} />
+                    <FontAwesome6 name="scissors" size={10} color={t.brand}  aria-hidden={true}/>
                     <Text style={styles.clipButtonText}>Clip</Text>
                   </View>
                 </View>
@@ -1232,7 +1232,7 @@ export default function LiveRoomPage() {
               without dropping a single person.
             </Text>
             <View style={styles.setupNote}>
-              <FontAwesome6 name="shield-halved" size={14} color={t.green} />
+              <FontAwesome6 name="shield-halved" size={14} color={t.green}  aria-hidden={true}/>
               <Text style={styles.setupNoteText}>
                 Recording, chat and Q&amp;A are announced to everyone in the room when they are on.
               </Text>
@@ -1245,7 +1245,7 @@ export default function LiveRoomPage() {
                 return (
                   <View key={item.key} style={styles.factRow}>
                     <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.factCopy}>
                       <Text style={styles.factTitle}>{item.title}</Text>
@@ -1261,7 +1261,7 @@ export default function LiveRoomPage() {
             <View style={styles.setupCard}>
               <View style={styles.setupHead}>
                 <View style={styles.setupIcon}>
-                  <FontAwesome6 name="sliders" size={14} color={t.brand} />
+                  <FontAwesome6 name="sliders" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.setupHeadCopy}>
                   <Text numberOfLines={1} style={styles.setupTitle}>
@@ -1283,7 +1283,7 @@ export default function LiveRoomPage() {
                 {SETUP_ROWS.map((row) => (
                   <View key={row.key} style={styles.setupRow}>
                     <View style={styles.setupRowIcon}>
-                      <FontAwesome6 name={row.icon as never} size={12} color={t.textMuted} />
+                      <FontAwesome6 name={row.icon as never} size={12} color={t.textMuted}  aria-hidden={true}/>
                     </View>
                     <View style={styles.setupRowCopy}>
                       <Text numberOfLines={1} style={styles.setupLabel}>
@@ -1341,7 +1341,7 @@ export default function LiveRoomPage() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryHead}>
               <View style={styles.summaryIcon}>
-                <FontAwesome6 name="clipboard-check" size={14} color={t.brand} />
+                <FontAwesome6 name="clipboard-check" size={14} color={t.brand}  aria-hidden={true}/>
               </View>
               <View style={styles.summaryHeadCopy}>
                 <Text numberOfLines={1} style={styles.summaryTitle}>
@@ -1357,7 +1357,7 @@ export default function LiveRoomPage() {
                 onPress={() => router.push(ROUTES.trainingAnalytics as never)}
                 style={({ pressed }) => [styles.ghostButton, pressed ? styles.pressed : null]}>
                 <Text style={styles.ghostButtonText}>See analytics</Text>
-                <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
               </Pressable>
             </View>
 
@@ -1415,7 +1415,7 @@ export default function LiveRoomPage() {
               <View style={styles.closeList}>
                 <View style={styles.closeItem}>
                   <View style={styles.closeItemIcon}>
-                    <FontAwesome6 name="pen-ruler" size={12} color={t.brand} />
+                    <FontAwesome6 name="pen-ruler" size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.closeItemText}>
                     A lesson — build one in Training Studio, or bring slides you already have.
@@ -1423,7 +1423,7 @@ export default function LiveRoomPage() {
                 </View>
                 <View style={styles.closeItem}>
                   <View style={styles.closeItemIcon}>
-                    <FontAwesome6 name="link" size={12} color={t.brand} />
+                    <FontAwesome6 name="link" size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.closeItemText}>
                     One link. Attendees join in the browser — no download, no account required.
@@ -1431,7 +1431,7 @@ export default function LiveRoomPage() {
                 </View>
                 <View style={styles.closeItem}>
                   <View style={styles.closeItemIcon}>
-                    <FontAwesome6 name="user-group" size={12} color={t.brand} />
+                    <FontAwesome6 name="user-group" size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.closeItemText}>
                     A co-host, if you want one. Give them the room while you do the teaching.
@@ -1443,9 +1443,9 @@ export default function LiveRoomPage() {
                 accessibilityLabel="Build the lesson first in Training Studio"
                 onPress={() => router.push(ROUTES.trainingStudio as never)}
                 style={({ pressed }) => [styles.closeLink, pressed ? styles.pressed : null]}>
-                <FontAwesome6 name="pen-ruler" size={12} color={t.brand} />
+                <FontAwesome6 name="pen-ruler" size={12} color={t.brand}  aria-hidden={true}/>
                 <Text style={styles.closeLinkText}>Build the lesson first in Training Studio</Text>
-                <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
               </Pressable>
             </View>
           </Reveal>

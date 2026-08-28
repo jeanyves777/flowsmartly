@@ -102,12 +102,12 @@ function MetaRow({ date, read }: { date: string; read: number }) {
   const t = useTokens();
   return (
     <View style={styles.metaRow}>
-      <FontAwesome6 name="calendar" size={11} color={t.textSubtle} />
+      <FontAwesome6 name="calendar" size={11} color={t.textSubtle}  aria-hidden={true}/>
       <Text style={styles.metaText} numberOfLines={1}>
         {formatDate(date)}
       </Text>
       <View style={styles.metaDot} />
-      <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+      <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
       <Text style={styles.metaText} numberOfLines={1}>
         {`${read} min read`}
       </Text>
@@ -144,6 +144,7 @@ function Hero({ topic, onTopic }: { topic: string; onTopic: (next: string) => vo
                 key={item}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
+                aria-selected={active}
                 accessibilityLabel={`Show ${item}`}
                 onPress={() => onTopic(item)}
                 style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -258,7 +259,7 @@ function Archive({ topic }: { topic: string }) {
 
       {visible.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="newspaper" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="newspaper" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {topic === ALL
               ? 'Everything published so far is above. New pieces are added as we write them.'
@@ -297,7 +298,7 @@ function Archive({ topic }: { topic: string }) {
                   <MetaRow date={post.date} read={post.readMinutes} />
                   <View style={styles.linkRow}>
                     <Text style={[styles.linkText, { color: accentText(accent(t, post.tone), t) }]}>Read</Text>
-                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, post.tone)} />
+                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, post.tone)}  aria-hidden={true}/>
                   </View>
                 </View>
               </Link>
@@ -320,7 +321,7 @@ function Newsletter() {
     <OpenSection style={styles.newsletter}>
       <Reveal style={styles.newsletterInner} distance={14}>
         <View style={styles.newsletterIcon}>
-          <FontAwesome6 name="envelope-open-text" size={22} color={t.brand} />
+          <FontAwesome6 name="envelope-open-text" size={22} color={t.brand}  aria-hidden={true}/>
         </View>
         <Heading level={2} style={styles.newsletterTitle}>
           Get the next one by email
@@ -331,7 +332,7 @@ function Newsletter() {
 
         <View style={styles.subscribeRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="envelope" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="envelope" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -391,7 +392,7 @@ export default function BlogPage() {
       ) : (
         <OpenSection>
           <View style={styles.emptyCard}>
-            <FontAwesome6 name="newspaper" size={16} color={t.textSubtle} />
+            <FontAwesome6 name="newspaper" size={16} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.emptyText}>
               Nothing published yet. The first pieces are being written.
             </Text>

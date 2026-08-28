@@ -219,7 +219,7 @@ function AccentButton({
       <Text style={[styles.accentButtonLabel, { color: t.textOnBrand }]} numberOfLines={1}>
         {label}
       </Text>
-      <FontAwesome6 name="arrow-right" size={13} color={t.textOnBrand} />
+      <FontAwesome6 name="arrow-right" size={13} color={t.textOnBrand}  aria-hidden={true}/>
     </Pressable>
   );
 }
@@ -243,6 +243,7 @@ function FaqRow({
         accessibilityRole="button"
         accessibilityLabel={item.q}
         accessibilityState={{ expanded: open }}
+        aria-expanded={open}
         onPress={onToggle}
         style={({ pressed }) => [styles.faqHead, pressed ? styles.faqHeadPressed : null]}>
         <Text style={styles.faqQuestion}>{item.q}</Text>
@@ -251,7 +252,7 @@ function FaqRow({
             name={open ? 'chevron-up' : 'chevron-down'}
             size={12}
             color={open ? t.brand : t.textSubtle}
-          />
+           aria-hidden={true}/>
         </View>
       </Pressable>
       {open ? (
@@ -363,7 +364,7 @@ export default function ContactPage() {
               {PROMISES.map((promise) => (
                 <View key={promise} style={styles.promiseRow}>
                   <View style={styles.promiseIcon}>
-                    <FontAwesome6 name="check" size={11} color={t.brand} />
+                    <FontAwesome6 name="check" size={11} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.promiseText}>{promise}</Text>
                 </View>
@@ -398,7 +399,7 @@ export default function ContactPage() {
                       router.push(item.href as never);
                     }}
                     style={({ pressed }) => [styles.selfServeLink, pressed ? styles.pressed : null]}>
-                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                     <Text style={styles.selfServeLabel} numberOfLines={1}>
                       {item.label}
                     </Text>
@@ -481,11 +482,12 @@ export default function ContactPage() {
               <Pressable
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: consent }}
+                aria-checked={consent}
                 accessibilityLabel="I agree to be contacted about my inquiry"
                 onPress={() => setConsent((prev) => !prev)}
                 style={styles.consentRow}>
                 <View style={[styles.checkbox, consent ? styles.checkboxOn : null]}>
-                  {consent ? <FontAwesome6 name="check" size={11} color={t.textOnBrand} /> : null}
+                  {consent ? <FontAwesome6 name="check" size={11} color={t.textOnBrand}  aria-hidden={true}/> : null}
                 </View>
                 <Text style={styles.consentText}>
                   I agree to be contacted about my inquiry and understand I can opt out at any time.
@@ -530,7 +532,7 @@ export default function ContactPage() {
               <Reveal key={card.title} style={styles.helpCell} distance={16} delay={index * 90}>
                 <View style={styles.helpCard}>
                   <View style={[styles.helpIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={card.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={card.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
                   <Heading level={3} style={[type.h4, styles.helpCardTitle]}>
                     {card.title}
@@ -569,13 +571,13 @@ export default function ContactPage() {
                 return (
                   <View key={row.label} style={styles.timeRow}>
                     <View style={[styles.timeIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={row.icon as never} size={15} color={accent} />
+                      <FontAwesome6 name={row.icon as never} size={15} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.timeCopy}>
                       <Text style={styles.timeLabel}>{row.label}</Text>
                       <Text style={styles.timeValue}>{row.time}</Text>
                     </View>
-                    <FontAwesome6 name="clock" size={14} color={t.textSubtle} />
+                    <FontAwesome6 name="clock" size={14} color={t.textSubtle}  aria-hidden={true}/>
                   </View>
                 );
               })}
@@ -583,7 +585,7 @@ export default function ContactPage() {
 
             <View style={styles.trustCard}>
               <View style={styles.trustIcon}>
-                <FontAwesome6 name="lock" size={14} color={t.brand} />
+                <FontAwesome6 name="lock" size={14} color={t.brand}  aria-hidden={true}/>
               </View>
               <View style={styles.trustCopy}>
                 <Text style={styles.trustTitle}>Your trust matters</Text>

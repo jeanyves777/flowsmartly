@@ -200,7 +200,7 @@ function CompareCell({
     return (
       <View style={styles.compareCell}>
         <View style={styles.compareTick}>
-          <FontAwesome6 name="check" size={11} color={t.successText} />
+          <FontAwesome6 name="check" size={11} color={t.successText}  aria-hidden={true}/>
         </View>
       </View>
     );
@@ -240,6 +240,7 @@ function FaqRow({
         accessibilityRole="button"
         accessibilityLabel={item.q}
         accessibilityState={{ expanded: open }}
+        aria-expanded={open}
         onPress={onToggle}
         style={({ pressed }) => [styles.faqHead, pressed ? styles.faqHeadPressed : null]}>
         <Text style={styles.faqQuestion}>{item.q}</Text>
@@ -248,7 +249,7 @@ function FaqRow({
             name={open ? 'chevron-up' : 'chevron-down'}
             size={12}
             color={open ? t.brand : t.textSubtle}
-          />
+           aria-hidden={true}/>
         </View>
       </Pressable>
       {open ? (
@@ -317,6 +318,7 @@ export default function PricingPage() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: !annual }}
+                aria-pressed={!annual}
                 accessibilityLabel="Monthly billing"
                 onPress={() => setAnnual(false)}
                 style={[styles.toggleOption, annual ? null : styles.toggleOptionOn]}>
@@ -325,6 +327,7 @@ export default function PricingPage() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: annual }}
+                aria-pressed={annual}
                 accessibilityLabel="Annual billing, save 20 percent"
                 onPress={() => setAnnual(true)}
                 style={[styles.toggleOption, annual ? styles.toggleOptionOn : null]}>
@@ -353,7 +356,7 @@ export default function PricingPage() {
                   ) : null}
 
                   <View style={[styles.planIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={plan.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={plan.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
 
                   <Text style={[type.h3, styles.planName]}>{plan.name}</Text>
@@ -374,7 +377,7 @@ export default function PricingPage() {
                   </Text>
 
                   <View style={[styles.creditsLine, { borderColor: hexToRgba(accent, 0.35) }]}>
-                    <FontAwesome6 name="coins" size={12} color={accent} />
+                    <FontAwesome6 name="coins" size={12} color={accent}  aria-hidden={true}/>
                     <Text style={[styles.creditsText, { color: accentText(accent, t) }]}>{plan.credits}</Text>
                   </View>
 
@@ -382,7 +385,7 @@ export default function PricingPage() {
                     {plan.features.map((feature) => (
                       <View key={feature} style={styles.featureRow}>
                         <View style={[styles.featureTick, { backgroundColor: softFill(accent, t) }]}>
-                          <FontAwesome6 name="check" size={9} color={accent} />
+                          <FontAwesome6 name="check" size={9} color={accent}  aria-hidden={true}/>
                         </View>
                         <Text style={styles.featureText}>{feature}</Text>
                       </View>
@@ -487,7 +490,7 @@ export default function PricingPage() {
                   return (
                     <View key={row.label} style={styles.balanceRow}>
                       <View style={[styles.balanceIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={row.icon as never} size={12} color={accent} />
+                        <FontAwesome6 name={row.icon as never} size={12} color={accent}  aria-hidden={true}/>
                       </View>
                       <View style={styles.balanceCopy}>
                         <View style={styles.balanceLabelRow}>
@@ -530,7 +533,7 @@ export default function PricingPage() {
                 discover later, so it is stated rather than left to the FAQ. */}
             <View style={styles.notBilled}>
               <View style={styles.notBilledIcon}>
-                <FontAwesome6 name="circle-check" size={14} color={t.green} />
+                <FontAwesome6 name="circle-check" size={14} color={t.green}  aria-hidden={true}/>
               </View>
               <View style={styles.notBilledCopy}>
                 <Text style={styles.notBilledTitle}>What you are not billed for</Text>
@@ -658,7 +661,7 @@ export default function PricingPage() {
                 <View style={styles.usageCard}>
                   <View style={styles.usageTop}>
                     <View style={[styles.usageIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={17} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={17} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.usageChip}>
                       <Text style={styles.usageChipText}>Usage-based</Text>
@@ -702,7 +705,7 @@ export default function PricingPage() {
               key={item.label}
               style={[styles.reassureItem, index > 0 ? styles.reassureItemDivided : null]}>
               <View style={styles.reassureIcon}>
-                <FontAwesome6 name={item.icon as never} size={15} color={t.brand} />
+                <FontAwesome6 name={item.icon as never} size={15} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text numberOfLines={2} style={styles.reassureLabel}>
                 {item.label}

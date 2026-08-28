@@ -180,7 +180,7 @@ type Styles = ReturnType<typeof createStyles>;
 function ChannelTile({ item, field, styles, t }: { item: Channel; field: ConnectorField; styles: Styles; t: ThemeTokens }) {
   return (
     <View {...field.node(item.key)} style={styles.tile}>
-      <FontAwesome6 name={item.icon as never} size={styles.tileGlyphSize} color={brandColor(item.color, t)} />
+      <FontAwesome6 name={item.icon as never} size={styles.tileGlyphSize} color={brandColor(item.color, t)}  aria-hidden={true}/>
       <Text numberOfLines={3} style={styles.tileLabel}>
         {item.label}
       </Text>
@@ -233,8 +233,8 @@ function GroupCard({
     <View style={[styles.gcard, full ? styles.gcardFull : styles.gcardHalf]}>
       <View style={styles.gcardLogos}>
         {group.items.map((item) => (
-          <View key={item.key} style={styles.gcardLogo} accessible accessibilityLabel={item.label}>
-            <FontAwesome6 name={item.icon as never} size={16} color={brandColor(item.color, t)} />
+          <View key={item.key} style={styles.gcardLogo} accessible accessibilityRole="image" accessibilityLabel={item.label}>
+            <FontAwesome6 name={item.icon as never} size={16} color={brandColor(item.color, t)}  aria-hidden={true}/>
           </View>
         ))}
       </View>
@@ -247,6 +247,22 @@ function GroupCard({
     </View>
   );
 }
+
+/**
+ * PHONE — six representative marks, one per cluster, wired to the hub.
+ *
+ * The full radial map cannot draw a wire in a 354px column: two three-icon
+ * clusters do not fit either side of a 84px hub, so every line would be a stub.
+ * Six single tiles do fit — 46px each side of the hub with the whole middle of
+ * the column left for the run — and one is taken from each group so the picture
+ * still says "everything you already use", not "our favourite six".
+ *
+ * The hub therefore comes back on the phone WIRED, which is the condition rule
+ * 7 actually cares about: the mark is naming a centre node in a diagram, not
+ * decorating a content section.
+ */
+const PHONE_LEFT: Channel[] = [social.items[0], messaging.items[0], commerce.items[1]];
+const PHONE_RIGHT: Channel[] = [local.items[0], analytics.items[0], analytics.items[3]];
 
 /** The hub breathes a slow ring outward, so the diagram reads as live. */
 function Hub({ field, styles, t }: { field: ConnectorField; styles: Styles; t: ThemeTokens }) {
@@ -278,6 +294,60 @@ function Hub({ field, styles, t }: { field: ConnectorField; styles: Styles; t: T
         alt="FlowSmartly"
       />
     </View>
+  );
+}
+
+/**
+ * One mark in the phone map. Logo only — a 46px tile has no room for a label,
+ * and the group cards below already name every network in words — so the tile
+ * carries its name for assistive technology instead of drawing it.
+ */
+function PhoneMapTile({ item, field, styles, t }: { item: Channel; field: ConnectorField; styles: Styles; t: ThemeTokens }) {
+  return (
+    <View {...field.node(item.key)} style={styles.phoneMapTile} accessible accessibilityRole="image" accessibilityLabel={item.label}>
+      <FontAwesome6 name={item.icon as never} size={18} color={brandColor(item.color, t)} aria-hidden={true} />
+    </View>
+  );
+}
+
+/**
+ * The phone diagram: three marks, the hub, three marks.
+ *
+ * A column each side rather than a ring, so every wire travels outward across
+ * the open middle of the column and nothing crosses a neighbour. There is no
+ * text inside this block at all, so there is nothing here that could end up
+ * being read against artwork.
+ */
+function PhoneMap({ field, styles, t }: { field: ConnectorField; styles: Styles; t: ThemeTokens }) {
+  const links = useMemo<Link[]>(
+    () => [...PHONE_LEFT, ...PHONE_RIGHT].map((item) => ({ from: 'hub', to: item.key, color: t.brand })),
+    [t],
+  );
+  return (
+    <ConnectorSurface field={field} style={styles.phoneMap}>
+      <Connectors
+        field={field}
+        links={links}
+        color={t.brand}
+        circular={['hub']}
+        strokeWidth={1.6}
+        dash="0.5 5"
+        flow
+      />
+      <View style={styles.phoneMapRow}>
+        <View style={styles.phoneMapColumn}>
+          {PHONE_LEFT.map((item) => (
+            <PhoneMapTile key={item.key} item={item} field={field} styles={styles} t={t} />
+          ))}
+        </View>
+        <Hub field={field} styles={styles} t={t} />
+        <View style={styles.phoneMapColumn}>
+          {PHONE_RIGHT.map((item) => (
+            <PhoneMapTile key={item.key} item={item} field={field} styles={styles} t={t} />
+          ))}
+        </View>
+      </View>
+    </ConnectorSurface>
   );
 }
 
@@ -315,10 +385,14 @@ export function ConnectedChannelsSection() {
    * 390px column: the map cannot draw a single wire, the legend repeats the map,
    * and the strip becomes four full-width rows.
    *
-   * So the phone gets: head → a two-column grid of channel-group cards, each
-   * holding its own logos and its own one-line promise → a two-row trust strip.
-   * No hub, because a hub with nothing wired to it is a logo in a content
-   * section, which is the one place the mark is not allowed to be.
+   * So the phone gets: head → a compact wired hub → a two-column grid of
+   * channel-group cards, each holding its own logos and its own one-line
+   * promise → a two-row trust strip.
+   *
+   * The hub was briefly dropped here, on the reasoning that a hub with nothing
+   * wired to it is a logo in a content section. The reasoning held; the
+   * conclusion did not. The fix was to give it something to wire to — see
+   * `PhoneMap` — not to take the centre of the diagram out of the phone.
    */
   if (l.isPhone) {
     return (
@@ -335,6 +409,10 @@ export function ConnectedChannelsSection() {
             {cta}
           </View>
 
+          {/* The section's one picture. The `Reveal` around the whole branch is
+              translate-only, so the wires still land — rule 9. */}
+          <PhoneMap field={field} styles={styles} t={t} />
+
           <CardGrid style={styles.phoneCards}>
             {GROUPS.map((group, i) => (
               <GroupCard key={group.key} group={group} full={i === GROUPS.length - 1} styles={styles} t={t} />
@@ -344,7 +422,7 @@ export function ConnectedChannelsSection() {
           <View style={styles.trustStrip}>
             {PHONE_ASSURANCES.map(([icon, label]) => (
               <View key={label} style={styles.trustChip}>
-                <FontAwesome6 name={icon as never} size={14} color={t.brand} />
+                <FontAwesome6 name={icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                 <Text style={styles.trustChipText} numberOfLines={1}>
                   {label}
                 </Text>
@@ -425,7 +503,7 @@ export function ConnectedChannelsSection() {
         {securityItems.map(([icon, title, note], index) => (
           <View key={title} style={[styles.securityItem, index > 0 ? styles.securityItemDivided : null]}>
             <View style={styles.securityIcon}>
-              <FontAwesome6 name={icon as never} size={l.isPhone ? 18 : 20} color={t.brand} />
+              <FontAwesome6 name={icon as never} size={l.isPhone ? 18 : 20} color={t.brand}  aria-hidden={true}/>
             </View>
             <View style={styles.securityCopy}>
               <Text numberOfLines={1} style={[type.h4, styles.securityTitle]}>
@@ -467,6 +545,35 @@ function createStyles(t: ThemeTokens, l: Layout) {
 
     /* phone ------------------------------------------------------- */
     phoneHead: { gap: 16 },
+
+    /*
+     * The compact map. `space-between` puts a column hard against each edge and
+     * the hub in the middle, which is what gives each wire a run long enough to
+     * read as a wire rather than as a stub against a tile.
+     */
+    phoneMap: { marginTop: 24, alignItems: 'center', paddingVertical: 4 },
+    phoneMapRow: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    phoneMapColumn: { alignItems: 'center', gap: 12 },
+    phoneMapTile: {
+      width: 46,
+      height: 46,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceRaised,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...(elevation(t, 1) as object),
+    },
+
     phoneCards: { marginTop: 22 },
     gcard: {
       borderWidth: 1,

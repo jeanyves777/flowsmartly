@@ -239,7 +239,7 @@ function Tick({ children, tone = 'green' }: { children: string; tone?: Tone }) {
   return (
     <View style={styles.tickRow}>
       <View style={[styles.tickDot, { backgroundColor: softFill(color, t) }]}>
-        <FontAwesome6 name="check" size={10} color={color} />
+        <FontAwesome6 name="check" size={10} color={color}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{children}</Text>
     </View>
@@ -368,7 +368,7 @@ function Directory() {
 
       <View style={styles.searchRow}>
         <View style={styles.field}>
-          <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle} />
+          <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle}  aria-hidden={true}/>
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -389,6 +389,7 @@ function Directory() {
               key={item}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={`Show ${item}`}
               onPress={() => setFilter(item)}
               style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -408,7 +409,7 @@ function Directory() {
 
       {visible.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="plug-circle-exclamation" size={20} color={t.textSubtle} />
+          <FontAwesome6 name="plug-circle-exclamation" size={20} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyTitle}>Nothing matches that yet</Text>
           <Text style={styles.emptyBody}>
             Try a broader term, or ask us for it further down the page — most requests ship as a native
@@ -489,7 +490,7 @@ function FeaturedIntegrations() {
                 <Text style={[styles.linkText, { color: accentText(accent(t, item.tone), t) }]}>
                   {`See what ${item.name} unlocks`}
                 </Text>
-                <FontAwesome6 name="arrow-right" size={12} color={accent(t, item.tone)} />
+                <FontAwesome6 name="arrow-right" size={12} color={accent(t, item.tone)}  aria-hidden={true}/>
               </Link>
             </View>
           </Reveal>
@@ -517,7 +518,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
         <Reveal style={styles.pairCell} distance={14}>
           <View style={styles.pairCard}>
             <View style={styles.pairIcon}>
-              <FontAwesome6 name="plug" size={18} color={t.brand} />
+              <FontAwesome6 name="plug" size={18} color={t.brand}  aria-hidden={true}/>
             </View>
             <Text style={styles.pairTitle}>Native integrations</Text>
             <Text style={styles.cardBody}>
@@ -544,7 +545,7 @@ function TwoWays({ onBrowse }: { onBrowse: () => void }) {
         <Reveal style={styles.pairCell} distance={14} delay={90}>
           <View style={styles.pairCard}>
             <View style={styles.pairIconAlt}>
-              <FontAwesome6 name="code" size={18} color={t.violet} />
+              <FontAwesome6 name="code" size={18} color={t.violet}  aria-hidden={true}/>
             </View>
             <Text style={styles.pairTitle}>The open API</Text>
             <Text style={styles.cardBody}>
@@ -592,7 +593,7 @@ function RequestPanel() {
     <Band tone="surface" style={styles.request}>
       <Reveal style={styles.requestInner} distance={14}>
         <View style={styles.requestIcon}>
-          <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
+          <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand}  aria-hidden={true}/>
         </View>
         <Heading level={2} style={styles.requestTitle}>
           Can&apos;t find your tool?
@@ -604,7 +605,7 @@ function RequestPanel() {
 
         <View style={styles.searchRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="plug" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="plug" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={tool}
               onChangeText={setTool}

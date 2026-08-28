@@ -270,7 +270,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -469,17 +469,17 @@ function RoleItem({ role }: { role: Role }) {
             <Text style={styles.rolePillText}>{role.department}</Text>
           </View>
           <View style={styles.roleFact}>
-            <FontAwesome6 name="location-dot" size={11} color={t.textSubtle} />
+            <FontAwesome6 name="location-dot" size={11} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.roleFactText}>{role.location}</Text>
           </View>
           <View style={styles.roleFact}>
-            <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+            <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.roleFactText}>{role.type}</Text>
           </View>
         </View>
         <View style={styles.roleLink}>
           <Text style={styles.roleLinkText}>Apply for this role</Text>
-          <FontAwesome6 name="chevron-right" size={12} color={t.brand} />
+          <FontAwesome6 name="chevron-right" size={12} color={t.brand}  aria-hidden={true}/>
         </View>
       </Pressable>
     );
@@ -504,18 +504,18 @@ function RoleItem({ role }: { role: Role }) {
         </View>
       </View>
       <View style={styles.roleRowMeta}>
-        <FontAwesome6 name="location-dot" size={11} color={t.textSubtle} />
+        <FontAwesome6 name="location-dot" size={11} color={t.textSubtle}  aria-hidden={true}/>
         <Text numberOfLines={1} style={styles.roleFactText}>
           {role.location}
         </Text>
       </View>
       <View style={styles.roleRowType}>
-        <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+        <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
         <Text numberOfLines={1} style={styles.roleFactText}>
           {role.type}
         </Text>
       </View>
-      <FontAwesome6 name="chevron-right" size={13} color={t.textSubtle} />
+      <FontAwesome6 name="chevron-right" size={13} color={t.textSubtle}  aria-hidden={true}/>
     </Pressable>
   );
 }
@@ -547,6 +547,7 @@ function OpenRoles() {
               key={item}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={`Show ${item} roles`}
               onPress={() => setDepartment(item)}
               style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -566,7 +567,7 @@ function OpenRoles() {
 
       {visible.length === 0 ? (
         <View style={styles.emptyState}>
-          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`Nothing open in ${department} right now. Pick another team, or write to us anyway — we open roles as the work arrives.`}
           </Text>
@@ -604,7 +605,7 @@ function HowWeHire() {
             return (
               <View key={step.title} style={styles.flowItem}>
                 <View style={[styles.flowDot, { borderColor: color }]}>
-                  <FontAwesome6 name={step.icon as never} size={15} color={color} />
+                  <FontAwesome6 name={step.icon as never} size={15} color={color}  aria-hidden={true}/>
                 </View>
                 <View style={styles.flowCopy}>
                   <Text style={[styles.flowStep, { color }]}>{`Step ${index + 1}`}</Text>
@@ -619,7 +620,7 @@ function HowWeHire() {
 
       <View style={styles.note}>
         <View style={[styles.noteIcon, { backgroundColor: softFill(t.green, t) }]}>
-          <FontAwesome6 name="circle-check" size={15} color={t.green} />
+          <FontAwesome6 name="circle-check" size={15} color={t.green}  aria-hidden={true}/>
         </View>
         <Text style={styles.noteText}>
           The practical exercise is paid at your day rate and time-boxed to four hours. If it takes

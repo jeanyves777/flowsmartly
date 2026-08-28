@@ -176,7 +176,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.44)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.44)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -187,7 +187,7 @@ function Tick({ children }: { children: string }) {
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={9} color={t.successText} />
+        <FontAwesome6 name="check" size={9} color={t.successText}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{children}</Text>
     </View>
@@ -204,7 +204,7 @@ function TextLink({ label, href }: { label: string; href: string }) {
       accessibilityLabel={label}
       style={styles.linkRow as never}>
       <Text style={styles.linkText}>{label}</Text>
-      <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+      <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
     </RouterLink>
   );
 }
@@ -266,7 +266,7 @@ function JourneyStep({
           backgroundColor: softFill(color, t),
         },
       ]}>
-      <FontAwesome6 name={step.icon as never} size={Math.round(circleSize * 0.36)} color={color} />
+      <FontAwesome6 name={step.icon as never} size={Math.round(circleSize * 0.36)} color={color}  aria-hidden={true}/>
     </View>
   );
 
@@ -565,7 +565,7 @@ function ReadinessCard() {
           onPress={() => router.push(contactHref('assessment') as never)}
         />
         <View style={styles.assessNote}>
-          <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+          <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.footnote}>Takes about 5 minutes. No account needed.</Text>
         </View>
       </View>
@@ -709,7 +709,7 @@ function GovernanceCard() {
             <Text style={styles.resourceText} numberOfLines={2}>
               {resource}
             </Text>
-            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
           </RouterLink>
         ))}
       </View>
@@ -727,7 +727,7 @@ function AssistantMock() {
     <View style={styles.assistant}>
       <View style={styles.assistantHead}>
         <View style={styles.assistantMark}>
-          <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.textOnBrand} />
+          <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.textOnBrand}  aria-hidden={true}/>
         </View>
         <Text style={styles.assistantName} numberOfLines={1}>
           FlowAgent Assistant
@@ -745,7 +745,7 @@ function AssistantMock() {
 
       <View style={styles.safetyTip}>
         <View style={styles.safetyHead}>
-          <FontAwesome6 name="shield-halved" size={12} color={t.warnText} />
+          <FontAwesome6 name="shield-halved" size={12} color={t.warnText}  aria-hidden={true}/>
           <Text style={styles.safetyTitle}>Safety tip</Text>
         </View>
         <Text style={styles.safetyBody}>
@@ -755,14 +755,14 @@ function AssistantMock() {
             assistant, so nothing inside it is pressable. */}
         <View style={styles.safetyLink}>
           <Text style={styles.safetyLinkText}>Learn more</Text>
-          <FontAwesome6 name="arrow-right" size={10} color={t.warnText} />
+          <FontAwesome6 name="arrow-right" size={10} color={t.warnText}  aria-hidden={true}/>
         </View>
       </View>
 
       <View style={styles.askRow} pointerEvents="none">
         <Text style={styles.askText}>Ask a question…</Text>
         <View style={styles.askSend}>
-          <FontAwesome6 name="paper-plane" size={12} color={t.textSubtle} />
+          <FontAwesome6 name="paper-plane" size={12} color={t.textSubtle}  aria-hidden={true}/>
         </View>
       </View>
     </View>

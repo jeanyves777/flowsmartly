@@ -179,7 +179,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -220,7 +220,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
 
         <View style={styles.searchRow}>
           <View style={styles.searchField}>
-            <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={query}
               onChangeText={onQuery}
@@ -266,7 +266,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
 
       {results.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No results for “${term}”. Try a single keyword, browse the product topics below, or send it to our support team and we will answer it directly.`}
           </Text>
@@ -295,7 +295,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
                   {entry.body}
                 </Text>
               </View>
-              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
             </Link>
           ))}
         </View>
@@ -345,7 +345,7 @@ function Topics() {
                 accessibilityLabel={`Open ${topic.title} help`}
                 style={styles.linkRow as never}>
                 <Text style={[styles.linkText, { color: accentText(accent(t, topic.tone), t) }]}>Browse articles</Text>
-                <FontAwesome6 name="arrow-right" size={12} color={accent(t, topic.tone)} />
+                <FontAwesome6 name="arrow-right" size={12} color={accent(t, topic.tone)}  aria-hidden={true}/>
               </Link>
             </Card>
           </Reveal>
@@ -372,7 +372,7 @@ function PopularPanel() {
               [styles.articleRow, index === POPULAR.length - 1 ? styles.lastRow : null] as never
             }>
             <Text style={styles.articleText}>{article.title}</Text>
-            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
           </Link>
         ))}
       </View>
@@ -402,7 +402,7 @@ function StatusPanel() {
       <View style={styles.cardSpacer} />
       <Link href={ROUTES.status as never} accessibilityRole="link" style={styles.linkRow as never}>
         <Text style={[styles.linkText, { color: t.brand }]}>View status page</Text>
-        <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+        <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
       </Link>
     </Card>
   );
@@ -429,7 +429,7 @@ function ContactPanel() {
               <Text style={styles.helpTitle}>{route.title}</Text>
               <Text style={styles.helpBody}>{route.body}</Text>
             </View>
-            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+            <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
           </Link>
         ))}
       </View>

@@ -220,11 +220,23 @@ export default function EarlyAccessScreen() {
             <View style={styles.promises}>
               {PROMISES.map((item) => (
                 <View key={item.title} style={styles.promise}>
-                  <View style={[styles.promiseIcon, { backgroundColor: softFill(t.brand, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={14} color={accentText(t.brand, t)} />
+                  {/* A glyph echoing the title beside it. It carries nothing
+                      the heading does not already say, and an icon font renders
+                      as a private-use character, so it is taken out of the
+                      accessibility tree rather than left to be guessed at. */}
+                  <View
+                    aria-hidden
+                    style={[styles.promiseIcon, { backgroundColor: softFill(t.brand, t) }]}>
+                    <FontAwesome6 name={item.icon as never} size={14} color={accentText(t.brand, t)}  aria-hidden={true}/>
                   </View>
                   <View style={styles.promiseCopy}>
-                    <Heading level={3} style={styles.promiseTitle}>
+                    {/* Level 2, not 3. These three sit directly under the page
+                        h1 with no section heading between them, so a 3 skipped
+                        a level and told a screen reader they belonged to a
+                        heading that does not exist. `Heading` takes all of its
+                        appearance from `style`, so the rank changed and the
+                        type did not: `promiseTitle` still sets the size. */}
+                    <Heading level={2} style={styles.promiseTitle}>
                       {item.title}
                     </Heading>
                     <Text style={styles.promiseBody}>{item.body}</Text>
@@ -290,7 +302,7 @@ export default function EarlyAccessScreen() {
                         name="triangle-exclamation"
                         size={14}
                         color={accentText(t.orange, t)}
-                      />
+                       aria-hidden={true}/>
                       <Text style={styles.bannerText}>{state.message}</Text>
                     </View>
                   ) : null}
@@ -518,8 +530,10 @@ function Outcome({
   const color = tone === 'good' ? t.green : t.orange;
   return (
     <View accessibilityRole="alert" style={styles.outcome}>
-      <View style={[styles.outcomeIcon, { backgroundColor: softFill(color, t) }]}>
-        <FontAwesome6 name={icon as never} size={20} color={accentText(color, t)} />
+      {/* Decoration on an alert: the tick repeats the headline that follows it,
+          and this whole view is announced, so the glyph must not be. */}
+      <View aria-hidden style={[styles.outcomeIcon, { backgroundColor: softFill(color, t) }]}>
+        <FontAwesome6 name={icon as never} size={20} color={accentText(color, t)}  aria-hidden={true}/>
       </View>
       <Heading level={2} style={styles.outcomeTitle}>
         {title}
@@ -622,7 +636,7 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 10,
       color: t.text,
-      fontSize: 15,
+      fontSize: 15,
       fontFamily: FONT_SANS,
     },
     inputMultiline: {

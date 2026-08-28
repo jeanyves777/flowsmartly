@@ -172,12 +172,12 @@ function BrandTile({
   const t = useTokens();
   const styles = useFooterStyles();
   const glyph = (
-    <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={brandColor(color, t)} />
+    <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={brandColor(color, t)}  aria-hidden={true}/>
   );
 
   if (!onPress) {
     return (
-      <View accessibilityLabel={label} style={[styles.brandTile, { width: size, height: size }]}>
+      <View accessibilityRole="image" accessibilityLabel={label} style={[styles.brandTile, { width: size, height: size }]}>
         {glyph}
       </View>
     );
@@ -290,7 +290,7 @@ function MetricCard({
     <>
       <View style={styles.metricTop}>
         <View style={[styles.metricIcon, { backgroundColor: softFill(accent, t) }]}>
-          <FontAwesome6 name={icon as never} size={l.isPhone ? 20 : 24} color={accent} />
+          <FontAwesome6 name={icon as never} size={l.isPhone ? 20 : 24} color={accent}  aria-hidden={true}/>
         </View>
         <Text
           ref={count.ref as never}
@@ -415,7 +415,7 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
               {comparisons.map(([icon, before, after]) => (
                 <Fragment key={before}>
                   <View style={styles.comparisonItem}>
-                    <FontAwesome6 name={icon} size={14} color={t.textSubtle} />
+                    <FontAwesome6 name={icon} size={14} color={t.textSubtle}  aria-hidden={true}/>
                     <Text style={[type.bodySm, styles.comparisonText]} numberOfLines={2}>
                       {before}
                     </Text>
@@ -427,7 +427,7 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
                   ) : null}
                   <View style={[styles.comparisonItem, styles.comparisonItemAfter]}>
                     <View style={styles.comparisonCheck}>
-                      <FontAwesome6 name="check" size={11} color={t.violet} />
+                      <FontAwesome6 name="check" size={11} color={t.violet}  aria-hidden={true}/>
                     </View>
                     <Text style={[type.bodySm, styles.comparisonText, styles.comparisonAfter]} numberOfLines={2}>
                       {after}
@@ -547,7 +547,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
             <View style={styles.features}>
               {plan.features.map((feature) => (
                 <View key={feature} style={styles.featureRow}>
-                  <FontAwesome6 name="check" size={12} color={t.successText} />
+                  <FontAwesome6 name="check" size={12} color={t.successText}  aria-hidden={true}/>
                   <Text style={[type.bodySm, styles.feature]}>{feature}</Text>
                 </View>
               ))}
@@ -595,6 +595,7 @@ function SignatureMark({ width, height }: { width: number; height: number }) {
         width={width}
         height={height}
         viewBox="0 0 220 140"
+        aria-hidden={true}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants">
         <Path d="M220 0V140H95C153 119 192 74 220 0Z" fill={SIGNATURE.wedge} />
@@ -647,7 +648,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
         <SignatureMark width={signature.width} height={signature.height} />
         <View style={styles.ctaCopy}>
           <View style={styles.ctaSpark}>
-            <FontAwesome6 name="wand-magic-sparkles" size={l.isPhone ? 22 : 26} color={t.textOnBrand} />
+            <FontAwesome6 name="wand-magic-sparkles" size={l.isPhone ? 22 : 26} color={t.textOnBrand}  aria-hidden={true}/>
           </View>
           <Heading level={2} style={[type.h2, styles.ctaTitle]}>
             Ready to move AI beyond assistance?
@@ -724,7 +725,7 @@ function StatusPill() {
         <Text style={[type.caption, styles.statusText]} numberOfLines={1}>
           All systems operational
         </Text>
-        <FontAwesome6 name="arrow-right" size={11} color={t.successText} />
+        <FontAwesome6 name="arrow-right" size={11} color={t.successText}  aria-hidden={true}/>
       </Link>
     </View>
   );
@@ -968,6 +969,7 @@ function PhoneFooterNavigation() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isOpen }}
+                aria-expanded={isOpen}
                 accessibilityLabel={`${group.title} links`}
                 onPress={() =>
                   setExpanded((previous) => ({ ...previous, [group.title]: !previous[group.title] }))
@@ -981,7 +983,7 @@ function PhoneFooterNavigation() {
                     name={isOpen ? 'chevron-up' : 'chevron-down'}
                     size={12}
                     color={t.textMuted}
-                  />
+                   aria-hidden={true}/>
                 </View>
               </Pressable>
               {isOpen ? (
@@ -1004,7 +1006,7 @@ function PhoneFooterNavigation() {
                       <Text style={[type.bodySm, styles.phoneLinkText]} numberOfLines={1}>
                         Product updates
                       </Text>
-                      <FontAwesome6 name="envelope-open-text" size={14} color={t.textSubtle} />
+                      <FontAwesome6 name="envelope-open-text" size={14} color={t.textSubtle}  aria-hidden={true}/>
                     </Pressable>
                   ) : null}
                 </View>
@@ -1024,14 +1026,32 @@ function PhoneFooterNavigation() {
  */
 export function FooterNavigation() {
   const l = useLayout();
-  return l.isPhone ? <PhoneFooterNavigation /> : <WideFooterNavigation />;
+  // A named second `nav` landmark: forty-odd links to the rest of the site is
+  // navigation by any definition, and naming it is what keeps it from
+  // colliding with the header's "Main" in a screen reader's landmark list.
+  return (
+    <View role="navigation" aria-label="Footer">
+      {l.isPhone ? <PhoneFooterNavigation /> : <WideFooterNavigation />}
+    </View>
+  );
 }
 
 /* ------------------------------------------------------------------ */
 /* root                                                                */
 /* ------------------------------------------------------------------ */
 
-export function V5PublicFooter({
+/**
+ * The marketing stack that closes a page: outcomes, pricing, the growth CTA.
+ *
+ * Deliberately **not** part of the site footer. These are page content — a
+ * visitor jumping to `contentinfo` is looking for the link directory and the
+ * legal bar, not a pricing table — so `PageShell` renders this inside `<main>`
+ * and `V5SiteFooter` as its sibling. The two used to share one wrapper View
+ * whose only job was the trailing page padding; that padding moved to the
+ * footer, which is still the last thing on the page, so the layout is
+ * unchanged.
+ */
+export function V5PageEnd({
   showProof = true,
   showIntegrations = true,
   showPricing = true,
@@ -1040,14 +1060,29 @@ export function V5PublicFooter({
   onStartFree,
   onBookDemo,
 }: V5PublicFooterProps) {
-  const type = useTypeScale();
-  const styles = useFooterStyles();
   return (
-    <View style={styles.root}>
+    <>
       {showProof && <OutcomesProof testimonial={testimonial} />}
       {showIntegrations && <IntegrationShelf />}
       {showPricing && <PricingShelf onStartFree={onStartFree} />}
       {showCta && <GrowthCta onStartFree={onStartFree} onBookDemo={onBookDemo} />}
+    </>
+  );
+}
+
+/**
+ * The site footer proper: the link directory and the legal bar — and the
+ * page's one `contentinfo` landmark.
+ *
+ * `role`, not `accessibilityRole`: react-native's `AccessibilityRole` union
+ * has never carried the document-structure roles, `Role` does, and
+ * react-native-web renders `contentinfo` as a real `<footer>`.
+ */
+export function V5SiteFooter() {
+  const type = useTypeScale();
+  const styles = useFooterStyles();
+  return (
+    <View role="contentinfo" style={styles.siteFooter}>
       <FooterNavigation />
       <View style={styles.bottom}>
         <Text style={[type.caption, styles.bottomText]}>© 2026 FlowSmartly. All rights reserved.</Text>
@@ -1071,6 +1106,23 @@ export function V5PublicFooter({
         </View>
       </View>
     </View>
+  );
+}
+
+/**
+ * Both halves in page order.
+ *
+ * Kept so anything rendering the whole tail at once still can — but note that
+ * a caller placing this inside a landmark of its own puts `contentinfo` inside
+ * that landmark, which is a violation. `PageShell` renders the two pieces
+ * separately for exactly that reason.
+ */
+export function V5PublicFooter(props: V5PublicFooterProps) {
+  return (
+    <>
+      <V5PageEnd {...props} />
+      <V5SiteFooter />
+    </>
   );
 }
 
@@ -1135,7 +1187,10 @@ function createStyles(t: ThemeTokens, l: Layout) {
   const photo = phone ? 76 : l.isCompact ? 92 : 120;
 
   return StyleSheet.create({
-    root: { paddingBottom: l.sectionGap * 2 },
+    // The page's trailing padding. It used to sit on a wrapper around the
+    // whole tail; the footer is still the last thing on the page, so it lands
+    // in exactly the same place.
+    siteFooter: { paddingBottom: l.sectionGap * 2 },
 
     /* -------------------------------------------------- outcomes */
     outcomesSection: { gap: gridGap + 6 },

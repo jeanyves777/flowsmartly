@@ -400,7 +400,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -424,7 +424,7 @@ function Bullet({ children, tone = 'brand' }: { children: string; tone?: Tone })
   return (
     <View style={styles.bulletRow}>
       <View style={styles.bulletIcon}>
-        <FontAwesome6 name="circle-check" size={13} color={accent(t, tone)} />
+        <FontAwesome6 name="circle-check" size={13} color={accent(t, tone)}  aria-hidden={true}/>
       </View>
       <Text style={styles.bulletText}>{children}</Text>
     </View>
@@ -451,7 +451,7 @@ function LinkRow({
   const body = (
     <>
       <Text style={[styles.linkText, { color }]}>{label}</Text>
-      <FontAwesome6 name="arrow-right" size={12} color={color} />
+      <FontAwesome6 name="arrow-right" size={12} color={color}  aria-hidden={true}/>
     </>
   );
 
@@ -570,6 +570,7 @@ function CodeSample() {
               key={item.id}
               accessibilityRole="tab"
               accessibilityState={{ selected: index === active }}
+              aria-selected={index === active}
               onPress={() => setActive(index)}
               style={[
                 styles.codeTab,
@@ -582,7 +583,7 @@ function CodeSample() {
           ))}
         </View>
         <Pressable accessibilityRole="button" onPress={onCopy} style={styles.copyButton}>
-          <FontAwesome6 name={copied ? 'check' : 'copy'} size={13} color={copied ? ink.str : ink.muted} />
+          <FontAwesome6 name={copied ? 'check' : 'copy'} size={13} color={copied ? ink.str : ink.muted}  aria-hidden={true}/>
           <Text style={[styles.copyText, { color: copied ? ink.str : ink.muted }]}>
             {copied ? 'Copied' : 'Copy'}
           </Text>
@@ -806,6 +807,7 @@ function ExplorerPanel() {
             key={key}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === key }}
+            aria-selected={tab === key}
             onPress={() => setTab(key)}
             style={[styles.tab, tab === key ? styles.tabActive : null]}>
             <Text style={[styles.tabText, tab === key ? styles.tabTextActive : null]}>

@@ -489,7 +489,7 @@ function Bullet({
   return (
     <View style={styles.bulletRow}>
       <View style={styles.bulletDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       {/* Two lines on a phone. These are written to sit on one line in a wide
           column; the clamp is the guard that stops the longest of them turning
@@ -505,7 +505,7 @@ function ExploreLink({ href, label, styles, t }: { href: string; label: string; 
   return (
     <Link href={href as never} accessibilityLabel={label} style={styles.exploreLink as never}>
       <Text style={styles.exploreText}>{label}</Text>
-      <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+      <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
     </Link>
   );
 }
@@ -612,7 +612,7 @@ function PillarSection({
       <View style={styles.pillarCopy}>
         <View style={styles.pillarBadge}>
           <View style={[styles.pillarIcon, { backgroundColor: softFill(accent, t) }]}>
-            <FontAwesome6 name={pillar.icon as never} size={17} color={accent} />
+            <FontAwesome6 name={pillar.icon as never} size={17} color={accent}  aria-hidden={true}/>
           </View>
           <Text style={[styles.pillarName, { color: accentText(accent, t) }]}>{pillar.name}</Text>
         </View>
@@ -679,7 +679,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
       <View key={m.key} style={styles.moduleCell}>
         <View {...field.node(m.key)} style={styles.moduleTile}>
           <View style={[styles.moduleIcon, { backgroundColor: softFill(accent, t) }]}>
-            <FontAwesome6 name={m.icon as never} size={l.isPhone ? 13 : 15} color={accent} />
+            <FontAwesome6 name={m.icon as never} size={l.isPhone ? 13 : 15} color={accent}  aria-hidden={true}/>
           </View>
           <Text numberOfLines={2} style={styles.moduleLabel}>
             {m.label}
@@ -709,7 +709,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
         <View style={styles.hub}>
           <View style={styles.hubHead}>
             <View style={styles.hubBadge}>
-              <FontAwesome6 name="table-cells-large" size={12} color={t.brand} />
+              <FontAwesome6 name="table-cells-large" size={12} color={t.brand}  aria-hidden={true}/>
             </View>
             <View style={styles.hubHeadCopy}>
               <Text numberOfLines={1} style={styles.hubTitle}>
@@ -738,7 +738,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
                       {`${stat.prefix}${values[index].toFixed(1)}${stat.suffix}`}
                     </Text>
                     <View style={styles.statDeltaRow}>
-                      <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon} />
+                      <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon}  aria-hidden={true}/>
                       <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
                         {stat.delta}
                       </Text>
@@ -755,7 +755,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
             const accent = accentOf(m.accent);
             return (
               <View key={m.key} style={styles.chip}>
-                <FontAwesome6 name={m.icon as never} size={12} color={accent} />
+                <FontAwesome6 name={m.icon as never} size={12} color={accent}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.chipLabel}>
                   {m.label}
                 </Text>
@@ -776,7 +776,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
       <View {...field.node('hub')} style={styles.hub}>
         <View style={styles.hubHead}>
           <View style={styles.hubBadge}>
-            <FontAwesome6 name="table-cells-large" size={12} color={t.brand} />
+            <FontAwesome6 name="table-cells-large" size={12} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.hubHeadCopy}>
             <Text numberOfLines={1} style={styles.hubTitle}>
@@ -809,7 +809,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
                     {`${stat.prefix}${values[index].toFixed(1)}${stat.suffix}`}
                   </Text>
                   <View style={styles.statDeltaRow}>
-                    <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon} />
+                    <FontAwesome6 name="arrow-right" size={8} color={accent} style={styles.statDeltaIcon}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={[styles.statDelta, { color: accentText(accent, t) }]}>
                       {stat.delta}
                     </Text>
@@ -893,7 +893,7 @@ export default function ProductPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -976,7 +976,7 @@ export default function ProductPage() {
               <View key={step.key} style={styles.flowGroup}>
                 <View style={styles.flowStep}>
                   <View style={[styles.flowIcon, { backgroundColor: softFill(accent, t), borderColor: accent }]}>
-                    <FontAwesome6 name={step.icon as never} size={l.isPhone ? 17 : 19} color={accent} />
+                    <FontAwesome6 name={step.icon as never} size={l.isPhone ? 17 : 19} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.flowLabel}>
                     {step.label}
@@ -989,7 +989,7 @@ export default function ProductPage() {
                     width; only the last one is left empty. */}
                 <View style={styles.flowArrow}>
                   {index === FLOW_STEPS.length - 1 ? null : l.isPhone ? (
-                    <FontAwesome6 name="arrow-right" size={12} color={t.textSubtle} style={styles.flowArrowDown} />
+                    <FontAwesome6 name="arrow-right" size={12} color={t.textSubtle} style={styles.flowArrowDown}  aria-hidden={true}/>
                   ) : (
                     <ArrowLink width={arrowWidth} height={12} color={t.borderStrong} />
                   )}
@@ -1043,7 +1043,7 @@ export default function ProductPage() {
               <Reveal key={card.key} style={styles.moduleGridCell} distance={16} delay={index * 70}>
                 <View style={styles.moduleCard}>
                   <View style={[styles.moduleCardIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={card.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={card.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.moduleCardName]}>{card.name}</Text>
                   <Text style={styles.moduleCardBlurb}>{card.blurb}</Text>
@@ -1093,7 +1093,7 @@ export default function ProductPage() {
                 {CUSTOMER_BENEFITS.map((benefit) => (
                   <View key={benefit.title} style={styles.benefitRow}>
                     <View style={styles.benefitIcon}>
-                      <FontAwesome6 name={benefit.icon as never} size={14} color={t.brand} />
+                      <FontAwesome6 name={benefit.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                     </View>
                     <View style={styles.benefitCopy}>
                       <Text style={styles.benefitTitle}>{benefit.title}</Text>
@@ -1140,7 +1140,7 @@ export default function ProductPage() {
                       <View style={styles.timelineRail}>
                         {last ? null : <View style={styles.timelineLine} />}
                         <View style={[styles.timelineDot, { backgroundColor: softFill(accent, t), borderColor: accent }]}>
-                          <FontAwesome6 name={event.icon as never} size={9} color={accent} />
+                          <FontAwesome6 name={event.icon as never} size={9} color={accent}  aria-hidden={true}/>
                         </View>
                       </View>
                       <View style={styles.timelineCopy}>
@@ -1159,7 +1159,7 @@ export default function ProductPage() {
               <View style={styles.nextCard}>
                 <View style={styles.nextHead}>
                   <View style={styles.nextIcon}>
-                    <FontAwesome6 name="lightbulb" size={12} color={t.orange} />
+                    <FontAwesome6 name="lightbulb" size={12} color={t.orange}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.nextTitle}>
                     Next best action
@@ -1219,7 +1219,7 @@ export default function ProductPage() {
                 <View style={styles.suiteCard}>
                   <View style={styles.suiteHead}>
                     <View style={[styles.suiteIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={suite.icon as never} size={21} color={accent} />
+                      <FontAwesome6 name={suite.icon as never} size={21} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.suiteHeadCopy}>
                       <Text style={[type.h3, styles.suiteName]}>{suite.name}</Text>
@@ -1274,7 +1274,7 @@ export default function ProductPage() {
               <Reveal key={item.title} style={styles.trustCell} distance={16} delay={index * 70}>
                 <View style={styles.trustCard}>
                   <View style={[styles.trustIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={17} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={17} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.trustTitle}>{item.title}</Text>
                   <Text style={styles.trustBody}>{item.body}</Text>

@@ -1,5 +1,4 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -113,20 +112,25 @@ function useStyles(): Styles {
  */
 function Brand({ compact = false, alt }: { compact?: boolean; alt: string }) {
   const styles = useStyles();
-  const decorative = alt.trim() === '';
-  const shared = {
-    alt: decorative ? undefined : alt,
-    'aria-hidden': decorative || undefined,
-    contentFit: 'contain' as const,
-  };
+  /*
+   * `ImageAsset`, never expo-image's `Image` directly. expo-image destructures
+   * `alt` and then renders `alt={accessibilityLabel}` on the real `<img>` — the
+   * `alt` alias survives on the placeholder branch alone, and these have no
+   * placeholder. So `<Image alt="…">` shipped an `<img>` with no alt attribute
+   * at all: the channel-map hub was one of the three unlabelled images on this
+   * page. `ImageAsset` routes the text through the prop that reaches the DOM
+   * and pairs an empty alt with `aria-hidden`, so a decorative mark is skipped
+   * deliberately rather than read as a file name.
+   */
+  const shared = { alt, contentFit: "contain" as const };
   return compact ? (
-    <Image
+    <ImageAsset
       source={require("../../assets/images/v5w/flowsmartly-mark.png")}
       style={styles.brandLogoCompact}
       {...shared}
     />
   ) : (
-    <Image
+    <ImageAsset
       source={require("../../assets/images/v5w/flowsmartly-logo.png")}
       style={styles.brandLogo}
       contentPosition="left"
@@ -286,7 +290,7 @@ function FlowAiCard() {
                 name={icon as never}
                 size={14}
                 color={index === 0 ? t.brand : t.textSubtle}
-              />
+               aria-hidden={true}/>
             </View>
           ))}
         </View>
@@ -318,7 +322,7 @@ function FlowAiCard() {
               style={styles.actionRow}
             >
               <View style={[styles.actionRealIcon, { backgroundColor: action.color }]}>
-                <FontAwesome6 name={action.icon as never} size={14} color={t.textOnBrand} />
+                <FontAwesome6 name={action.icon as never} size={14} color={t.textOnBrand}  aria-hidden={true}/>
               </View>
               {/* Title on its own line, then note and status share the next
                   one. As a third column the pill left the title ~160px and
@@ -343,16 +347,23 @@ function FlowAiCard() {
           {/* mockup chrome — see MockButton */}
           <MockButton label="Review actions" />
           <View style={styles.approval}>
+            {/* Two stand-in faces stacked behind "Human approval enabled" —
+                the same portrait twice, standing for "someone signs this off".
+                They identify nobody, and the sentence beside them already says
+                what they mean, so they are art: an explicit empty alt plus
+                aria-hidden, not a description of a face. */}
             <View style={styles.approvalFaces}>
-              <Image
+              <ImageAsset
                 source={require("../../assets/images/v5/customer-sarah-johnson.png")}
                 style={styles.approvalFace}
                 contentFit="cover"
+                alt=""
               />
-              <Image
+              <ImageAsset
                 source={require("../../assets/images/v5/customer-sarah-johnson.png")}
                 style={[styles.approvalFace, styles.approvalFaceOverlap]}
                 contentFit="cover"
+                alt=""
               />
             </View>
             <Text numberOfLines={1} style={styles.approvalText}>
@@ -446,7 +457,7 @@ function SystemTile({
     // Icon and label share one card, and the card is the measured node —
     // otherwise a wire stops at the icon and runs through the label below it.
     <View {...(nodeProps as object)} style={[styles.brandTile, cluster ? styles.brandTileCluster : null]}>
-      <FontAwesome6 name={icon as never} size={22} color={color} />
+      <FontAwesome6 name={icon as never} size={22} color={color}  aria-hidden={true}/>
       {/* Two lines in the cluster only: the six wired labels are single words,
           but "Connected applications" has to wrap rather than ellipsize. */}
       <Text numberOfLines={cluster ? 2 : 1} style={styles.channelLabel}>
@@ -665,18 +676,30 @@ const HERO_INTEGRATIONS = [
  */
 function useAmbientActive() {
   const ref = useRef<unknown>(null);
-  const [onScreen, setOnScreen] = useState(false);
+  /*
+   * Starts TRUE, and the observer only ever corrects it downward.
+   *
+   * It started false and the ticker never advanced once - seven items, a 3.6s
+   * interval, and a single row for the whole session. The pause is a courtesy
+   * (do not animate behind the fold); the animation is the feature. Defaulting
+   * to "paused" means any reason the observer does not report - a zero-area
+   * box at the moment it is observed, a ref that is not a DOM node, an
+   * environment without IntersectionObserver - silently turns the feature off
+   * and leaves markup that looks correct and does nothing.
+   *
+   * Fail open: worst case it animates while off-screen, which costs a timer.
+   */
+  const [onScreen, setOnScreen] = useState(true);
   const [tabVisible, setTabVisible] = useState(true);
 
   useEffect(() => {
     const node = ref.current as Element | null;
-    if (!node || typeof IntersectionObserver === 'undefined') {
-      setOnScreen(true);
-      return;
-    }
+    if (!node || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
+      // threshold 0: a wrapper whose rows are absolutely positioned can measure
+      // as zero-area at observe time, and 0.1 of zero is never met.
       (entries) => entries.forEach((entry) => setOnScreen(entry.isIntersecting)),
-      { threshold: 0.1 },
+      { threshold: 0 },
     );
     observer.observe(node);
     return () => observer.disconnect();
@@ -748,7 +771,7 @@ function useHeroCycle(length: number) {
 function HeroActivityRow({ item, styles }: { item: (typeof HERO_PREPARED)[number]; styles: Styles }) {
   return (
     <View style={styles.heroCard}>
-      <FontAwesome6 name={item.icon as never} size={12} color={onGlass[item.accent]} />
+      <FontAwesome6 name={item.icon as never} size={12} color={onGlass[item.accent]}  aria-hidden={true}/>
       <Text numberOfLines={1} style={styles.heroCardText}>
         {item.label}
       </Text>
@@ -812,7 +835,7 @@ function HeroSystem({
 }) {
   return (
     <View {...field.node(system.key)} style={styles.heroSystem}>
-      <FontAwesome6 name={system.icon as never} size={13} color={onGlass[system.accent]} />
+      <FontAwesome6 name={system.icon as never} size={13} color={onGlass[system.accent]}  aria-hidden={true}/>
       <Text numberOfLines={1} style={styles.heroSystemLabel}>
         {system.label}
       </Text>
@@ -838,12 +861,120 @@ function PhoneActivityRow({ item, styles }: { item: (typeof HERO_PREPARED)[numbe
   return (
     <View style={styles.phoneRow}>
       <View style={[styles.phoneRowIcon, { backgroundColor: hexToRgba(tone, 0.14) }]}>
-        <FontAwesome6 name={item.icon as never} size={13} color={tone} />
+        <FontAwesome6 name={item.icon as never} size={13} color={tone}  aria-hidden={true}/>
       </View>
       <Text numberOfLines={1} style={styles.phoneRowText}>
         {item.label}
       </Text>
       <Text style={styles.phoneRowPill}>Ready</Text>
+    </View>
+  );
+}
+
+/**
+ * One system chip, on the phone scene.
+ *
+ * It is drawn over the photograph, so its ground CANNOT be the photograph.
+ * The tile is an opaque dark plate — `palettes.dark.surfaceRaised`, the same
+ * trick `onGlass` already uses for the accents — rather than the wide hero's
+ * translucent glass. That is not a styling preference: a 30% veil leaves the
+ * real ground unknowable, so the label is read against whatever the room
+ * happens to be doing behind it, which is how dark copy ended up crossing a
+ * bright window. An opaque plate gives the label a ground that is computable
+ * from styles alone, in every theme, wherever the photograph is bright.
+ */
+function PhoneSystemChip({
+  system,
+  field,
+  styles,
+}: {
+  system: (typeof HERO_SYSTEMS)[number];
+  field: ReturnType<typeof useConnectorField>;
+  styles: Styles;
+}) {
+  return (
+    <View {...field.node(system.key)} style={styles.phoneChip}>
+      <FontAwesome6 name={system.icon as never} size={12} color={onGlass[system.accent]} aria-hidden={true} />
+      <Text numberOfLines={1} style={styles.phoneChipLabel}>
+        {system.label}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The room, with the system wired over it — the phone form of the wide scene.
+ *
+ * The photograph is BACK, and it is back as a picture rather than as a page
+ * ground: a rounded, bounded card that carries the six connected systems and
+ * the hub between them. Nothing in the hero's *reading* order sits on it —
+ * eyebrow, headline, body, CTAs and trust markers are all outside this card,
+ * on the page's own surface. The only text inside it is a chip label, and
+ * every chip is its own opaque plate.
+ *
+ * That is the whole rule, stated as geometry: artwork sits NEXT TO the words,
+ * or BEHIND a surface the words sit on. Never behind the words themselves.
+ */
+function PhoneScene() {
+  const styles = useStyles();
+  const t = useTokens();
+  const field = useConnectorField();
+  const reduced = useReducedMotion();
+  const links = useMemo<Link[]>(
+    () => HERO_SYSTEMS.map((s) => ({ from: s.key, to: 'hub', color: onGlass[s.accent] })),
+    [],
+  );
+
+  return (
+    <View style={styles.phoneScene}>
+      {/* Decorative: the headline above the card carries the meaning. */}
+      <Media name="scenes/careers-team" alt="" radius={0} style={styles.phoneScenePhoto} />
+      {/* Settles the room down so the plates read as sitting in it. Nothing
+          depends on it for contrast — every label has its own opaque tile. */}
+      <LinearGradient
+        colors={[`rgba(${t.scrimBase},${t.scrimVeil[3]})`, `rgba(${t.scrimBase},${t.scrimVeil[2]})`]}
+        locations={[0, 1]}
+        style={styles.phoneSceneScrim}
+        pointerEvents="none"
+      />
+      {/* Nothing may transform between the surface and its nodes — the overlay
+          measures them against each other, so a per-chip reveal here would
+          detach every wire. */}
+      <ConnectorSurface field={field} style={styles.phoneSceneField}>
+        <Connectors
+          field={field}
+          links={links}
+          color={t.brandStrong}
+          circular={HERO_HUB}
+          strokeWidth={1.5}
+          dash="4 7"
+          flow={!reduced}
+          endDots={false}
+        />
+        <View style={styles.phoneSceneRow}>
+          <View style={styles.phoneSceneColumnLeft}>
+            {HERO_SYSTEMS.filter((s) => s.at === 'left').map((s) => (
+              <PhoneSystemChip key={s.key} system={s} field={field} styles={styles} />
+            ))}
+          </View>
+          {/* The documented exception to "the logo lives in the header and the
+              footer": it is the only thing naming a centre node in a picture
+              where every other node wears a text label. */}
+          <View {...field.node('hub')} style={styles.phoneSceneHub}>
+            <ImageAsset
+              source={require("../../assets/images/v5/flowsmartly-mark.png")}
+              style={styles.phoneSceneHubMark}
+              contentFit="contain"
+              alt="FlowSmartly"
+            />
+          </View>
+          <View style={styles.phoneSceneColumnRight}>
+            {HERO_SYSTEMS.filter((s) => s.at === 'right').map((s) => (
+              <PhoneSystemChip key={s.key} system={s} field={field} styles={styles} />
+            ))}
+          </View>
+        </View>
+      </ConnectorSurface>
     </View>
   );
 }
@@ -855,18 +986,23 @@ function PhoneActivityRow({ item, styles }: { item: (typeof HERO_PREPARED)[numbe
  * a full-width picture — the exact defect this rewrite exists to end. Three
  * things change, and none of them is "add flexDirection: column":
  *
- *   1. The photograph goes. The stated direction is product-led rather than
- *      stock photography, so the scrim, the two gradients and the room behind
- *      them are not rendered at all on a phone; the product surface IS the
- *      visual, on the page's own ground.
+ *   1. The photograph becomes a PICTURE instead of a ground. Wide, the room is
+ *      the page and the copy is scrimmed over it; here it is a bounded card
+ *      between the headline and the product panel, carrying the six connected
+ *      systems and the hub. It was briefly deleted on the phone to fix the
+ *      readability — that traded one defect for another, because the room and
+ *      the wired systems ARE the visual identity of this page. What actually
+ *      had to go was text ON the photograph, and only that.
  *   2. The ORDER changes. Wide reads copy-left / system-right. Phone reads
- *      claim → the product doing the work → the explanation → the two CTAs, so
- *      the proof arrives before the paragraph rather than after it.
+ *      claim → the system it runs across → the product doing the work → the
+ *      explanation → the two CTAs, so the proof arrives before the paragraph
+ *      rather than after it.
  *   3. The trust markers become a two-column grid instead of four full-width
  *      lines, and the 300px connector field becomes a panel whose activity
  *      feed shows ONE item at a time rather than three stacked forever.
  *
- * The headline, the sub-copy and both CTAs are all still here.
+ * The headline, the sub-copy and both CTAs are all still here — and all of
+ * them are on the page's own surface, never over the picture.
  */
 function PhoneHero() {
   const styles = useStyles();
@@ -884,12 +1020,17 @@ function PhoneHero() {
         Agentic AI built to operate, adapt, and scale with your business.
       </Heading>
 
+      {/* The picture, between the claim and the product surface. It carries no
+          reading copy — only its own opaque chips — so nothing above or below
+          it is ever read against a photograph. */}
+      <PhoneScene />
+
       <View style={styles.phonePanel}>
         <View style={styles.phonePanelHead}>
           {/* Chrome inside a mock: a brand-tinted tile, not the logo — rule 7
               keeps the mark in the header and the footer. */}
           <View style={styles.phonePanelMark}>
-            <FontAwesome6 name={"wand-magic-sparkles" as never} size={13} color={t.brand} />
+            <FontAwesome6 name={"wand-magic-sparkles" as never} size={13} color={t.brand}  aria-hidden={true}/>
           </View>
           <Text numberOfLines={1} style={styles.phonePanelTitle}>
             FlowAgent Command Center
@@ -962,7 +1103,7 @@ function PhoneHero() {
               size={12}
               color={t.green}
               style={styles.phoneTrustIcon}
-            />
+             aria-hidden={true}/>
             <Text numberOfLines={2} style={styles.phoneTrustText}>
               {line}
             </Text>
@@ -1415,7 +1556,7 @@ function AcrossOrganization({ number }: PanelProps) {
       {rows.slice(0, l.isPhone ? 4 : rows.length).map(([icon, color, org, detail], index) => (
         <Reveal key={org} delay={index * 70} distance={10} style={styles.orgRow}>
           <View style={[styles.miniIcon, { backgroundColor: color }]}>
-            <FontAwesome6 name={icon as never} size={10} color={t.textOnBrand} />
+            <FontAwesome6 name={icon as never} size={10} color={t.textOnBrand}  aria-hidden={true}/>
           </View>
           <View style={styles.orgCopy}>
             <Text numberOfLines={1} style={styles.orgName}>
@@ -1452,7 +1593,7 @@ function JourneyPanel({ number }: PanelProps) {
           <Fragment key={label}>
             <Reveal delay={index * 80} distance={10} style={styles.journeyItem}>
               <View style={[styles.journeyIcon, { backgroundColor: color }]}>
-                <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand} />
+                <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand}  aria-hidden={true}/>
               </View>
               <Text style={styles.journeyLabel}>{label}</Text>
             </Reveal>
@@ -1495,10 +1636,14 @@ function CustomerPanel({ number }: PanelProps) {
   return (
     <Panel number={number} title="Unified customer profile">
       <View style={styles.customerRow}>
-        <Image
+        {/* The name, the address and the history are printed immediately to the
+            right of this avatar. Labelling it would read the person's name
+            twice, so it is decorative. */}
+        <ImageAsset
           source={require("../../assets/images/v5/customer-sarah-johnson.png")}
           style={styles.customerPhoto}
           contentFit="cover"
+          alt=""
         />
         <View style={styles.customerIdentity}>
           <Text numberOfLines={1} style={styles.customerName}>
@@ -1598,7 +1743,7 @@ function ReadinessPanel({ number }: PanelProps) {
             name={brand.name as never}
             size={18}
             color={brandColor(brand.color, t)}
-          />
+           aria-hidden={true}/>
         ))}
       </View>
     </Panel>
@@ -1728,7 +1873,7 @@ function Dashboard() {
                 name={item.brand as never}
                 size={17}
                 color={brandColor(item.color, t)}
-              />
+               aria-hidden={true}/>
             ))}
           </View>
           <Text style={styles.integrationsNote}>All your channels. One intelligent system.</Text>
@@ -1819,12 +1964,12 @@ function FlowShopSection() {
         <View style={styles.storefront}>
           <View style={styles.storefrontHeader}>
             <View style={styles.storefrontBrand}>
-              <FontAwesome6 name="bars" size={15} color={t.textMuted} />
+              <FontAwesome6 name="bars" size={15} color={t.textMuted}  aria-hidden={true}/>
               <Text style={styles.storePanelTitle}>FlowShop</Text>
             </View>
             <View style={styles.storefrontTools}>
               {["magnifying-glass", "user", "cart-shopping"].map((icon) => (
-                <FontAwesome6 key={icon} name={icon as never} size={15} color={t.textMuted} />
+                <FontAwesome6 key={icon} name={icon as never} size={15} color={t.textMuted}  aria-hidden={true}/>
               ))}
             </View>
           </View>
@@ -1835,7 +1980,17 @@ function FlowShopSection() {
                 "storefront"; the second row only says "more of the same". */}
             {(l.isPhone ? products.slice(0, 2) : products).map((product) => (
               <View key={product.name} style={styles.productCard}>
-                <Image source={product.image} style={styles.productImage} contentFit="contain" transition={180} />
+                {/* The card prints the product name, price and rating right
+                    below the photo, so the photo adds no fact a reader would
+                    otherwise miss — and an alt here would announce the name a
+                    second time. Decorative. */}
+                <ImageAsset
+                  source={product.image}
+                  style={styles.productImage}
+                  contentFit="contain"
+                  transition={180}
+                  alt=""
+                />
                 <Text numberOfLines={l.isPhone ? 1 : 2} style={styles.productName}>
                   {product.name}
                 </Text>
@@ -1906,7 +2061,7 @@ function CustomerIntelligence() {
             {signals.map(([icon, color, title, note]) => (
               <View key={title} style={styles.signalRow}>
                 <View style={[styles.signalRowIcon, { backgroundColor: hexToRgba(color, 0.14) }]}>
-                  <FontAwesome6 name={icon as never} size={14} color={color} />
+                  <FontAwesome6 name={icon as never} size={14} color={color}  aria-hidden={true}/>
                 </View>
                 <View style={styles.signalCopy}>
                   <Text numberOfLines={1} style={styles.signalTitle}>
@@ -1923,7 +2078,7 @@ function CustomerIntelligence() {
           <View style={styles.signalColumn}>
             {signals.map(([icon, color, title, note]) => (
               <View key={title} style={styles.signalCard}>
-                <FontAwesome6 name={icon as never} size={20} color={color} />
+                <FontAwesome6 name={icon as never} size={20} color={color}  aria-hidden={true}/>
                 <View style={styles.signalCopy}>
                   <Text numberOfLines={1} style={styles.signalTitle}>
                     {title}
@@ -1937,10 +2092,13 @@ function CustomerIntelligence() {
           </View>
         )}
         <View style={styles.profileCard}>
-          <Image
+          {/* The name is printed on the very next line — same reasoning as the
+              unified-profile card: an avatar above its own caption is art. */}
+          <ImageAsset
             source={require("../../assets/images/v5/customer-sarah-johnson.png")}
             style={styles.profilePhoto}
             contentFit="cover"
+            alt=""
           />
           <Text style={styles.profileName}>Sarah Johnson</Text>
           <View style={styles.profileTags}>
@@ -1957,7 +2115,7 @@ function CustomerIntelligence() {
                 size={13}
                 color={t.textSubtle}
                 style={styles.profileMetaIcon}
-              />
+               aria-hidden={true}/>
               <Text numberOfLines={1} style={styles.profileMetaText}>
                 {line}
               </Text>
@@ -2188,11 +2346,114 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     /* ---------------------------------------------------------------- */
 
     /*
-     * No photograph, so no scrim: everything here is on the page's own ground
-     * and takes the ordinary theme tokens. The gutter is supplied here because
-     * the hero sits outside `OpenSection`, exactly as the wide scene does.
+     * Every reading element here is on the page's own ground and takes the
+     * ordinary theme tokens. The photograph exists — see `phoneScene` — but as
+     * a bounded picture between the headline and the panel, never underneath
+     * either of them, so none of these needs a scrim to be legible. The gutter
+     * is supplied here because the hero sits outside `OpenSection`, exactly as
+     * the wide scene does.
      */
     phoneHero: { paddingHorizontal: l.gutter, paddingTop: 18, paddingBottom: 24, gap: 16 },
+
+    /* ---------------------------------------------------------------- */
+    /* hero: the phone picture — the room, wired                         */
+    /* ---------------------------------------------------------------- */
+
+    /*
+     * A CARD, not a ground. It stays inside the gutter and clips its own
+     * corners, so the photograph is something the page contains rather than
+     * something the page sits on — which is exactly the difference between the
+     * wide composition (copy over a scrim) and this one (copy beside a
+     * picture).
+     */
+    phoneScene: {
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: t.border,
+      // the photograph's own ground, for the moment before it decodes
+      backgroundColor: `rgb(${t.scrimBase})`,
+    },
+    phoneScenePhoto: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100%',
+      height: '100%',
+    },
+    phoneSceneScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as ViewStyle,
+    phoneSceneField: { paddingHorizontal: 12, paddingVertical: 18 },
+    phoneSceneRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    /*
+     * The chips hug the outer edges rather than filling their column, so every
+     * wire has a visible run into the hub instead of stopping the moment it
+     * leaves the tile.
+     */
+    phoneSceneColumnLeft: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      minWidth: 0,
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    phoneSceneColumnRight: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      minWidth: 0,
+      alignItems: 'flex-end',
+      gap: 8,
+    },
+    phoneSceneHub: {
+      width: 56,
+      height: 56,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: palettes.dark.borderStrong,
+      backgroundColor: palettes.dark.surfaceRaised,
+    },
+    phoneSceneHubMark: { width: 30, height: 30 },
+    /*
+     * OPAQUE, deliberately — see `PhoneSystemChip`. The wide hero's glass is a
+     * 30% veil, which leaves the label's real ground unknowable and is what
+     * failed here. These read as dark product plates dropped into the room,
+     * and their ink is the dark palette's own, so the pairing is a designed
+     * one in all three themes rather than a guess about the photograph.
+     */
+    phoneChip: {
+      maxWidth: '100%',
+      minHeight: 32,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: palettes.dark.borderStrong,
+      backgroundColor: palettes.dark.surfaceRaised,
+    },
+    phoneChipLabel: {
+      ...ty.caption,
+      color: palettes.dark.text,
+      fontWeight: '700',
+      flexShrink: 1,
+      minWidth: 0,
+    },
     phoneHeroTitle: { ...ty.display, color: t.text },
     phoneHeroBody: { ...ty.body, color: t.textMuted },
 

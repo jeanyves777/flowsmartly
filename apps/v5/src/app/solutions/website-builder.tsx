@@ -296,7 +296,7 @@ export default function WebsiteBuilderPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -311,7 +311,7 @@ export default function WebsiteBuilderPage() {
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
             <View style={styles.promptCard}>
               <View style={styles.promptHead}>
-                <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.brand} />
+                <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.brand}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.promptHeadText}>
                   Describe your business
                 </Text>
@@ -351,7 +351,7 @@ export default function WebsiteBuilderPage() {
                       {page.note}
                     </Text>
                   </View>
-                  <FontAwesome6 name="check" size={11} color={t.green} />
+                  <FontAwesome6 name="check" size={11} color={t.green}  aria-hidden={true}/>
                 </View>
               ))}
               <View style={styles.draftFoot}>
@@ -382,7 +382,7 @@ export default function WebsiteBuilderPage() {
               <View style={styles.stepCard}>
                 <View style={styles.stepTop}>
                   <View style={[styles.stepIcon, { backgroundColor: softFill(accentOf(step.accent), t) }]}>
-                    <FontAwesome6 name={step.icon as never} size={16} color={accentOf(step.accent)} />
+                    <FontAwesome6 name={step.icon as never} size={16} color={accentOf(step.accent)}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.stepNumber}>
                     {step.step}
@@ -410,7 +410,7 @@ export default function WebsiteBuilderPage() {
             <Reveal key={item.key} style={styles.includeCell} distance={14} delay={index * 50}>
               <View style={styles.includeCard}>
                 <View style={[styles.includeIcon, { backgroundColor: softFill(accentOf(item.accent), t) }]}>
-                  <FontAwesome6 name={item.icon as never} size={17} color={accentOf(item.accent)} />
+                  <FontAwesome6 name={item.icon as never} size={17} color={accentOf(item.accent)}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.includeTitle}>{item.title}</Text>
                 <Text style={styles.includeBody}>{item.body}</Text>
@@ -436,7 +436,7 @@ export default function WebsiteBuilderPage() {
               {EDIT_WAYS.map((way) => (
                 <View key={way.key} style={styles.wayRow}>
                   <View style={styles.wayIcon}>
-                    <FontAwesome6 name={way.icon as never} size={14} color={t.brand} />
+                    <FontAwesome6 name={way.icon as never} size={14} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.wayCopy}>
                     <Text style={styles.wayTitle}>{way.title}</Text>
@@ -470,7 +470,7 @@ export default function WebsiteBuilderPage() {
                     name={block.icon as never}
                     size={12}
                     color={block.active ? t.brand : t.textSubtle}
-                  />
+                   aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.blockLabel}>
                     {block.label}
                   </Text>
@@ -480,7 +480,7 @@ export default function WebsiteBuilderPage() {
                 </View>
               ))}
               <View style={styles.editorAsk}>
-                <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.brand} />
+                <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.brand}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.editorAskText}>
                   Make services three columns
                 </Text>
@@ -496,7 +496,7 @@ export default function WebsiteBuilderPage() {
           <Reveal style={styles.splitVisual} distance={16}>
             <View style={styles.seoCard}>
               <View style={styles.seoHead}>
-                <FontAwesome6 name="magnifying-glass" size={13} color={t.brand} />
+                <FontAwesome6 name="magnifying-glass" size={13} color={t.brand}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.seoHeadText}>
                   Generated for every page
                 </Text>
@@ -550,7 +550,7 @@ export default function WebsiteBuilderPage() {
             <Reveal key={item.key} style={styles.connectCell} distance={14} delay={index * 60}>
               <View style={styles.connectCard}>
                 <View style={[styles.connectIcon, { backgroundColor: softFill(accentOf(item.accent), t) }]}>
-                  <FontAwesome6 name={item.icon as never} size={16} color={accentOf(item.accent)} />
+                  <FontAwesome6 name={item.icon as never} size={16} color={accentOf(item.accent)}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.connectTitle}>{item.title}</Text>
                 <Text style={styles.connectBody}>{item.body}</Text>
@@ -581,7 +581,7 @@ export default function WebsiteBuilderPage() {
           </View>
           <View style={styles.domainVisual}>
             <View style={styles.domainField}>
-              <FontAwesome6 name="globe" size={13} color={t.textSubtle} />
+              <FontAwesome6 name="globe" size={13} color={t.textSubtle}  aria-hidden={true}/>
               <Text numberOfLines={1} style={styles.domainFieldText}>
                 brightsmiledental
               </Text>
@@ -637,7 +637,7 @@ export default function WebsiteBuilderPage() {
             radius={l.isPhone ? 34 : 44}
           />
           <View style={styles.quoteCopy}>
-            <FontAwesome6 name="quote-left" size={18} color={t.brand} />
+            <FontAwesome6 name="quote-left" size={18} color={t.brand}  aria-hidden={true}/>
             <Text style={[type.h3, styles.quoteText]}>
               I had put off the website for two years because I did not know where to start. I wrote
               four sentences about the shop and had something I was proud of the same afternoon.

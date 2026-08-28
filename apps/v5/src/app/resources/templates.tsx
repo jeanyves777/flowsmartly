@@ -396,6 +396,7 @@ function Library() {
               key={item}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               accessibilityLabel={`Show ${item} templates`}
               onPress={() => setFilter(item)}
               style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -415,7 +416,7 @@ function Library() {
 
       {visible.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="file-lines" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="file-lines" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No ${filter} template has been published yet. Pick another channel above, or start from a blank canvas in AI Studio.`}
           </Text>
@@ -443,7 +444,7 @@ function Library() {
                     <Text style={[styles.linkText, { color: accentText(accent(t, TYPE_TONE[item.type]), t) }]}>
                       Join early access
                     </Text>
-                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])} />
+                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])}  aria-hidden={true}/>
                   </Pressable>
                 </View>
               </View>
@@ -481,7 +482,7 @@ function Bundles() {
               style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
               <View style={styles.bundleCard}>
                 <View style={[styles.bundleIcon, { backgroundColor: softFill(color, t) }]}>
-                  <FontAwesome6 name={bundle.icon as never} size={18} color={color} />
+                  <FontAwesome6 name={bundle.icon as never} size={18} color={color}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.bundleTitle}>{bundle.title}</Text>
                 <Text style={styles.cardBody}>{bundle.body}</Text>
@@ -490,7 +491,7 @@ function Bundles() {
                   {bundle.items.map((item) => (
                     <View key={item} style={styles.bundleRow}>
                       <View style={[styles.tickDot, { backgroundColor: softFill(color, t) }]}>
-                        <FontAwesome6 name="check" size={10} color={color} />
+                        <FontAwesome6 name="check" size={10} color={color}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.bundleItem}>{item}</Text>
                     </View>
@@ -539,7 +540,7 @@ function BuiltToBeEdited() {
               style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
               <View style={styles.pointCard}>
                 <View style={[styles.pointIcon, { backgroundColor: softFill(color, t) }]}>
-                  <FontAwesome6 name={point.icon as never} size={17} color={color} />
+                  <FontAwesome6 name={point.icon as never} size={17} color={color}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.cardTitle}>{point.title}</Text>
                 <Text style={styles.cardBody}>{point.body}</Text>
@@ -574,7 +575,7 @@ function Closing() {
     <Band tone="surface" style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <View style={styles.closingIcon}>
-          <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
+          <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand}  aria-hidden={true}/>
         </View>
         <Heading level={2} style={styles.closingTitle}>
           Pick one and send something today.

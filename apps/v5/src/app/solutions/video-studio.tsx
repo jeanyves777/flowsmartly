@@ -236,13 +236,13 @@ function ChannelRail({ styles, t, accentOf }: { styles: Styles; t: ThemeTokens; 
     <ConnectorSurface field={field} style={styles.rail}>
       <Connectors field={field} links={links} color={t.brand} circular={['hub']} strokeWidth={1.5} dash="0.5 5" flow />
       <View {...field.node('hub')} style={styles.railHub}>
-        <FontAwesome6 name="film" size={16} color={t.textOnBrand} />
+        <FontAwesome6 name="film" size={16} color={t.textOnBrand}  aria-hidden={true}/>
       </View>
       <View style={styles.railColumn}>
         {CHANNELS.map((channel) => (
           <View key={channel.key} {...field.node(channel.key)} style={styles.railCard}>
             <View style={[styles.railIcon, { backgroundColor: softFill(accentOf(channel.accent), t) }]}>
-              <FontAwesome6 name={channel.icon as never} size={12} color={accentOf(channel.accent)} />
+              <FontAwesome6 name={channel.icon as never} size={12} color={accentOf(channel.accent)}  aria-hidden={true}/>
             </View>
             <View style={styles.railCopy}>
               <Text numberOfLines={1} style={styles.railLabel}>
@@ -359,7 +359,7 @@ function CraftMock({ kind, styles, t }: { kind: NonNullable<Craft['mock']>; styl
             <View style={[styles.slideBar, { width: '61%' }]} />
           </View>
           <View style={styles.slideFace}>
-            <FontAwesome6 name="user" size={16} color={t.brand} />
+            <FontAwesome6 name="user" size={16} color={t.brand}  aria-hidden={true}/>
           </View>
         </View>
         <Text numberOfLines={1} style={styles.mockCaption}>
@@ -453,7 +453,7 @@ export default function VideoStudioPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -474,14 +474,14 @@ export default function VideoStudioPage() {
                   </Text>
                 </View>
                 <View style={styles.playerBody}>
-                  <FontAwesome6 name="film" size={26} color={t.textOnScrim} />
+                  <FontAwesome6 name="film" size={26} color={t.textOnScrim}  aria-hidden={true}/>
                 </View>
                 <View style={styles.playerBar}>
                   <Text numberOfLines={1} style={styles.playerTitle}>
                     New product launch — behind the scenes
                   </Text>
                   <View style={styles.playerControls}>
-                    <FontAwesome6 name="play" size={9} color={t.textOnScrim} />
+                    <FontAwesome6 name="play" size={9} color={t.textOnScrim}  aria-hidden={true}/>
                     <Text numberOfLines={1} style={styles.playerTime}>
                       0:04 / 0:45
                     </Text>
@@ -512,7 +512,7 @@ export default function VideoStudioPage() {
         <View style={styles.trustBar}>
           {TRUST.map((item) => (
             <View key={item.key} style={styles.trustItem}>
-              <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+              <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
               <Text numberOfLines={1} style={styles.trustText}>
                 {item.label}
               </Text>
@@ -544,7 +544,7 @@ export default function VideoStudioPage() {
                 )}
                 <View style={styles.craftHead}>
                   <View style={[styles.craftIcon, { backgroundColor: softFill(accentOf(craft.accent), t) }]}>
-                    <FontAwesome6 name={craft.icon as never} size={13} color={accentOf(craft.accent)} />
+                    <FontAwesome6 name={craft.icon as never} size={13} color={accentOf(craft.accent)}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.craftTitle}>{craft.title}</Text>
                 </View>
@@ -582,7 +582,7 @@ export default function VideoStudioPage() {
               ].map((point) => (
                 <View key={point.key} style={styles.tryonPoint}>
                   <View style={styles.tryonPointIcon}>
-                    <FontAwesome6 name={point.icon as never} size={12} color={t.brand} />
+                    <FontAwesome6 name={point.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.tryonPointText}>{point.label}</Text>
                 </View>
@@ -633,7 +633,7 @@ export default function VideoStudioPage() {
             {AI_STEPS.map((step) => (
               <View key={step.key} style={styles.aiRow}>
                 <View style={styles.aiRowIcon}>
-                  <FontAwesome6 name={step.icon as never} size={12} color={t.brand} />
+                  <FontAwesome6 name={step.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.aiRowText}>{step.label}</Text>
               </View>
@@ -655,7 +655,7 @@ export default function VideoStudioPage() {
           {QUOTES.map((quote, index) => (
             <Reveal key={quote.key} style={styles.quoteCell} distance={14} delay={index * 60}>
               <View style={styles.quoteCard}>
-                <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+                <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
                 <Text style={styles.quoteText}>{quote.quote}</Text>
                 <View style={styles.quoteSpacer} />
                 <View style={styles.quoteWho}>

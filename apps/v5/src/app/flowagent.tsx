@@ -303,7 +303,7 @@ function QueueRow({
   return (
     <View style={styles.queueRow}>
       <View style={[styles.queueIcon, { backgroundColor: softFill(accent, t) }]}>
-        <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+        <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
       </View>
       <View style={styles.queueCopy}>
         <Text numberOfLines={2} style={styles.queueTitle}>
@@ -321,7 +321,7 @@ function QueueRow({
       */}
       <View style={styles.reviewButton}>
         <Text style={styles.reviewLabel}>Review</Text>
-        <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+        <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
       </View>
     </View>
   );
@@ -432,7 +432,7 @@ export default function FlowAiPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={10} color={t.green} />
+                    <FontAwesome6 name="check" size={10} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.proofText}>{item}</Text>
                 </View>
@@ -466,7 +466,7 @@ export default function FlowAiPage() {
               </View>
 
               <View style={styles.commandFoot}>
-                <FontAwesome6 name="shield-halved" size={12} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={12} color={t.green}  aria-hidden={true}/>
                 <Text style={styles.commandFootText}>
                   Human approval required — nothing here has been launched.
                 </Text>
@@ -497,7 +497,7 @@ export default function FlowAiPage() {
                 <View style={styles.state}>
                   <View style={styles.stateTop}>
                     <View style={[styles.stateIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={state.icon as never} size={15} color={accent} />
+                      <FontAwesome6 name={state.icon as never} size={15} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text style={[styles.stateCount, { color: accentText(accent, t) }]}>{state.count}</Text>
                   </View>
@@ -532,7 +532,7 @@ export default function FlowAiPage() {
             <Reveal key={question} style={styles.questionCell} distance={14} delay={index * 60}>
               <View style={styles.questionChip}>
                 <View style={styles.questionIcon}>
-                  <FontAwesome6 name="comment" size={12} color={t.brand} />
+                  <FontAwesome6 name="comment" size={12} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.questionText}>{question}</Text>
               </View>
@@ -571,7 +571,7 @@ export default function FlowAiPage() {
                   <View style={styles.stepCard}>
                     <View style={styles.stepTopRow}>
                       <View style={[styles.stepIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={step.icon as never} size={18} color={accent} />
+                        <FontAwesome6 name={step.icon as never} size={18} color={accent}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.stepIndex}>{`0${index + 1}`}</Text>
                     </View>
@@ -581,7 +581,7 @@ export default function FlowAiPage() {
                 </View>
                 {l.isPhone && index < STEPS.length - 1 ? (
                   <View style={styles.stepArrow}>
-                    <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
+                    <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong}  aria-hidden={true}/>
                   </View>
                 ) : null}
               </Fragment>
@@ -616,7 +616,7 @@ export default function FlowAiPage() {
               <Reveal key={group.title} distance={16} delay={index * 55}>
                 <View style={styles.agentRow}>
                   <View style={[styles.agentIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={group.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={group.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
                   <View style={styles.agentCopy}>
                     <Text style={[type.h4, styles.agentTitle, styles.agentTitleCol]}>
@@ -650,7 +650,7 @@ export default function FlowAiPage() {
               {OPPORTUNITY_STRATEGIST.can.map((item) => (
                 <View key={item} style={styles.strategistCanRow}>
                   <View style={styles.strategistTick}>
-                    <FontAwesome6 name="check" size={10} color={t.green} />
+                    <FontAwesome6 name="check" size={10} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.strategistCanText}>{item}</Text>
                 </View>
@@ -690,7 +690,7 @@ export default function FlowAiPage() {
               {CONTEXT.map((item) => (
                 <View key={item.label} style={styles.contextChip}>
                   <View style={styles.contextChipIcon}>
-                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.contextChipText}>{item.label}</Text>
                 </View>
@@ -720,7 +720,7 @@ export default function FlowAiPage() {
               <Reveal key={control.title} style={styles.controlCell} distance={16} delay={index * 60}>
                 <View style={styles.controlCard}>
                   <View style={[styles.controlIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={control.icon as never} size={17} color={accent} />
+                    <FontAwesome6 name={control.icon as never} size={17} color={accent}  aria-hidden={true}/>
                   </View>
                   <View style={styles.controlCopy}>
                     <Text style={[type.h4, styles.controlTitle]}>{control.title}</Text>
@@ -735,7 +735,7 @@ export default function FlowAiPage() {
         <Reveal style={styles.assuranceWrap} distance={14}>
           <View style={styles.assurance}>
             <View style={styles.assuranceIcon}>
-              <FontAwesome6 name="shield-halved" size={16} color={t.successText} />
+              <FontAwesome6 name="shield-halved" size={16} color={t.successText}  aria-hidden={true}/>
             </View>
             <Text style={styles.assuranceText}>
               Human-approved by default. FlowAgent never launches anything without your approval.
@@ -751,7 +751,7 @@ export default function FlowAiPage() {
             <View style={styles.briefCard}>
               <View style={styles.briefHead}>
                 <View style={styles.briefHeadIcon}>
-                  <FontAwesome6 name="envelope-open-text" size={15} color={t.brand} />
+                  <FontAwesome6 name="envelope-open-text" size={15} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.briefHeadCopy}>
                   <Text style={styles.briefTitle}>Your weekly briefing</Text>
@@ -765,7 +765,7 @@ export default function FlowAiPage() {
                 <View style={styles.briefRow}>
                   <Text style={styles.briefLabel}>Top performing channel</Text>
                   <View style={styles.briefChip}>
-                    <FontAwesome6 name="comment-dots" size={11} color={t.chipText} />
+                    <FontAwesome6 name="comment-dots" size={11} color={t.chipText}  aria-hidden={true}/>
                     <Text style={styles.briefChipText}>SMS</Text>
                   </View>
                 </View>
@@ -782,7 +782,7 @@ export default function FlowAiPage() {
               {BENEFITS.map((benefit) => (
                 <View key={benefit} style={styles.benefitRow}>
                   <View style={styles.benefitTick}>
-                    <FontAwesome6 name="check" size={11} color={t.green} />
+                    <FontAwesome6 name="check" size={11} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.benefitText}>{benefit}</Text>
                 </View>

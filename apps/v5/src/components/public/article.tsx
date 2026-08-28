@@ -193,7 +193,7 @@ export function ArticleBody({ blocks, tone }: { blocks: Block[]; tone: CalloutTo
             const color = accent(t, block.tone);
             return (
               <View key={index} style={[styles.callout, { backgroundColor: softFill(color, t) }]}>
-                <FontAwesome6 name="lightbulb" size={15} color={accentText(color, t)} style={styles.calloutIcon} />
+                <FontAwesome6 name="lightbulb" size={15} color={accentText(color, t)} style={styles.calloutIcon}  aria-hidden={true}/>
                 <Text style={[styles.calloutText, { color: accentText(color, t) }]}>
                   <InlineRuns runs={block.text} styles={styles} />
                 </Text>

@@ -191,7 +191,7 @@ function StatCell({
 
   return (
     <View ref={ref as never} style={[styles.stat, { flexBasis: basis }]}>
-      <FontAwesome6 name={stat.icon as never} size={19} color={t.brand} />
+      <FontAwesome6 name={stat.icon as never} size={19} color={t.brand}  aria-hidden={true}/>
       <View style={styles.statText}>
         <Text style={styles.statLabel} numberOfLines={2}>
           {stat.label}
@@ -324,7 +324,7 @@ export function CallAgentSection() {
           {REPLACES.map((item) => (
             <View key={item.text} style={styles.replacesRow}>
               <View style={styles.replacesIcon}>
-                <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle} />
+                <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle}  aria-hidden={true}/>
               </View>
               {/* Three sentences written for a 560px column become six lines in
                   a 390px one. The phone gets the same three facts as three
@@ -342,7 +342,7 @@ export function CallAgentSection() {
         <View style={styles.consoleHeader}>
           <View style={styles.headerIdentity}>
             <View style={styles.phoneCircle}>
-              <FontAwesome6 name="phone" size={20} color={t.orange} />
+              <FontAwesome6 name="phone" size={20} color={t.orange}  aria-hidden={true}/>
             </View>
             <View style={styles.headerText}>
               <Text style={styles.consoleTitle} numberOfLines={1}>
@@ -401,7 +401,7 @@ export function CallAgentSection() {
             {/* Two bordered 83px boxes on a phone; unboxed, with the speaker
                 inline instead of on its own line, the same exchange is 100px. */}
             <Reveal style={phone ? styles.transcriptPhone : styles.transcript} delay={260} distance={12}>
-              <FontAwesome6 name="user" size={15} color={t.brand} />
+              <FontAwesome6 name="user" size={15} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.transcriptText} numberOfLines={phone ? 2 : undefined}>
                 <Text style={styles.speaker}>{phone ? 'Caller — ' : `Caller\n`}</Text>I’d like to schedule a
                 consultation for Thursday.
@@ -411,7 +411,7 @@ export function CallAgentSection() {
               style={phone ? [styles.transcriptPhone, styles.agentLinePhone] : [styles.transcript, styles.agentLine]}
               delay={370}
               distance={12}>
-              <FontAwesome6 name="wand-magic-sparkles" size={15} color={t.violet} />
+              <FontAwesome6 name="wand-magic-sparkles" size={15} color={t.violet}  aria-hidden={true}/>
               <Text style={styles.transcriptText} numberOfLines={phone ? 2 : undefined}>
                 <Text style={styles.speakerAgent}>{phone ? 'Agent — ' : `Agent\n`}</Text>I found two openings. Would
                 10:30 AM work?
@@ -423,11 +423,11 @@ export function CallAgentSection() {
                 On a phone they cost 54px to say nothing. */}
             {phone ? null : (
               <View style={styles.callControls}>
-                <FontAwesome6 name="microphone-slash" size={17} color={t.textMuted} />
+                <FontAwesome6 name="microphone-slash" size={17} color={t.textMuted}  aria-hidden={true}/>
                 <View style={styles.hangup}>
-                  <FontAwesome6 name="phone" size={17} color={t.textOnBrand} />
+                  <FontAwesome6 name="phone" size={17} color={t.textOnBrand}  aria-hidden={true}/>
                 </View>
-                <FontAwesome6 name="grip" size={17} color={t.textMuted} />
+                <FontAwesome6 name="grip" size={17} color={t.textMuted}  aria-hidden={true}/>
               </View>
             )}
           </View>
@@ -450,7 +450,7 @@ export function CallAgentSection() {
                     ].filter(Boolean) as ViewStyle[]
                   }>
                   <View style={[styles.outcomeIcon, { backgroundColor: softFill(o.color, t) }]}>
-                    <FontAwesome6 name={o.icon as never} size={outcomeRows ? 17 : 21} color={o.color} />
+                    <FontAwesome6 name={o.icon as never} size={outcomeRows ? 17 : 21} color={o.color}  aria-hidden={true}/>
                   </View>
                   <View style={styles.outcomeText}>
                     <View style={styles.outcomeTitleRow}>
@@ -460,7 +460,7 @@ export function CallAgentSection() {
                       {outcomeRows ? (
                         /* the tick lands a beat after the row it confirms */
                         <Reveal style={styles.checkInlineWrap} delay={delay + 300} distance={0} scale>
-                          <Text style={styles.checkGlyph} accessibilityLabel="Completed">
+                          <Text style={styles.checkGlyph} accessibilityRole="image" accessibilityLabel="Completed">
                             ✓
                           </Text>
                         </Reveal>
@@ -472,7 +472,7 @@ export function CallAgentSection() {
                   </View>
                   {outcomeRows ? null : (
                     <Reveal style={styles.checkAnchor} delay={delay + 300} distance={0} scale>
-                      <Text style={styles.checkGlyph} accessibilityLabel="Completed">
+                      <Text style={styles.checkGlyph} accessibilityRole="image" accessibilityLabel="Completed">
                         ✓
                       </Text>
                     </Reveal>
@@ -491,7 +491,7 @@ export function CallAgentSection() {
                 name={m.icon as never}
                 size={phone ? 13 : 15}
                 color={m.accent === 'orange' ? t.orange : t.brand}
-              />
+               aria-hidden={true}/>
               <Text style={styles.modeText} numberOfLines={1}>
                 {phone ? m.short : m.label}
               </Text>

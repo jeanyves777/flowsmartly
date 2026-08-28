@@ -47,7 +47,7 @@ function FlowNode({ node }: { node: Node }) {
   return (
     <View style={styles.node}>
       <View style={[styles.nodeIcon, { backgroundColor: softFill(color, t) }]}>
-        <FontAwesome6 name={node.icon as never} size={14} color={color} />
+        <FontAwesome6 name={node.icon as never} size={14} color={color}  aria-hidden={true}/>
       </View>
       <Text style={styles.nodeTitle} numberOfLines={2}>
         {node.title}
@@ -63,7 +63,7 @@ function Arrow() {
   const t = useTokens();
   return (
     <View style={{ flexGrow: 0, flexShrink: 0, paddingHorizontal: 2 }}>
-      <FontAwesome6 name="arrow-right" size={11} color={t.textSubtle} />
+      <FontAwesome6 name="arrow-right" size={11} color={t.textSubtle}  aria-hidden={true}/>
     </View>
   );
 }
@@ -122,7 +122,7 @@ export function CustomAutomationPanel() {
                 <Text style={styles.systemName} numberOfLines={1}>
                   {system}
                 </Text>
-                <FontAwesome6 name="circle-check" size={11} color={t.green} />
+                <FontAwesome6 name="circle-check" size={11} color={t.green}  aria-hidden={true}/>
               </View>
             ))}
           </View>

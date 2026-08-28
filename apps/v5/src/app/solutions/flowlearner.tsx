@@ -500,7 +500,7 @@ function StatTile({
     <View ref={counter.ref as never} style={styles.statTile}>
       <View style={styles.statHead}>
         <View style={[styles.statIcon, { backgroundColor: softFill(accent, t) }]}>
-          <FontAwesome6 name={stat.icon as never} size={12} color={accent} />
+          <FontAwesome6 name={stat.icon as never} size={12} color={accent}  aria-hidden={true}/>
         </View>
         {/* Two lines: "Certificates issued" does not fit one line in a
             half-width phone tile, and a truncated metric name is useless. */}
@@ -512,7 +512,7 @@ function StatTile({
         {`${stat.prefix}${formatStat(counter.value, stat.decimals)}${stat.suffix}`}
       </Text>
       <View style={styles.statDeltaRow}>
-        <FontAwesome6 name="arrow-trend-up" size={10} color={t.successText} />
+        <FontAwesome6 name="arrow-trend-up" size={10} color={t.successText}  aria-hidden={true}/>
         <Text numberOfLines={1} style={styles.statDelta}>
           {stat.delta}
         </Text>
@@ -669,7 +669,7 @@ function ExploreLink({
       <Text numberOfLines={1} style={styles.exploreText}>
         {label}
       </Text>
-      <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+      <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
     </Pressable>
   );
 }
@@ -684,7 +684,7 @@ function StudioMock({ styles, t }: { styles: Styles; t: ThemeTokens }) {
           Lesson flow
         </Text>
         <View style={styles.mockChip}>
-          <FontAwesome6 name="wand-magic-sparkles" size={9} color={t.chipText} />
+          <FontAwesome6 name="wand-magic-sparkles" size={9} color={t.chipText}  aria-hidden={true}/>
           <Text numberOfLines={1} style={styles.mockChipText}>
             AI draft
           </Text>
@@ -745,7 +745,7 @@ function LiveMock({ styles, t }: { styles: Styles; t: ThemeTokens }) {
           128 participants
         </Text>
         <View style={styles.mockChip}>
-          <FontAwesome6 name="hand" size={9} color={t.chipText} />
+          <FontAwesome6 name="hand" size={9} color={t.chipText}  aria-hidden={true}/>
           <Text numberOfLines={1} style={styles.mockChipText}>
             6 hands up
           </Text>
@@ -791,7 +791,7 @@ function CenterMock({ styles, t }: { styles: Styles; t: ThemeTokens }) {
       </View>
       <View style={styles.certificateCard}>
         <View style={styles.certificateIcon}>
-          <FontAwesome6 name="certificate" size={15} color={t.orange} />
+          <FontAwesome6 name="certificate" size={15} color={t.orange}  aria-hidden={true}/>
         </View>
         <View style={styles.certificateCopy}>
           <Text numberOfLines={1} style={styles.certificateTitle}>
@@ -867,7 +867,7 @@ function AnalyticsMock({
           </Text>
         </View>
         <View style={styles.completionDelta}>
-          <FontAwesome6 name="arrow-trend-up" size={10} color={t.successText} />
+          <FontAwesome6 name="arrow-trend-up" size={10} color={t.successText}  aria-hidden={true}/>
           <Text numberOfLines={1} style={styles.statDelta}>
             +9.3%
           </Text>
@@ -945,7 +945,7 @@ export default function FlowLearnerPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -961,7 +961,7 @@ export default function FlowLearnerPage() {
                 return (
                   <View key={item.key} style={styles.factRow}>
                     <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.factCopy}>
                       <Text style={styles.factTitle}>{item.title}</Text>
@@ -993,7 +993,7 @@ export default function FlowLearnerPage() {
                             current ? styles.railDotCurrent : null,
                           ]}>
                           {done ? (
-                            <FontAwesome6 name="check" size={9} color={t.textOnBrand} />
+                            <FontAwesome6 name="check" size={9} color={t.textOnBrand}  aria-hidden={true}/>
                           ) : (
                             <Text
                               style={[styles.railDotText, current ? styles.railDotTextCurrent : null]}>
@@ -1059,7 +1059,7 @@ export default function FlowLearnerPage() {
                     <View style={styles.canvas}>
                       <SlideDiagram fallbackWidth={diagramFallback} styles={styles} t={t} />
                       <View style={styles.canvasNote}>
-                        <FontAwesome6 name="pen-nib" size={10} color={t.pink} />
+                        <FontAwesome6 name="pen-nib" size={10} color={t.pink}  aria-hidden={true}/>
                         <Text numberOfLines={1} style={styles.canvasNoteText}>
                           Check & improve
                         </Text>
@@ -1074,7 +1074,7 @@ export default function FlowLearnerPage() {
                             name={tool.icon as never}
                             size={12}
                             color={index === 0 ? t.brand : t.textSubtle}
-                          />
+                           aria-hidden={true}/>
                         </View>
                       ))}
                     </View>
@@ -1129,7 +1129,7 @@ export default function FlowLearnerPage() {
                 </View>
 
                 <View style={styles.goLive}>
-                  <FontAwesome6 name="tower-broadcast" size={13} color={t.textOnBrand} />
+                  <FontAwesome6 name="tower-broadcast" size={13} color={t.textOnBrand}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.goLiveText}>
                     Go live
                   </Text>
@@ -1149,7 +1149,7 @@ export default function FlowLearnerPage() {
                   </Text>
                 </View>
                 <View style={styles.centerNote}>
-                  <FontAwesome6 name="certificate" size={11} color={t.successText} />
+                  <FontAwesome6 name="certificate" size={11} color={t.successText}  aria-hidden={true}/>
                   <Text numberOfLines={1} style={styles.centerNoteText}>
                     Certificate ready to issue
                   </Text>
@@ -1207,7 +1207,7 @@ export default function FlowLearnerPage() {
                 <View style={styles.areaCard}>
                   <View style={styles.areaHead}>
                     <View style={[styles.areaIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={area.icon as never} size={18} color={accent} />
+                      <FontAwesome6 name={area.icon as never} size={18} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.areaHeadCopy}>
                       <Text numberOfLines={1} style={styles.areaIndex}>
@@ -1262,7 +1262,7 @@ export default function FlowLearnerPage() {
                   <View style={styles.stepCard}>
                     <View style={styles.stepTopRow}>
                       <View style={[styles.stepIcon, { backgroundColor: softFill(accent, t) }]}>
-                        <FontAwesome6 name={step.icon as never} size={18} color={accent} />
+                        <FontAwesome6 name={step.icon as never} size={18} color={accent}  aria-hidden={true}/>
                       </View>
                       <Text style={styles.stepIndex}>{`0${index + 1}`}</Text>
                     </View>
@@ -1273,7 +1273,7 @@ export default function FlowLearnerPage() {
                 {index < STEPS.length - 1 ? (
                   <View style={styles.stepArrow}>
                     {l.isStacked ? (
-                      <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong} />
+                      <FontAwesome6 name="arrow-down" size={14} color={t.borderStrong}  aria-hidden={true}/>
                     ) : (
                       <ArrowLink width={34} height={12} color={t.borderStrong} />
                     )}
@@ -1305,7 +1305,7 @@ export default function FlowLearnerPage() {
                 return (
                   <View key={channel.key} style={styles.channelTile}>
                     <View style={[styles.channelIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={channel.icon as never} size={16} color={accent} />
+                      <FontAwesome6 name={channel.icon as never} size={16} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={styles.channelLabel}>
                       {channel.label}
@@ -1319,7 +1319,7 @@ export default function FlowLearnerPage() {
           <Reveal style={styles.stackPanelCol} distance={16} delay={90}>
             <View style={styles.stackPanel}>
               <View style={styles.stackPanelIcon}>
-                <FontAwesome6 name="circle-nodes" size={17} color={t.brand} />
+                <FontAwesome6 name="circle-nodes" size={17} color={t.brand}  aria-hidden={true}/>
               </View>
               <Text style={[type.h3, styles.stackPanelTitle]}>All connected. All measurable.</Text>
               <Text style={styles.stackPanelBody}>
@@ -1355,7 +1355,7 @@ export default function FlowLearnerPage() {
               <Reveal key={audience.key} style={styles.audienceCell} distance={16} delay={index * 70}>
                 <View style={styles.audienceCard}>
                   <View style={[styles.audienceIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={audience.icon as never} size={19} color={accent} />
+                    <FontAwesome6 name={audience.icon as never} size={19} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.audienceTitle]}>{audience.title}</Text>
                   <Text style={styles.audienceBody}>{audience.body}</Text>
@@ -1363,7 +1363,7 @@ export default function FlowLearnerPage() {
                     {audience.bullets.map((bullet) => (
                       <View key={bullet} style={styles.bulletRow}>
                         <View style={styles.bulletTick}>
-                          <FontAwesome6 name="check" size={9} color={t.green} />
+                          <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                         </View>
                         <Text style={styles.bulletText}>{bullet}</Text>
                       </View>

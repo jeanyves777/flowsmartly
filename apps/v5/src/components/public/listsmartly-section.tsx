@@ -22,27 +22,20 @@ import {
 } from './ui';
 
 /**
- * The asset is a wide desktop composition (1536×1024). Squeezed into a phone
- * column it renders at ~0.2× and every call-out turns into a 2–3px smudge, so
- * the phone shows a window into it instead: a fixed image height fixes the
- * magnification at ~0.55× (readable) and lets wider phones simply reveal more
- * of the composition. The window is centred on the device mockup and the
- * "All listings are Accurate & Consistent" call-out.
- */
-
-/**
- * What the screenshot is showing, said in words.
+ * What the screenshot is showing, said in words — BESIDE the screenshot, not
+ * instead of it.
  *
- * At 390px the copy/visual split had nothing to split: it became a full-width
- * paragraph followed by a 292px slab of a 1536px desktop composition, in which
- * nothing is legible — the file has carried a comment about that magnification
- * problem since it was written. A window into an unreadable image is still
- * unreadable.
+ * The asset is a wide desktop composition (1536×1024). In a 354px column its
+ * call-outs are a few pixels tall, so it cannot be the thing a visitor reads.
+ * It was briefly dropped on the phone for exactly that reason, and that was
+ * the wrong correction: an illegible caption inside a picture is a reason to
+ * caption the picture, not a reason to delete it. The product shot is what
+ * makes this section look like a product.
  *
- * So the phone drops the image and states its four claims as a two-column card
- * grid. They are the same four things the screenshot depicts; the difference is
- * that these can be read. The image is unchanged at every width where it has
- * the room to work.
+ * So the phone keeps the screenshot, framed at its native 3:2 so nothing is
+ * cropped or letterboxed, and states the four claims underneath it as a
+ * two-column card grid on the page's own surface. The image carries the
+ * impression; the cards carry the reading; no text sits on the artwork.
  */
 /**
  * The note has a 104px column beside a 26px icon in a 164px cell — about
@@ -105,16 +98,38 @@ export function ListSmartlySection() {
         </ButtonRow>
       </Reveal>
 
+      {/* The screenshot travels a little further than the copy, so it reads as
+          settling into its frame rather than fading on the spot. The PNG itself
+          is flat artwork — nothing inside it can move. It renders at EVERY
+          width: on a phone it is the section's picture and the cards below it
+          are its caption, so nothing has to be read off the artwork. */}
+      <Reveal style={stacked ? styles.columnFull : styles.visualColumn} delay={110} distance={24}>
+        <View style={styles.frame}>
+          <View style={styles.plate}>
+            <ImageAsset
+              source={require('../../../assets/images/v5/listsmartly-local-listings.png')}
+              style={styles.visualImage}
+              contentFit="contain"
+              contentPosition="center"
+              cachePolicy="memory-disk"
+              priority="high"
+              recyclingKey="listsmartly-local-listings"
+              alt="ListSmartly local listing and review health overview"
+            />
+          </View>
+        </View>
+      </Reveal>
+
       {phone ? (
         <CardGrid style={styles.proofGrid}>
           {PROOF.map((p) => (
             <View key={p.title} style={styles.proofCard}>
               <View style={[styles.proofIcon, { backgroundColor: softFill(t[p.tone], t) }]}>
-                <FontAwesome6 name={p.icon as never} size={14} color={t[p.tone]} />
+                <FontAwesome6 name={p.icon as never} size={14} color={t[p.tone]}  aria-hidden={true}/>
               </View>
               {/* Icon beside the copy, not above it: stacked, the same four
-                  cards are 129px each and the grid is taller than the image it
-                  replaced. */}
+                  cards are 129px each, and the grid sits under the screenshot
+                  rather than instead of it. */}
               <View style={styles.proofText}>
                 <Text style={[styles.proofTitle, { color: accentText(t[p.tone], t) }]} numberOfLines={1}>
                   {p.title}
@@ -126,27 +141,7 @@ export function ListSmartlySection() {
             </View>
           ))}
         </CardGrid>
-      ) : (
-        /* The screenshot travels a little further than the copy, so it reads as
-           settling into its frame rather than fading on the spot. The PNG itself
-           is flat artwork — nothing inside it can move. */
-        <Reveal style={stacked ? styles.columnFull : styles.visualColumn} delay={110} distance={24}>
-          <View style={styles.frame}>
-            <View style={styles.plate}>
-              <ImageAsset
-                source={require('../../../assets/images/v5/listsmartly-local-listings.png')}
-                style={styles.visualImage}
-                contentFit="contain"
-                contentPosition="center"
-                cachePolicy="memory-disk"
-                priority="high"
-                recyclingKey="listsmartly-local-listings"
-                alt="ListSmartly local listing and review health overview"
-              />
-            </View>
-          </View>
-        </Reveal>
-      )}
+      ) : null}
     </OpenSection>
   );
 }
@@ -228,6 +223,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
       backgroundColor: t.ground === 'light' ? t.surface : t.surfaceMuted,
     },
-    visualImage: { width: '100%', aspectRatio: l.isPhone ? 1.2 : 1.5 },
+    /* The source is 1536×1024, so 3:2 at every width: `contain` then has
+       nothing to letterbox, and the phone frame is 224px rather than the 292px
+       slab that first made the image look like dead weight in the column. */
+    visualImage: { width: '100%', aspectRatio: 1.5 },
   });
 }

@@ -215,7 +215,7 @@ function IconTile({ icon, tone, size = 46 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -226,7 +226,7 @@ function Ticked({ children }: { children: string }) {
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{children}</Text>
     </View>
@@ -259,7 +259,7 @@ function DownloadLink({ tone, guide }: { tone: Tone; guide: string }) {
       accessibilityRole="link"
       accessibilityLabel={`Request the guide: ${guide}`}
       style={styles.linkRow as never}>
-      <FontAwesome6 name="download" size={12} color={color} />
+      <FontAwesome6 name="download" size={12} color={color}  aria-hidden={true}/>
       <Text style={[styles.linkText, { color }]}>Download</Text>
     </Link>
   );
@@ -344,7 +344,7 @@ function FeaturedGuide() {
           <View style={styles.metaChipRow}>
             {FEATURED_META.map((item) => (
               <View key={item.label} style={styles.metaChip}>
-                <FontAwesome6 name={item.icon as never} size={12} color={accent(t, item.tone)} />
+                <FontAwesome6 name={item.icon as never} size={12} color={accent(t, item.tone)}  aria-hidden={true}/>
                 <Text style={styles.metaChipText}>{item.label}</Text>
               </View>
             ))}
@@ -430,6 +430,7 @@ function Library() {
                 key={item}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
+                aria-selected={active}
                 accessibilityLabel={`Show ${item}`}
                 onPress={() => setTopic(item)}
                 style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -445,7 +446,7 @@ function Library() {
 
       {visible.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="book-open" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="book-open" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No ${topic} guide has been published yet — new playbooks land every month.`}
           </Text>
@@ -527,7 +528,7 @@ function Paths() {
                 <Text style={[styles.linkText, { color: accentText(accent(t, path.tone), t) }]}>
                   {`Explore the ${path.name} path`}
                 </Text>
-                <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)} />
+                <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)}  aria-hidden={true}/>
               </Link>
             </View>
           </Reveal>

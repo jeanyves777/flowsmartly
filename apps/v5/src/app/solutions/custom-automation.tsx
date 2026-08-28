@@ -170,7 +170,7 @@ function TrustRow() {
       {TRUST.map((item) => (
         <View key={item.title} style={styles.trustItem}>
           <View style={[styles.trustIcon, { backgroundColor: softFill(t.brand, t) }]}>
-            <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+            <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
           </View>
           <View style={styles.trustCopy}>
             <Text style={styles.trustTitle}>{item.title}</Text>
@@ -268,7 +268,7 @@ function HowItWorks() {
                     {index + 1}
                   </Text>
                 </View>
-                <FontAwesome6 name={step.icon as never} size={15} color={t.textSubtle} />
+                <FontAwesome6 name={step.icon as never} size={15} color={t.textSubtle}  aria-hidden={true}/>
               </View>
               <Text style={styles.stepTitle}>{step.title}</Text>
               <Text style={styles.stepBody}>{step.body}</Text>
@@ -314,7 +314,7 @@ function BuiltForYou() {
               style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
               <View style={styles.capabilityCard}>
                 <View style={[styles.capabilityIcon, { backgroundColor: softFill(color, t) }]}>
-                  <FontAwesome6 name={item.icon as never} size={16} color={color} />
+                  <FontAwesome6 name={item.icon as never} size={16} color={color}  aria-hidden={true}/>
                 </View>
                 <Text style={styles.stepTitle}>{item.title}</Text>
                 <Text style={styles.stepBody}>{item.body}</Text>

@@ -402,7 +402,7 @@ function IconTile({ icon, tone, size = 46 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -455,7 +455,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
 
         <View style={styles.searchRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={query}
               onChangeText={onQuery}
@@ -487,6 +487,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
                   accessibilityRole="button"
                   accessibilityLabel={`Search for ${term}`}
                   accessibilityState={{ selected: active }}
+                  aria-pressed={active}
                   onPress={() => {
                     trackCta(`resources.hero.popular.${term.toLowerCase().replace(/\s+/g, '-')}`, {
                       variant: 'chip',
@@ -502,7 +503,7 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
                     name="magnifying-glass"
                     size={11}
                     color={active ? t.chipText : t.textSubtle}
-                  />
+                   aria-hidden={true}/>
                   <Text
                     style={[styles.popularChipText, active ? styles.popularChipTextActive : null]}
                     numberOfLines={1}>
@@ -530,10 +531,10 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
             operating system instead of five disconnected chores.
           </Text>
           <View style={styles.featuredMeta}>
-            <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+            <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.metaText}>45 min read</Text>
             <View style={styles.metaDot} />
-            <FontAwesome6 name="file-lines" size={11} color={t.textSubtle} />
+            <FontAwesome6 name="file-lines" size={11} color={t.textSubtle}  aria-hidden={true}/>
             <Text style={styles.metaText}>Includes templates</Text>
           </View>
           {/* The playbook is not a downloadable file on this site yet, so the
@@ -578,7 +579,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
 
       {results.length === 0 ? (
         <View style={styles.emptyCard}>
-          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle} />
+          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle}  aria-hidden={true}/>
           <Text style={styles.emptyText}>
             {`No results for “${term}”. Try a shorter word, browse the categories below, or ask our support team and we will point you at the right place.`}
           </Text>
@@ -607,7 +608,7 @@ function SearchResults({ query, results }: { query: string; results: SearchEntry
                   {entry.body}
                 </Text>
               </View>
-              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
             </Link>
           ))}
         </View>
@@ -648,7 +649,7 @@ function Categories() {
               <Text style={styles.cardMeta}>{category.meta}</Text>
               <View style={styles.linkRow}>
                 <Text style={[styles.linkText, { color: accentText(accent(t, category.tone), t) }]}>Open</Text>
-                <FontAwesome6 name="arrow-right" size={12} color={accent(t, category.tone)} />
+                <FontAwesome6 name="arrow-right" size={12} color={accent(t, category.tone)}  aria-hidden={true}/>
               </View>
             </Link>
           </Reveal>
@@ -691,7 +692,7 @@ function FeaturedArticles() {
                 <Text style={styles.cardBody}>{article.blurb}</Text>
                 <View style={styles.cardSpacer} />
                 <View style={styles.metaRow}>
-                  <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+                  <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
                   <Text style={styles.metaText}>{article.read}</Text>
                 </View>
               </View>
@@ -731,7 +732,7 @@ function PopularGuides() {
               <Text style={styles.guideText} numberOfLines={2}>
                 {guide.title}
               </Text>
-              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle}  aria-hidden={true}/>
             </Link>
           </Reveal>
         ))}
@@ -787,7 +788,7 @@ function AcademyCard({ path, index }: { path: AcademyPath; index: number }) {
         accessibilityLabel={`Continue the ${path.name} path`}
         style={styles.linkRowLink as never}>
         <Text style={[styles.linkText, { color }]}>Continue path</Text>
-        <FontAwesome6 name="arrow-right" size={12} color={color} />
+        <FontAwesome6 name="arrow-right" size={12} color={color}  aria-hidden={true}/>
       </Link>
     </View>
   );
@@ -861,6 +862,7 @@ function Developers() {
                     key={item.id}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: index === active }}
+                    aria-selected={index === active}
                     accessibilityLabel={`${item.label} example`}
                     onPress={() => setActive(index)}
                     style={[
@@ -936,7 +938,7 @@ function Developers() {
               accessibilityRole="link"
               style={styles.linkRowLink as never}>
               <Text style={[styles.linkText, { color: t.brand }]}>View all integrations</Text>
-              <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+              <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
             </Link>
           </View>
         </View>
@@ -1003,7 +1005,7 @@ function Newsletter() {
 
         <View style={styles.searchRow}>
           <View style={styles.field}>
-            <FontAwesome6 name="envelope" size={15} color={t.textSubtle} />
+            <FontAwesome6 name="envelope" size={15} color={t.textSubtle}  aria-hidden={true}/>
             <TextInput
               value={email}
               onChangeText={setEmail}

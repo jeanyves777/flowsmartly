@@ -141,7 +141,7 @@ export function LegalBullets({ items }: { items: readonly (string | [string, str
         return (
           <View key={key} style={styles.bulletRow}>
             <View style={styles.bulletDot}>
-              <FontAwesome6 name="circle-check" size={13} color={t.brand} />
+              <FontAwesome6 name="circle-check" size={13} color={t.brand}  aria-hidden={true}/>
             </View>
             <Text style={[type.bodySm, styles.paragraph, styles.bulletText]}>
               {lead ? <Text style={styles.bulletLead}>{lead} </Text> : null}
@@ -160,7 +160,7 @@ export function LegalCallout({ children, icon = 'circle-info' }: { children: Rea
   const t = useTokens();
   return (
     <View style={styles.callout}>
-      <FontAwesome6 name={icon as never} size={15} color={t.brand} />
+      <FontAwesome6 name={icon as never} size={15} color={t.brand}  aria-hidden={true}/>
       <Text style={[type.bodySm, styles.calloutText]}>{children}</Text>
     </View>
   );
@@ -181,7 +181,7 @@ export function LegalContactCard({
   return (
     <View style={styles.contactCard}>
       <View style={styles.contactIcon}>
-        <FontAwesome6 name="envelope" size={17} color={t.brand} />
+        <FontAwesome6 name="envelope" size={17} color={t.brand}  aria-hidden={true}/>
       </View>
       <View style={styles.contactCopy}>
         <Text style={[type.h4, styles.contactName]}>{name}</Text>
@@ -212,7 +212,7 @@ export function AsideCard({
   return (
     <View style={styles.asideCard}>
       <View style={[styles.asideIcon, { backgroundColor: t.brandSoft }]}>
-        <FontAwesome6 name={icon as never} size={17} color={accent} />
+        <FontAwesome6 name={icon as never} size={17} color={accent}  aria-hidden={true}/>
       </View>
       <Text style={[type.h4, styles.asideTitle]}>{title}</Text>
       <View style={styles.asideBody}>{children}</View>
@@ -229,7 +229,7 @@ export function AsideChecklist({ items }: { items: readonly string[] }) {
     <View style={styles.checklist}>
       {items.map((item) => (
         <View key={item} style={styles.checkRow}>
-          <FontAwesome6 name="circle-check" size={14} color={t.brand} />
+          <FontAwesome6 name="circle-check" size={14} color={t.brand}  aria-hidden={true}/>
           <Text style={[type.bodySm, styles.checkText]}>{item}</Text>
         </View>
       ))}

@@ -185,7 +185,7 @@ function IconTile({ icon, tone, size = 44 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -339,7 +339,7 @@ function BrandAssets() {
                   <Text style={styles.assetSize}>{asset.size}</Text>
                 </View>
               </View>
-              <FontAwesome6 name="download" size={14} color={t.textSubtle} />
+              <FontAwesome6 name="download" size={14} color={t.textSubtle}  aria-hidden={true}/>
             </Pressable>
           ))}
         </Reveal>
@@ -400,7 +400,7 @@ function LogoUsage() {
                 <View style={styles.ruleList}>
                   {card.rules.map((rule) => (
                     <View key={rule} style={styles.ruleRow}>
-                      <FontAwesome6 name={card.icon as never} size={14} color={color} />
+                      <FontAwesome6 name={card.icon as never} size={14} color={color}  aria-hidden={true}/>
                       <Text style={styles.ruleText}>{rule}</Text>
                     </View>
                   ))}
@@ -481,11 +481,11 @@ function MediaContact() {
           </Text>
           <View style={styles.contactFacts}>
             <View style={styles.contactFact}>
-              <FontAwesome6 name="envelope" size={13} color={t.brand} />
+              <FontAwesome6 name="envelope" size={13} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.contactFactText}>press@flowsmartly.com</Text>
             </View>
             <View style={styles.contactFact}>
-              <FontAwesome6 name="clock" size={13} color={t.brand} />
+              <FontAwesome6 name="clock" size={13} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.contactFactText}>Replies within one business day</Text>
             </View>
           </View>

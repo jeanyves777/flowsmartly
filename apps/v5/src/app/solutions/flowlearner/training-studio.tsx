@@ -617,7 +617,7 @@ export default function TrainingStudioPage() {
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
@@ -630,9 +630,9 @@ export default function TrainingStudioPage() {
               accessibilityLabel="See how FlowLearner fits together"
               onPress={() => router.push(ROUTES.flowLearner as never)}
               style={({ pressed }) => [styles.backLink, pressed ? styles.pressed : null]}>
-              <FontAwesome6 name="graduation-cap" size={12} color={t.brand} />
+              <FontAwesome6 name="graduation-cap" size={12} color={t.brand}  aria-hidden={true}/>
               <Text style={styles.backLinkText}>See how FlowLearner fits together</Text>
-              <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+              <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
             </Pressable>
           </View>
 
@@ -642,7 +642,7 @@ export default function TrainingStudioPage() {
               <View style={styles.editorChrome}>
                 <View style={styles.editorTitleGroup}>
                   <View style={styles.editorIcon}>
-                    <FontAwesome6 name="pen-ruler" size={13} color={t.brand} />
+                    <FontAwesome6 name="pen-ruler" size={13} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.editorTitleCopy}>
                     <Text numberOfLines={1} style={styles.editorTitle}>
@@ -654,7 +654,7 @@ export default function TrainingStudioPage() {
                   </View>
                 </View>
                 <View style={styles.savedChip}>
-                  <FontAwesome6 name="cloud-arrow-up" size={10} color={t.successText} />
+                  <FontAwesome6 name="cloud-arrow-up" size={10} color={t.successText}  aria-hidden={true}/>
                   <Text style={styles.savedChipText}>Saved</Text>
                 </View>
               </View>
@@ -702,7 +702,7 @@ export default function TrainingStudioPage() {
                           name={tool.icon as never}
                           size={12}
                           color={tool.active ? t.textOnBrand : t.textMuted}
-                        />
+                         aria-hidden={true}/>
                       </View>
                     ))}
                     <View style={styles.toolDivider} />
@@ -767,7 +767,7 @@ export default function TrainingStudioPage() {
                         <InkUnderline width={l.isPhone ? 150 : 190} color={t.orange} />
                       </View>
                       <View style={styles.inkNote}>
-                        <FontAwesome6 name="pen-nib" size={10} color={t.orange} />
+                        <FontAwesome6 name="pen-nib" size={10} color={t.orange}  aria-hidden={true}/>
                         <Text numberOfLines={1} style={styles.inkNoteText}>
                           drawn live
                         </Text>
@@ -788,7 +788,7 @@ export default function TrainingStudioPage() {
                           name={layout.icon as never}
                           size={12}
                           color={layout.active ? t.brand : t.textSubtle}
-                        />
+                         aria-hidden={true}/>
                         <Text numberOfLines={2} style={styles.layoutLabel}>
                           {layout.label}
                         </Text>
@@ -811,7 +811,7 @@ export default function TrainingStudioPage() {
                       radius={9}
                     />
                     <View style={styles.inspectorAdd}>
-                      <FontAwesome6 name="plus" size={12} color={t.textSubtle} />
+                      <FontAwesome6 name="plus" size={12} color={t.textSubtle}  aria-hidden={true}/>
                     </View>
                   </View>
 
@@ -843,7 +843,7 @@ export default function TrainingStudioPage() {
               {PLAN_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green} />
+                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
                   </View>
                   <Text style={styles.pointText}>{point}</Text>
                 </View>
@@ -857,7 +857,7 @@ export default function TrainingStudioPage() {
                 return (
                   <View key={item.key} style={styles.factRow}>
                     <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.factCopy}>
                       <Text style={styles.factTitle}>{item.title}</Text>
@@ -873,7 +873,7 @@ export default function TrainingStudioPage() {
             <View style={styles.planCard}>
               <View style={styles.planHead}>
                 <View style={styles.planIcon}>
-                  <FontAwesome6 name="wand-magic-sparkles" size={14} color={t.brand} />
+                  <FontAwesome6 name="wand-magic-sparkles" size={14} color={t.brand}  aria-hidden={true}/>
                 </View>
                 <View style={styles.planHeadCopy}>
                   <Text numberOfLines={1} style={styles.planTitle}>
@@ -914,7 +914,7 @@ export default function TrainingStudioPage() {
                   working buttons on a marketing page. */}
               <View style={styles.planFoot}>
                 <View style={styles.ghostButton}>
-                  <FontAwesome6 name="rotate" size={11} color={t.brand} />
+                  <FontAwesome6 name="rotate" size={11} color={t.brand}  aria-hidden={true}/>
                   <Text style={styles.ghostButtonText}>Regenerate</Text>
                 </View>
                 <View style={styles.solidButton}>
@@ -945,7 +945,7 @@ export default function TrainingStudioPage() {
                 <View style={styles.momentCard}>
                   <View style={styles.momentTop}>
                     <View style={[styles.momentIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={moment.icon as never} size={16} color={accent} />
+                      <FontAwesome6 name={moment.icon as never} size={16} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text style={styles.momentIndex}>{`0${index + 1}`}</Text>
                     <Text style={[type.h4, styles.momentTitle]}>{moment.title}</Text>
@@ -973,7 +973,7 @@ export default function TrainingStudioPage() {
                         name={tool.icon as never}
                         size={12}
                         color={index === 1 ? t.textOnBrand : t.textMuted}
-                      />
+                       aria-hidden={true}/>
                     </View>
                   ))}
                 </View>
@@ -1077,7 +1077,7 @@ export default function TrainingStudioPage() {
                 </View>
 
                 <View style={styles.boardNote}>
-                  <FontAwesome6 name="note-sticky" size={12} color={t.orange} />
+                  <FontAwesome6 name="note-sticky" size={12} color={t.orange}  aria-hidden={true}/>
                   <Text style={styles.boardNoteText}>
                     Written on the board mid-session: “this is where the deal actually stalls”.
                   </Text>
@@ -1085,7 +1085,7 @@ export default function TrainingStudioPage() {
 
                 <View style={styles.replayRow}>
                   <View style={styles.replayButton}>
-                    <FontAwesome6 name="play" size={10} color={t.brand} />
+                    <FontAwesome6 name="play" size={10} color={t.brand}  aria-hidden={true}/>
                   </View>
                   <View style={styles.replayTrack}>
                     <View style={styles.replayFill} />
@@ -1101,7 +1101,7 @@ export default function TrainingStudioPage() {
               </View>
 
               <View style={styles.boardFoot}>
-                <FontAwesome6 name="floppy-disk" size={12} color={t.successText} />
+                <FontAwesome6 name="floppy-disk" size={12} color={t.successText}  aria-hidden={true}/>
                 <Text numberOfLines={1} style={styles.boardFootText}>
                   Saved to step 04 · Draw the funnel
                 </Text>
@@ -1127,7 +1127,7 @@ export default function TrainingStudioPage() {
                 return (
                   <View key={feature.key} style={styles.featureRow}>
                     <View style={[styles.featureIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={feature.icon as never} size={14} color={accent} />
+                      <FontAwesome6 name={feature.icon as never} size={14} color={accent}  aria-hidden={true}/>
                     </View>
                     <View style={styles.featureCopy}>
                       <Text style={styles.featureTitle}>{feature.title}</Text>
@@ -1161,7 +1161,7 @@ export default function TrainingStudioPage() {
               <Reveal key={item.key} style={styles.activityCell} distance={16} delay={index * 60}>
                 <View style={styles.activityCard}>
                   <View style={[styles.activityIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={item.icon as never} size={16} color={accent} />
+                    <FontAwesome6 name={item.icon as never} size={16} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.activityTitle]}>{item.title}</Text>
                   <Text style={styles.activityBody}>{item.body}</Text>
@@ -1176,7 +1176,7 @@ export default function TrainingStudioPage() {
             <View style={styles.quizMain}>
               <View style={styles.quizHead}>
                 <View style={styles.quizBadge}>
-                  <FontAwesome6 name="list-check" size={10} color={t.chipText} />
+                  <FontAwesome6 name="list-check" size={10} color={t.chipText}  aria-hidden={true}/>
                   <Text style={styles.quizBadgeText}>Question 3 of 5</Text>
                 </View>
                 <Text numberOfLines={1} style={styles.quizMeta}>
@@ -1214,7 +1214,7 @@ export default function TrainingStudioPage() {
                           name={correct ? 'check' : wrong ? 'xmark' : 'circle'}
                           size={correct || wrong ? 10 : 7}
                           color={correct ? t.green : wrong ? t.pink : t.textSubtle}
-                        />
+                         aria-hidden={true}/>
                       </View>
                       <Text numberOfLines={2} style={styles.quizOptionText}>
                         {option.label}
@@ -1278,7 +1278,7 @@ export default function TrainingStudioPage() {
                 </View>
               </View>
               <View style={styles.quizHint}>
-                <FontAwesome6 name="arrow-trend-up" size={11} color={t.successText} />
+                <FontAwesome6 name="arrow-trend-up" size={11} color={t.successText}  aria-hidden={true}/>
                 <Text style={styles.quizHintText}>
                   Turn the weakest topic into the next lesson in one tap.
                 </Text>
@@ -1316,7 +1316,7 @@ export default function TrainingStudioPage() {
                     ) : null}
                     {card.art === 'video' ? (
                       <View style={styles.mediaPlay}>
-                        <FontAwesome6 name="play" size={12} color={t.textOnBrand} />
+                        <FontAwesome6 name="play" size={12} color={t.textOnBrand}  aria-hidden={true}/>
                       </View>
                     ) : null}
                     {card.art === 'screen' ? (
@@ -1352,7 +1352,7 @@ export default function TrainingStudioPage() {
                     ) : null}
                   </View>
                   <View style={[styles.mediaIcon, { backgroundColor: softFill(accent, t) }]}>
-                    <FontAwesome6 name={card.icon as never} size={15} color={accent} />
+                    <FontAwesome6 name={card.icon as never} size={15} color={accent}  aria-hidden={true}/>
                   </View>
                   <Text style={[type.h4, styles.mediaTitle]}>{card.title}</Text>
                   <Text style={styles.mediaBody}>{card.body}</Text>
@@ -1382,7 +1382,7 @@ export default function TrainingStudioPage() {
                 <View style={styles.templateCard}>
                   <View style={styles.templateHead}>
                     <View style={[styles.templateIcon, { backgroundColor: softFill(accent, t) }]}>
-                      <FontAwesome6 name={template.icon as never} size={15} color={accent} />
+                      <FontAwesome6 name={template.icon as never} size={15} color={accent}  aria-hidden={true}/>
                     </View>
                     <Text numberOfLines={1} style={[type.h4, styles.templateTitle]}>
                       {template.title}
@@ -1393,7 +1393,7 @@ export default function TrainingStudioPage() {
                     <Text numberOfLines={1} style={styles.templateMeta}>
                       {template.meta}
                     </Text>
-                    <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                    <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
                   </View>
                 </View>
               </Reveal>
@@ -1506,7 +1506,7 @@ export default function TrainingStudioPage() {
                       </View>
                     ) : (
                       <View style={styles.restoreButton}>
-                        <FontAwesome6 name="clock-rotate-left" size={10} color={t.brand} />
+                        <FontAwesome6 name="clock-rotate-left" size={10} color={t.brand}  aria-hidden={true}/>
                         <Text style={styles.restoreText}>Restore</Text>
                       </View>
                     )}
@@ -1515,7 +1515,7 @@ export default function TrainingStudioPage() {
               </View>
 
               <View style={styles.collabFoot}>
-                <FontAwesome6 name="shield-halved" size={12} color={t.green} />
+                <FontAwesome6 name="shield-halved" size={12} color={t.green}  aria-hidden={true}/>
                 <Text style={styles.collabFootText}>
                   Every change is attributed, and nothing is ever overwritten silently.
                 </Text>
@@ -1569,7 +1569,7 @@ export default function TrainingStudioPage() {
                     <View style={styles.closeStepRail}>
                       {index === CLOSE_STEPS.length - 1 ? null : <View style={styles.closeStepLine} />}
                       <View style={styles.closeStepDot}>
-                        <FontAwesome6 name={step.icon as never} size={11} color={t.brand} />
+                        <FontAwesome6 name={step.icon as never} size={11} color={t.brand}  aria-hidden={true}/>
                       </View>
                     </View>
                     <View style={styles.closeStepCopy}>
@@ -1588,9 +1588,9 @@ export default function TrainingStudioPage() {
                 accessibilityLabel="Teach it live in a Live Room"
                 onPress={() => router.push(ROUTES.liveRoom as never)}
                 style={({ pressed }) => [styles.closeLink, pressed ? styles.pressed : null]}>
-                <FontAwesome6 name="tower-broadcast" size={12} color={t.brand} />
+                <FontAwesome6 name="tower-broadcast" size={12} color={t.brand}  aria-hidden={true}/>
                 <Text style={styles.closeLinkText}>Teach it live in a Live Room</Text>
-                <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
+                <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
               </Pressable>
             </View>
           </Reveal>

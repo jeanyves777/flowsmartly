@@ -69,10 +69,10 @@ function Byline({ post }: { post: PostMeta }) {
         ) : null}
       </View>
       <View style={styles.metaRow}>
-        <FontAwesome6 name="calendar" size={11} color={t.textSubtle} />
+        <FontAwesome6 name="calendar" size={11} color={t.textSubtle}  aria-hidden={true}/>
         <Text style={styles.metaText}>{formatDate(post.date)}</Text>
         <View style={styles.metaDot} />
-        <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
+        <FontAwesome6 name="clock" size={11} color={t.textSubtle}  aria-hidden={true}/>
         <Text style={styles.metaText}>{`${post.readMinutes} min read`}</Text>
       </View>
     </View>

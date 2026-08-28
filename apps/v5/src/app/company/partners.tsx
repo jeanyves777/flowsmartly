@@ -267,7 +267,7 @@ function IconTile({ icon, tone, size = 46 }: { icon: string; tone: Tone; size?: 
         flexShrink: 0,
         backgroundColor: softFill(color, t),
       }}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color} />
+      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={color}  aria-hidden={true}/>
     </View>
   );
 }
@@ -278,7 +278,7 @@ function Ticked({ children }: { children: string }) {
   return (
     <View style={styles.tickRow}>
       <View style={styles.tickDot}>
-        <FontAwesome6 name="check" size={9} color={t.green} />
+        <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
       </View>
       <Text style={styles.tickText}>{children}</Text>
     </View>
@@ -306,7 +306,7 @@ function PromiseTile({ item, field }: { item: Promise_; field: ConnectorField })
   return (
     <View {...field.node(item.key)} style={styles.promiseTile}>
       <View style={[styles.promiseIcon, { backgroundColor: softFill(color, t) }]}>
-        <FontAwesome6 name={item.icon as never} size={16} color={color} />
+        <FontAwesome6 name={item.icon as never} size={16} color={color}  aria-hidden={true}/>
       </View>
       <Text style={styles.promiseLabel}>{item.label}</Text>
       <Text numberOfLines={3} style={styles.promiseNote}>
@@ -463,7 +463,7 @@ function Paths() {
               <Text style={styles.cardMeta}>{path.note}</Text>
               <View style={styles.linkRow}>
                 <Text style={[styles.linkText, { color: accentText(accent(t, path.tone), t) }]}>Learn more</Text>
-                <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)} />
+                <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)}  aria-hidden={true}/>
               </View>
             </View>
           </Reveal>
@@ -556,7 +556,7 @@ function Integrations() {
         onPress={() => router.push(ROUTES.integrations as never)}
         style={({ pressed }) => [styles.linkRow, styles.linkRowTap, pressed ? styles.pressed : null]}>
         <Text style={[styles.linkText, { color: t.brand }]}>View all integrations</Text>
-        <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
+        <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
       </Pressable>
     </OpenSection>
   );
@@ -594,7 +594,7 @@ function Journey() {
                 width; only the last one is left empty. */}
             <View style={styles.stepArrow}>
               {index === STEPS.length - 1 ? null : l.isCompact ? (
-                <FontAwesome6 name="arrow-right" size={13} color={t.textSubtle} style={styles.stepArrowDown} />
+                <FontAwesome6 name="arrow-right" size={13} color={t.textSubtle} style={styles.stepArrowDown}  aria-hidden={true}/>
               ) : (
                 <ArrowLink width={arrowWidth} height={12} color={t.borderStrong} />
               )}
