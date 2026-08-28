@@ -107,12 +107,20 @@ const INDUSTRIES: Item[] = [
  * category claim itself: social, email, SMS and advertising are *inside*
  * Business & growth, one of five, and are never the thing being sold.
  *
- * `opening` is the honesty valve. A group whose capabilities have no public
- * surface yet is still named, because it is what the system is being built to
- * operate — but it is marked as opening through V5 rather than described in
- * the present tense alongside groups that have pages a visitor can open today.
+ * `unreleased` is the honesty valve. A group whose capabilities have no public
+ * surface is still named, because it is what the system is being built to
+ * operate — but it is marked rather than described in the present tense
+ * alongside groups that have pages a visitor can open today.
+ *
+ * The marker deliberately names no channel and no date. It first read "Opening
+ * through V5 early access", and that could not be supported: `docs/backend`
+ * defines sixteen V5 domains (04 §1) and not one of them is engineering,
+ * coding, deployment or infrastructure — and 05 §4 lists *multi-agent
+ * orchestration* under "What we are deliberately not building". Early access
+ * is a waiting list for a workspace; nothing in this repo ties either group to
+ * it. Naming a channel we cannot evidence is the same defect as naming a date.
  */
-type Group = Item & { areas: string[]; opening?: boolean };
+type Group = Item & { areas: string[]; unreleased?: boolean };
 
 const CAPABILITY_GROUPS: Group[] = [
   {
@@ -128,7 +136,7 @@ const CAPABILITY_GROUPS: Group[] = [
     body: 'Agentic engineering inside defined boundaries: planning and architecture, coding, testing, review, deployment, recovery and infrastructure operations.',
     areas: ['Architecture', 'Agentic coding', 'Testing', 'Review', 'Deployment', 'Recovery', 'Infrastructure ops'],
     accent: 'violet',
-    opening: true,
+    unreleased: true,
   },
   {
     icon: 'list-check',
@@ -147,10 +155,10 @@ const CAPABILITY_GROUPS: Group[] = [
   {
     icon: 'diagram-project',
     title: 'Agent platform',
-    body: 'The layer you build on: custom agents and specialized roles, multi-agent collaboration, tools, permissions, memory, governance, observability and continuous learning.',
-    areas: ['Custom agents', 'Multi-agent collaboration', 'Tools', 'Permissions', 'Memory', 'Governance', 'Observability'],
+    body: 'The layer you build on: custom agents and specialized roles, the tools they may operate, permissions, memory, governance, observability and continuous learning.',
+    areas: ['Custom agents', 'Specialized roles', 'Tools', 'Permissions', 'Memory', 'Governance', 'Observability'],
     accent: 'pink',
-    opening: true,
+    unreleased: true,
   },
 ];
 
@@ -403,11 +411,12 @@ export function CapabilityGroupsSection() {
               </View>
               {/* Named, but not claimed as shipped. A group with no public
                   surface says so here rather than sitting in the present tense
-                  beside four groups that have pages you can open today. */}
-              {item.opening ? (
-                <View style={styles.opening}>
-                  <FontAwesome6 name="seedling" size={11} color={t.textMuted} />
-                  <Text style={styles.openingText}>Opening through V5 early access</Text>
+                  beside three groups that have pages you can open today. No
+                  channel and no date: see the note on CAPABILITY_GROUPS. */}
+              {item.unreleased ? (
+                <View style={styles.unreleased}>
+                  <FontAwesome6 name="circle-info" size={11} color={t.textMuted} />
+                  <Text style={styles.unreleasedText}>Not available yet</Text>
                 </View>
               ) : null}
             </View>
@@ -454,7 +463,7 @@ export function FlowAgentAlongsideSection() {
             onPress={() => router.push(ROUTES.flowAgent as never)}
           />
           <SecondaryButton
-            label="Start building your workspace"
+            label="Join early access"
             size="lg"
             full={l.isPhone}
             trackId="home.flowagent.start-workspace"
@@ -588,8 +597,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingVertical: 4,
     },
     areaText: { ...ty.caption, color: t.textMuted, fontWeight: '600' },
-    opening: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 },
-    openingText: { ...ty.caption, color: t.textMuted, fontStyle: 'italic' },
+    unreleased: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 },
+    unreleasedText: { ...ty.caption, color: t.textMuted, fontStyle: 'italic' },
 
     /* ---------- industries ---------- */
     // Transparent, square, and separated by a hairline above rather than a box
