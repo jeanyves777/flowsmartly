@@ -559,6 +559,36 @@ function checkConf() {
         ? `named without a prohibition at ${offenders.join(', ')} — the apex keeps proxying /api/* precisely so that variable never has to change`
         : `${scanned.length} config file(s) scanned`,
     );
+
+    /* -- 10. the config must load on the nginx that is actually installed - */
+    // FOUND BY RUNNING `nginx -t` ON THE BOX, WHICH IS THE ONLY WAY IT COULD BE.
+    // The apex vhost carried `http2 on;` - the standalone directive form added
+    // in nginx 1.25.1. The VPS runs 1.24.0, where http2 is a `listen` parameter
+    // and the bare directive is FATAL:
+    //     [emerg] unknown directive "http2" in nginx-flowsmartly-v5.conf:45
+    // Not a warning and not a degraded feature - the vhost does not load at
+    // all, so installing this config and reloading at cutover takes the apex
+    // down. Every other rule in this file can be emulated offline; a directive
+    // that does not exist in the deployed binary cannot, which is exactly why
+    // the checklist requires `nginx -t` on the target and not just this gate.
+    const http2Offenders = [];
+    for (const file of scanned) {
+      readFileSync(file, 'utf8')
+        .split(/\r?\n/)
+        .forEach((line, i) => {
+          if (/^\s*http[23]\s+(?:on|off)\s*;/.test(line)) {
+            http2Offenders.push(`${relative(REPO, file).split(sep).join('/')}:${i + 1}`);
+          }
+        });
+    }
+    check(
+      'nginx',
+      'no config uses the nginx 1.25+ standalone http2 directive',
+      http2Offenders.length === 0,
+      http2Offenders.length
+        ? `fatal on the installed nginx 1.24 at ${http2Offenders.join(', ')} - write it as "listen 443 ssl http2;"`
+        : `${scanned.length} config file(s) scanned - http2 belongs on the listen line`,
+    );
   }
 }
 
