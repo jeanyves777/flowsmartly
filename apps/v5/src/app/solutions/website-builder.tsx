@@ -275,7 +275,7 @@ export default function WebsiteBuilderPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Build my site free"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

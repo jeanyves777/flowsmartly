@@ -640,7 +640,7 @@ export default function AdsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Launch an ad"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

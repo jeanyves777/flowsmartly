@@ -779,7 +779,7 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Explore analytics"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

@@ -337,7 +337,7 @@ function Hero() {
         <View style={styles.heroButtons}>
           <ButtonRow>
             <PrimaryButton
-              label="Start free"
+              label="Join early access"
               size="lg"
               full={l.isPhone}
               trackId="templates.hero.start-free"
@@ -437,11 +437,11 @@ function Library() {
                   <View style={styles.cardSpacer} />
                   <Pressable
                     accessibilityRole="link"
-                    accessibilityLabel={`Use the template: ${item.title}`}
+                    accessibilityLabel={`Join early access to use the template: ${item.title}`}
                     onPress={() => openApp(`templates.use.${item.type.toLowerCase()}`)}
                     style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
                     <Text style={[styles.linkText, { color: accent(t, TYPE_TONE[item.type]) }]}>
-                      Use template
+                      Join early access
                     </Text>
                     <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])} />
                   </Pressable>
@@ -499,7 +499,7 @@ function Bundles() {
 
                 <View style={styles.cardSpacer} />
                 <SecondaryButton
-                  label="Use this bundle"
+                  label="Join early access"
                   full
                   trackId={`templates.bundle.${bundle.title.toLowerCase().replace(/\s+/g, '-')}`}
                   onPress={() => openApp()}
@@ -585,7 +585,7 @@ function Closing() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Start free"
+            label="Join early access"
             size="lg"
             full={l.isPhone}
             trackId="templates.closing.start-free"

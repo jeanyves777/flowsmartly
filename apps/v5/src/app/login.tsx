@@ -155,7 +155,7 @@ export default function LoginScreen() {
                 Takes under a minute. No card, no commitment.
               </Text>
               <SecondaryButton
-                label="Join V5 early access"
+                label="Join early access"
                 icon="arrow-right"
                 iconRight
                 full

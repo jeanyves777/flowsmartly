@@ -595,7 +595,7 @@ export default function TrainingStudioPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Open Training Studio"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
@@ -1541,7 +1541,7 @@ export default function TrainingStudioPage() {
             <View style={styles.closeButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Open Training Studio"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

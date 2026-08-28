@@ -524,7 +524,7 @@ export default function CallAgentPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Build a call agent"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
@@ -857,13 +857,13 @@ export default function CallAgentPage() {
             </View>
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel="Clone your voice — start free"
+              accessibilityLabel="Join early access to clone your voice"
               onPress={() => {
                 trackCta('call-agent.voices.clone-your-voice');
                 goToEarlyAccess();
               }}
               style={({ pressed }) => [styles.cloneButton, pressed ? styles.pressed : null]}>
-              <Text style={styles.cloneButtonText}>Clone your voice</Text>
+              <Text style={styles.cloneButtonText}>Join early access</Text>
               <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
             </Pressable>
           </View>
@@ -1310,7 +1310,7 @@ export default function CallAgentPage() {
               </View>
               <View style={styles.priceButton}>
                 <PrimaryButton
-                  label="Build a call agent"
+                  label="Join early access"
                   size="lg"
                   full
                   icon="arrow-right"

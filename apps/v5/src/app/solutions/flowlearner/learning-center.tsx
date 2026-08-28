@@ -664,7 +664,7 @@ export default function LearningCenterPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Open Learning Center"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
@@ -1459,7 +1459,7 @@ export default function LearningCenterPage() {
             <View style={styles.closeButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Publish your first course"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

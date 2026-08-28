@@ -552,7 +552,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
               ))}
             </View>
             <PrimaryButton
-              label={plan.price === 'Free' ? 'Start free' : `Choose ${plan.name}`}
+              label="Join early access"
               size="sm"
               full
               trackId={`footer.pricing.${plan.name.toLowerCase()}`}
@@ -658,7 +658,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
         </View>
         <View style={styles.ctaPanel}>
           <PrimaryButton
-            label="Start free"
+            label="Join early access"
             size="md"
             full
             trackId="footer.cta.start-free"
@@ -674,7 +674,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
             onPress={bookDemo}
           />
           <Text style={[type.caption, styles.ctaProof]}>
-            No credit card • Governed authority • Upgrade anytime
+            No credit card • Governed authority • Leave the list anytime
           </Text>
         </View>
       </LinearGradient>

@@ -898,7 +898,7 @@ function Hero() {
                 <ButtonRow>
                   {/* full-width on phone so every CTA down the page shares one edge */}
                   <PrimaryButton
-                    label="Start building your workspace"
+                    label="Join early access"
                     size="lg"
                     full={l.isPhone}
                     trackId="home.hero.start-workspace"

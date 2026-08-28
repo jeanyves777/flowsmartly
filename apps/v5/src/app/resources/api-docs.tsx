@@ -625,7 +625,7 @@ function Hero() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Start building"
+            label="Join early access"
             icon="arrow-right"
             iconRight
             full={l.isPhone}
@@ -983,7 +983,7 @@ function Closing() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Start building"
+            label="Join early access"
             icon="arrow-right"
             iconRight
             size="lg"

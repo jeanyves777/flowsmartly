@@ -37,7 +37,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
-const PROOF = ['Human-approved by default', 'No credit card', 'Cancel anytime'];
+const PROOF = ['Human-approved by default', 'No credit card', 'Leave the list anytime'];
 
 /**
  * The queue FlowAgent has prepared, across six different organizations.
@@ -410,7 +410,7 @@ export default function FlowAiPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Try FlowAgent"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   trackId="flowagent.hero.try"
@@ -791,7 +791,7 @@ export default function FlowAiPage() {
             <View style={styles.briefButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Try FlowAgent"
+                  label="Join early access"
                   full={l.isPhone}
                   trackId="flowagent.briefing.try"
                   onPress={() => goToEarlyAccess()}

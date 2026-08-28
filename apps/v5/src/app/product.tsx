@@ -33,7 +33,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 /* content                                                             */
 /* ------------------------------------------------------------------ */
 
-const PROOF = ['No credit card', 'Human-approved AI', 'Upgrade anytime'];
+const PROOF = ['No credit card', 'Human-approved AI', 'Leave the list anytime'];
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
@@ -762,7 +762,7 @@ export default function ProductPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Start free"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"

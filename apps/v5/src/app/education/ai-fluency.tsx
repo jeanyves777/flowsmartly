@@ -835,7 +835,7 @@ function Closing() {
         </Heading>
         <ButtonRow>
           <PrimaryButton
-            label="Start free"
+            label="Join early access"
             size="lg"
             full={l.isPhone}
             trackId="ai-fluency.closing.start-free"

@@ -584,7 +584,7 @@ export default function EmailSmsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Start free"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   trackId="email-sms.hero.start-free"

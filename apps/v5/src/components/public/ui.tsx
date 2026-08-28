@@ -983,7 +983,7 @@ export function SectionLabel({ children }: { children: string }) {
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const SIZES: Record<ButtonSize, { height: number; padding: number; font: number; radius: number }> = {
-  // 44, not 40: `sm` is the header's "Start free" and the inline CTAs in the
+  // 44, not 40: `sm` is the header's "Join early access" and the inline CTAs in the
   // legal pages, and the touch floor has no small variant. It also lines the
   // header button up with the 44px "Log in" hit area beside it.
   sm: { height: 44, padding: 16, font: 13, radius: 9 },

@@ -49,7 +49,6 @@ type Plan = {
   credits: string;
   blurb: string;
   features: string[];
-  cta: string;
   badge?: string;
   featured?: boolean;
 };
@@ -70,7 +69,6 @@ const PLANS: Plan[] = [
       'Essential analytics',
       'Community support',
     ],
-    cta: 'Start free',
   },
   {
     id: 'pro',
@@ -88,7 +86,6 @@ const PLANS: Plan[] = [
       'Ads, FlowShop and SMS unlocked',
       'Email support',
     ],
-    cta: 'Choose Pro',
     badge: 'Most popular',
     featured: true,
   },
@@ -108,7 +105,6 @@ const PLANS: Plan[] = [
       '10 seats with team permissions',
       'Priority support',
     ],
-    cta: 'Choose Business',
   },
 ];
 
@@ -395,11 +391,12 @@ export default function PricingPage() {
 
                   <View style={styles.planSpacer} />
 
-                  {/* Every plan is self-serve, so the CTA opens signup rather
-                      than a contact form — the plan is chosen there. */}
+                  {/* No plan can be bought yet: every one of these lands on
+                      the early-access form, so every one says so. The plan is
+                      still named by the card it sits in. */}
                   {plan.featured ? (
                     <PrimaryButton
-                      label={plan.cta}
+                      label="Join early access"
                       full
                       trackId={`pricing.plan.${plan.id}`}
                       onPress={() => goToEarlyAccess()}
@@ -407,7 +404,7 @@ export default function PricingPage() {
                   ) : (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={plan.cta}
+                      accessibilityLabel="Join early access"
                       onPress={() => {
                         trackCta(`pricing.plan.${plan.id}`, { variant: 'plan' });
                         goToEarlyAccess();
@@ -416,7 +413,7 @@ export default function PricingPage() {
                         styles.planButton,
                         pressed ? styles.planButtonPressed : null,
                       ]}>
-                      <Text style={styles.planButtonLabel}>{plan.cta}</Text>
+                      <Text style={styles.planButtonLabel}>Join early access</Text>
                     </Pressable>
                   )}
                 </View>

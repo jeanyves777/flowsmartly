@@ -499,7 +499,7 @@ export default function LiveRoomPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Start a live room"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
@@ -1389,7 +1389,7 @@ export default function LiveRoomPage() {
             <View style={styles.closeButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Start a live room"
+                  label="Join early access"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
