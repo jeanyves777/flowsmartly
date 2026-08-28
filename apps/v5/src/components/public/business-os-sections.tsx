@@ -22,13 +22,17 @@ import {
 } from './ui';
 
 /**
- * The four sections that carry the positioning: FlowSmartly is a business
- * operating system, not a marketing suite.
+ * The sections that carry the positioning: FlowSmartly is an *agentic* business
+ * operating system — not a marketing suite, and not a collection of AI features.
  *
  * They live in one module because they share a single stylesheet — a card
- * grid, a section head and a two-column split. Four files would have meant
- * four near-identical `createStyles`, which is exactly how a page ends up with
+ * grid, a section head and a two-column split. Five files would have meant
+ * five near-identical `createStyles`, which is exactly how a page ends up with
  * neighbouring sections that disagree about a gap.
+ *
+ * The order they compose in is the argument: the anchor statement says what the
+ * system *is*, the capability groups say what it can operate, and only then is
+ * any individual channel named — inside a group, never as the category.
  */
 
 /* ------------------------------------------------------------------ */
@@ -95,56 +99,94 @@ const INDUSTRIES: Item[] = [
   },
 ];
 
-/** The six pillars the whole product is organised around. */
-const PILLARS: Item[] = [
+/**
+ * The five capability groups the whole system is organised around.
+ *
+ * This replaced a six-verb list — Operate, Create, Connect, Serve, Sell,
+ * Understand — which read as one product's feature menu. The groups are the
+ * category claim itself: social, email, SMS and advertising are *inside*
+ * Business & growth, one of five, and are never the thing being sold.
+ *
+ * `opening` is the honesty valve. A group whose capabilities have no public
+ * surface yet is still named, because it is what the system is being built to
+ * operate — but it is marked as opening through V5 rather than described in
+ * the present tense alongside groups that have pages a visitor can open today.
+ */
+type Group = Item & { areas: string[]; opening?: boolean };
+
+const CAPABILITY_GROUPS: Group[] = [
   {
-    icon: 'list-check',
-    title: 'Operate',
-    body: 'Coordinate tasks, customers, documents, approvals, appointments, teams, and daily workflows.',
+    icon: 'arrow-trend-up',
+    title: 'Business & growth',
+    body: 'Reach customers, sell to them and understand what happened — social, content, email, SMS, advertising, CRM, commerce and the analytics over all of it.',
+    areas: ['Social', 'Content', 'Email & SMS', 'Advertising', 'CRM', 'Commerce', 'Customer engagement'],
     accent: 'brand',
   },
   {
-    icon: 'wand-magic-sparkles',
-    title: 'Create',
-    body: 'Produce branded content, videos, presentations, proposals, training, websites, and product assets.',
+    icon: 'code-branch',
+    title: 'Engineering & technology',
+    body: 'Agentic engineering inside defined boundaries: planning and architecture, coding, testing, review, deployment, recovery and infrastructure operations.',
+    areas: ['Architecture', 'Agentic coding', 'Testing', 'Review', 'Deployment', 'Recovery', 'Infrastructure ops'],
     accent: 'violet',
+    opening: true,
   },
   {
-    icon: 'plug',
-    title: 'Connect',
-    body: 'Bring together email, SMS, social, websites, stores, calendars, customer systems, and business applications.',
-    accent: 'green',
-  },
-  {
-    icon: 'headset',
-    title: 'Serve',
-    body: 'Respond to customers, manage conversations, send reminders, coordinate services, and support long-term relationships.',
+    icon: 'list-check',
+    title: 'Operations',
+    body: 'The work that has to keep happening: workflow execution, approvals, monitoring, recurring processes, reporting and coordination across teams.',
+    areas: ['Workflow execution', 'Approvals', 'Monitoring', 'Recurring processes', 'Reporting', 'Coordination'],
     accent: 'orange',
   },
   {
-    icon: 'arrow-trend-up',
-    title: 'Sell',
-    body: 'Find leads, send outreach, generate proposals, sell online, run promotions, and manage the customer journey.',
-    accent: 'pink',
+    icon: 'brain',
+    title: 'Intelligence',
+    body: 'Research, analysis, planning and decision support, grounded in your business context and the organizational knowledge the system carries between runs.',
+    areas: ['Research', 'Analysis', 'Planning', 'Decision support', 'Business context', 'Organizational knowledge'],
+    accent: 'green',
   },
   {
-    icon: 'chart-column',
-    title: 'Understand',
-    body: 'Measure performance, uncover opportunities, monitor operations, and receive clear recommendations from FlowAgent.',
-    accent: 'brand',
+    icon: 'diagram-project',
+    title: 'Agent platform',
+    body: 'The layer you build on: custom agents and specialized roles, multi-agent collaboration, tools, permissions, memory, governance, observability and continuous learning.',
+    areas: ['Custom agents', 'Multi-agent collaboration', 'Tools', 'Permissions', 'Memory', 'Governance', 'Observability'],
+    accent: 'pink',
+    opening: true,
   },
 ];
 
-/** What FlowAgent does, in the order it does it. */
+/**
+ * What the system is made of, named under the anchor statement.
+ *
+ * Deliberately eight nouns rather than a sentence: the anchor claims the parts
+ * combine, and the reader should be able to see the parts.
+ */
+const SYSTEM_PARTS = [
+  'Agents',
+  'Tools',
+  'Workflows',
+  'Business context',
+  'Memory',
+  'Permissions',
+  'Governance',
+  'Verification',
+];
+
+/**
+ * The agentic loop, in the order FlowAgent runs it.
+ *
+ * Every line that claims action is paired with the thing that bounds it —
+ * defined authority, an approval, an evaluated result. "Agentic" is the claim
+ * this page is allowed to make; "autonomous" is not, and does not appear.
+ */
 const AGENT_CAN = [
-  'Understand what needs attention',
-  'Prepare work before you ask',
-  'Coordinate tasks across connected systems',
-  'Draft communications and business materials',
-  'Request approval before sensitive actions',
-  'Safely execute approved workflows',
-  'Track results and learn from verified outcomes',
-  'Explain what it did and why',
+  'Understand the objective and your business context',
+  'Build a plan and assign specialized agents',
+  'Coordinate tools and connected systems',
+  'Execute the work within defined authority',
+  'Request approval before consequential actions',
+  'Observe the result and evaluate the outcome',
+  'Recover when a step fails, and say what is still blocked',
+  'Continue from what it learned on the last run',
 ];
 
 const CONTROLS: Item[] = [
@@ -236,14 +278,13 @@ export function IndustriesSection() {
   const columns = l.gridColumns(3);
 
   return (
-    // No seam above this one. The hero is a photograph with a hard bottom
-    // edge, and a separator hanging up into it crosses the image and the trust
-    // strip — the photograph's own edge is the boundary.
-    <OpenSection art="none">
+    // The anchor statement is now the section under the hero, so this one
+    // sits on an ordinary seam and draws the default separator.
+    <OpenSection>
       <SectionHead
         label="BUILT FOR YOUR ORGANIZATION"
         title="Built for the way your organization actually works"
-        body="FlowSmartly adapts to your business, your team, your customers, and your operating rules."
+        body="The capability groups are the same everywhere; what changes is which of them carry your week. FlowSmartly adapts to your business, your team, your customers and your operating rules."
       />
       <View style={styles.grid}>
         {INDUSTRIES.map((item, index) => (
@@ -271,26 +312,73 @@ export function IndustriesSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/* the six pillars                                                     */
+/* the anchor statement                                                */
 /* ------------------------------------------------------------------ */
 
-export function PillarsSection() {
+/**
+ * The one paragraph the whole site is arranged around, given a section of its
+ * own rather than a line in a hero.
+ *
+ * It is positioning, so rule 15 says it gets no box: a band and a hairline
+ * accent rule carry it. The rule is a left border on the quote, not a card —
+ * a bordered, radiused container here is what turns a claim into a callout
+ * that reads as a footnote.
+ *
+ * It sits directly under the hero photograph, whose hard bottom edge is the
+ * boundary, so it draws no separator of its own.
+ */
+export function AnchorStatementSection() {
+  const styles = useStyles();
+  const t = useTokens();
+
+  return (
+    <Band tone="violet" art="none">
+      <Reveal style={styles.anchor} distance={16}>
+        <SectionLabel>ONE SYSTEM</SectionLabel>
+        <Heading level={2} style={styles.anchorTitle}>
+          One intelligent system. Many capabilities. Built around how your business actually works.
+        </Heading>
+        <View style={styles.anchorQuoteWrap}>
+          <Text style={styles.anchorQuote}>
+            FlowSmartly is not a collection of AI features. It is an agentic system that can combine
+            capabilities, tools, context, and specialized agents to execute work around the way your
+            organization operates.
+          </Text>
+        </View>
+        <View style={styles.partsRow}>
+          {SYSTEM_PARTS.map((part) => (
+            <View key={part} style={styles.part}>
+              <View style={[styles.partDot, { backgroundColor: t.brand }]} />
+              <Text style={styles.partText}>{part}</Text>
+            </View>
+          ))}
+        </View>
+      </Reveal>
+    </Band>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* the five capability groups                                          */
+/* ------------------------------------------------------------------ */
+
+export function CapabilityGroupsSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
   const columns = l.gridColumns(3);
 
   return (
-    // A band, so the six pillars read as one idea on their own ground without
+    // A band, so the five groups read as one idea on their own ground without
     // any of them being boxed.
-    <Band tone="surface"     >
+    <Band tone="surface">
       <SectionHead
-        label="THE PLATFORM"
-        title="More than marketing. One connected business workspace."
-        body="Six pillars, one system — so the work, the customer and the record of what happened never end up in three different places."
+        label="CAPABILITY GROUPS"
+        title="What the system can do, grouped by the work rather than the channel."
+        body="Five groups describe everything FlowSmartly can operate. Marketing is one of them. The individual product experiences — social, email, SMS, advertising, commerce — live underneath the group they belong to, because they are capabilities the system operates rather than the thing being sold."
       />
       <View style={styles.grid}>
-        {PILLARS.map((item, index) => (
+        {CAPABILITY_GROUPS.map((item, index) => (
           <Reveal
             key={item.title}
             delay={40 + index * 55}
@@ -306,6 +394,22 @@ export function PillarsSection() {
                 </Heading>
               </View>
               <Text style={styles.cardBody}>{item.body}</Text>
+              <View style={styles.areaRow}>
+                {item.areas.map((area) => (
+                  <View key={area} style={styles.area}>
+                    <Text style={styles.areaText}>{area}</Text>
+                  </View>
+                ))}
+              </View>
+              {/* Named, but not claimed as shipped. A group with no public
+                  surface says so here rather than sitting in the present tense
+                  beside four groups that have pages you can open today. */}
+              {item.opening ? (
+                <View style={styles.opening}>
+                  <FontAwesome6 name="seedling" size={11} color={t.textMuted} />
+                  <Text style={styles.openingText}>Opening through V5 early access</Text>
+                </View>
+              ) : null}
             </View>
           </Reveal>
         ))}
@@ -333,12 +437,13 @@ export function FlowAgentAlongsideSection() {
       <View style={styles.splitCopy}>
         <SectionLabel>FLOWAGENT</SectionLabel>
         <Heading level={2} style={styles.headTitle}>
-          FlowAgent works alongside your business.
+          The agentic layer that turns objectives into work.
         </Heading>
         <Text style={styles.headBody}>
-          FlowAgent understands your goals, business context, connected systems, permissions, and
-          operating rules. It can research, prepare, coordinate, create, automate, and recommend
-          actions — while keeping your team in control.
+          FlowAgent understands an objective and the business context around it, builds a plan,
+          coordinates specialized agents and the tools they are allowed to operate, executes the
+          steps, asks for approval where your rules require it, observes the real result, and
+          continues from what it learned. Not a chatbot, and not a fixed automation.
         </Text>
         <ButtonRow>
           <PrimaryButton
@@ -364,7 +469,7 @@ export function FlowAgentAlongsideSection() {
             <Text style={styles.agentSparkGlyph}>✦</Text>
           </View>
           <Heading level={3} style={styles.agentPanelTitle}>
-            FlowAgent can
+            The working loop
           </Heading>
         </View>
         <View style={styles.agentList}>
@@ -398,8 +503,8 @@ export function ControlSection() {
     <Band tone="brand"     >
       <SectionHead
         label="CONTROL"
-        title="Powerful automation. Professional control."
-        body="FlowSmartly is designed for businesses that need AI assistance without giving up visibility, authority, or accountability."
+        title="Agentic, and governed. Both words matter."
+        body="Acting on your behalf is only useful if you can see it, bound it and check it. FlowSmartly is built for organizations that want work executed without giving up visibility, authority or accountability."
       />
       <View style={styles.grid}>
         {CONTROLS.map((item, index) => (
@@ -452,6 +557,39 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
 
     cardTitle: { ...ty.h4, color: t.text },
     cardBody: { ...ty.bodySm, color: t.textMuted },
+
+    /* ---------- the anchor statement ---------- */
+    // Positioning, so no box (rule 15). The quote is marked by a single accent
+    // rule down its leading edge; a border on four sides would make the site's
+    // central claim read as a callout hung off the page.
+    anchor: { gap: 18, maxWidth: 860 },
+    anchorTitle: { ...ty.h2, color: t.text, marginTop: 2 },
+    anchorQuoteWrap: {
+      borderLeftWidth: 3,
+      borderLeftColor: t.brand,
+      paddingLeft: l.isPhone ? 14 : 20,
+    },
+    anchorQuote: { ...ty.h4, color: t.text, fontWeight: '600', lineHeight: l.isPhone ? 28 : 34 },
+    partsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+    part: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    partDot: { width: 6, height: 6, borderRadius: 3, flexGrow: 0, flexShrink: 0 },
+    partText: { ...ty.caption, color: t.textMuted, fontWeight: '700' },
+
+    /* ---------- capability groups ---------- */
+    // Chips, not a bulleted list: the areas inside a group are a vocabulary,
+    // and a seven-line list under five cards is the shape that turned this
+    // section into a specification sheet.
+    areaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+    area: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    areaText: { ...ty.caption, color: t.textMuted, fontWeight: '600' },
+    opening: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 },
+    openingText: { ...ty.caption, color: t.textMuted, fontStyle: 'italic' },
 
     /* ---------- industries ---------- */
     // Transparent, square, and separated by a hairline above rather than a box
