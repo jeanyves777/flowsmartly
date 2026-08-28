@@ -140,6 +140,7 @@ export type ThemeTokens = {
   violet: string;
   green: string;
   orange: string;
+  orangeText: string;
   pink: string;
 
   /** eyebrow / section-label chips */
@@ -172,18 +173,18 @@ export type ThemeTokens = {
 const light: ThemeTokens = {
   mode: 'light',
   ground: 'light',
-  background: '#f3f6fc',
+  background: '#faf9f6',
   surface: '#ffffff',
   surfaceRaised: '#ffffff',
-  surfaceMuted: '#f7f9fe',
-  surfaceInset: '#eef3fb',
+  surfaceMuted: '#faf9f6',
+  surfaceInset: '#f3f2ee',
 
-  text: '#071449',
-  textMuted: '#42527a',
+  text: '#0b1533',
+  textMuted: '#414d77',
   // 4.70:1 on surfaceInset (the darkest light surface) and 5.24:1 on white.
   // #6b7899 scored 3.95–4.40 and carries 400+ small nodes; textMuted is 7.72:1
   // on white, so this stays unmistakably the quietest of the three tiers.
-  textSubtle: '#59647f',
+  textSubtle: '#5b6486',
   textOnBrand: '#ffffff',
   textOnScrim: '#ffffff',
   scrimText: '#071449',
@@ -200,9 +201,9 @@ const light: ThemeTokens = {
   scrimGlassLit: 'rgba(124, 182, 255, 0.7)',
   scrimGlassBlur: 'blur(14px) saturate(120%)',
 
-  border: '#dfe5f2',
-  borderStrong: '#c4cee4',
-  divider: '#e9eef8',
+  border: '#e4e3dd',
+  borderStrong: '#cfcec6',
+  divider: '#edece7',
 
   // In LIGHT, unlike the dark palettes, an accent is used both as text and as a
   // fill, and both roles pull the same way — so the hue itself is deepened
@@ -215,12 +216,13 @@ const light: ThemeTokens = {
   //   green   #13a94f -> #0e7b3a   2.77 -> 4.82 / 3.08 -> 5.37
   //   orange  #ed6f00 -> #ad5100   2.74 -> 4.77 / 3.05 -> 5.31
   //   pink    #e0075f -> #d70459   4.32 -> 4.66 / 4.81 -> 5.18
-  brand: '#0a63d6',
-  brandStrong: '#0a56b8',
-  brandSoft: '#edf3ff',
-  violet: '#6c2cff',
+  brand: '#1d4ed8',
+  brandStrong: '#1740b0',
+  brandSoft: '#f3f2ee',
+  violet: '#6d28d9',
   green: '#0e7b3a',
-  orange: '#ad5100',
+  orange: '#d9631a',
+  orangeText: '#ad5100',
   pink: '#d70459',
 
   chipBg: '#edf1ff',
@@ -413,6 +415,7 @@ const grey: ThemeTokens = {
   violet: '#431B9E',
   green: '#084A23',
   orange: '#663000',
+  orangeText: '#663000',
   pink: '#810235',
 
   // 6.58:1
@@ -485,6 +488,7 @@ const dark: ThemeTokens = {
   violet: '#a98cff',
   green: '#3fd07c',
   orange: '#ffa34d',
+  orangeText: '#ffa34d',
   pink: '#ff5f96',
 
   chipBg: '#17264a',

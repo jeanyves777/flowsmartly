@@ -612,7 +612,7 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
       minWidth: 0,
     },
     fieldLabel: { ...ts.bodySm, color: t.text, fontWeight: '600' },
-    required: { color: t.orange },
+    required: { color: t.orangeText },
     input: {
       minHeight: 44,
       borderWidth: 1,
@@ -631,7 +631,7 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
       textAlignVertical: 'top',
       paddingTop: 10,
     },
-    fieldError: { ...ts.caption, color: t.orange },
+    fieldError: { ...ts.caption, color: t.orangeText },
     legal: { ...ts.caption, color: t.textSubtle },
 
     outcome: { gap: 12, alignItems: 'flex-start', paddingVertical: 8 },

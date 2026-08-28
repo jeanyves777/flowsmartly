@@ -41,7 +41,30 @@ export type TypeScale = {
 const clamp = (value: number, min: number) => Math.max(min, Math.round(value));
 
 export function buildTypeScale(l: Layout, t: ThemeTokens): TypeScale {
+  /**
+   * PHONES DO NOT GET SMALLER TEXT. THEY GET SMALLER HEADINGS.
+   *
+   * The previous scale multiplied EVERY role by a phone factor, so body
+   * resolved to 17 * 0.9 = 15.3px, caption to 12.5px and micro to 11px before
+   * a single component overrode anything. That is why the mobile site read as
+   * a shrunken desktop layout - it literally was one. A phone is held closer
+   * than a laptop, but 15px of muted grey over a photograph is unreadable in
+   * daylight at any distance.
+   *
+   * So the two axes are separated. Headings still scale down, because a 52px
+   * display line does not belong in a 390px viewport. Reading text does not
+   * scale at all: 17px body and 14px caption are FLOORS on every breakpoint.
+   *
+   * Approved baseline - design/v5-mobile-visual-system.html:
+   *   display 34 / 800 / -2.5% / 1.14
+   *   body    17 / 400 / 1.62
+   *   caption 14 minimum
+   *   label   12 / 700 / uppercase / +8%  -- the ONE thing below 14, because a
+   *           tracked uppercase label is a signpost, not prose. It lives in
+   *           SectionLabel, not here.
+   */
   const k = l.isPhone ? 0.66 : l.isTablet ? 0.78 : l.width < BP.desktop ? 0.9 : 1;
+
   const heading = (size: number, min: number, tracking: number): TextStyle => ({
     fontSize: clamp(size * k, min),
     lineHeight: clamp(size * k * 1.14, Math.round(min * 1.16)),
@@ -49,21 +72,30 @@ export function buildTypeScale(l: Layout, t: ThemeTokens): TypeScale {
     fontWeight: '800',
     color: t.text,
   });
-  const copy = (size: number, min: number, muted = false): TextStyle => ({
-    fontSize: clamp(size * (l.isPhone ? 0.9 : l.isTablet ? 0.95 : 1), min),
-    lineHeight: clamp(size * (l.isPhone ? 0.9 : l.isTablet ? 0.95 : 1) * 1.55, Math.round(min * 1.5)),
+
+  /**
+   * Reading text: the size IS the floor. No breakpoint multiplier, because
+   * there is no viewport on which 15px of secondary grey is the right answer.
+   */
+  const copy = (size: number, ratio: number, muted = false): TextStyle => ({
+    fontSize: size,
+    lineHeight: Math.round(size * ratio),
     color: muted ? t.textMuted : t.text,
   });
+
   return {
-    display: heading(52, 32, -1.9),
-    h1: heading(44, 28, -1.5),
+    display: heading(52, 34, -1.9),
+    h1: heading(44, 30, -1.5),
     h2: heading(34, 24, -1),
-    h3: heading(24, 19, -0.4),
-    h4: heading(18, 16, -0.2),
-    body: copy(17, 15, true),
-    bodySm: copy(15, 14, true),
-    caption: { ...copy(13, 12.5, true), lineHeight: 19 },
-    micro: { ...copy(11.5, 11, true), lineHeight: 16 },
+    h3: heading(24, 20, -0.4),
+    h4: heading(18, 17, -0.2),
+    body: copy(17, 1.62, true),
+    bodySm: copy(16, 1.55, true),
+    caption: copy(14, 1.5, true),
+    // `micro` is kept so existing call sites keep compiling, but it is no
+    // longer micro: it resolves to caption. Nothing public may sit below 14px.
+    // Migrate call sites to `caption`, then delete this.
+    micro: copy(14, 1.5, true),
   };
 }
 

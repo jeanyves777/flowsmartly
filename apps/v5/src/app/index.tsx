@@ -2639,7 +2639,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     productImage: { width: "100%", aspectRatio: 1, backgroundColor: t.surfaceMuted, borderRadius: 10 },
     productName: { ...ty.micro, color: t.text, minHeight: 32, marginTop: 8 },
     productPrice: { ...ty.caption, color: t.text, fontWeight: "800", marginTop: 2 },
-    productStars: { ...ty.micro, color: t.orange, marginTop: 4 },
+    productStars: { ...ty.micro, color: t.orangeText, marginTop: 4 },
     reviewCount: { color: t.textSubtle },
 
     intelligenceVisual: stacked
