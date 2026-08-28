@@ -24,6 +24,7 @@ import {
   SecondaryButton,
   SectionLabel,
   Band,
+  buildTypeScale,
   useTypeScale,
 } from './ui';
 
@@ -324,6 +325,7 @@ export function ConnectedChannelsSection() {
 }
 
 function createStyles(t: ThemeTokens, l: Layout) {
+  const type = buildTypeScale(l, t);
   // Card width, sized so two three-icon clusters still fit side by side at the
   // narrowest width that keeps the radial arrangement.
   const tile = l.isPhone ? 76 : l.isTablet ? 78 : l.isDesktop ? 92 : 84;
@@ -409,7 +411,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
 
     group: { alignItems: 'center', gap: 10, minWidth: 0 },
     groupChip: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
-    groupChipText: { fontSize: 12, fontWeight: '700' },
+    groupChipText: { ...type.caption, lineHeight: 18, fontWeight: '700' },
     groupTiles: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
 
     tile: {
@@ -426,7 +428,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       gap: 7,
       ...(elevation(t, 1) as object),
     },
-    tileLabel: { color: t.textMuted, fontSize: 11, lineHeight: 13, textAlign: 'center' },
+    tileLabel: { ...type.caption, color: t.textMuted, lineHeight: 17, textAlign: 'center' },
 
     hub: {
       width: hub,

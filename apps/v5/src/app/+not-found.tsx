@@ -6,7 +6,7 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   PrimaryButton,
@@ -226,7 +226,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     hero: { alignItems: 'center', paddingTop: l.isPhone ? 30 : 52, paddingBottom: l.isPhone ? 18 : 34 },
     heroInner: { alignItems: 'center', gap: 14, maxWidth: 680, width: '100%' },
     code: {
-      fontSize: codeSize,
+      fontSize: codeSize,
+      fontFamily: FONT_SANS,
       lineHeight: Math.round(codeSize * 1.04),
       letterSpacing: -Math.round(codeSize * 0.04),
       fontWeight: '800',

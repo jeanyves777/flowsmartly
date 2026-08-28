@@ -38,64 +38,83 @@ export type TypeScale = {
   micro: TextStyle;
 };
 
-const clamp = (value: number, min: number) => Math.max(min, Math.round(value));
+
+/**
+ * The approved public typeface. It is stated ONCE, here, and reaches the DOM
+ * through the type scale below.
+ *
+ * It has to be declared on the styles rather than inherited from a parent:
+ * react-native-web writes its own font-family class onto every Text it
+ * renders, so a family set on <html> or on an ancestor View is overridden
+ * before it ever reaches a glyph. Setting it in the scale means every role
+ * (display, h1..h4, body, caption) carries it explicitly and RNW emits a
+ * real class for it.
+ *
+ * The fallbacks are the platform stacks, so a failed font fetch degrades to
+ * the previous appearance rather than to a serif.
+ */
+export const FONT_SANS =
+  "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 export function buildTypeScale(l: Layout, t: ThemeTokens): TypeScale {
   /**
-   * PHONES DO NOT GET SMALLER TEXT. THEY GET SMALLER HEADINGS.
+   * MOBILE IS THE BASE. LARGER SCREENS SCALE UP FROM IT.
    *
-   * The previous scale multiplied EVERY role by a phone factor, so body
-   * resolved to 17 * 0.9 = 15.3px, caption to 12.5px and micro to 11px before
-   * a single component overrode anything. That is why the mobile site read as
-   * a shrunken desktop layout - it literally was one. A phone is held closer
-   * than a laptop, but 15px of muted grey over a photograph is unreadable in
-   * daylight at any distance.
+   * The original scale did the opposite: it defined desktop sizes and
+   * multiplied every role down by a phone factor, so body resolved to
+   * 17 * 0.9 = 15.3px and caption to 12.5px before any component touched it.
+   * The mobile site read as a shrunken desktop layout because that is exactly
+   * how it was computed.
    *
-   * So the two axes are separated. Headings still scale down, because a 52px
-   * display line does not belong in a 390px viewport. Reading text does not
-   * scale at all: 17px body and 14px caption are FLOORS on every breakpoint.
+   * Now the phone value IS the declared value, and `ramp` interpolates
+   * upward. There is no path by which a larger viewport produces smaller
+   * text, and no multiplier anyone can quietly retune to shrink the phone
+   * again.
    *
-   * Approved baseline - design/v5-mobile-visual-system.html:
-   *   display 34 / 800 / -2.5% / 1.14
-   *   body    17 / 400 / 1.62
-   *   caption 14 minimum
-   *   label   12 / 700 / uppercase / +8%  -- the ONE thing below 14, because a
-   *           tracked uppercase label is a signpost, not prose. It lives in
-   *           SectionLabel, not here.
+   * Approved 390px baseline:
+   *   display 34   h1 34   h2 28   h3 22   h4 18   body 17   caption 14
+   *   label 12, uppercase + tracked, and ONLY for short labels - it lives in
+   *   SectionLabel, not in this scale. Nothing else on the public site sits
+   *   below 14px.
    */
-  const k = l.isPhone ? 0.66 : l.isTablet ? 0.78 : l.width < BP.desktop ? 0.9 : 1;
+  const u = l.isPhone ? 0 : l.isTablet ? 0.4 : l.width < BP.desktop ? 0.7 : 1;
+  const ramp = (phone: number, wide: number) => Math.round(phone + (wide - phone) * u);
 
-  const heading = (size: number, min: number, tracking: number): TextStyle => ({
-    fontSize: clamp(size * k, min),
-    lineHeight: clamp(size * k * 1.14, Math.round(min * 1.16)),
-    letterSpacing: tracking * k,
-    fontWeight: '800',
-    color: t.text,
-  });
+  /** `track` is a RATIO of the resolved size, so tracking stays optically
+   *  even instead of drifting as the heading grows. */
+  const heading = (phone: number, wide: number, track: number): TextStyle => {
+    const size = ramp(phone, wide);
+    return {
+      fontSize: size,
+      lineHeight: Math.round(size * 1.14),
+      letterSpacing: Math.round(size * track * 100) / 100,
+      fontFamily: FONT_SANS,
+      fontWeight: '800',
+      color: t.text,
+    };
+  };
 
-  /**
-   * Reading text: the size IS the floor. No breakpoint multiplier, because
-   * there is no viewport on which 15px of secondary grey is the right answer.
-   */
-  const copy = (size: number, ratio: number, muted = false): TextStyle => ({
-    fontSize: size,
-    lineHeight: Math.round(size * ratio),
-    color: muted ? t.textMuted : t.text,
-  });
+  const copy = (phone: number, wide: number, ratio: number, muted = false): TextStyle => {
+    const size = ramp(phone, wide);
+    return { fontFamily: FONT_SANS, fontSize: size, lineHeight: Math.round(size * ratio), color: muted ? t.textMuted : t.text };
+  };
 
   return {
-    display: heading(52, 34, -1.9),
-    h1: heading(44, 30, -1.5),
-    h2: heading(34, 24, -1),
-    h3: heading(24, 20, -0.4),
-    h4: heading(18, 17, -0.2),
-    body: copy(17, 1.62, true),
-    bodySm: copy(16, 1.55, true),
-    caption: copy(14, 1.5, true),
-    // `micro` is kept so existing call sites keep compiling, but it is no
-    // longer micro: it resolves to caption. Nothing public may sit below 14px.
-    // Migrate call sites to `caption`, then delete this.
-    micro: copy(14, 1.5, true),
+    display: heading(34, 52, -0.025),
+    h1: heading(34, 44, -0.022),
+    h2: heading(28, 34, -0.018),
+    h3: heading(22, 24, -0.012),
+    h4: heading(18, 20, -0.008),
+    body: copy(17, 18, 1.62, true),
+    bodySm: copy(16, 17, 1.55, true),
+    caption: copy(14, 14, 1.5, true),
+    /**
+     * `micro` is DEPRECATED and deliberately not micro any more: it resolves
+     * to caption. It stays only so existing call sites compile while they are
+     * migrated. Do not use it in new code, and do not restore a smaller value
+     * - nothing on the public site may sit below 14px.
+     */
+    micro: copy(14, 14, 1.5, true),
   };
 }
 
@@ -992,8 +1011,27 @@ export function Band({
 /* eyebrow chip                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The ONE sanctioned exception to the 14px floor - and it enforces its own
+ * terms rather than trusting call sites to honour them.
+ *
+ * 12px is admissible for a SIGNPOST: short, uppercase, letter-spaced, read at
+ * a glance rather than read as prose. An audit of the call sites found 18
+ * labels longer than 28 characters ("AI VOICE THAT WORKS FOR YOUR BUSINESS")
+ * and 27 that were not uppercase at all ("Access", "Already with us"). Those
+ * are not signposts; at 12px they are unreadable small print, and several
+ * arrive through an {eyebrow} variable whose value is only known at runtime,
+ * so no lint over the call sites could have caught them.
+ *
+ * So the component decides. Uppercase is applied here, and anything too long
+ * to be a signpost is rendered at the 14px floor instead of 12. There is no
+ * call site that can produce sub-14 prose through this component.
+ */
 export function SectionLabel({ children }: { children: string }) {
   const t = useTokens();
+  // 24 characters is roughly three words at this tracking. Past that it stops
+  // scanning as a label and starts being read, so it gets the floor size.
+  const isSignpost = typeof children === 'string' && children.trim().length <= 24;
   return (
     <View
       style={{
@@ -1003,7 +1041,18 @@ export function SectionLabel({ children }: { children: string }) {
         paddingHorizontal: 14,
         paddingVertical: 7,
       }}>
-      <Text style={{ color: t.chipText, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 }}>{children}</Text>
+      <Text
+        style={{
+          color: t.chipText,
+          fontSize: isSignpost ? 12 : 14,
+          fontFamily: FONT_SANS,
+          lineHeight: isSignpost ? 18 : 20,
+          fontWeight: '800',
+          letterSpacing: 1.2,
+          textTransform: 'uppercase',
+        }}>
+        {children}
+      </Text>
     </View>
   );
 }
@@ -1018,7 +1067,7 @@ const SIZES: Record<ButtonSize, { height: number; padding: number; font: number;
   // 44, not 40: `sm` is the header's "Join early access" and the inline CTAs in the
   // legal pages, and the touch floor has no small variant. It also lines the
   // header button up with the 44px "Log in" hit area beside it.
-  sm: { height: 44, padding: 16, font: 13, radius: 9 },
+  sm: { height: 44, padding: 16, font: 14, radius: 9 },
   md: { height: 48, padding: 22, font: 15, radius: 10 },
   lg: { height: 54, padding: 26, font: 16, radius: 11 },
 };
@@ -1047,7 +1096,7 @@ type ButtonProps = {
  *
  * The label's contrast contract lives in the tokens, not here: `t.gradient` is
  * a background-only token that must clear 4.5:1 against `t.textOnBrand` at the
- * 13px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light.
+ * 14px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light.
  * Grey now scores 10.43:1, the deep end of the ladder rather than the light
  * one, because both its gradient and its ink changed sides.
  */
@@ -1096,7 +1145,7 @@ export function PrimaryButton({
           gap: 9,
         }}>
         {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand} /> : null}
-        <Text style={{ color: t.textOnBrand, fontSize: s.font, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color: t.textOnBrand, fontSize: s.font, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
         {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.textOnBrand} /> : null}
       </LinearGradient>
     </Pressable>
@@ -1142,7 +1191,7 @@ export function SecondaryButton({
         full ? { width: '100%' } : null,
       ]}>
       {icon && !iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text} /> : null}
-      <Text style={{ color: t.text, fontSize: s.font, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: t.text, fontSize: s.font, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       {icon && iconRight ? <FontAwesome6 name={icon as never} size={s.font} color={t.text} /> : null}
     </Pressable>
   );
@@ -1186,7 +1235,7 @@ export function TextLink({
         gap: 8,
         opacity: pressed ? 0.7 : 1,
       })}>
-      <Text style={{ color: t.brand, fontSize: 14, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: t.brand, fontSize: 14, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       <FontAwesome6 name={icon as never} size={12} color={t.brand} />
     </Pressable>
   );

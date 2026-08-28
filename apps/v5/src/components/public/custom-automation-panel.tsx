@@ -187,7 +187,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 0,
     },
     liveDot: { width: 5, height: 5, borderRadius: 3 },
-    livePillText: { ...type.micro, fontWeight: '800' },
+    livePillText: { ...type.caption, fontWeight: '800' },
 
     /* flow ---------------------------------------------------------- */
     flow: { ...inner, gap: 10 },
@@ -223,23 +223,23 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    nodeTitle: { ...type.micro, color: t.text, fontWeight: '800', textAlign: 'center' },
-    nodeSub: { ...type.micro, color: t.textSubtle, textAlign: 'center' },
+    nodeTitle: { ...type.caption, color: t.text, fontWeight: '800', textAlign: 'center' },
+    nodeSub: { ...type.caption, color: t.textSubtle, textAlign: 'center' },
 
     /* metric + systems ---------------------------------------------- */
     split: { flexDirection: l.isPhone ? 'column' : 'row', gap: 10, alignItems: 'stretch' },
     metric: { ...inner, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 3 },
-    metricLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    metricLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     metricValueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
     metricValue: { ...type.h3, color: t.text },
-    metricUnit: { ...type.micro, color: t.textMuted, paddingBottom: 3 },
-    metricDelta: { ...type.micro, fontWeight: '700' },
+    metricUnit: { ...type.caption, color: t.textMuted, paddingBottom: 3 },
+    metricDelta: { ...type.caption, fontWeight: '700' },
 
     systems: { ...inner, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 8 },
     systemsList: { gap: 7 },
     systemRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     systemName: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       flexGrow: 1,
       flexShrink: 1,
@@ -247,6 +247,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minWidth: 0,
     },
 
-    illustrative: { ...type.micro, color: t.textSubtle, textAlign: 'center' },
+    illustrative: { ...type.caption, color: t.textSubtle, textAlign: 'center' },
   });
 }

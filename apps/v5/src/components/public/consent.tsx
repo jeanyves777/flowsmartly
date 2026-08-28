@@ -15,6 +15,7 @@ import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { ROUTES } from './nav';
+import { FONT_SANS, buildTypeScale } from './ui';
 
 /* ------------------------------------------------------------------ */
 /* the categories, described the way the cookies policy describes them */
@@ -448,6 +449,7 @@ export function ConsentWithdrawButton() {
 /* ------------------------------------------------------------------ */
 
 function createStyles(t: ThemeTokens, l: Layout) {
+  const type = buildTypeScale(l, t);
   const shadow = elevation(t, 3) as ViewStyle;
 
   return StyleSheet.create({
@@ -488,8 +490,8 @@ function createStyles(t: ThemeTokens, l: Layout) {
       backgroundColor: softFill(t.brand, t),
     },
     bannerCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 4 },
-    bannerTitle: { color: t.text, fontSize: 15, fontWeight: '800' },
-    bannerBody: { color: t.textMuted, fontSize: 13, lineHeight: 20 },
+    bannerTitle: { color: t.text, fontSize: 15, fontWeight: '800' , fontFamily: FONT_SANS },
+    bannerBody: { ...type.caption, color: t.textMuted },
     bannerLink: { color: t.brand, fontWeight: '700' },
     bannerActions: {
       flexGrow: 0,
@@ -514,7 +516,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     buttonNeutral: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
     buttonPrimary: { backgroundColor: t.brand },
     buttonQuiet: { backgroundColor: 'transparent' },
-    buttonText: { color: t.text, fontSize: 13, fontWeight: '700' },
+    buttonText: { ...type.caption, color: t.text, fontWeight: '700' },
     buttonTextPrimary: { color: t.textOnBrand },
     buttonTextQuiet: { color: t.textMuted },
 
@@ -562,7 +564,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       borderBottomWidth: 1,
       borderBottomColor: t.divider,
     },
-    panelTitle: { color: t.text, fontSize: 17, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    panelTitle: { color: t.text, fontSize: 17, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 , fontFamily: FONT_SANS },
     panelClose: {
       width: 44,
       height: 44,
@@ -575,7 +577,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     },
     panelScroll: { flexGrow: 0, flexShrink: 1 },
     panelScrollInner: { paddingHorizontal: l.isPhone ? 16 : 22, paddingVertical: 16, gap: 12 },
-    panelIntro: { color: t.textMuted, fontSize: 13, lineHeight: 20 },
+    panelIntro: { ...type.caption, color: t.textMuted },
     gpcNote: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -586,7 +588,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       backgroundColor: t.surfaceInset,
       padding: 12,
     },
-    gpcNoteText: { color: t.textMuted, fontSize: 12, lineHeight: 18, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    gpcNoteText: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
 
     category: {
       borderWidth: 1,
@@ -607,18 +609,19 @@ function createStyles(t: ThemeTokens, l: Layout) {
       justifyContent: 'center',
       backgroundColor: softFill(t.brand, t),
     },
-    categoryTitle: { color: t.text, fontSize: 14, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    categoryTitle: { color: t.text, fontSize: 14, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 , fontFamily: FONT_SANS },
     categoryAlways: {
+      ...type.caption,
       color: t.chipText,
       backgroundColor: t.chipBg,
-      fontSize: 11,
+      lineHeight: 18,
       fontWeight: '700',
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 4,
       overflow: 'hidden',
     },
-    categoryBody: { color: t.textMuted, fontSize: 13, lineHeight: 20 },
+    categoryBody: { ...type.caption, color: t.textMuted },
     categoryStored: {
       borderTopWidth: 1,
       borderTopColor: t.divider,
@@ -627,12 +630,15 @@ function createStyles(t: ThemeTokens, l: Layout) {
     },
     categoryStoredLabel: {
       color: t.textSubtle,
-      fontSize: 11,
+      // the sanctioned sub-14 exception: a short uppercase, letter-spaced signpost
+      fontSize: 12,
+      fontFamily: FONT_SANS,
+      lineHeight: 18,
       fontWeight: '800',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
     },
-    categoryStoredValue: { color: t.textMuted, fontSize: 12, lineHeight: 18 },
+    categoryStoredValue: { ...type.caption, color: t.textMuted },
 
     panelFoot: {
       flexDirection: 'row',
@@ -683,11 +689,12 @@ function createStyles(t: ThemeTokens, l: Layout) {
       gap: 8,
       alignSelf: 'flex-start',
     },
-    footerLinkText: { color: t.textSubtle, fontSize: 13, fontWeight: '600' },
+    footerLinkText: { ...type.caption, color: t.textSubtle, fontWeight: '600' },
     footerLinkState: {
+      ...type.caption,
       color: t.textSubtle,
       backgroundColor: t.surfaceInset,
-      fontSize: 11,
+      lineHeight: 18,
       fontWeight: '700',
       borderRadius: 999,
       paddingHorizontal: 8,
@@ -707,7 +714,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       paddingHorizontal: 16,
     },
     withdrawPrimary: { borderColor: t.brand, backgroundColor: t.brand },
-    withdrawText: { color: t.text, fontSize: 13, fontWeight: '700' },
+    withdrawText: { ...type.caption, color: t.text, fontWeight: '700' },
     withdrawTextPrimary: { color: t.textOnBrand },
   });
 }

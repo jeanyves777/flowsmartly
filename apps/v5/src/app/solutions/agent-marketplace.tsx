@@ -18,7 +18,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   PrimaryButton,
@@ -1284,7 +1284,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
          a strip rather than a block of prose. */
       maxWidth: 620,
     },
-    insteadHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    insteadHead: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
     insteadRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
     insteadIcon: {
       width: 30,
@@ -1297,7 +1297,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceInset,
     },
     insteadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
-    insteadBefore: { ...type.micro, color: t.textSubtle, textDecorationLine: 'line-through' },
+    insteadBefore: { ...type.caption, color: t.textSubtle, textDecorationLine: 'line-through' },
     insteadAfter: { ...type.caption, color: t.text, fontWeight: '700' },
 
     heroVisual: stacked
@@ -1344,8 +1344,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 7,
     },
     filterCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
-    filterLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    filterValue: { ...type.micro, color: t.text, fontWeight: '800' },
+    filterLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    filterValue: { ...type.caption, color: t.text, fontWeight: '800' },
 
     /* -------------------------------------------------- expert cards */
     heroExpertList: { gap: 10 },
@@ -1355,7 +1355,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     expertHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     expertNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
     expertName: { ...type.bodySm, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    expertRole: { ...type.micro, color: t.textSubtle },
+    expertRole: { ...type.caption, color: t.textSubtle },
     platformBadge: {
       width: 34,
       height: 34,
@@ -1370,9 +1370,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     ratingRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
     ratingValue: { ...type.caption, color: t.text, fontWeight: '800' },
-    ratingCount: { ...type.micro, color: t.textSubtle },
+    ratingCount: { ...type.caption, color: t.textSubtle },
     verifiedChip: { ...pillBase, backgroundColor: t.chipBg },
-    verifiedText: { fontSize: 11, lineHeight: 15, color: t.chipText, fontWeight: '800' },
+    verifiedText: { ...type.caption, lineHeight: 18, color: t.chipText, fontWeight: '800' },
     skillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     skillChip: {
       borderRadius: 999,
@@ -1384,13 +1384,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       minWidth: 0,
     },
-    skillText: { ...type.micro, color: t.textMuted, fontWeight: '700' },
+    skillText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
     expertFoot: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
     expertRate: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     statusChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, flexShrink: 1, minWidth: 0 },
     statusChipOk: { backgroundColor: t.successBg },
     statusChipSoon: { backgroundColor: t.chipBg },
-    statusText: { fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    statusText: { fontSize: type.caption.fontSize, lineHeight: 18, fontWeight: '800' , fontFamily: FONT_SANS },
 
     /* -------------------------------------------------- shared heads */
     headCentered: { gap: 12, alignItems: l.isPhone ? 'flex-start' : 'center' },
@@ -1431,7 +1431,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     panelHead: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
     panelTitle: { ...type.bodySm, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     panelChip: { ...pillBase, backgroundColor: t.chipBg, flexShrink: 1, minWidth: 0 },
-    panelChipText: { fontSize: 11, lineHeight: 15, color: t.chipText, fontWeight: '800' },
+    panelChipText: { ...type.caption, lineHeight: 18, color: t.chipText, fontWeight: '800' },
 
     track: trackBase,
     trackFill: { height: 6, borderRadius: 3 },
@@ -1478,7 +1478,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 10,
       paddingVertical: 4,
     },
-    serviceCountText: { fontSize: 11, lineHeight: 15, color: t.chipText, fontWeight: '800' },
+    serviceCountText: { ...type.caption, lineHeight: 18, color: t.chipText, fontWeight: '800' },
 
     /* -------------------------------------------------- featured */
     featuredGrid: { ...gridBase, marginTop: (l.isPhone ? 20 : 28) - half },
@@ -1498,7 +1498,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     matchCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
     matchTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-    matchIndex: { ...type.micro, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    matchIndex: { ...type.caption, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     matchTitle: { ...type.bodySm, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
     matchBody: { ...type.caption, color: t.textMuted },
 
@@ -1517,12 +1517,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     matchAvatar: { ...avatarBase, width: 40, height: 40 },
     matchCardCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 4 },
     matchName: { ...type.caption, color: t.text, fontWeight: '800' },
-    matchRole: { ...type.micro, color: t.textSubtle },
+    matchRole: { ...type.caption, color: t.textSubtle },
     matchScoreWrap: { flexGrow: 0, flexShrink: 0, alignItems: 'flex-end' },
     matchScore: { ...type.bodySm, fontWeight: '800' },
-    matchScoreLabel: { ...type.micro, color: t.textSubtle },
+    matchScoreLabel: { ...type.caption, color: t.textSubtle },
     matchFoot: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-    matchFootText: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    matchFootText: { ...type.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- hire flow */
     flowStrip: {
@@ -1546,7 +1546,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     flowLabel: { ...type.bodySm, color: t.text, fontWeight: '800', textAlign: 'center' },
-    flowNote: { ...type.micro, color: t.textSubtle, textAlign: 'center' },
+    flowNote: { ...type.caption, color: t.textSubtle, textAlign: 'center' },
     flowArrow: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1598,8 +1598,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
         },
     boardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     boardDot: { width: 8, height: 8, borderRadius: 4, flexGrow: 0, flexShrink: 0 },
-    boardTitle: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    boardCount: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    boardTitle: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    boardCount: { ...type.caption, color: t.textSubtle, fontWeight: '800' },
     boardCard: {
       borderWidth: 1,
       borderColor: t.border,
@@ -1610,7 +1610,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 3,
     },
     boardCardTitle: { ...type.caption, color: t.text, fontWeight: '700' },
-    boardCardMeta: { ...type.micro, color: t.textSubtle },
+    boardCardMeta: { ...type.caption, color: t.textSubtle },
 
     /* -------------------------------------------------- milestones */
     milestoneList: { gap: 8 },
@@ -1636,10 +1636,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     milestoneCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     milestoneLabel: { ...type.caption, color: t.text, fontWeight: '700' },
-    milestoneNote: { ...type.micro, color: t.textSubtle },
+    milestoneNote: { ...type.caption, color: t.textSubtle },
     milestoneRight: { flexGrow: 0, flexShrink: 0, alignItems: 'flex-end', gap: 2 },
     milestoneAmount: { ...type.caption, color: t.text, fontWeight: '800' },
-    milestoneState: { fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    milestoneState: { fontSize: type.caption.fontSize, lineHeight: 18, fontWeight: '800' , fontFamily: FONT_SANS },
     totalRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1666,9 +1666,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 'auto',
       backgroundColor: t.surfaceMuted,
     },
-    resultLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    resultValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 29 : 34, fontWeight: '800' },
-    resultNote: { ...type.micro, color: t.textSubtle },
+    resultLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    resultValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 29 : 34, fontWeight: '800' , fontFamily: FONT_SANS },
+    resultNote: { ...type.caption, color: t.textSubtle },
     reportingList: { marginTop: gap, gap: 11 },
 
     /* -------------------------------------------------- trust */
@@ -1695,18 +1695,18 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     trustTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    trustBody: { ...type.micro, color: t.textMuted },
+    trustBody: { ...type.caption, color: t.textMuted },
 
     scoreHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14 },
     scoreCopy: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexGrow: 0, flexShrink: 0 },
-    scoreValue: { fontSize: l.isPhone ? 34 : 42, lineHeight: l.isPhone ? 39 : 48, fontWeight: '800', color: t.text },
+    scoreValue: { fontSize: l.isPhone ? 34 : 42, lineHeight: l.isPhone ? 39 : 48, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     scoreOutOf: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     scoreMeta: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 5 },
-    scoreCount: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    scoreCount: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     distributionList: { gap: 9 },
     distributionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     distributionLabel: {
-      ...type.micro,
+      ...type.caption,
       color: t.textMuted,
       fontWeight: '700',
       width: 54,
@@ -1714,7 +1714,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 0,
     },
     distributionValue: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       fontWeight: '800',
       width: 36,

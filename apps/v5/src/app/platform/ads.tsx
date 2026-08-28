@@ -25,7 +25,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -1777,7 +1777,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 'auto',
     },
     countLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    countValue: { fontSize: l.isPhone ? 17 : 20, lineHeight: l.isPhone ? 22 : 25, fontWeight: '800', color: t.text },
+    countValue: { fontSize: l.isPhone ? 17 : 20, lineHeight: l.isPhone ? 22 : 25, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     countDelta: { ...type.micro, fontWeight: '800' },
 
     approvalRow: {
@@ -1871,7 +1871,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 13,
       gap: 4,
     },
-    figureValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 30 : 33, fontWeight: '800' },
+    figureValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 30 : 33, fontWeight: '800' , fontFamily: FONT_SANS },
     figureLabel: { ...type.micro, color: t.textMuted, fontWeight: '600' },
 
     quoteCard: {
@@ -2022,7 +2022,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       padding: l.isPhone ? 16 : 22,
     },
     ring: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-    ringValue: { fontSize: l.isPhone ? 21 : 24, lineHeight: l.isPhone ? 26 : 29, fontWeight: '800', color: t.text },
+    ringValue: { fontSize: l.isPhone ? 21 : 24, lineHeight: l.isPhone ? 26 : 29, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     ringLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     brandStripCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
     brandStripTitle: {},
@@ -2089,7 +2089,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     audienceHubTitle: { ...type.h4, color: t.text },
-    audienceHubValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800', color: t.brand },
+    audienceHubValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800', color: t.brand , fontFamily: FONT_SANS },
     audienceChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4 },
     audienceChip: {
       ...type.micro,

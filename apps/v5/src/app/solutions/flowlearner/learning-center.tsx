@@ -16,7 +16,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -1560,7 +1560,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 6,
       minWidth: 0,
     },
-    backLinkText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    backLinkText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     pressed: { opacity: 0.82 },
     heroTitle: { marginTop: 14 },
     heroBody: { marginTop: 14, maxWidth: 560 },
@@ -1598,8 +1598,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       maxWidth: 560,
     },
     factLabel: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 14,
+      fontFamily: FONT_SANS,
+      lineHeight: 16,
       letterSpacing: 1.1,
       fontWeight: '800',
       color: t.chipText,
@@ -1645,7 +1646,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     portalHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     portalTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    portalSub: { ...type.micro, color: t.textSubtle },
+    portalSub: { ...type.caption, color: t.textSubtle },
     portalFace: { width: 32, height: 32, flexGrow: 0, flexShrink: 0 },
 
     resumeCard: {
@@ -1677,7 +1678,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.brand, 0.92),
     },
     resumeCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 5 },
-    resumeKicker: { ...type.micro, color: t.textSubtle, fontWeight: '700', letterSpacing: 0.5 },
+    resumeKicker: { ...type.caption, color: t.textSubtle, fontWeight: '700', letterSpacing: 0.5 },
     resumeTitle: { ...type.caption, color: t.text, fontWeight: '800' },
     resumeTrack: {
       height: 6,
@@ -1686,7 +1687,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     resumeFill: { height: 6, borderRadius: 3, backgroundColor: t.brand },
-    resumeMeta: { ...type.micro, color: t.textSubtle },
+    resumeMeta: { ...type.caption, color: t.textSubtle },
     resumeButton: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1721,7 +1722,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     courseArt: { width: '100%', height: l.isPhone ? 92 : 66, marginBottom: 4 },
     courseTitle: { ...type.caption, color: t.text, fontWeight: '800' },
-    courseMeta: { ...type.micro, color: t.textSubtle },
+    courseMeta: { ...type.caption, color: t.textSubtle },
     courseTrack: {
       marginTop: 5,
       height: 5,
@@ -1730,7 +1731,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     courseFill: { height: 5, borderRadius: 3 },
-    courseState: { ...type.micro, fontWeight: '800' },
+    courseState: { ...type.caption, fontWeight: '800' },
 
     playerRow: {
       flexDirection: l.isPhone ? 'column' : 'row',
@@ -1782,7 +1783,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0, gap: 6 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 6 },
     chapterHead: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.6,
@@ -1812,8 +1813,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     chapterDotDone: { backgroundColor: t.successBg },
     chapterDotActive: { backgroundColor: t.brand },
-    chapterLabel: { ...type.micro, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    chapterTime: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    chapterLabel: { ...type.caption, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    chapterTime: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
 
     /* -------------------------------------------------- certificate */
     certCard: {
@@ -1837,7 +1838,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     certKicker: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 1.4,
@@ -1845,6 +1846,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     certName: {
       fontSize: l.isPhone ? 24 : 30,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 30 : 38,
       fontWeight: '800',
       color: t.text,
@@ -1852,6 +1854,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     certNameCompact: {
       fontSize: l.isPhone ? 18 : 20,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 24 : 26,
       fontWeight: '800',
       color: t.text,
@@ -1870,8 +1873,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignSelf: 'stretch',
     },
     certFootItem: { alignItems: 'center', gap: 2, minWidth: 0 },
-    certFootLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    certFootValue: { ...type.micro, color: t.text, fontWeight: '800' },
+    certFootLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    certFootValue: { ...type.caption, color: t.text, fontWeight: '800' },
 
     certStage: {
       ...cardBase,
@@ -1892,7 +1895,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     certFace: { width: 36, height: 36, flexGrow: 0, flexShrink: 0 },
     certOwnerName: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    certOwnerMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    certOwnerMeta: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
 
     /* -------------------------------------------------- section heads */
     head: { gap: 11, alignItems: 'flex-start' },
@@ -1955,7 +1958,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     panelTitle: { ...type.bodySm, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    panelMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    panelMeta: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
 
     rowList: { gap: 10, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
     rowItem: {
@@ -2001,7 +2004,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 7,
       minWidth: 0,
     },
-    controlChipText: { ...type.micro, color: t.textMuted, fontWeight: '700' },
+    controlChipText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
     transcriptBlock: {
       borderLeftWidth: 3,
       borderLeftColor: t.brand,
@@ -2011,7 +2014,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 11,
       gap: 4,
     },
-    transcriptTime: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800' },
+    transcriptTime: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
     transcriptText: { ...type.caption, color: t.textMuted },
 
     /* -------------------------------------------------- quizzes */
@@ -2033,7 +2036,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 8,
       minWidth: 0,
     },
-    typeChipText: { ...type.micro, color: t.chipText, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    typeChipText: { ...type.caption, color: t.chipText, fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     questionText: { ...type.bodySm, color: t.text, fontWeight: '700' },
     optionList: { gap: 8 },
@@ -2083,6 +2086,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     scoreTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     scoreValue: {
       fontSize: l.isPhone ? 30 : 38,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 36 : 46,
       fontWeight: '800',
       color: t.text,
@@ -2112,7 +2116,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     scoreFill: { height: 10, borderRadius: 5, backgroundColor: t.green },
     scoreMark: { position: 'absolute', left: '70%', top: 0, bottom: 0, width: 2, backgroundColor: t.textSubtle },
-    scoreLegend: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    scoreLegend: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     scoreRows: { marginTop: 4, gap: 8 },
     scoreRow: {
       flexDirection: 'row',
@@ -2135,11 +2139,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     ring: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
     ringValue: {
       fontSize: l.isPhone ? 24 : 27,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 29 : 33,
       fontWeight: '800',
       color: t.text,
     },
-    ringCaption: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    ringCaption: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     dashStats: l.isPhone
       ? { width: '100%', minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginVertical: -4 }
       : {
@@ -2163,8 +2168,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 11,
       gap: 2,
     },
-    progressValue: { fontSize: l.isPhone ? 20 : 23, lineHeight: l.isPhone ? 25 : 28, fontWeight: '800' },
-    progressLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    progressValue: { fontSize: l.isPhone ? 20 : 23, lineHeight: l.isPhone ? 25 : 28, fontWeight: '800' , fontFamily: FONT_SANS },
+    progressLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
 
     nextRow: {
       flexDirection: 'row',
@@ -2189,7 +2194,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brandSoft,
     },
     nextCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
-    nextLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    nextLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     nextTitle: { ...type.caption, color: t.text, fontWeight: '800' },
 
     badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginVertical: -4 },
@@ -2213,17 +2218,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    badgeLabel: { ...type.micro, color: t.textMuted, fontWeight: '700', textAlign: 'center' },
+    badgeLabel: { ...type.caption, color: t.textMuted, fontWeight: '700', textAlign: 'center' },
     goalRow: { gap: 7 },
-    goalLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    goalLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     goalTrack: { height: 8, borderRadius: 4, backgroundColor: t.surfaceInset, overflow: 'hidden' },
     goalFill: { height: 8, borderRadius: 4, backgroundColor: t.violet },
 
     /* -------------------------------------------------- selling */
     priceCard: { ...cardBase, ...cardFill, gap: 4 },
     priceTitle: { ...type.bodySm, color: t.text, fontWeight: '800', marginTop: 4 },
-    priceValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 30 : 34, fontWeight: '800' },
-    priceCadence: { ...type.micro, color: t.textSubtle, marginBottom: 6 },
+    priceValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 30 : 34, fontWeight: '800' , fontFamily: FONT_SANS },
+    priceCadence: { ...type.caption, color: t.textSubtle, marginBottom: 6 },
 
     commerceCard: {
       ...cardBase,

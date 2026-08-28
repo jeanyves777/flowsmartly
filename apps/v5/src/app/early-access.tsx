@@ -6,7 +6,7 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Card,
@@ -622,7 +622,8 @@ function createStyles(t: ThemeTokens, l: Layout, ts: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 10,
       color: t.text,
-      fontSize: 15,
+      fontSize: 15,
+      fontFamily: FONT_SANS,
     },
     inputMultiline: {
       // An explicit height, not just minHeight: on web a multiline input

@@ -519,7 +519,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 0,
     },
     consoleTitle: { ...type.h4, color: t.text },
-    consoleSub: { ...type.micro, color: t.textMuted, marginTop: 2 },
+    consoleSub: { ...type.caption, color: t.textMuted, marginTop: 2 },
     live: { color: t.successText },
     livePill: {
       flexGrow: 0,
@@ -531,7 +531,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
-    livePillText: { ...type.micro, color: t.successText, fontWeight: '700' },
+    livePillText: { ...type.caption, color: t.successText, fontWeight: '700' },
 
     /* console body ------------------------------------------------ */
     consoleMainRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
@@ -560,7 +560,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    initialText: { color: t.textOnBrand, fontWeight: '700', fontSize: 13 },
+    initialText: { ...type.caption, color: t.textOnBrand, fontWeight: '700' },
     callerName: { ...type.bodySm, color: t.text, fontWeight: '700' },
     /** the reveal wrapper owns the row sizing so the timer keeps its place */
     timerWrap: { flexGrow: 0, flexShrink: 0 },
@@ -586,7 +586,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 10,
     },
     agentLine: { backgroundColor: t.surfaceMuted, borderColor: t.divider },
-    transcriptText: { ...type.micro, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    transcriptText: { ...type.caption, color: t.text, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
     speaker: { color: t.brand, fontWeight: '700' },
     speakerAgent: { color: t.violet, fontWeight: '700' },
 
@@ -660,7 +660,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minWidth: 0,
     },
     outcomeTitle: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       fontWeight: '700',
       textAlign: rows ? 'left' : 'center',
@@ -668,11 +668,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       minWidth: 0,
     },
-    outcomeValue: { ...type.micro, textAlign: rows ? 'left' : 'center' },
+    outcomeValue: { ...type.caption, textAlign: rows ? 'left' : 'center' },
     /** single column: the tick belongs to the title, not to a far-away corner */
     checkInlineWrap: { flexGrow: 0, flexShrink: 0 },
     checkAnchor: { position: 'absolute', right: 10, top: 10 },
-    checkGlyph: { color: t.successText, fontSize: 12, lineHeight: 16 },
+    checkGlyph: { ...type.caption, color: t.successText, lineHeight: 18 },
 
     /* modes ------------------------------------------------------- */
     agentModes: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
@@ -690,7 +690,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       minWidth: 0,
     },
-    modeText: { ...type.micro, color: t.text, fontWeight: '600' },
+    modeText: { ...type.caption, color: t.text, fontWeight: '600' },
 
     /* stats ------------------------------------------------------- */
     stats: {
@@ -716,7 +716,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 4,
     },
     statText: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
-    statLabel: { ...type.micro, color: t.textMuted },
+    statLabel: { ...type.caption, color: t.textMuted },
     statValue: { ...type.h3, color: t.text, marginTop: 2 },
   });
 }

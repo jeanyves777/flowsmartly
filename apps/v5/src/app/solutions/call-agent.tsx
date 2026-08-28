@@ -25,7 +25,7 @@ import { Animated, Reveal, useCountUp, useReducedMotion } from '@/components/pub
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -1453,7 +1453,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.pink },
     liveText: { ...type.micro, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },
     timer: {
-      fontSize: l.isPhone ? 17 : 19,
+      fontSize: l.isPhone ? 17 : 19,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 22 : 24,
       fontWeight: '800',
       color: t.text,
@@ -1875,7 +1876,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     leadRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     ring: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-    ringValue: { fontSize: l.isPhone ? 21 : 24, lineHeight: l.isPhone ? 26 : 29, fontWeight: '800', color: t.text },
+    ringValue: { fontSize: l.isPhone ? 21 : 24, lineHeight: l.isPhone ? 26 : 29, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     ringLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     leadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 7 },
     leadChip: {
@@ -2057,7 +2058,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 'auto',
     },
-    statValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 29 : 33, fontWeight: '800' },
+    statValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 29 : 33, fontWeight: '800' , fontFamily: FONT_SANS },
     statLabel: { ...type.micro, color: t.textMuted, fontWeight: '600' },
 
     volumeWrap: { marginTop: l.isPhone ? 14 : 20 },
@@ -2106,7 +2107,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 8,
       ...(elevation(t, 2) as ViewStyle),
     },
-    priceValue: { fontSize: l.isPhone ? 44 : 54, lineHeight: l.isPhone ? 50 : 62, fontWeight: '800', color: t.text },
+    priceValue: { fontSize: l.isPhone ? 44 : 54, lineHeight: l.isPhone ? 50 : 62, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     pricePer: { ...type.bodySm, color: t.textMuted },
     priceDivider: { height: 1, backgroundColor: t.divider, marginVertical: 8 },
     priceFacts: { gap: 8 },

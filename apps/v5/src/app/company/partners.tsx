@@ -16,7 +16,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   PrimaryButton,
@@ -938,7 +938,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'space-between',
       gap: 14,
     },
-    statValue: { fontSize: l.isPhone ? 26 : 30, lineHeight: l.isPhone ? 32 : 36, fontWeight: '800' },
+    statValue: { fontSize: l.isPhone ? 26 : 30, lineHeight: l.isPhone ? 32 : 36, fontWeight: '800' , fontFamily: FONT_SANS },
     statLabel: { ...type.caption, color: t.textMuted, fontWeight: '600' },
     statLabelRow: { textAlign: 'right', flexShrink: 1, minWidth: 0 },
 

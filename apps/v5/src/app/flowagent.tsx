@@ -870,7 +870,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     ...(elevation(t, 1) as object),
   };
   const headCellBase: TextStyle = {
-    ...type.micro,
+    ...type.caption,
     color: t.textSubtle,
     fontWeight: '700',
     letterSpacing: 0.6,
@@ -939,7 +939,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.successBg,
     },
     commandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.successText },
-    commandChipText: { fontSize: 11, fontWeight: '800', color: t.successText },
+    commandChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
 
     tableHead: {
       flexDirection: 'row',
@@ -994,7 +994,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     stateCount: { ...type.h3, flexShrink: 1, minWidth: 0, textAlign: 'right' },
     stateLabel: { ...type.caption, color: t.text, fontWeight: '800' },
-    stateNote: { ...type.micro, color: t.textSubtle },
+    stateNote: { ...type.caption, color: t.textSubtle },
 
     oppList: { gap: 8 },
     // One row per queued item: icon, what it is and where it lands, and a
@@ -1022,7 +1022,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     queueCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     queueTitle: { ...type.caption, color: t.text, fontWeight: '700' },
-    queueWhere: { ...type.micro, color: t.textSubtle },
+    queueWhere: { ...type.caption, color: t.textSubtle },
 
     reviewButton: {
       minHeight: 44,
@@ -1039,7 +1039,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     reviewButtonPressed: { backgroundColor: t.surfaceInset },
-    reviewLabel: { fontSize: 12.5, fontWeight: '700', color: t.brand },
+    reviewLabel: { ...type.caption, fontWeight: '700', color: t.brand },
 
     commandFoot: {
       flexDirection: 'row',
@@ -1047,7 +1047,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 9,
       paddingTop: 4,
     },
-    commandFootText: { ...type.micro, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+    commandFootText: { ...type.caption, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- shared heads */
     head: { gap: 10, alignItems: l.isPhone ? 'flex-start' : 'center' },
@@ -1207,7 +1207,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     // not look like a feature list with ticks beside it.
     strategistCannotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
     strategistCannot: {
-      ...type.micro,
+      ...type.caption,
       color: t.warnText,
       backgroundColor: t.warnBg,
       fontWeight: '700',
@@ -1359,7 +1359,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     briefHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     briefTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    briefSub: { ...type.micro, color: t.textMuted },
+    briefSub: { ...type.caption, color: t.textMuted },
     briefList: { gap: 9 },
     briefRow: {
       flexDirection: 'row',
@@ -1387,7 +1387,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.chipBg,
     },
-    briefChipText: { fontSize: 12, fontWeight: '800', color: t.chipText },
+    briefChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
 
     briefCopy: stacked ? { width: '100%', minWidth: 0 } : { ...twoUp, paddingTop: 4 },
     briefCopyTitle: { marginTop: 14 },

@@ -16,6 +16,7 @@ import {
   SecondaryButton,
   SectionLabel,
   Band,
+  buildTypeScale,
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
@@ -486,7 +487,7 @@ export function IntegrationShelf() {
         {integrations.map(([icon, label, color]) => (
           <View key={label} style={styles.integration}>
             <BrandTile icon={icon} color={color} size={58} label={label} />
-            <Text style={[type.micro, styles.integrationLabel]} numberOfLines={1}>
+            <Text style={[type.caption, styles.integrationLabel]} numberOfLines={1}>
               {label}
             </Text>
           </View>
@@ -531,7 +532,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
                 {plan.name}
               </Text>
               {plan.featured ? (
-                <Text style={[type.micro, styles.popular]} numberOfLines={1}>
+                <Text style={[type.caption, styles.popular]} numberOfLines={1}>
                   Most popular
                 </Text>
               ) : null}
@@ -868,6 +869,7 @@ export function V5PublicFooter({
 const BRAND_COLUMN = 304;
 
 function createStyles(t: ThemeTokens, l: Layout) {
+  const type = buildTypeScale(l, t);
   const phone = l.isPhone;
   /** the story panel and the nav split into two rails above this width */
   const stacked = l.isStacked;
@@ -1118,7 +1120,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       overflow: 'hidden',
     },
     planPrice: { marginTop: 4 },
-    perMonth: { fontSize: 13, fontWeight: '600', color: t.textSubtle },
+    perMonth: { ...type.caption, fontWeight: '600', color: t.textSubtle },
     credits: { color: t.textSubtle },
     features: { gap: 9, marginTop: 16, marginBottom: 18 },
     featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, minWidth: 0 },

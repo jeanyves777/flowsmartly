@@ -16,7 +16,7 @@ import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { Reveal } from '@/components/public/motion';
 import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Heading,
   PrimaryButton,
   Band,
@@ -744,7 +744,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 13,
       paddingVertical: 11,
       color: t.text,
-      fontSize: 14,
+      fontSize: 14,
+      fontFamily: FONT_SANS,
     },
     /** a web textarea needs a real height, not a floor — see AGENTS rule 11 */
     inputMultiline: { height: 130, textAlignVertical: 'top' },
@@ -826,7 +827,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       /* full width on phone; at 1-up on tablet a 660px-wide CTA looks broken */
       alignSelf: helpColumns === 1 && !l.isPhone ? 'flex-start' : 'stretch',
     },
-    accentButtonLabel: { fontSize: 14, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    accentButtonLabel: { fontSize: 14, fontWeight: '700', flexShrink: 1, minWidth: 0 , fontFamily: FONT_SANS },
 
     /* -------------------------------------------------- closer */
     closerRow: {

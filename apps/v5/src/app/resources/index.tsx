@@ -26,7 +26,7 @@ import {
   organizationJsonLd,
   webSiteJsonLd,
 } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Heading,
   PrimaryButton,
   SecondaryButton,
@@ -1189,7 +1189,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* generic card copy -------------------------------------------- */
     cardTitle: { ...type.h4, color: t.text },
     cardBody: { ...type.bodySm, color: t.textMuted },
-    cardMeta: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
+    cardMeta: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
     /** the same row, rendered as a real anchor — RNW anchors are inline by
@@ -1221,9 +1221,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       textDecorationLine: 'none',
     },
     resultCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    resultKind: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    resultKind: { ...type.caption, color: t.textSubtle, fontWeight: '800' },
     resultTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
-    resultBody: { ...type.micro, color: t.textMuted },
+    resultBody: { ...type.caption, color: t.textMuted },
     emptyCard: {
       marginTop: 20,
       alignItems: 'flex-start',
@@ -1237,10 +1237,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     chip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
-    chipText: { ...type.micro, fontWeight: '800' },
+    chipText: { ...type.caption, fontWeight: '800' },
 
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
-    metaText: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    metaText: { ...type.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
     metaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: t.borderStrong },
 
     /* categories --------------------------------------------------- */
@@ -1307,7 +1307,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.chipBg,
     },
-    guideIndexText: { ...type.micro, color: t.chipText, fontWeight: '800' },
+    guideIndexText: { ...type.caption, color: t.chipText, fontWeight: '800' },
     guideText: {
       ...type.bodySm,
       color: t.text,
@@ -1330,7 +1330,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     academyHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     academyHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 4 },
     meterTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    meterLabel: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    meterLabel: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     meterValue: { ...type.bodySm, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     meterTrack: {
       height: 8,
@@ -1394,13 +1394,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    methodChipText: { ...mono, fontSize: 11, fontWeight: '800', color: t.textOnBrand },
+    methodChipText: { ...mono, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.6, color: t.textOnBrand , fontFamily: FONT_SANS },
     codePath: { ...type.caption, ...mono },
     /** the scroll content: a column of unwrapped lines, sized by the widest one */
     codeBody: { flexDirection: 'column', alignItems: 'flex-start', gap: 2, paddingBottom: 2 },
     codeText: {
       ...mono,
       fontSize: codeSize,
+      fontFamily: FONT_SANS,
       lineHeight: Math.round(codeSize * 1.7),
       // sized by its own content — the horizontal scroller provides the room
       flexGrow: 0,
@@ -1426,7 +1427,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     integrationCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     integrationName: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    integrationBody: { ...type.micro, color: t.textMuted },
+    integrationBody: { ...type.caption, color: t.textMuted },
 
     /* changelog ---------------------------------------------------- */
     changeCard: {
@@ -1452,7 +1453,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     newsletterTitle: { ...type.h2, textAlign: 'center' },
     newsletterBody: { ...type.body, textAlign: 'center', maxWidth: 560 },
-    newsletterFine: { ...type.micro, color: t.textSubtle },
+    newsletterFine: { ...type.caption, color: t.textSubtle },
   });
 
   return { ...sheet, featuredImage, articleImage };

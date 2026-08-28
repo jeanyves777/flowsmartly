@@ -17,7 +17,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   PrimaryButton,
@@ -1496,8 +1496,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       maxWidth: 540,
     },
     factLabel: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 12,
+      fontFamily: FONT_SANS,
+      lineHeight: 16,
       letterSpacing: 1.1,
       fontWeight: '800',
       color: t.chipText,
@@ -1564,9 +1565,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     railDotDone: { backgroundColor: t.green, borderColor: t.green },
     railDotCurrent: { backgroundColor: t.brandSoft, borderColor: t.brand },
-    railDotText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.textSubtle },
+    railDotText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.textSubtle },
     railDotTextCurrent: { color: t.brand },
-    railLabel: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    railLabel: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     railLabelCurrent: { color: t.text },
 
     workspaceSplit: {
@@ -1579,7 +1580,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     panel: panelBase,
     panelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     panelTitle: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    panelMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    panelMeta: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
 
     momentList: { gap: 6 },
     momentRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 0 },
@@ -1593,10 +1594,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.brandSoft,
     },
-    momentIndexText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.brand },
+    momentIndexText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.brand },
     momentCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
-    momentTitle: { ...type.micro, color: t.text, fontWeight: '800' },
-    momentNote: { ...type.micro, color: t.textSubtle },
+    momentTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    momentNote: { ...type.caption, color: t.textSubtle },
 
     canvas: {
       borderWidth: 1,
@@ -1608,7 +1609,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 6,
     },
     canvasNote: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
-    canvasNoteText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    canvasNoteText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     chartBox: { width: '100%', minWidth: 0 },
 
     toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
@@ -1638,7 +1639,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.successBg,
     },
     readyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.successText },
-    readyChipText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.successText },
+    readyChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
 
     fieldRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     field: {
@@ -1654,7 +1655,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
-    fieldLabel: { ...type.micro, color: t.textSubtle },
+    fieldLabel: { ...type.caption, color: t.textSubtle },
     fieldValue: { ...type.caption, color: t.text, fontWeight: '800' },
 
     toggleGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3, marginVertical: -3 },
@@ -1677,7 +1678,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
-    toggleLabel: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    toggleLabel: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     toggleTrack: {
       width: 32,
       height: 18,
@@ -1714,18 +1715,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     centerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     centerCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 },
-    centerLabel: { ...type.micro, color: t.textMuted, fontWeight: '700' },
+    centerLabel: { ...type.caption, color: t.textMuted, fontWeight: '700' },
     centerTrack: { height: 6, borderRadius: 3, backgroundColor: t.surfaceInset, overflow: 'hidden' },
     centerFill: { height: 6, width: '65%' as DimensionValue, borderRadius: 3, backgroundColor: t.green },
     centerValue: { ...type.bodySm, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     centerNote: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
-    centerNoteText: { ...type.micro, color: t.successText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    centerNoteText: { ...type.caption, color: t.successText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- stat strip */
     stripHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
     stripLabel: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 12,
+      fontFamily: FONT_SANS,
+      lineHeight: 16,
       letterSpacing: 1.2,
       fontWeight: '800',
       color: t.chipText,
@@ -1757,15 +1759,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    statLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    statLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     statValue: {
-      fontSize: l.isPhone ? 20 : 24,
+      fontSize: l.isPhone ? 20 : 24,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 26 : 30,
       fontWeight: '800',
       color: t.text,
     },
     statDeltaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    statDelta: { ...type.micro, color: t.successText, fontWeight: '800' },
+    statDelta: { ...type.caption, color: t.successText, fontWeight: '800' },
 
     /* -------------------------------------------------- shared heads */
     head: { gap: 10, alignItems: l.isPhone ? 'flex-start' : 'center' },
@@ -1787,7 +1790,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     areaHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    areaIndex: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
+    areaIndex: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
     areaTitle: { marginTop: 1 },
     areaBody: { ...type.bodySm, color: t.textMuted },
 
@@ -1814,7 +1817,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.chipBg,
     },
-    mockChipText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.chipText },
+    mockChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
     mockPanel: {
       borderWidth: 1,
       borderColor: t.border,
@@ -1835,7 +1838,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     mockFill: { height: 6, borderRadius: 3 },
     mockFootRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    mockFootText: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    mockFootText: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
 
     slideRail: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     slideThumb: {
@@ -1852,8 +1855,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 9,
     },
     slideThumbTop: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
-    slideThumbIndex: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.brand, flexGrow: 0, flexShrink: 0 },
-    slideThumbLabel: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    slideThumbIndex: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.brand, flexGrow: 0, flexShrink: 0 },
+    slideThumbLabel: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     slideLineWide: { height: 5, borderRadius: 3, backgroundColor: t.surfaceInset },
     slideLine: { height: 5, width: '62%' as DimensionValue, borderRadius: 3, backgroundColor: t.surfaceInset },
 
@@ -1872,7 +1875,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.pink, 0.92),
     },
     liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: t.textOnBrand },
-    liveBadgeText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.textOnBrand, letterSpacing: 0.6 },
+    liveBadgeText: { fontSize: 12, lineHeight: 16, fontWeight: '800', color: t.textOnBrand, letterSpacing: 0.6 , fontFamily: FONT_SANS },
     presenterName: {
       position: 'absolute',
       bottom: 8,
@@ -1884,12 +1887,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       maxWidth: '86%' as DimensionValue,
     },
     // Sits on a dark scrim over the presenter's video, not on a brand fill.
-    presenterNameText: { fontSize: 11, lineHeight: 15, fontWeight: '700', color: t.textOnScrim },
+    presenterNameText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.textOnScrim },
 
     participantRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     participant: { alignItems: 'center', gap: 4, flexGrow: 0, flexShrink: 0, width: 46 },
     participantAvatar: { width: 28, height: 28 },
-    participantName: { fontSize: 11, lineHeight: 14, color: t.textSubtle, fontWeight: '600' },
+    participantName: { ...type.caption, lineHeight: 18, color: t.textSubtle, fontWeight: '600' },
     participantMore: {
       width: 28,
       height: 28,
@@ -1900,7 +1903,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.surfaceInset,
     },
-    participantMoreText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.textMuted },
+    participantMoreText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.textMuted },
 
     certificateCard: {
       flexDirection: 'row',
@@ -1924,19 +1927,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
     },
     certificateCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    certificateTitle: { ...type.micro, color: t.text, fontWeight: '800' },
-    certificateMeta: { ...type.micro, color: t.textSubtle },
+    certificateTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    certificateMeta: { ...type.caption, color: t.textSubtle },
 
     donutRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     donutWrap: { width: 82, height: 82, flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
     donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-    donutValue: { fontSize: 13, lineHeight: 17, fontWeight: '800', color: t.text },
-    donutLabel: { fontSize: 11, lineHeight: 14, color: t.textSubtle },
+    donutValue: { ...type.bodySm, lineHeight: 20, fontWeight: '800', color: t.text },
+    donutLabel: { ...type.caption, lineHeight: 17, color: t.textSubtle },
     donutLegend: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
     legendSwatch: { width: 9, height: 9, borderRadius: 3, flexGrow: 0, flexShrink: 0 },
-    legendText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    legendValue: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    legendText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    legendValue: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
 
     completionTile: {
       flexDirection: 'row',

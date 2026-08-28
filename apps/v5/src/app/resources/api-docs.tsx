@@ -17,7 +17,7 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Card,
   Heading,
@@ -1097,7 +1097,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     featureCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
     featureTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
-    featureBody: { ...type.micro, color: t.textMuted },
+    featureBody: { ...type.caption, color: t.textMuted },
 
     /* code card ---------------------------------------------------- */
     codeCard: {
@@ -1148,7 +1148,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     codeLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     codeGutter: {
       ...mono,
-      fontSize: codeSize,
+      fontSize: codeSize,
+      fontFamily: FONT_SANS,
       lineHeight: Math.round(codeSize * 1.7),
       width: 22,
       textAlign: 'right',
@@ -1157,7 +1158,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     codeText: {
       ...mono,
-      fontSize: codeSize,
+      fontSize: codeSize,
+      fontFamily: FONT_SANS,
       lineHeight: Math.round(codeSize * 1.7),
       // sized by its own content — the horizontal scroller provides the room
       flexGrow: 0,
@@ -1174,7 +1176,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 0,
     },
     methodChipGet: { backgroundColor: t.green },
-    methodChipText: { ...mono, fontSize: 11, fontWeight: '800', color: t.textOnBrand },
+    methodChipText: { ...mono, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.6, color: t.textOnBrand , fontFamily: FONT_SANS },
 
     /* generic cards ------------------------------------------------ */
     quickCard: {
@@ -1234,8 +1236,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    monogramText: { ...mono, fontSize: 17, fontWeight: '800' },
-    installText: { ...type.micro, ...mono, color: t.textSubtle },
+    monogramText: { ...mono, fontSize: 17, fontWeight: '800' , fontFamily: FONT_SANS },
+    installText: { ...type.caption, ...mono, color: t.textSubtle },
 
     /* panels ------------------------------------------------------- */
     panelCard: {
@@ -1297,7 +1299,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     paramRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     paramCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     paramName: { ...type.bodySm, ...mono, color: t.text, fontWeight: '700' },
-    paramHint: { ...type.micro, color: t.textSubtle },
+    paramHint: { ...type.caption, color: t.textSubtle },
     paramInput: {
       ...type.bodySm,
       ...mono,
@@ -1330,8 +1332,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     eventDot: { width: 9, height: 9, borderRadius: 5, marginTop: 6, flexGrow: 0, flexShrink: 0 },
     eventCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     eventName: { ...type.bodySm, ...mono, color: t.text, fontWeight: '700' },
-    eventBody: { ...type.micro, color: t.textMuted },
-    footnote: { ...type.micro, color: t.textSubtle },
+    eventBody: { ...type.caption, color: t.textMuted },
+    footnote: { ...type.caption, color: t.textSubtle },
 
     /* closing ------------------------------------------------------ */
     closing: { alignItems: 'center' },

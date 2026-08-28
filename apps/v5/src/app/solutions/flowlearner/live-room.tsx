@@ -18,7 +18,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -420,7 +420,7 @@ function MockGoLive({ label, icon, t }: { label: string; icon: string; t: ThemeT
           gap: 9,
         }}>
         <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand} />
-        <Text style={{ color: t.textOnBrand, fontSize: 15, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color: t.textOnBrand, fontSize: 15, fontWeight: '700' , fontFamily: FONT_SANS }}>{label}</Text>
       </LinearGradient>
     </View>
   );
@@ -1513,7 +1513,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   return StyleSheet.create({
     pressed: { opacity: 0.82 },
     paneLabel: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.6,
@@ -1588,9 +1588,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.pink, t.ground === 'light' ? 0.12 : 0.2),
     },
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.pink },
-    liveText: { ...type.micro, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },
+    liveText: { ...type.caption, color: accentText(t.pink, t), fontWeight: '800', letterSpacing: 0.8 },
     timer: {
       fontSize: l.isPhone ? 17 : 19,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 22 : 24,
       fontWeight: '800',
       color: t.text,
@@ -1606,7 +1607,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'flex-end',
       gap: 7,
     },
-    headCountText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    headCountText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     roomBody: { flexDirection: roomStacked ? 'column' : 'row', alignItems: 'stretch', gap: 12 },
     stage: roomStacked
@@ -1640,7 +1641,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: hexToRgba(t.brand, 0.92),
     },
-    presenterName: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.textOnBrand },
+    presenterName: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.textOnBrand },
     speakingRing: {
       position: 'absolute',
       top: 0,
@@ -1681,7 +1682,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.orange, t),
     },
     drawingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.orange },
-    drawingChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.orange },
+    drawingChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.orange },
     boardCanvas: {
       borderWidth: 1,
       borderColor: t.border,
@@ -1705,8 +1706,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 8,
     },
-    boardShapeText: { ...type.micro, color: t.text, fontWeight: '800' },
-    boardCaption: { ...type.micro, color: t.textSubtle },
+    boardShapeText: { ...type.caption, color: t.text, fontWeight: '800' },
+    boardCaption: { ...type.caption, color: t.textSubtle },
 
     side: roomStacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 10 }
@@ -1720,13 +1721,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 9,
     },
     panelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    panelCount: { ...type.micro, color: t.textMuted, fontWeight: '800' },
+    panelCount: { ...type.caption, color: t.textMuted, fontWeight: '800' },
     participantList: { gap: 7 },
     participantRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     participantAvatar: { width: 26, height: 26, flexGrow: 0, flexShrink: 0 },
     participantCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 1 },
-    participantName: { ...type.micro, color: t.text, fontWeight: '700' },
-    participantRole: { ...type.micro, fontWeight: '700' },
+    participantName: { ...type.caption, color: t.text, fontWeight: '700' },
+    participantRole: { ...type.caption, fontWeight: '700' },
     handChip: {
       width: 20,
       height: 20,
@@ -1747,16 +1748,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.surfaceInset,
     },
-    participantMore: { ...type.micro, color: t.textSubtle, paddingTop: 2 },
+    participantMore: { ...type.caption, color: t.textSubtle, paddingTop: 2 },
 
     chatList: { gap: 9 },
     chatRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
     chatAvatar: { width: 22, height: 22, flexGrow: 0, flexShrink: 0 },
     chatCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     chatHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    chatName: { ...type.micro, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    chatTime: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
-    chatBody: { ...type.micro, color: t.textMuted },
+    chatName: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    chatTime: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    chatBody: { ...type.caption, color: t.textMuted },
 
     controlBar: {
       flexDirection: 'row',
@@ -1816,8 +1817,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       maxWidth: 540,
     },
     factLabel: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 14,
+      fontFamily: FONT_SANS,
+      lineHeight: 16,
       letterSpacing: 1.1,
       fontWeight: '800',
       color: t.chipText,
@@ -1905,7 +1907,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     panelCardCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     panelCardTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    panelCardMeta: { ...type.micro, color: t.textSubtle },
+    panelCardMeta: { ...type.caption, color: t.textSubtle },
 
     pollQuestion: { ...type.bodySm, color: t.text, fontWeight: '700' },
     pollList: { gap: 11 },
@@ -1942,7 +1944,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 12,
     },
-    reactionCount: { ...type.micro, color: t.text, fontWeight: '800' },
+    reactionCount: { ...type.caption, color: t.text, fontWeight: '800' },
 
     questionList: { gap: 8 },
     questionRow: {
@@ -1969,10 +1971,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
       paddingVertical: 6,
     },
-    voteCount: { ...type.micro, color: t.text, fontWeight: '800' },
+    voteCount: { ...type.caption, color: t.text, fontWeight: '800' },
     questionCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 3 },
     questionText: { ...type.caption, color: t.text, fontWeight: '600' },
-    questionWho: { ...type.micro, color: t.textSubtle },
+    questionWho: { ...type.caption, color: t.textSubtle },
     answeredChip: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1984,7 +1986,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.successBg,
     },
-    answeredChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.successText },
+    answeredChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
     handQueue: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1994,7 +1996,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 11,
     },
-    handQueueText: { ...type.micro, color: t.warnText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    handQueueText: { ...type.caption, color: t.warnText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- shared whiteboard */
     sharedBoardCard: {
@@ -2026,11 +2028,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.chipBg,
     },
-    lockChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.chipText },
+    lockChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
 
     penRoster: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
     penRosterLabel: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.6,
@@ -2052,7 +2054,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
     },
     penDot: { width: 8, height: 8, flexGrow: 0, flexShrink: 0, borderRadius: 4 },
-    penName: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    penName: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     sharedBoard: {
       minHeight: 210,
@@ -2078,13 +2080,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 12,
       backgroundColor: t.surfaceMuted,
     },
-    sharedShapeText: { ...type.micro, color: t.text, fontWeight: '800' },
+    sharedShapeText: { ...type.caption, color: t.text, fontWeight: '800' },
     cursor: { position: 'absolute', flexDirection: 'row', alignItems: 'flex-start', gap: 3 },
     cursorTag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-    cursorName: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.textOnBrand },
+    cursorName: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.textOnBrand },
     sharedBoardFootRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     sharedBoardFoot: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       flexGrow: 1,
       flexShrink: 1,
@@ -2115,7 +2117,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingBottom: 6,
     },
     matrixHeadCell: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.6,
@@ -2133,7 +2135,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     matrixRoleChip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
-    matrixRoleText: { fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    matrixRoleText: { fontSize: type.caption.fontSize, lineHeight: 18, fontWeight: '800' , fontFamily: FONT_SANS },
     matrixRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2168,7 +2170,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     breakoutHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     breakoutHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     breakoutTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    breakoutMeta: { ...type.micro, color: t.textSubtle },
+    breakoutMeta: { ...type.caption, color: t.textSubtle },
     breakoutTimer: {
       flexGrow: 0,
       flexShrink: 0,
@@ -2180,7 +2182,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.chipBg,
     },
-    breakoutTimerText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.chipText },
+    breakoutTimerText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
     roomGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -2205,7 +2207,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     roomCardHead: { flexDirection: 'row', alignItems: 'center' },
     roomBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-    roomBadgeText: { fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    roomBadgeText: { fontSize: type.caption.fontSize, lineHeight: 18, fontWeight: '800' , fontFamily: FONT_SANS },
     roomTopic: { ...type.caption, color: t.text, fontWeight: '600' },
     roomPeople: { flexDirection: 'row', alignItems: 'center' },
     roomAvatarWrap: {
@@ -2220,7 +2222,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     roomAvatarOverlap: { marginLeft: -8 },
     roomAvatar: { width: '100%', height: '100%' },
-    roomExtra: { ...type.micro, color: t.textSubtle, fontWeight: '700', marginLeft: 8 },
+    roomExtra: { ...type.caption, color: t.textSubtle, fontWeight: '700', marginLeft: 8 },
     breakoutFoot: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
 
     ghostButton: {
@@ -2237,7 +2239,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 16,
     },
-    ghostButtonText: { fontSize: 13, fontWeight: '700', color: t.brand },
+    ghostButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
     solidButton: {
       minHeight: 44,
       flexGrow: 0,
@@ -2248,7 +2250,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.chipBg,
       paddingHorizontal: 16,
     },
-    solidButtonText: { fontSize: 13, fontWeight: '700', color: t.chipText },
+    solidButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.chipText },
 
     /* -------------------------------------------------- replay */
     replayGrid: gridBase,
@@ -2266,7 +2268,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     replayHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     replayHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     replayTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    replayMeta: { ...type.micro, color: t.textSubtle },
+    replayMeta: { ...type.caption, color: t.textSubtle },
     recordedChip: {
       flexGrow: 0,
       flexShrink: 0,
@@ -2278,7 +2280,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.successBg,
     },
-    recordedChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.successText },
+    recordedChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
     scrubRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     scrubButton: {
       width: 34,
@@ -2308,7 +2310,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       height: 8,
       backgroundColor: t.surfaceRaised,
     },
-    scrubTime: { ...type.micro, color: t.textMuted, fontWeight: '700', flexGrow: 0, flexShrink: 0 },
+    scrubTime: { ...type.caption, color: t.textMuted, fontWeight: '700', flexGrow: 0, flexShrink: 0 },
     chapterList: { gap: 6 },
     chapterRow: {
       flexDirection: 'row',
@@ -2324,7 +2326,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexWrap: 'wrap',
     },
     chapterRowActive: { borderColor: hexToRgba(t.brand, 0.5), backgroundColor: t.brandSoft },
-    chapterTime: { ...type.micro, color: t.textMuted, fontWeight: '800', flexGrow: 0, flexShrink: 0, width: 42 },
+    chapterTime: { ...type.caption, color: t.textMuted, fontWeight: '800', flexGrow: 0, flexShrink: 0, width: 42 },
     chapterLabel: { ...type.caption, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     chapterChip: {
       flexGrow: 0,
@@ -2334,7 +2336,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.chipBg,
     },
-    chapterChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.chipText },
+    chapterChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
     clipButton: {
       flexGrow: 0,
       flexShrink: 0,
@@ -2349,7 +2351,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceRaised,
       paddingHorizontal: 12,
     },
-    clipButtonText: { fontSize: 12, fontWeight: '700', color: t.brand },
+    clipButtonText: { ...type.caption, lineHeight: 18, fontWeight: '700', color: t.brand },
 
     /* -------------------------------------------------- setup */
     setupNote: {
@@ -2398,10 +2400,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.successBg,
     },
     readyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.successText },
-    readyChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.successText },
+    readyChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
     goLiveButton: { marginTop: 2 },
     setupTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    setupMeta: { ...type.micro, color: t.textSubtle },
+    setupMeta: { ...type.caption, color: t.textSubtle },
     setupList: { gap: 7 },
     setupRow: {
       flexDirection: 'row',
@@ -2427,7 +2429,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     setupRowCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     setupLabel: { ...type.caption, color: t.text, fontWeight: '700' },
-    setupValue: { ...type.micro, color: t.textSubtle },
+    setupValue: { ...type.caption, color: t.textSubtle },
     toggle: {
       width: 40,
       height: 24,
@@ -2489,7 +2491,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     summaryHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0, gap: 2 },
     summaryTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    summaryMeta: { ...type.micro, color: t.textSubtle },
+    summaryMeta: { ...type.caption, color: t.textSubtle },
     summaryRows: { gap: 7 },
     summaryRow: {
       flexDirection: 'row',

@@ -17,7 +17,7 @@ import { Animated, Reveal, useCountUp, useGrowIn } from '@/components/public/mot
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Card,
   Heading,
@@ -1015,7 +1015,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    numberText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: t.chipText },
+    numberText: { ...type.caption, lineHeight: 18, fontWeight: '800', letterSpacing: 0.8, color: t.chipText },
     cardTitle: { ...type.h4, color: t.text },
     cardBody: { ...type.bodySm, color: t.textMuted },
 
@@ -1108,8 +1108,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     scoreTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
     scoreLabel: { ...type.bodySm, fontWeight: '800', color: t.text, flexGrow: 1, flexShrink: 1, minWidth: 0 },
     scoreValue: { ...type.h4, flexGrow: 0, flexShrink: 0 },
-    scoreOutOf: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    scoreCaption: { ...type.micro, color: t.textMuted },
+    scoreOutOf: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    scoreCaption: { ...type.caption, color: t.textMuted },
     meterTrack: {
       height: 7,
       borderRadius: 4,
@@ -1121,7 +1121,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     assessFoot: { gap: 10 },
     assessNote: { flexDirection: 'row', alignItems: 'center', gap: 7, justifyContent: 'center' },
-    footnote: { ...type.micro, color: t.textSubtle },
+    footnote: { ...type.caption, color: t.textSubtle },
 
     /* 5 — course to capability -------------------------------------- */
     capabilityRow: {
@@ -1260,7 +1260,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    betaText: { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: t.chipText },
+    betaText: { fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1, color: t.chipText , fontFamily: FONT_SANS },
 
     assistantBubble: {
       borderWidth: 1,
@@ -1281,10 +1281,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 6,
     },
     safetyHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    safetyTitle: { ...type.micro, fontWeight: '800', color: t.warnText, letterSpacing: 0.4 },
+    safetyTitle: { ...type.caption, fontWeight: '800', color: t.warnText, letterSpacing: 0.4 },
     safetyBody: { ...type.caption, color: t.warnText },
     safetyLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 24 },
-    safetyLinkText: { ...type.micro, fontWeight: '800', color: t.warnText },
+    safetyLinkText: { ...type.caption, fontWeight: '800', color: t.warnText },
 
     askRow: {
       minHeight: 44,

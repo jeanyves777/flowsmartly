@@ -10,7 +10,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   PrimaryButton,
@@ -1295,9 +1295,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     plannerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     plannerBarCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     plannerTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    plannerSub: { ...type.micro, color: t.textSubtle },
+    plannerSub: { ...type.caption, color: t.textSubtle },
     plannerChip: { ...chipBase, flexShrink: 0, backgroundColor: t.chipBg },
-    plannerChipText: { ...type.micro, color: t.chipText, fontWeight: '800' },
+    plannerChipText: { ...type.caption, color: t.chipText, fontWeight: '800' },
 
     plannerBody: {
       flexDirection: l.isCompact ? 'column' : 'row',
@@ -1325,8 +1325,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'baseline',
       gap: 5,
     },
-    dayName: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
-    dayDate: { ...type.micro, color: t.text, fontWeight: '800' },
+    dayName: { ...type.caption, color: t.textSubtle, fontWeight: '800' },
+    dayDate: { ...type.caption, color: t.text, fontWeight: '800' },
     slotList: {
       flexGrow: 1,
       flexShrink: 1,
@@ -1345,13 +1345,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderStyle: 'dashed',
     },
     slotImage,
-    slotTime: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
-    slotDraftTag: { ...type.micro, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    slotTime: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    slotDraftTag: { ...type.caption, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
 
     previewColumn: l.isCompact
       ? { width: '100%', minWidth: 0, gap: 7 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 7 },
-    previewLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    previewLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
     /**
      * Name and stats on the header line, caption on its own — the way the
      * networks themselves render a post. Keeping the caption beside the name
@@ -1383,7 +1383,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     previewName: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       fontWeight: '800',
       flexGrow: 1,
@@ -1391,10 +1391,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 'auto',
       minWidth: 0,
     },
-    previewCaption: { ...type.micro, color: t.textSubtle, flexBasis: '100%', width: '100%' },
+    previewCaption: { ...type.caption, color: t.textSubtle, flexBasis: '100%', width: '100%' },
     previewStats: { flexGrow: 0, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
     previewStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    previewStatText: { ...type.micro, color: t.textMuted, fontWeight: '700' },
+    previewStatText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
 
     /* -------------------------------------------------- numbered heads */
     headLeft: { gap: 11, alignItems: 'flex-start' },
@@ -1412,7 +1412,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderWidth: 1,
       borderColor: hexToRgba(t.brand, 0.35),
     },
-    stepBadgeText: { fontSize: 13, lineHeight: 17, fontWeight: '800', color: t.brand },
+    stepBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.brand },
     headTitleCentered: { textAlign: l.isPhone ? 'left' : 'center' },
     headSub: { maxWidth: 560 },
     headSubCentered: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 680 },
@@ -1460,7 +1460,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       padding: l.isPhone ? 14 : 18,
       gap: 11,
     },
-    coverLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    coverLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
     coverRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     coverChip: {
       flexGrow: 0,
@@ -1476,7 +1476,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 11,
       paddingVertical: 7,
     },
-    coverChipText: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    coverChipText: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- publishing rights */
     rightsCard: {
@@ -1487,10 +1487,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       padding: l.isPhone ? 13 : 15,
       gap: 10,
     },
-    rightsLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    rightsLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
     rightsRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-    rightsRole: { ...type.micro, color: t.text, fontWeight: '800', width: 78, flexGrow: 0, flexShrink: 0 },
-    rightsNote: { ...type.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    rightsRole: { ...type.caption, color: t.text, fontWeight: '800', width: 78, flexGrow: 0, flexShrink: 0 },
+    rightsNote: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- generic panel */
     panel: {
@@ -1515,7 +1515,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     panelHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     panelTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    panelSub: { ...type.micro, color: t.textSubtle },
+    panelSub: { ...type.caption, color: t.textSubtle },
 
     hintRow: {
       flexDirection: 'row',
@@ -1526,8 +1526,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 10,
     },
-    hintText: { ...type.micro, color: t.warnText, fontWeight: '600', flexShrink: 1, minWidth: 0 },
-    hintTextBrand: { ...type.micro, color: t.chipText, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+    hintText: { ...type.caption, color: t.warnText, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+    hintTextBrand: { ...type.caption, color: t.chipText, fontWeight: '600', flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- queue */
     queueList: { gap: 8 },
@@ -1542,7 +1542,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 11,
       paddingVertical: 10,
     },
-    queueTime: { ...type.micro, color: t.textMuted, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    queueTime: { ...type.caption, color: t.textMuted, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     queueThumb,
     queueThumbBlank: {
       width: 38,
@@ -1555,9 +1555,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceInset,
     },
     queueCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
-    queueTitle: { ...type.micro, color: t.text, fontWeight: '800' },
+    queueTitle: { ...type.caption, color: t.text, fontWeight: '800' },
     queueMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    queueStatus: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    queueStatus: { ...type.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- adapt */
     tabRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1605,7 +1605,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     // The ratio pill wraps under the name rather than squeezing it: at 1120 a
     // third of the row is 128px, and "Video cover" needs 70 of it.
     adaptHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 9, rowGap: 6 },
-    adaptTitle: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    adaptTitle: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     adaptRatio: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1614,7 +1614,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 3,
       backgroundColor: t.chipBg,
     },
-    adaptRatioText: { ...type.micro, color: t.chipText, fontWeight: '800' },
+    adaptRatioText: { ...type.caption, color: t.chipText, fontWeight: '800' },
     adaptImage,
     adaptCaption: { ...type.caption, color: t.textMuted },
 
@@ -1640,9 +1640,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: softFill(t.green, t),
     },
-    optimizedText: { ...type.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    optimizedText: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
     optimizedTag: {
-      ...type.micro,
+      ...type.caption,
       color: t.successText,
       fontWeight: '800',
       flexGrow: 0,
@@ -1666,8 +1666,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 8,
     },
     filterChipActive: { borderColor: hexToRgba(t.brand, 0.5), backgroundColor: t.brandSoft },
-    filterText: { ...type.micro, color: t.textMuted, fontWeight: '700' },
-    filterCount: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    filterText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
+    filterCount: { ...type.caption, color: t.textSubtle, fontWeight: '800' },
     filterTextActive: { color: t.brand },
 
     inboxList: { gap: 8 },
@@ -1685,9 +1685,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     inboxAvatar,
     inboxCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 4 },
     inboxTopRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
-    inboxName: { ...type.micro, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    inboxKind: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
-    inboxTime: { ...type.micro, color: t.textSubtle },
+    inboxName: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    inboxKind: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    inboxTime: { ...type.caption, color: t.textSubtle },
     inboxMessage: { ...type.caption, color: t.textMuted },
 
     composerRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
@@ -1788,15 +1788,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 'auto',
     },
-    statLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
+    statLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
     statValue: {
-      fontSize: l.isPhone ? 30 : 38,
+      fontSize: l.isPhone ? 30 : 38,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 36 : 44,
       fontWeight: '800',
       color: t.text,
     },
     statDelta: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: '100%' },
-    statDeltaText: { ...type.micro, fontWeight: '800' },
+    statDeltaText: { ...type.caption, fontWeight: '800' },
 
     recList: { marginTop: l.isPhone ? 14 : 18, gap: 9 },
     recRow: {
@@ -1831,7 +1832,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.chipBg,
     },
-    recTagText: { ...type.micro, color: t.chipText, fontWeight: '800' },
+    recTagText: { ...type.caption, color: t.chipText, fontWeight: '800' },
 
     /* -------------------------------------------------- ugc */
     ugcTabRow: {
@@ -1857,7 +1858,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     ugcTabActive: { borderColor: hexToRgba(t.brand, 0.5), backgroundColor: t.brandSoft },
     ugcTabText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
-    ugcTabCount: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    ugcTabCount: { ...type.caption, color: t.textSubtle, fontWeight: '800' },
     ugcTabTextActive: { color: t.brand },
 
     ugcGrid: { ...gridBase, marginTop: (l.isPhone ? 16 : 22) - half },
@@ -1874,8 +1875,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 'auto',
     },
     ugcImage,
-    ugcHandle: { ...type.micro, color: t.text, fontWeight: '800', paddingHorizontal: 2 },
-    ugcNote: { ...type.micro, color: t.textSubtle, paddingHorizontal: 2, paddingBottom: 2 },
+    ugcHandle: { ...type.caption, color: t.text, fontWeight: '800', paddingHorizontal: 2 },
+    ugcNote: { ...type.caption, color: t.textSubtle, paddingHorizontal: 2, paddingBottom: 2 },
 
     /* -------------------------------------------------- approvals */
     safetyGrid: { ...gridBase, marginTop: 22 - half },
@@ -1918,8 +1919,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     chainAvatar,
     chainCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    chainLabel: { ...type.micro, color: t.text, fontWeight: '800' },
-    chainPerson: { ...type.micro, color: t.textSubtle },
+    chainLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    chainPerson: { ...type.caption, color: t.textSubtle },
     chainState: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1928,7 +1929,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.successBg,
     },
-    chainStateText: { ...type.micro, color: t.successText, fontWeight: '800' },
+    chainStateText: { ...type.caption, color: t.successText, fontWeight: '800' },
 
     /* -------------------------------------------------- integrations */
     logoStrip: {

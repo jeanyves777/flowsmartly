@@ -17,7 +17,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -1611,7 +1611,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 6,
       minWidth: 0,
     },
-    backLinkText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    backLinkText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     pressed: { opacity: 0.82 },
     heroTitle: { marginTop: 14 },
     heroBody: { marginTop: 14, maxWidth: 540 },
@@ -1649,8 +1649,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       maxWidth: 540,
     },
     factLabel: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 14,
+      fontFamily: FONT_SANS,
+      lineHeight: 16,
       letterSpacing: 1.1,
       fontWeight: '800',
       color: t.chipText,
@@ -1696,7 +1697,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     dashHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     dashTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    dashSub: { ...type.micro, color: t.textSubtle },
+    dashSub: { ...type.caption, color: t.textSubtle },
     dashChip: {
       flexGrow: 0,
       flexShrink: 0,
@@ -1709,7 +1710,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.successBg,
     },
     dashDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.successText },
-    dashChipText: { ...type.micro, color: t.successText, fontWeight: '800' },
+    dashChipText: { ...type.caption, color: t.successText, fontWeight: '800' },
 
     kpiGrid: {
       flexDirection: 'row',
@@ -1739,15 +1740,16 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    kpiLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    kpiLabel: { ...type.caption, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     kpiValue: {
       fontSize: l.isPhone ? 19 : 23,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 24 : 28,
       fontWeight: '800',
       color: t.text,
     },
     kpiDeltaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
-    kpiDelta: { ...type.micro, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    kpiDelta: { ...type.caption, fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     dashSplit: { flexDirection: l.isPhone ? 'column' : 'row', alignItems: 'stretch', gap: 10 },
     dashChartCol: l.isPhone
@@ -1767,8 +1769,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     panelHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     panelTitle: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    panelMeta: { ...type.micro, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
-    panelMetaStrong: { ...type.micro, color: accentText(t.brand, t), fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    panelMeta: { ...type.caption, color: t.textSubtle, flexGrow: 0, flexShrink: 0 },
+    panelMetaStrong: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     chartBox: { width: '100%', minWidth: 0 },
 
     // Always wrappable. With `nowrap` above tablet the donut kept its full size
@@ -1783,13 +1785,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     donutWrap: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
     donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 1 },
     donutValue: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    donutLabel: { ...type.micro, color: t.textSubtle },
+    donutLabel: { ...type.caption, color: t.textSubtle },
     // a real basis, so the legend drops below the donut instead of collapsing
     donutLegend: { flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 0, gap: 7 },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
     legendSwatch: { width: 10, height: 10, borderRadius: 3, flexGrow: 0, flexShrink: 0 },
-    legendText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    legendValue: { ...type.micro, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    legendText: { ...type.caption, color: t.textMuted, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    legendValue: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
 
     courseList: { gap: 8 },
     courseRow: {
@@ -1806,8 +1808,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     courseCopy: l.isPhone
       ? { width: '100%', minWidth: 0, gap: 1 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 1 },
-    courseName: { ...type.micro, color: t.text, fontWeight: '800' },
-    courseMeta: { ...type.micro, color: t.textSubtle },
+    courseName: { ...type.caption, color: t.text, fontWeight: '800' },
+    courseMeta: { ...type.caption, color: t.textSubtle },
     courseTrack: l.isPhone
       ? { width: '100%', height: 6, borderRadius: 3, backgroundColor: t.surfaceInset, overflow: 'hidden' }
       : {
@@ -1821,7 +1823,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
         },
     courseFill: { height: 6, borderRadius: 3 },
     courseRate: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       fontWeight: '800',
       width: l.isPhone ? undefined : 42,
@@ -1895,7 +1897,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       minWidth: 0,
     },
-    panelFootnote: { ...type.micro, color: t.textSubtle },
+    panelFootnote: { ...type.caption, color: t.textSubtle },
 
     /* -------------------------------------------------- stat tiles */
     statTile: { ...cardBase, ...cardFill, gap: 5 },
@@ -1910,15 +1912,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    statValue: { fontSize: l.isPhone ? 23 : 29, lineHeight: l.isPhone ? 28 : 35, fontWeight: '800' },
+    statValue: { fontSize: l.isPhone ? 23 : 29, lineHeight: l.isPhone ? 28 : 35, fontWeight: '800' , fontFamily: FONT_SANS },
     statLabel: { ...type.caption, color: t.textMuted, fontWeight: '600' },
-    statCaption: { ...type.micro, color: t.textSubtle },
+    statCaption: { ...type.caption, color: t.textSubtle },
 
     /* -------------------------------------------------- bar list */
     barList: { gap: 10 },
     barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     barLabel: {
-      ...type.micro,
+      ...type.caption,
       color: t.textMuted,
       fontWeight: '700',
       // fixed so every bar starts on one line — 104 cut "Product Fundamentals",
@@ -1939,7 +1941,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     barFill: { height: 8, borderRadius: 4 },
     barValue: {
-      ...type.micro,
+      ...type.caption,
       color: t.text,
       fontWeight: '800',
       width: 46,
@@ -1971,7 +1973,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingBottom: 4,
     },
     tableHeadCell: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.6,
@@ -2021,7 +2023,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     funnelValue: { ...type.bodySm, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     funnelShare: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '700',
       width: 40,
@@ -2048,8 +2050,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
-    dropChipText: { ...type.micro, color: t.warnText, fontWeight: '800' },
-    funnelCaption: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    dropChipText: { ...type.caption, color: t.warnText, fontWeight: '800' },
+    funnelCaption: { ...type.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- 04 hardest questions */
     hardList: { gap: 9 },
@@ -2068,7 +2070,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0, gap: 3 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 3 },
     hardQuestion: { ...type.caption, color: t.text, fontWeight: '700' },
-    hardCourse: { ...type.micro, color: t.textSubtle },
+    hardCourse: { ...type.caption, color: t.textSubtle },
     hardMeter: l.isPhone
       ? { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10 }
       : { width: 168, flexGrow: 0, flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -2083,7 +2085,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     hardFill: { height: 8, borderRadius: 4 },
-    hardValue: { ...type.micro, fontWeight: '800', width: 38, textAlign: 'right', flexGrow: 0, flexShrink: 0 },
+    hardValue: { ...type.caption, fontWeight: '800', width: 38, textAlign: 'right', flexGrow: 0, flexShrink: 0 },
 
     /* -------------------------------------------------- 05 column chart */
     columnChart: { gap: 8 },
@@ -2099,7 +2101,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       gap: 4,
     },
     columnValue: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '700',
       textAlign: 'center',
@@ -2110,7 +2112,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     columnBar: { borderTopLeftRadius: 5, borderTopRightRadius: 5, width: '100%' },
     columnLabels: { flexDirection: 'row', alignItems: 'center', gap: l.isPhone ? 5 : 8 },
     columnLabel: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       textAlign: 'center',
       flexGrow: 1,
@@ -2138,6 +2140,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     lineValue: { ...type.caption, color: t.text, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
     pipelineValue: {
       fontSize: l.isPhone ? 30 : 38,
+      fontFamily: FONT_SANS,
       lineHeight: l.isPhone ? 36 : 46,
       fontWeight: '800',
       color: t.green,
@@ -2192,8 +2195,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     reportCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
     reportTitle: { ...type.caption, color: t.text, fontWeight: '800' },
-    reportMeta: { ...type.micro, color: t.textSubtle },
-    reportLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
+    reportMeta: { ...type.caption, color: t.textSubtle },
+    reportLabel: { ...type.caption, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.6 },
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     exportChip: {
       flexDirection: 'row',
@@ -2225,7 +2228,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     shareFace: { width: 34, height: 34, flexGrow: 0, flexShrink: 0 },
     shareName: { ...type.caption, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     shareRole: {
-      ...type.micro,
+      ...type.caption,
       color: t.chipText,
       fontWeight: '700',
       backgroundColor: t.chipBg,
@@ -2237,6 +2240,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 0,
     },
     shareFoot: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingTop: 2 },
-    shareFootText: { ...type.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    shareFootText: { ...type.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
   });
 }

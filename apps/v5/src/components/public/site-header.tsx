@@ -10,7 +10,7 @@ import { trackCta } from '@/lib/analytics';
 import { goToEarlyAccess, goToLogin } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
-import { PrimaryButton, useTypeScale } from './ui';
+import { FONT_SANS, PrimaryButton, useTypeScale, type TypeScale } from './ui';
 
 /**
  * The one site header. Every route renders this through `PageShell` — the home
@@ -386,10 +386,11 @@ function useHeaderStyles() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  return useMemo(() => createStyles(t, l, type.bodySm.fontSize as number), [t, l, type]);
+  return useMemo(() => createStyles(t, l, type), [t, l, type]);
 }
 
-function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
+function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
+  const bodySize = type.bodySm.fontSize as number;
   return StyleSheet.create({
     headerSafe: {
       backgroundColor: t.surface,
@@ -431,7 +432,7 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       gap: 6,
     },
     navButtonActive: { backgroundColor: t.chipBg },
-    navLabel: { color: t.text, fontSize: 14, fontWeight: '600' },
+    navLabel: { color: t.text, fontSize: 14, fontWeight: '600' , fontFamily: FONT_SANS },
     caret: { marginTop: 1 },
 
     /* ---------- mega menu ---------- */
@@ -505,10 +506,10 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       borderRadius: 10,
     },
     megaFootIcon: { width: 16, marginRight: 8, textAlign: 'center' },
-    megaFootText: { color: t.textMuted, fontSize: 13, fontWeight: '600' },
+    megaFootText: { ...type.caption, color: t.textMuted, fontWeight: '600' },
     megaColumnTitle: {
+      ...type.caption,
       color: t.textSubtle,
-      fontSize: 12,
       fontWeight: '500',
       marginBottom: 12,
       paddingHorizontal: 10,
@@ -524,7 +525,7 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
     },
     megaLinkActive: { backgroundColor: t.surfaceMuted },
     megaIcon: { width: 20, marginRight: 12, textAlign: 'center' },
-    megaLinkText: { color: t.text, fontSize: 15, fontWeight: '600' },
+    megaLinkText: { color: t.text, fontSize: 15, fontWeight: '600' , fontFamily: FONT_SANS },
 
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     iconButton: {
@@ -538,7 +539,7 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       backgroundColor: t.surfaceRaised,
     },
     signInButton: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
-    signIn: { color: t.text, fontSize: 14, fontWeight: '600' },
+    signIn: { color: t.text, fontSize: 14, fontWeight: '600' , fontFamily: FONT_SANS },
 
     mobileMenu: {
       maxHeight: 480,
@@ -554,11 +555,11 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    mobileLabel: { color: t.text, fontSize: bodySize, fontWeight: '700' },
+    mobileLabel: { color: t.text, fontSize: bodySize, fontWeight: '700' , fontFamily: FONT_SANS },
     mobileGroup: { paddingLeft: 6, paddingBottom: 6 },
     mobileGroupTitle: {
+      ...type.caption,
       color: t.textSubtle,
-      fontSize: 11,
       fontWeight: '600',
       marginTop: 6,
       marginBottom: 2,
@@ -571,7 +572,7 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       gap: 10,
       paddingLeft: 8,
     },
-    mobileSubLabel: { color: t.textMuted, fontSize: bodySize },
+    mobileSubLabel: { color: t.textMuted, fontSize: bodySize , fontFamily: FONT_SANS },
     mobileActions: {
       marginTop: 10,
       paddingTop: 12,

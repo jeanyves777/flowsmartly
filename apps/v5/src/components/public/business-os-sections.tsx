@@ -8,7 +8,7 @@ import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
 import { ROUTES } from './nav';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -667,7 +667,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    agentSparkGlyph: { color: t.textOnBrand, fontSize: 18 },
+    agentSparkGlyph: { color: t.textOnBrand, fontSize: 18 , fontFamily: FONT_SANS },
     agentPanelTitle: { ...ty.h4, color: t.text, flexShrink: 1, minWidth: 0 },
     agentList: { gap: 10 },
     agentRow: { minHeight: 26, flexDirection: 'row', alignItems: 'center', gap: 12 },

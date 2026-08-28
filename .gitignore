@@ -91,3 +91,5 @@ public/Studio_Menus_Thumnail/_training_thumbnail/ChatGPT Image*.png
 # Never edited by hand and never committed: a committed copy of a 6,542-line schema
 # differing in one line would drift, and the drift would surface in production.
 prisma/generated/
+qa-shots/
+qa-typography-*.json

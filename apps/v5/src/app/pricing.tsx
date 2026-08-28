@@ -17,7 +17,7 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Heading,
   PrimaryButton,
   Band,
@@ -766,14 +766,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     customCopy: l.isStacked
       ? { width: '100%', minWidth: 0, gap: 10 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
-    customEyebrow: { ...type.micro, color: t.violet, fontWeight: '800', letterSpacing: 1.2 },
+    customEyebrow: { ...type.caption, color: t.violet, fontWeight: '800', letterSpacing: 1.2 },
     customTitle: type.h3,
     customBody: { ...type.bodySm, color: t.textMuted, maxWidth: 620 },
     customAside: l.isStacked
       ? { width: '100%', minWidth: 0, gap: 6 }
       : { flexGrow: 0, flexShrink: 0, flexBasis: 260, minWidth: 0, gap: 6 },
     customPrice: { ...type.h2, color: t.text },
-    customPriceNote: { ...type.micro, color: t.textSubtle },
+    customPriceNote: { ...type.caption, color: t.textSubtle },
     customButtons: { gap: 10, marginTop: 10 },
 
     /* -------------------------------------------------- hero */
@@ -801,7 +801,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 999,
     },
     toggleOptionOn: { backgroundColor: t.surfaceRaised, ...(elevation(t, 1) as object) },
-    toggleLabel: { fontSize: 14, fontWeight: '700', color: t.textMuted },
+    toggleLabel: { fontSize: 14, fontWeight: '700', color: t.textMuted , fontFamily: FONT_SANS },
     toggleLabelOn: { color: t.text },
     saveChip: {
       borderRadius: 999,
@@ -809,7 +809,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: t.successBg,
     },
-    saveChipText: { fontSize: 11, fontWeight: '800', color: t.successText },
+    saveChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.successText },
 
     /* -------------------------------------------------- plans */
     planGrid: {
@@ -848,7 +848,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       marginBottom: 2,
     },
-    planBadgeText: { fontSize: 11, fontWeight: '800', color: t.textOnBrand, letterSpacing: 0.4 },
+    planBadgeText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.textOnBrand, letterSpacing: 0.4 },
     planIcon: {
       width: 48,
       height: 48,
@@ -877,7 +877,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
-    creditsText: { fontSize: 12.5, fontWeight: '800' },
+    creditsText: { fontSize: type.caption.fontSize, lineHeight: 20, fontWeight: '800' , fontFamily: FONT_SANS },
 
     featureList: { marginTop: 12, gap: 10 },
     featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
@@ -904,7 +904,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 18,
     },
     planButtonPressed: { backgroundColor: t.surfaceInset },
-    planButtonLabel: { fontSize: 15, fontWeight: '700', color: t.text },
+    planButtonLabel: { fontSize: 15, fontWeight: '700', color: t.text , fontFamily: FONT_SANS },
 
     /* -------------------------------------------------- shared heads */
     head: { gap: 10, alignItems: l.isPhone ? 'flex-start' : 'center' },
@@ -932,14 +932,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 14,
     },
     tableHeadFeature: {
-      ...type.micro,
+      ...type.caption,
       color: t.textSubtle,
       fontWeight: '800',
       letterSpacing: 0.7,
       textTransform: 'uppercase',
     },
     tableHeadPlan: { ...type.bodySm, color: t.text, fontWeight: '800', textAlign: 'center' },
-    tableHeadPrice: { ...type.micro, color: t.textSubtle, textAlign: 'center' },
+    tableHeadPrice: { ...type.caption, color: t.textSubtle, textAlign: 'center' },
     tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 52 },
     tableRowAlt: { backgroundColor: t.surfaceInset },
     compareLabelCell: {
@@ -1048,7 +1048,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 5,
       backgroundColor: t.chipBg,
     },
-    usageChipText: { fontSize: 11, fontWeight: '800', color: t.chipText },
+    usageChipText: { ...type.caption, lineHeight: 18, fontWeight: '800', color: t.chipText },
     usageTitle: { marginTop: 4 },
     usageRate: {},
     usageNote: { ...type.caption, color: t.textMuted },
@@ -1071,7 +1071,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     balanceHead: { gap: 2 },
     balanceTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    balanceSub: { ...type.micro, color: t.textMuted },
+    balanceSub: { ...type.caption, color: t.textMuted },
     balanceList: { gap: 13 },
     balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     balanceIcon: {

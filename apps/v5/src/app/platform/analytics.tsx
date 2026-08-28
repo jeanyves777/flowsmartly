@@ -18,7 +18,7 @@ import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -2031,7 +2031,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     kpiLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
-    kpiValue: { fontSize: l.isPhone ? 19 : 23, lineHeight: l.isPhone ? 24 : 28, fontWeight: '800', color: t.text },
+    kpiValue: { fontSize: l.isPhone ? 19 : 23, lineHeight: l.isPhone ? 24 : 28, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     kpiDelta: { ...type.micro, fontWeight: '800' },
 
     dashSplit: {
@@ -2215,7 +2215,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
     },
     channelName: { ...type.caption, color: t.text, fontWeight: '800' },
-    channelSpend: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800', color: t.text },
+    channelSpend: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     channelSpendLabel: { ...type.micro, color: t.textSubtle },
     channelTrack: {
       marginTop: 6,
@@ -2264,7 +2264,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     journeyLabel: { ...type.caption, color: t.text, fontWeight: '800' },
     journeyMeta: { ...type.micro, color: t.textSubtle },
-    journeyRevenue: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800', marginTop: 4 },
+    journeyRevenue: { fontSize: l.isPhone ? 17 : 19, lineHeight: l.isPhone ? 22 : 24, fontWeight: '800', marginTop: 4 , fontFamily: FONT_SANS },
     journeyConversions: { ...type.micro, color: t.textSubtle },
     journeyArrow: {
       flexGrow: 0,
@@ -2404,7 +2404,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 'auto',
     },
-    statValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800' },
+    statValue: { fontSize: l.isPhone ? 24 : 30, lineHeight: l.isPhone ? 29 : 36, fontWeight: '800' , fontFamily: FONT_SANS },
     statLabel: { ...type.caption, color: t.textMuted, fontWeight: '600' },
 
     /* -------------------------------------------------- 07 products */
@@ -2438,7 +2438,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 'auto',
     },
     ring: { flexGrow: 0, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-    ringValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 29 : 34, fontWeight: '800', color: t.text },
+    ringValue: { fontSize: l.isPhone ? 24 : 28, lineHeight: l.isPhone ? 29 : 34, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     ringLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     visibilityCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 12 },
     visibilityTitle: {},

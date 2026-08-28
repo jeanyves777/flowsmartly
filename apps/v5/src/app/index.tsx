@@ -48,7 +48,7 @@ import {
   useGrowIn,
   useReducedMotion,
 } from "@/components/public/motion";
-import {
+import { FONT_SANS,
   ButtonRow,
   Heading,
   OpenSection,
@@ -1833,7 +1833,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
   };
 
   const chip = (bg: string, color: string): TextStyle => ({
-    ...ty.micro,
+    ...ty.caption,
     backgroundColor: bg,
     color,
     fontWeight: "700",
@@ -1901,7 +1901,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     heroLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.scrimGood },
     heroBadgeText: {
-      ...ty.micro,
+      ...ty.caption,
       color: t.textOnScrim,
       fontWeight: '800',
       letterSpacing: 1.1,
@@ -1975,7 +1975,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingHorizontal: 11,
       paddingVertical: 8,
     },
-    heroSystemLabel: { ...ty.micro, color: t.textOnScrim, fontWeight: '700' },
+    heroSystemLabel: { ...ty.caption, color: t.textOnScrim, fontWeight: '700' },
     heroHub: {
       width: l.isPhone ? 88 : 108,
       height: l.isPhone ? 88 : 108,
@@ -2009,9 +2009,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // the highlight is the only thing the cycle moves; every card is legible
     // without it, so the block is complete with JavaScript off
     heroCardLit: { borderColor: t.scrimGlassLit, backgroundColor: t.scrimGlass },
-    heroCardText: { ...ty.micro, color: t.textOnScrim, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    heroCardText: { ...ty.caption, color: t.textOnScrim, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     heroCardPill: {
-      ...ty.micro,
+      ...ty.caption,
       color: t.scrimGood,
       fontWeight: '800',
       borderRadius: 999,
@@ -2101,7 +2101,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignItems: "center",
       justifyContent: "center",
     },
-    spark: { color: t.textOnBrand, fontSize: 18 },
+    spark: { color: t.textOnBrand, fontSize: 18 , fontFamily: FONT_SANS },
     messageBubble: {
       ...fluid,
       borderWidth: 1,
@@ -2124,7 +2124,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 9,
     },
     actionCopy: { ...fluid },
-    actionTitle: { ...ty.micro, color: t.text, fontWeight: "700" },
+    actionTitle: { ...ty.caption, color: t.text, fontWeight: "700" },
     // Wraps rather than squeezes: the pill drops to its own line instead of
     // clipping the note beside it.
     actionMeta: {
@@ -2147,7 +2147,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // while the three long ones dropped theirs, and four rows of a mockup that
     // disagree about where the status sits read as a bug.
     actionNote: {
-      ...ty.micro,
+      ...ty.caption,
       color: t.textSubtle,
       flexGrow: 1,
       flexShrink: 1,
@@ -2166,11 +2166,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // says whether FlowAgent is waiting on a human, so "Approval required" is
     // deliberately the one that does not read as green-and-finished.
     pillReady: { ...statusPill, backgroundColor: t.successBg },
-    pillReadyText: { ...ty.micro, color: t.successText, fontWeight: "700" },
+    pillReadyText: { ...ty.caption, color: t.successText, fontWeight: "700" },
     pillWarn: { ...statusPill, backgroundColor: t.warnBg },
-    pillWarnText: { ...ty.micro, color: t.warnText, fontWeight: "700" },
+    pillWarnText: { ...ty.caption, color: t.warnText, fontWeight: "700" },
     pillInfo: { ...statusPill, backgroundColor: t.chipBg },
-    pillInfoText: { ...ty.micro, color: t.chipText, fontWeight: "700" },
+    pillInfoText: { ...ty.caption, color: t.chipText, fontWeight: "700" },
     // Mirrors PrimaryButton at size "sm" — the mock has to look identical to
     // the real control, it just isn't one.
     mockButton: {
@@ -2187,7 +2187,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignItems: "center",
       justifyContent: "center",
     },
-    mockButtonLabel: { color: t.textOnBrand, fontSize: 13, fontWeight: "700" },
+    mockButtonLabel: { ...ty.caption, color: t.textOnBrand, lineHeight: 18, fontWeight: "700" },
     aiFooter: {
       marginTop: 2,
       flexDirection: "row",
@@ -2208,7 +2208,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     approvalFaceOverlap: { marginLeft: -9 },
-    approvalText: { ...ty.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    approvalText: { ...ty.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     /* ---------- channel map ---------- */
     // The frame the map lives in. It carries the phone width, so the surface
@@ -2244,7 +2244,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       justifyContent: "space-between",
       gap: 10,
     },
-    channelPanelTitle: { ...ty.micro, color: t.text, fontWeight: "800", flexShrink: 1, minWidth: 0 },
+    channelPanelTitle: { ...ty.caption, color: t.text, fontWeight: "800", flexShrink: 1, minWidth: 0 },
     channelPanelPill: chip(t.successBg, t.successText),
     // Names the six systems the map does not have room to wire. Text rather
     // than another row of tiles: twelve tiles in a hero panel is a wall, and
@@ -2255,8 +2255,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderTopColor: t.divider,
       gap: 4,
     },
-    channelMoreLabel: { ...ty.micro, color: t.text, fontWeight: "700" },
-    channelMoreText: { ...ty.micro, color: t.textSubtle },
+    channelMoreLabel: { ...ty.caption, color: t.text, fontWeight: "700" },
+    channelMoreText: { ...ty.caption, color: t.textSubtle },
     channelPanelFoot: {
       minHeight: 26,
       paddingTop: 10,
@@ -2273,7 +2273,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 4,
       backgroundColor: t.successText,
     },
-    channelPanelFootText: { ...ty.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+    channelPanelFootText: { ...ty.caption, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     // Holds its size so the proof card beside it absorbs the squeeze instead of
     // the wires collapsing; tightened on tablet, where the pair has least room.
@@ -2320,7 +2320,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       ...card,
     },
     brandTileCluster: { width: 74 },
-    channelLabel: { ...ty.micro, color: t.textMuted, textAlign: "center" },
+    channelLabel: { ...ty.caption, color: t.textMuted, textAlign: "center" },
     channelCluster: { width: "100%", alignItems: "center", gap: 14, paddingTop: 6 },
     channelClusterGrid: {
       width: "100%",
@@ -2353,9 +2353,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     dashboardTitleCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 240, gap: 4 },
     dashboardTitle: { ...ty.h4, color: t.text },
-    dashboardSub: { ...ty.micro, color: t.textSubtle, maxWidth: 560 },
+    dashboardSub: { ...ty.caption, color: t.textSubtle, maxWidth: 560 },
     dashboardFilter: {
-      ...ty.micro,
+      ...ty.caption,
       color: t.textMuted,
       borderWidth: 1,
       borderColor: t.border,
@@ -2383,11 +2383,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 10,
     },
     metricCopy: { flexShrink: 1, minWidth: 0 },
-    metricLabel: { ...ty.micro, color: t.textMuted },
+    metricLabel: { ...ty.caption, color: t.textMuted },
     metricValue: { ...ty.h3, color: t.text, marginTop: 2 },
-    metricDelta: { ...ty.micro, color: t.successText, marginTop: 2 },
+    metricDelta: { ...ty.caption, color: t.successText, marginTop: 2 },
     /** for a figure that is a queue rather than a gain — see `quiet` above */
-    metricNote: { ...ty.micro, color: t.textSubtle, marginTop: 2 },
+    metricNote: { ...ty.caption, color: t.textSubtle, marginTop: 2 },
     sparkline: { height: 36, flexShrink: 0, flexDirection: "row", alignItems: "flex-end", gap: 2 },
     sparkBar: { width: 7, minHeight: 2, borderRadius: 3 },
 
@@ -2411,7 +2411,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 6,
       backgroundColor: t.brand,
       color: t.textOnBrand,
-      fontSize: 11,
+      fontSize: ty.caption.fontSize,
+      fontFamily: FONT_SANS,
       textAlign: "center",
       fontWeight: "800",
       overflow: "hidden",
@@ -2426,15 +2427,15 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 10,
       minHeight: 22,
     },
-    dataLabel: { ...ty.micro, color: t.textMuted, flexShrink: 1, minWidth: 0 },
-    dataValue: { ...ty.micro, color: t.text, fontWeight: "700", textAlign: "right", flexShrink: 0 },
+    dataLabel: { ...ty.caption, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+    dataValue: { ...ty.caption, color: t.text, fontWeight: "700", textAlign: "right", flexShrink: 0 },
 
     // Two lines per row (organisation, then what is waiting there), so the icon
     // sits against the top rather than floating beside a wrapped detail.
     orgRow: { minHeight: 34, flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 3 },
     orgCopy: { ...fluid },
-    orgName: { ...ty.micro, color: t.text, fontWeight: "700" },
-    orgDetail: { ...ty.micro, color: t.textSubtle, marginTop: 1 },
+    orgName: { ...ty.caption, color: t.text, fontWeight: "700" },
+    orgDetail: { ...ty.caption, color: t.textSubtle, marginTop: 1 },
     miniIcon: {
       width: 20,
       height: 20,
@@ -2454,7 +2455,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       justifyContent: "center",
     },
     journeyArrow: { flexShrink: 0, paddingTop: 16 },
-    journeyLabel: { ...ty.micro, color: t.textMuted, textAlign: "center", marginTop: 6 },
+    journeyLabel: { ...ty.caption, color: t.textMuted, textAlign: "center", marginTop: 6 },
     journeyStats: {
       marginTop: 12,
       borderTopWidth: 1,
@@ -2467,7 +2468,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     journeyStat: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     // Two-line box so a wrapped label ("Avg. time to convert" in a three-column
     // panel) does not push its value out of line with its neighbours.
-    statLabel: { ...ty.micro, color: t.textSubtle, minHeight: 32 },
+    statLabel: { ...ty.caption, color: t.textSubtle, minHeight: 32 },
     statValue: { ...ty.caption, color: t.text, fontWeight: "800", marginTop: 3 },
     statValueBrand: { ...ty.caption, color: t.brand, fontWeight: "800", marginTop: 3 },
 
@@ -2481,7 +2482,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       backgroundColor: t.surfaceMuted,
     },
     customerName: { ...ty.caption, color: t.text, fontWeight: "800" },
-    customerSub: { ...ty.micro, color: t.textSubtle, marginTop: 1 },
+    customerSub: { ...ty.caption, color: t.textSubtle, marginTop: 1 },
     recommendation: {
       marginTop: 6,
       backgroundColor: t.surfaceMuted,
@@ -2490,11 +2491,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 9,
       padding: 8,
     },
-    recommendLabel: { ...ty.micro, color: t.textSubtle },
-    recommendValue: { ...ty.micro, color: t.brand, fontWeight: "700", marginTop: 2 },
+    recommendLabel: { ...ty.caption, color: t.textSubtle },
+    recommendValue: { ...ty.caption, color: t.brand, fontWeight: "700", marginTop: 2 },
 
     trustRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    trustCheck: { fontWeight: "900", fontSize: 11, flexShrink: 0 },
+    trustCheck: { fontWeight: "900", fontSize: ty.caption.fontSize, flexShrink: 0 , fontFamily: FONT_SANS },
     trustCopy: { ...fluid },
 
     readinessBody: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
@@ -2509,18 +2510,18 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       justifyContent: "center",
     },
     score: { ...ty.h3, color: t.text },
-    scoreSmall: { ...ty.micro, color: t.textSubtle },
+    scoreSmall: { ...ty.caption, color: t.textSubtle },
     catalog: { ...fluid },
-    catalogLabel: { ...ty.micro, color: t.textMuted },
+    catalogLabel: { ...ty.caption, color: t.textMuted },
     catalogValue: { ...ty.h4, color: t.text, marginTop: 2 },
     progress: { height: 6, backgroundColor: t.surfaceInset, borderRadius: 4, marginTop: 8 },
     progressFill: { width: "92%", height: 6, backgroundColor: t.brand, borderRadius: 4 },
-    shopLabel: { ...ty.micro, color: t.textMuted, marginTop: 10 },
+    shopLabel: { ...ty.caption, color: t.textMuted, marginTop: 10 },
     shopBrandRow: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 6 },
 
     queueBadge: { ...chip(t.warnBg, t.warnText), alignSelf: "flex-start", marginBottom: 4 },
     queueRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
-    queueLabel: { ...ty.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    queueLabel: { ...ty.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     queueApprove: {
       flexShrink: 0,
       borderRadius: 6,
@@ -2528,7 +2529,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
-    queueApproveText: { ...ty.micro, color: t.textOnBrand, fontWeight: "700" },
+    queueApproveText: { ...ty.caption, color: t.textOnBrand, fontWeight: "700" },
     queueEdit: {
       flexShrink: 0,
       borderRadius: 6,
@@ -2537,7 +2538,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
-    queueEditText: { ...ty.micro, color: t.textMuted, fontWeight: "700" },
+    queueEditText: { ...ty.caption, color: t.textMuted, fontWeight: "700" },
 
     integrations: {
       minHeight: 48,
@@ -2550,7 +2551,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       justifyContent: "space-between",
       gap: 10,
     },
-    integrationsTitle: { ...ty.micro, color: t.text, fontWeight: "700" },
+    integrationsTitle: { ...ty.caption, color: t.text, fontWeight: "700" },
     dashboardBrandRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -2558,7 +2559,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       justifyContent: "center",
       gap: l.isPhone ? 16 : 22,
     },
-    integrationsNote: { ...ty.micro, color: t.textSubtle, textAlign: l.isPhone ? "center" : "right" },
+    integrationsNote: { ...ty.caption, color: t.textSubtle, textAlign: l.isPhone ? "center" : "right" },
 
     /* ---------- feature sections ---------- */
     featureSection: stacked
@@ -2637,9 +2638,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRightColor: t.divider,
     },
     productImage: { width: "100%", aspectRatio: 1, backgroundColor: t.surfaceMuted, borderRadius: 10 },
-    productName: { ...ty.micro, color: t.text, minHeight: 32, marginTop: 8 },
+    productName: { ...ty.caption, color: t.text, minHeight: 32, marginTop: 8 },
     productPrice: { ...ty.caption, color: t.text, fontWeight: "800", marginTop: 2 },
-    productStars: { ...ty.micro, color: t.orangeText, marginTop: 4 },
+    productStars: { ...ty.caption, color: t.orangeText, marginTop: 4 },
     reviewCount: { color: t.textSubtle },
 
     intelligenceVisual: stacked
@@ -2679,7 +2680,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     signalCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     signalTitle: { ...ty.caption, color: t.text, fontWeight: "800" },
-    signalNote: { ...ty.micro, color: t.textMuted, marginTop: 4 },
+    signalNote: { ...ty.caption, color: t.textMuted, marginTop: 4 },
 
     profileCard: {
       flexGrow: 1,

@@ -7,7 +7,7 @@ import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/token
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Artwork } from './artwork';
-import { Heading, useTypeScale, type TypeScale } from './ui';
+import { FONT_SANS, Heading, useTypeScale, type TypeScale } from './ui';
 
 /**
  * Renders a compiled post.
@@ -263,7 +263,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     em: { fontStyle: 'italic' },
     inlineCode: {
       ...mono,
-      fontSize: Math.round((prose.fontSize as number) * 0.9),
+      fontSize: Math.round((prose.fontSize as number) * 0.9),
+      fontFamily: FONT_SANS,
       color: t.text,
       backgroundColor: t.surfaceInset,
     },
@@ -299,7 +300,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     calloutIcon: { marginTop: 3, flexGrow: 0, flexShrink: 0 },
     calloutText: {
       ...prose,
-      fontSize: Math.round((prose.fontSize as number) * 0.96),
+      fontSize: Math.round((prose.fontSize as number) * 0.96),
+      fontFamily: FONT_SANS,
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
@@ -314,7 +316,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderRadius: 12,
       padding: l.isPhone ? 13 : 16,
     },
-    codeText: { ...mono, fontSize: l.isPhone ? 12.5 : 13.5, lineHeight: 21, color: t.text },
+    codeText: { ...mono, ...type.caption, lineHeight: 21, color: t.text },
 
     /* figure --------------------------------------------------------- */
     figure: { gap: 9 },
@@ -332,7 +334,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       gap: 12,
     },
-    takeawaysLabel: { ...type.micro, fontWeight: '800', letterSpacing: 1.1 },
+    takeawaysLabel: { ...type.caption, fontWeight: '800', letterSpacing: 1.1 },
     takeawaysList: { gap: 9 },
     takeawayRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     takeawayDot: {

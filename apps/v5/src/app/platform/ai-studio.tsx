@@ -10,7 +10,7 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   ButtonRow,
   Heading,
@@ -1422,7 +1422,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     swatch: { width: 22, height: 22, borderRadius: 7, flexGrow: 0, flexShrink: 0 },
     swatchLarge: { width: 30, height: 30, borderRadius: 9, flexGrow: 0, flexShrink: 0 },
-    kitTypeDisplay: { fontSize: 15, lineHeight: 20, fontWeight: '800', color: t.text },
+    kitTypeDisplay: { fontSize: 15, lineHeight: 20, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     kitTypeBody: { ...type.micro, color: t.textMuted },
     voiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     voiceChip: {
@@ -1925,7 +1925,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       gap: 2,
     },
-    ringValue: { fontSize: l.isPhone ? 26 : 30, lineHeight: l.isPhone ? 31 : 35, fontWeight: '800', color: t.text },
+    ringValue: { fontSize: l.isPhone ? 26 : 30, lineHeight: l.isPhone ? 31 : 35, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     ringCaption: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     ringTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
     ringRows: { width: '100%', minWidth: 0, gap: 7 },

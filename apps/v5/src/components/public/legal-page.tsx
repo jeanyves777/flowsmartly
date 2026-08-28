@@ -288,7 +288,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    sectionNumberText: { color: t.textOnBrand, fontSize: 12, fontWeight: '800' },
+    sectionNumberText: { ...type.caption, color: t.textOnBrand, lineHeight: 18, fontWeight: '800' },
     sectionTitle: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
     sectionBody: { paddingLeft: 38, gap: 12 },
     paragraph: { color: t.textMuted, maxWidth: 700 },

@@ -9,7 +9,7 @@ import { ROUTES } from '@/components/public/nav';
 import { CapabilityGroupsSection } from '@/components/public/business-os-sections';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
-import {
+import { FONT_SANS,
   Band,
   type BandTone,
   ButtonRow,
@@ -1255,7 +1255,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     // grows so the four values sit on one baseline even when a label wraps
     statLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexGrow: 1 },
-    statValue: { fontSize: l.isPhone ? 18 : 21, lineHeight: l.isPhone ? 23 : 26, fontWeight: '800', color: t.text },
+    statValue: { fontSize: l.isPhone ? 18 : 21, lineHeight: l.isPhone ? 23 : 26, fontWeight: '800', color: t.text , fontFamily: FONT_SANS },
     statDeltaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 0 },
     statDeltaIcon: { transform: [{ rotate: '-45deg' }] },
     statDelta: { ...type.micro, fontWeight: '800', flexShrink: 1, minWidth: 0 },
@@ -1496,7 +1496,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 7,
       backgroundColor: t.brandSoft,
     },
-    profileScoreValue: { fontSize: 17, lineHeight: 21, fontWeight: '800', color: t.brand },
+    profileScoreValue: { fontSize: 17, lineHeight: 21, fontWeight: '800', color: t.brand , fontFamily: FONT_SANS },
     profileScoreLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
 
     timeline: { gap: 14 },
