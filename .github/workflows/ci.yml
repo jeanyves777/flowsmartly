@@ -68,3 +68,84 @@ jobs:
         run: npx tsc --noEmit
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+  # The type check above cannot see a broken export: `expo export` can fail, or
+  # silently drop routes, on code that type-checks perfectly. Since the V5 site
+  # is deployed as a static export, an export that does not run is an outage —
+  # so CI runs the real one and asserts the site it produced is complete.
+  #
+  # It also covers what tsc structurally cannot here: `.expo/types/router.d.ts`
+  # is gitignored, so on a fresh checkout expo-router's Href type is permissive
+  # and a push() to a route that does not exist type-checks clean. The export
+  # is what proves the route file is really there.
+  v5-export:
+    name: Web export (apps/v5)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build web export
+        run: npm run build:web
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Verify the export is complete
+        # Mirrors verify_export() in scripts/deploy-v5-public.sh. Keep the two
+        # lists in step: this gate exists so a build that would fail the deploy
+        # script's verification fails the PR instead of the deploy.
+        run: |
+          set -euo pipefail
+          fail=0
+
+          for f in \
+            index.html \
+            robots.txt \
+            sitemap.xml \
+            llms.txt \
+            feed.xml \
+            product.html \
+            pricing.html \
+            flowagent.html \
+            login.html \
+            early-access.html \
+            legal/privacy.html \
+            company/contact.html
+          do
+            if [ ! -s "dist/$f" ]; then
+              echo "::error::missing or empty export output: dist/$f"
+              fail=1
+            fi
+          done
+
+          for d in _expo assets; do
+            if [ ! -d "dist/$d" ]; then
+              echo "::error::missing export directory: dist/$d"
+              fail=1
+            fi
+          done
+
+          # /flow-ai is a redirect stub rather than a page: assert it actually
+          # points at /flowagent, so a rename cannot silently strand it.
+          if ! grep -q '/flowagent' dist/flow-ai/index.html 2>/dev/null; then
+            echo "::error::dist/flow-ai/index.html does not redirect to /flowagent"
+            fail=1
+          fi
+
+          pages=$(find dist -name '*.html' -type f | wc -l)
+          if [ "$pages" -lt 40 ]; then
+            echo "::error::only $pages HTML pages exported — expected 45+"
+            fail=1
+          fi
+          echo "exported $pages HTML pages"
+
+          exit $fail

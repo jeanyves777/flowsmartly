@@ -2,7 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToEarlyAccess } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -353,7 +353,7 @@ export function FlowAgentAlongsideSection() {
             size="lg"
             full={l.isPhone}
             trackId="home.flowagent.start-workspace"
-            onPress={() => Linking.openURL(EXTERNAL.signup)}
+            onPress={() => goToEarlyAccess()}
           />
         </ButtonRow>
       </View>

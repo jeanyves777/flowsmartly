@@ -29,7 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToEarlyAccess } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -930,7 +930,7 @@ export default function FlowLearnerPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="flowlearner.hero.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToEarlyAccess()}
                 />
                 <SecondaryButton
                   label="Explore Training Studio"

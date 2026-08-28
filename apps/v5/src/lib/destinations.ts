@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { ROUTES } from '@/components/public/nav';
 
 /**
@@ -10,26 +11,65 @@ import { ROUTES } from '@/components/public/nav';
  */
 
 /**
- * The product lives outside this app. Point these at the real endpoints.
+ * The legacy V4 application, which existing customers keep using while the V5
+ * portal is enabled progressively.
  *
- * Every value here is a URL that was checked against production. `/signup` was
- * a guess and returned 404 on every "Start free" button on the site — the real
- * account-creation route is `/register` ("Create Account | FlowSmartly").
- * `github.com/flowsmartly` is likewise a 404: there is no public organisation,
- * so the SDK links route to Contact instead of a dead page.
+ * **Only `/login` may link to these.** No marketing CTA anywhere else on the
+ * site sends a visitor to the legacy host: the main domain is V5's brand, and
+ * a "Start free" button that drops someone into the old product would undo
+ * that in one click. The transition page is the single, deliberate bridge.
  *
- * Verify before changing one of these; do not invent a path.
+ * Sessions here are host-only cookies scoped to legacy.flowsmartly.com, so a
+ * customer arriving from the apex signs in once more. That is intended
+ * isolation, not a bug — see deploy/nginx-legacy-v4.conf.
+ */
+export const LEGACY = {
+  login: 'https://legacy.flowsmartly.com/login',
+  forgotPassword: 'https://legacy.flowsmartly.com/forgot-password',
+} as const;
+
+/**
+ * Genuinely external destinations.
+ *
+ * `github.com/flowsmartly` is a 404 — there is no public organisation — so the
+ * SDK links route to Contact instead of a dead page. Verify before changing
+ * one of these; do not invent a path.
+ *
+ * Account creation and sign-in used to live here as absolute V4 URLs. They are
+ * now V5 routes (`ROUTES.earlyAccess`, `ROUTES.login`) reached through the
+ * helpers below, because they are pages in this app rather than somewhere else.
  */
 export const EXTERNAL = {
-  signup: 'https://flowsmartly.com/register',
-  login: 'https://flowsmartly.com/login',
-  app: 'https://flowsmartly.com/home',
-  /** Unused today. `status.flowsmartly.com` does not resolve — the shipping
-   *  status page is the in-site route `ROUTES.status`, not this host. Do not
-   *  wire a CTA to this without checking that the subdomain exists. */
   /** No public repo exists yet, so this is the honest fallback. */
   github: `${ROUTES.contact}?topic=sdk-access`,
 } as const;
+
+/* ------------------------------------------------------------------ */
+/* CTA navigation                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every "Start free" / "Get started" / "Create account" button on the site.
+ *
+ * Registration is closed until V5 accounts open, so these lead to early
+ * access. When V5 auth ships, this one function points at the real signup and
+ * all ~40 call sites follow without being edited.
+ *
+ * Uses expo-router's importable `router` rather than the `useRouter` hook so a
+ * plain `onPress={goToEarlyAccess}` works from any call site — including the
+ * handful that are not inside a component body. It is a client-side push, not
+ * `Linking.openURL`: these are pages in this app now, and a full page reload
+ * would throw away the visitor's scroll position and the attribution captured
+ * for this session.
+ */
+export function goToEarlyAccess() {
+  router.push(ROUTES.earlyAccess);
+}
+
+/** Every "Sign in" affordance. Goes to the V5 transition page, never to V4. */
+export function goToLogin() {
+  router.push(ROUTES.login);
+}
 
 /**
  * Contact topics. Anything we cannot yet deliver — a demo, a download, a
@@ -42,6 +82,7 @@ export type ContactTopic =
   | 'support'
   | 'partnership'
   | 'demo'
+  | 'custom-automation'
   | 'updates'
   | 'press-kit'
   | 'security-overview'
@@ -62,6 +103,7 @@ export const CONTACT_TOPIC_LABEL: Record<ContactTopic, string> = {
   support: 'Get support',
   partnership: 'Partnership enquiry',
   demo: 'Book a product demo',
+  'custom-automation': 'Request a custom automation demo',
   updates: 'Subscribe to product updates',
   'press-kit': 'Request the press kit',
   'security-overview': 'Request the security overview',

@@ -7,7 +7,7 @@ import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL } from '@/lib/destinations';
+import { goToEarlyAccess, goToLogin } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
 import { PrimaryButton, useTypeScale } from './ui';
@@ -165,7 +165,7 @@ function MegaPanel({
           <View key={column.title} style={[styles.megaColumn, index > 0 && styles.megaColumnDivided]}>
             <Text style={styles.megaColumnTitle}>{column.title}</Text>
             {column.links.map((link) => (
-              <MegaLink key={`${column.title}-${link.href}`} link={link} onNavigate={onNavigate} />
+              <MegaLink key={`${column.title}-${link.label}`} link={link} onNavigate={onNavigate} />
             ))}
           </View>
         ))}
@@ -236,7 +236,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
                     <Text style={styles.mobileGroupTitle}>{column.title}</Text>
                     {column.links.map((link) => (
                       <Link
-                        key={`${column.title}-${link.href}`}
+                        key={`${column.title}-${link.label}`}
                         href={link.href as never}
                         onPress={onNavigate}
                         accessibilityRole="link"
@@ -265,7 +265,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           onPress={() => {
             trackCta('header.mobile.log-in');
             onNavigate();
-            Linking.openURL(EXTERNAL.login);
+            goToLogin();
           }}
           style={styles.mobileRow}>
           <Text style={styles.mobileLabel}>Log in</Text>
@@ -277,7 +277,7 @@ function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
           trackId="header.mobile.start-free"
           onPress={() => {
             onNavigate();
-            Linking.openURL(EXTERNAL.signup);
+            goToEarlyAccess();
           }}
         />
       </View>
@@ -358,7 +358,7 @@ export function SiteHeader() {
                   accessibilityRole="link"
                   onPress={() => {
                     trackCta('header.log-in');
-                    Linking.openURL(EXTERNAL.login);
+                    goToLogin();
                   }}
                   style={styles.signInButton}>
                   <Text style={styles.signIn}>Log in</Text>
@@ -367,7 +367,7 @@ export function SiteHeader() {
                   label="Start free"
                   size="sm"
                   trackId="header.start-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToEarlyAccess()}
                 />
               </View>
             </>

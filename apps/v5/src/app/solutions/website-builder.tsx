@@ -20,7 +20,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -281,7 +281,7 @@ export default function WebsiteBuilderPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="website-builder.hero.build-free"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToEarlyAccess()}
                 />
                 <SecondaryButton
                   label="Talk to us first"

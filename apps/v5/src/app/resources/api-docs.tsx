@@ -31,7 +31,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { EXTERNAL, contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -246,8 +246,9 @@ const QUICKSTARTS: Quickstart[] = [
     title: 'Authentication',
     body: 'Create a key and sign your first request.',
     tone: 'brand',
-    href: EXTERNAL.signup,
-    external: true,
+    // Keys are issued from a V5 account, and accounts open with early access.
+    // Internal route, so no `external: true` — it routes client-side.
+    href: ROUTES.earlyAccess,
   },
   {
     icon: 'bullhorn',
@@ -630,7 +631,7 @@ function Hero() {
             full={l.isPhone}
             trackId="api.hero.start-building"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToEarlyAccess();
             }}
           />
           {/* The SDKs are the reference that actually exists today. */}
@@ -989,7 +990,7 @@ function Closing() {
             full={l.isPhone}
             trackId="api.closing.start-building"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToEarlyAccess();
             }}
           />
           <SecondaryButton

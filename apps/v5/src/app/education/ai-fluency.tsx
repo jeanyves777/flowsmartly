@@ -30,7 +30,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -840,7 +840,7 @@ function Closing() {
             full={l.isPhone}
             trackId="ai-fluency.closing.start-free"
             onPress={() => {
-              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+              goToEarlyAccess();
             }}
           />
           <SecondaryButton

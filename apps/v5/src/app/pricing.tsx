@@ -1,5 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Linking,
   Pressable,
@@ -26,7 +27,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -268,6 +269,7 @@ function FaqRow({
 /* ------------------------------------------------------------------ */
 
 export default function PricingPage() {
+  const router = useRouter();
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
@@ -400,7 +402,7 @@ export default function PricingPage() {
                       label={plan.cta}
                       full
                       trackId={`pricing.plan.${plan.id}`}
-                      onPress={() => Linking.openURL(EXTERNAL.signup)}
+                      onPress={() => goToEarlyAccess()}
                     />
                   ) : (
                     <Pressable
@@ -408,7 +410,7 @@ export default function PricingPage() {
                       accessibilityLabel={plan.cta}
                       onPress={() => {
                         trackCta(`pricing.plan.${plan.id}`, { variant: 'plan' });
-                        Linking.openURL(EXTERNAL.signup);
+                        goToEarlyAccess();
                       }}
                       style={({ pressed }) => [
                         styles.planButton,
@@ -422,6 +424,54 @@ export default function PricingPage() {
             );
           })}
         </View>
+      </OpenSection>
+
+      {/* ------------------------------------- custom automation
+          A fourth way to buy, deliberately not a fourth plan card: it is not
+          self-serve, it has no monthly price, and putting it in the grid would
+          invite a comparison of features against a project scope. */}
+      <OpenSection art="none">
+        <Reveal distance={14}>
+          <View style={styles.customCard}>
+            <View style={styles.customCopy}>
+              <Text style={styles.customEyebrow}>CUSTOM AI AUTOMATION</Text>
+              <Heading level={2} style={styles.customTitle}>
+                Need something built around your business?
+              </Heading>
+              <Text style={styles.customBody}>
+                Custom automation projects are scoped around your workflows, integrations and
+                implementation needs. We work with you one-to-one to design and build FlowAgent
+                skills specifically for your operation.
+              </Text>
+            </View>
+
+            <View style={styles.customAside}>
+              <Text style={styles.customPrice}>Custom</Text>
+              <Text style={styles.customPriceNote}>Scoped per project, not per month</Text>
+              <View style={styles.customButtons}>
+                <PrimaryButton
+                  label="Request a custom demo"
+                  full
+                  trackId="pricing.custom.demo"
+                  onPress={() => router.push(contactHref('custom-automation') as never)}
+                />
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="How custom automation works"
+                  onPress={() => {
+                    trackCta('pricing.custom.learn', { variant: 'plan' });
+                    router.push(ROUTES.customAutomation as never);
+                  }}
+                  style={({ pressed }) => [
+                    styles.planButton,
+                    pressed ? styles.planButtonPressed : null,
+                  ]}>
+                  <Text style={styles.planButtonLabel}>How it works</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Reveal>
       </OpenSection>
 
       {/* ------------------------------------------------ credits */}
@@ -703,6 +753,32 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const cellText: TextStyle = { ...type.caption, color: t.text, textAlign: 'center' };
 
   return StyleSheet.create({
+    /* custom automation ------------------------------------------- */
+    /** stacks below the split breakpoint: price beside copy needs real width */
+    customCard: {
+      flexDirection: l.isStacked ? 'column' : 'row',
+      alignItems: l.isStacked ? 'stretch' : 'center',
+      gap: l.isStacked ? 20 : 32,
+      borderWidth: 1,
+      borderColor: t.borderStrong,
+      borderRadius: 18,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 20 : 28,
+      ...(elevation(t, 1) as ViewStyle),
+    },
+    customCopy: l.isStacked
+      ? { width: '100%', minWidth: 0, gap: 10 }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
+    customEyebrow: { ...type.micro, color: t.violet, fontWeight: '800', letterSpacing: 1.2 },
+    customTitle: type.h3,
+    customBody: { ...type.bodySm, color: t.textMuted, maxWidth: 620 },
+    customAside: l.isStacked
+      ? { width: '100%', minWidth: 0, gap: 6 }
+      : { flexGrow: 0, flexShrink: 0, flexBasis: 260, minWidth: 0, gap: 6 },
+    customPrice: { ...type.h2, color: t.text },
+    customPriceNote: { ...type.micro, color: t.textSubtle },
+    customButtons: { gap: 10, marginTop: 10 },
+
     /* -------------------------------------------------- hero */
     hero: { alignItems: 'center' },
     heroTitle: { marginTop: 16, textAlign: 'center', maxWidth: 900 },

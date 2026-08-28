@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { ArrowLink } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
@@ -588,7 +588,7 @@ export default function AiStudioPage() {
                   size="lg"
                   full={l.isPhone}
                   trackId="ai-studio.hero.open-studio"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToEarlyAccess()}
                 />
                 <SecondaryButton
                   label="Watch a demo"

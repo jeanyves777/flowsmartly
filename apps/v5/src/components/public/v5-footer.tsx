@@ -19,7 +19,7 @@ import {
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { accentText, brandColor, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -506,7 +506,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
   const styles = useFooterStyles();
   // The product lives outside this app, so signup is the honest default for
   // every plan CTA unless the host page overrides it.
-  const startFree = onStartFree ?? (() => Linking.openURL(EXTERNAL.signup));
+  const startFree = onStartFree ?? (() => goToEarlyAccess());
   // A band, with the plans themselves still carded — a pricing plan is a
   // discrete object you compare and choose, which is what a card is for.
   return (
@@ -618,7 +618,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
   // Defaults, so the site-wide CTA works on every page rather than only on the
   // ones that remember to pass handlers. There is no demo video: a demo is a
   // conversation, so it goes to Contact with the topic preselected.
-  const startFree = onStartFree ?? (() => Linking.openURL(EXTERNAL.signup));
+  const startFree = onStartFree ?? (() => goToEarlyAccess());
   const bookDemo = onBookDemo ?? (() => router.push(contactHref('demo') as never));
   // Sized to clear the action panel that sits over the banner's right side, so
   // the signature still reads as a corner mark rather than a sliver.

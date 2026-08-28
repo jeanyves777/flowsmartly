@@ -27,6 +27,15 @@ export const ROUTES = {
   pricing: '/pricing',
   flowAgent: '/flowagent',
 
+  /**
+   * The two access routes. Neither is authentication: V5 auth does not exist
+   * yet, so `login` is a branded transition page that hands existing customers
+   * to the legacy host, and `earlyAccess` is the lead funnel that replaces
+   * registration until V5 accounts open.
+   */
+  login: '/login',
+  earlyAccess: '/early-access',
+
   solutions: '/solutions',
   flowshop: '/solutions/flowshop',
   listsmartly: '/solutions/listsmartly',
@@ -35,6 +44,7 @@ export const ROUTES = {
   websiteBuilder: '/solutions/website-builder',
   domains: '/solutions/domains',
   videoStudio: '/solutions/video-studio',
+  customAutomation: '/solutions/custom-automation',
 
   aiStudio: '/platform/ai-studio',
   social: '/platform/social',
@@ -104,6 +114,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
     { label: 'Domains', href: ROUTES.domains, icon: 'globe', description: 'Search, register and connect a name' },
     { label: 'Video & Voice Studio', href: ROUTES.videoStudio, icon: 'clapperboard', description: 'Films, UGC, product ads and voiceover' },
+    { label: 'Custom AI Automation', href: ROUTES.customAutomation, icon: 'screwdriver-wrench', description: 'Built one-to-one around how you operate' },
   ],
 };
 

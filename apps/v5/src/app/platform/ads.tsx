@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { contactHref, EXTERNAL } from '@/lib/destinations';
+import { contactHref, goToEarlyAccess } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import {
   ArrowLink,
@@ -646,7 +646,7 @@ export default function AdsPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="ads.hero.launch"
-                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  onPress={() => goToEarlyAccess()}
                 />
                 <SecondaryButton
                   label="See Ads Manager"
