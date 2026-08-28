@@ -74,8 +74,15 @@ export function CardGrid({ children, wideColumns = 3, style }: CardGridProps) {
   );
 }
 
-/** Percentage basis for a cell, accounting for the gap between columns. */
-function basisFor(columns: number, gap: number): ViewStyle {
+/**
+ * Percentage basis for a cell, accounting for the gap between columns.
+ *
+ * Exported because a caller that needs a card variant this file does not
+ * provide would otherwise have to re-derive the column arithmetic, and a
+ * variant whose basis is computed slightly differently is exactly how a grid
+ * ends up with a last row that does not line up.
+ */
+export function basisFor(columns: number, gap: number): ViewStyle {
   // flexBasis in % cannot subtract the gap, so the cell takes a fraction and
   // `gap` eats into it. Using calc via a string keeps it exact on web, and the
   // numeric fallback is close enough everywhere else.
@@ -100,6 +107,16 @@ export type FeatureCardProps = {
   featured?: boolean;
   /** Renders a compact affordance instead of a full button. */
   actionLabel?: string;
+  /**
+   * A muted, non-interactive footer line: "Not available yet", "In beta".
+   *
+   * It exists because the only spare slot was `actionLabel`, which renders in
+   * the brand colour with a trailing arrow - so an honest "not available yet"
+   * would have been dressed as a link to somewhere. A status is the opposite of
+   * an action, and giving it its own slot means a card can say what it is
+   * without a clamp swallowing the caveat into the body copy.
+   */
+  status?: string;
   onPress?: () => void;
   accent?: keyof Pick<ThemeTokens, 'brand' | 'violet' | 'green' | 'orange' | 'pink'>;
   wideColumns?: 3 | 4;
@@ -111,6 +128,7 @@ export const FeatureCard = memo(function FeatureCard({
   body,
   featured = false,
   actionLabel,
+  status,
   onPress,
   accent = 'brand',
   wideColumns = 3,
@@ -164,6 +182,9 @@ export const FeatureCard = memo(function FeatureCard({
     },
     action: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
     actionText: { ...ty.caption, color: accentText(t.brand, t), fontWeight: '700' },
+    // Deliberately NOT the brand colour and deliberately not next to an arrow:
+    // a status is the opposite of an action, and must not read as a link.
+    status: { ...ty.caption, color: t.textSubtle, fontStyle: 'italic' as const },
   });
 
   const content = (
@@ -186,6 +207,7 @@ export const FeatureCard = memo(function FeatureCard({
           <FontAwesome6 name={"arrow-right" as never} size={11} color={t.brand} />
         </View>
       ) : null}
+      {status ? <Text style={s.status}>{status}</Text> : null}
     </>
   );
 

@@ -1,16 +1,23 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link, usePathname } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { elevation, type ThemeTokens } from '@/theme/tokens';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
 import { goToEarlyAccess, goToLogin } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
-import { FONT_SANS, PrimaryButton, useTypeScale, type TypeScale } from './ui';
+import {
+  FONT_SANS,
+  PrimaryButton,
+  SecondaryButton,
+  useTypeScale,
+  type TypeScale,
+} from './ui';
 
 /**
  * The one site header. Every route renders this through `PageShell` — the home
@@ -21,7 +28,16 @@ import { FONT_SANS, PrimaryButton, useTypeScale, type TypeScale } from './ui';
  * header bar, split into labelled columns. The panel is a sibling of the header
  * row inside a shared hover region, so travelling from the trigger down into
  * the panel does not close it.
+ *
+ * Below the compact breakpoint the same IA is served by a full-screen overlay
+ * — see `MobileNavOverlay`.
  */
+
+/** Is `href` the route being viewed (or a section of it)? */
+function isRouteActive(pathname: string, href: string): boolean {
+  if (href === ROUTES.home) return pathname === ROUTES.home;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function Brand() {
   const styles = useHeaderStyles();
@@ -42,7 +58,12 @@ function Brand() {
   );
 }
 
-function ThemeToggle() {
+/**
+ * `bare` drops the boxed chrome: inside the overlay the theme control is a
+ * quiet icon next to the close control, not a second bordered button competing
+ * with it. The 44px hit area is the same either way — only the box goes.
+ */
+function ThemeToggle({ bare }: { bare?: boolean } = {}) {
   const styles = useHeaderStyles();
   const t = useTokens();
   const { mode, cycleMode } = useV5Theme();
@@ -51,11 +72,14 @@ function ThemeToggle() {
       onPress={cycleMode}
       accessibilityRole="button"
       accessibilityLabel={`Theme: ${mode}. Change theme`}
-      style={styles.iconButton}>
+      style={({ pressed }) => [
+        bare ? styles.plainIconButton : styles.iconButton,
+        pressed && bare ? styles.plainIconButtonPressed : null,
+      ]}>
       <FontAwesome6
         name={mode === 'dark' ? 'moon' : mode === 'grey' ? 'circle-half-stroke' : 'sun'}
-        size={16}
-        color={t.text}
+        size={bare ? 17 : 16}
+        color={bare ? t.textMuted : t.text}
       />
     </Pressable>
   );
@@ -207,83 +231,400 @@ function MegaFootLink({ link, onNavigate }: { link: NavLink; onNavigate: () => v
   );
 }
 
-/** Mobile: one expandable section per group, so the whole IA is reachable. */
-function MobileMenu({ onNavigate }: { onNavigate: () => void }) {
+/* ------------------------------------------------------------------ */
+/* mobile overlay                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * IDs, not class names, and they are shared with `src/app/+html.tsx`.
+ *
+ * Three things the overlay needs cannot be said in a react-native style —
+ * a dynamic-viewport height *with a static fallback*, `env(safe-area-inset-*)`,
+ * and `overscroll-behavior` — because a react-native style is one value per
+ * property and knows no CSS functions. They are declared once, as real CSS, in
+ * the html shell. Changing a name here means changing it there.
+ */
+const NAV_ID = {
+  root: 'fs-nav-root',
+  top: 'fs-nav-top',
+  scroll: 'fs-nav-scroll',
+  actions: 'fs-nav-actions',
+} as const;
+
+/** A react-native-web ref *is* the DOM node; on native it is not, and is left alone. */
+function domNode(ref: { current: unknown }): HTMLElement | null {
+  if (Platform.OS !== 'web') return null;
+  const node = ref.current as HTMLElement | null;
+  return node && typeof node === 'object' && 'focus' in node ? node : null;
+}
+
+function focusNode(ref: { current: unknown }) {
+  const node = ref.current as { focus?: () => void } | null;
+  if (node && typeof node.focus === 'function') node.focus();
+}
+
+/**
+ * Freeze the page behind the overlay, and hand back the exact undo.
+ *
+ * The page is **not** the document. `<ScrollViewStyleReset/>` in the html shell
+ * ships `body{overflow:hidden}`, so the element that actually scrolls is
+ * `PageShell`'s ScrollView — a sibling of this header, carrying
+ * `overflow-y:auto` and react-native-web's `transform:translateZ(0)`. Setting
+ * `overflow:hidden` on the *document* therefore does nothing at all: the page
+ * keeps scrolling under an open menu. So the scroller is located from the
+ * header's own DOM node and frozen directly, with `scrollTop` captured and
+ * put back on release — `overflow:hidden` keeps a scroll container's offset in
+ * every current browser, but restoring it explicitly costs nothing and removes
+ * the assumption.
+ *
+ * `#root` is also hidden from assistive technology while the overlay is up.
+ * That is safe here precisely because the overlay is portalled to `<body>`, so
+ * nothing focusable ends up inside an `aria-hidden` subtree — and the attribute
+ * is removed before focus is handed back to the trigger.
+ */
+function lockPageBehindOverlay(from: HTMLElement | null): () => void {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return () => {};
+
+  const undo: Array<() => void> = [];
+
+  const freeze = (el: HTMLElement) => {
+    const top = el.scrollTop;
+    const left = el.scrollLeft;
+    const overflow = el.style.overflow;
+    const overscroll = el.style.overscrollBehavior;
+    el.style.overflow = 'hidden';
+    el.style.overscrollBehavior = 'contain';
+    undo.push(() => {
+      el.style.overflow = overflow;
+      el.style.overscrollBehavior = overscroll;
+      el.scrollTop = top;
+      el.scrollLeft = left;
+    });
+  };
+
+  const scroller = findPageScroller(from);
+  if (scroller) freeze(scroller);
+  freeze(document.body);
+  freeze(document.documentElement);
+
+  const root = document.getElementById('root');
+  if (root) {
+    const previous = root.getAttribute('aria-hidden');
+    root.setAttribute('aria-hidden', 'true');
+    undo.push(() => {
+      if (previous === null) root.removeAttribute('aria-hidden');
+      else root.setAttribute('aria-hidden', previous);
+    });
+  }
+
+  return () => {
+    for (const step of undo.reverse()) step();
+  };
+}
+
+/** The scrolling element of the page — PageShell's ScrollView, without importing it. */
+function findPageScroller(from: HTMLElement | null): HTMLElement | null {
+  const scrolls = (el: Element) => {
+    const style = window.getComputedStyle(el);
+    return (
+      (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+      el.scrollHeight > el.clientHeight + 1
+    );
+  };
+
+  // The header and the page ScrollView are siblings inside PageShell, so the
+  // scroller is one hop away — no tree walk, no guessing.
+  const siblings = from?.parentElement?.children;
+  if (siblings) {
+    for (let i = 0; i < siblings.length; i++) {
+      const el = siblings[i];
+      if (el instanceof HTMLElement && el !== from && scrolls(el)) return el;
+    }
+  }
+
+  // If the shell is ever rearranged, fall back to a bounded scan rather than
+  // silently leaving the page scrollable.
+  const root = document.getElementById('root') ?? document.body;
+  const candidates = root.querySelectorAll('div');
+  const limit = Math.min(candidates.length, 400);
+  for (let i = 0; i < limit; i++) {
+    const el = candidates[i];
+    if (el instanceof HTMLElement && scrolls(el)) return el;
+  }
+  return null;
+}
+
+function NavAffordance({ open }: { open: boolean }) {
   const styles = useHeaderStyles();
   const t = useTokens();
-  const [expanded, setExpanded] = useState<string | null>(null);
-
   return (
-    <ScrollView style={styles.mobileMenu} contentContainerStyle={styles.mobileMenuContent}>
-      {MAIN_NAV.map((item) =>
-        item.columns ? (
-          <View key={item.label}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: expanded === item.label }}
-              onPress={() => setExpanded((current) => (current === item.label ? null : item.label))}
-              style={styles.mobileRow}>
-              <Text style={styles.mobileLabel}>{item.label}</Text>
-              <FontAwesome6
-                name={expanded === item.label ? 'chevron-up' : 'chevron-down'}
-                size={12}
-                color={t.textMuted}
-              />
-            </Pressable>
-            {expanded === item.label
-              ? item.columns.map((column) => (
-                  <View key={column.title} style={styles.mobileGroup}>
-                    <Text style={styles.mobileGroupTitle}>{column.title}</Text>
-                    {column.links.map((link) => (
-                      <Link
-                        key={`${column.title}-${link.label}`}
-                        href={link.href as never}
-                        onPress={onNavigate}
-                        accessibilityRole="link"
-                        style={styles.mobileSubRow as never}>
-                        <Text style={styles.mobileSubLabel}>{link.label}</Text>
-                      </Link>
-                    ))}
-                  </View>
-                ))
-              : null}
-          </View>
-        ) : (
-          <Link
-            key={item.label}
-            href={item.href as never}
-            onPress={onNavigate}
-            accessibilityRole="link"
-            style={styles.mobileRow as never}>
-            <Text style={styles.mobileLabel}>{item.label}</Text>
-          </Link>
-        ),
-      )}
-      <View style={styles.mobileActions}>
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => {
-            trackCta('header.mobile.log-in');
-            onNavigate();
-            goToLogin();
-          }}
-          style={styles.mobileRow}>
-          <Text style={styles.mobileLabel}>Log in</Text>
-        </Pressable>
-        <PrimaryButton
-          label="Join early access"
-          size="md"
-          full
-          trackId="header.mobile.start-free"
-          onPress={() => {
-            onNavigate();
-            goToEarlyAccess();
-          }}
-        />
-      </View>
-    </ScrollView>
+    <View style={styles.navAffordance}>
+      <FontAwesome6 name={open ? 'chevron-up' : 'chevron-down'} size={15} color={t.textMuted} />
+    </View>
   );
 }
+
+/** One link inside an expanded section. */
+function OverlayChildRow({
+  link,
+  active,
+  onNavigate,
+}: {
+  link: NavLink;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  const styles = useHeaderStyles();
+  const [pressed, setPressed] = useState(false);
+  return (
+    <View
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}>
+      <Link
+        href={link.href as never}
+        onPress={onNavigate}
+        accessibilityRole="link"
+        // `accessibilityState` is inert on web - react-native-web dropped it -
+        // so "you are here" is said in the label, which every platform reads.
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={active ? `${link.label}, current page` : undefined}
+        style={
+          [
+            styles.overlayChildRow,
+            active && styles.overlayChildRowActive,
+            pressed && styles.overlayRowPressed,
+          ] as never
+        }>
+        {active ? <View style={styles.overlayChildBar} /> : null}
+        <Text style={[styles.overlayChildLabel, active && styles.overlayChildLabelActive]}>
+          {link.label}
+        </Text>
+      </Link>
+    </View>
+  );
+}
+
+/**
+ * THE MOBILE NAVIGATION.
+ *
+ * A true full-screen sheet, not a panel hanging off the header. It is rendered
+ * through react-native `Modal`, which on web portals its subtree into a `<div>`
+ * appended to `document.body` (`react-native-web/…/Modal/ModalPortal.js`) and
+ * gives that subtree `position:fixed; inset:0; z-index:9999`.
+ *
+ * The portal is not a convenience. EVERY react-native-web ScrollView ships
+ * `transform:translateZ(0)` in its base style (`ScrollView/index.js`,
+ * `commonStyle`) to force a compositing layer — the page's scroller carries it,
+ * and so does this sheet's own list. A transformed ancestor becomes the
+ * containing block for `position:fixed`, so an overlay left anywhere in the app
+ * tree is pinned to a *page* rather than to the viewport the moment a ScrollView
+ * appears above it, and the hero shows through underneath. A child of `<body>`
+ * cannot have one.
+ *
+ * Modal also supplies the focus bracket pair, the trap that keeps Tab inside
+ * the sheet, and Escape → `onRequestClose`.
+ */
+function MobileNavOverlay({
+  onClose,
+  triggerRef,
+}: {
+  onClose: () => void;
+  triggerRef: { current: unknown };
+}) {
+  const styles = useHeaderStyles();
+  const t = useTokens();
+  const pathname = usePathname();
+  const closeRef = useRef<View | null>(null);
+
+  // The section holding the current route opens with the sheet, so "you are
+  // here" is visible without a hunt. Safe in a `useState` initialiser because
+  // the sheet only ever mounts from a press — it is never part of the static
+  // export, so there is no server markup for it to disagree with.
+  const [expanded, setExpanded] = useState<string | null>(() => {
+    const match = MAIN_NAV.find((item) =>
+      item.columns?.some((column) => column.links.some((link) => isRouteActive(pathname, link.href))),
+    );
+    return match?.label ?? null;
+  });
+
+  useEffect(() => {
+    const release = lockPageBehindOverlay(domNode(triggerRef));
+    // Focus lands on the close control: the one thing every user needs first,
+    // and a descriptive label for anyone who cannot see the sheet arrive.
+    const frame = requestAnimationFrame(() => focusNode(closeRef));
+    return () => {
+      cancelAnimationFrame(frame);
+      release();
+      // After `release`, so the trigger is out of the aria-hidden subtree by
+      // the time focus returns to it - and, on web, after the paint, because
+      // Modal's own focus trap restores focus to whatever was active when it
+      // mounted. In Safari a tap does not focus a button, so that restore
+      // targets <body>; letting it run first and then claiming focus is what
+      // makes the trigger the reliable landing point on every browser.
+      if (Platform.OS === 'web') requestAnimationFrame(() => focusNode(triggerRef));
+      else focusNode(triggerRef);
+    };
+  }, [triggerRef]);
+
+  // Modal's own Escape handler only arms once it has marked itself active;
+  // this one is armed from the first frame and is idempotent with it.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  const renderGroup = (title: string, links: NavLink[]) => (
+    <View key={title}>
+      <Text style={styles.overlayGroupTitle}>{title}</Text>
+      {links.map((link) => (
+        <OverlayChildRow
+          key={`${title}-${link.label}-${link.href}`}
+          link={link}
+          active={isRouteActive(pathname, link.href)}
+          onNavigate={onClose}
+        />
+      ))}
+    </View>
+  );
+
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <View id={NAV_ID.root} style={styles.overlay}>
+        {/* FlowSmartly's own gradient, kept as a wash rather than a fill so no
+            label ever reads on top of a mid-tone. Painted first, so the rows
+            sit above it. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[hexToRgba(t.brand, t.ground === 'light' ? 0.09 : 0.18), hexToRgba(t.brand, 0)]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.6, y: 1 }}
+          style={styles.overlayWash}
+        />
+
+        <View id={NAV_ID.top} style={styles.overlayTop}>
+          <Link
+            href={ROUTES.home as never}
+            onPress={onClose}
+            accessibilityLabel="FlowSmartly home"
+            style={styles.overlayBrandLink as never}>
+            <ImageAsset
+              source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+              style={styles.overlayLogo}
+              contentFit="contain"
+              contentPosition="left"
+              alt="FlowSmartly"
+            />
+          </Link>
+          <View style={styles.overlayTopActions}>
+            <ThemeToggle bare />
+            <Pressable
+              ref={closeRef}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close navigation menu"
+              style={({ pressed }) => [
+                styles.plainIconButton,
+                pressed && styles.plainIconButtonPressed,
+              ]}>
+              <FontAwesome6 name="xmark" size={22} color={t.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        <ScrollView
+          id={NAV_ID.scroll}
+          style={styles.overlayScroll}
+          contentContainerStyle={styles.overlayScrollContent}
+          showsVerticalScrollIndicator={false}>
+          {MAIN_NAV.map((item) => {
+            const open = expanded === item.label;
+            const active = isRouteActive(pathname, item.href);
+
+            // Product, Solutions and Resources open. FlowAgent and Pricing go
+            // straight there, and carry no affordance to promise otherwise.
+            if (!item.columns) {
+              return (
+                <View key={item.label} style={styles.overlaySection}>
+                  <Link
+                    href={item.href as never}
+                    onPress={onClose}
+                    accessibilityRole="link"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={active ? `${item.label}, current page` : undefined}
+                    style={styles.overlayRow as never}>
+                    <Text style={[styles.overlayLabel, active && styles.overlayLabelActive]}>
+                      {item.label}
+                    </Text>
+                  </Link>
+                </View>
+              );
+            }
+
+            return (
+              <View key={item.label} style={styles.overlaySection}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                  // Both spellings on purpose: `accessibilityState` is the
+                  // native contract and `aria-expanded` is the only one
+                  // react-native-web actually emits.
+                  accessibilityState={{ expanded: open }}
+                  aria-expanded={open}
+                  onPress={() => setExpanded((current) => (current === item.label ? null : item.label))}
+                  style={({ pressed }) => [styles.overlayRow, pressed && styles.overlayRowPressed]}>
+                  <Text style={[styles.overlayLabel, active && styles.overlayLabelActive]}>
+                    {item.label}
+                  </Text>
+                  <NavAffordance open={open} />
+                </Pressable>
+                {open ? (
+                  <View style={styles.overlayChildren}>
+                    {item.columns.map((column) => renderGroup(column.title, column.links))}
+                    {item.overview?.length ? renderGroup('Overview', item.overview) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <View id={NAV_ID.actions} style={styles.overlayActions}>
+          <SecondaryButton
+            label="Log in"
+            size="lg"
+            full
+            trackId="header.mobile.log-in"
+            onPress={() => {
+              onClose();
+              goToLogin();
+            }}
+          />
+          <PrimaryButton
+            label="Join early access"
+            size="lg"
+            full
+            trackId="header.mobile.start-free"
+            onPress={() => {
+              onClose();
+              goToEarlyAccess();
+            }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 
 export function SiteHeader() {
   const styles = useHeaderStyles();
@@ -296,6 +637,15 @@ export function SiteHeader() {
   const [navWidth, setNavWidth] = useState(0);
   const compact = l.isCompact;
   const openItem = MAIN_NAV.find((item) => item.label === openMenu && item.columns);
+  const menuTriggerRef = useRef<View | null>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  // A viewport that grows past the compact breakpoint while the sheet is open
+  // (rotation, a resized desktop window) hands the IA back to the mega menu,
+  // rather than leaving a full-screen overlay over a desktop layout.
+  useEffect(() => {
+    if (!compact && menuOpen) setMenuOpen(false);
+  }, [compact, menuOpen]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.headerSafe}>
@@ -308,10 +658,12 @@ export function SiteHeader() {
             <View style={styles.headerActions}>
               <ThemeToggle />
               <Pressable
+                ref={menuTriggerRef}
                 onPress={() => setMenuOpen((open) => !open)}
                 accessibilityRole="button"
                 accessibilityLabel={menuOpen ? 'Close navigation' : 'Open navigation'}
                 accessibilityState={{ expanded: menuOpen }}
+                aria-expanded={menuOpen}
                 style={styles.iconButton}>
                 <FontAwesome6 name={menuOpen ? 'xmark' : 'bars'} size={18} color={t.text} />
               </Pressable>
@@ -375,7 +727,9 @@ export function SiteHeader() {
         </View>
       </View>
 
-      {compact && menuOpen ? <MobileMenu onNavigate={() => setMenuOpen(false)} /> : null}
+      {compact && menuOpen ? (
+        <MobileNavOverlay onClose={closeMenu} triggerRef={menuTriggerRef} />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -386,11 +740,34 @@ function useHeaderStyles() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  return useMemo(() => createStyles(t, l, type), [t, l, type]);
+  const insets = useSafeAreaInsets();
+  // On web the safe area is applied as real CSS `env()` from the html shell,
+  // where it can sit inside a `calc()`; the measured inset is the native path.
+  const safeTop = Platform.OS === 'web' ? 0 : insets.top;
+  const safeBottom = Platform.OS === 'web' ? 0 : insets.bottom;
+  return useMemo(
+    () => createStyles(t, l, type, safeTop, safeBottom),
+    [t, l, type, safeTop, safeBottom],
+  );
 }
 
-function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
-  const bodySize = type.bodySm.fontSize as number;
+function createStyles(
+  t: ThemeTokens,
+  l: Layout,
+  type: TypeScale,
+  safeTop: number,
+  safeBottom: number,
+) {
+  /**
+   * The overlay's two type roles, clamped to the approved mobile band: a
+   * primary row is 18–20px and a child row is 16–17px, whatever the scale
+   * ramps to at the widest compact viewport.
+   */
+  const rowSize = Math.max(18, Math.min(20, type.h4.fontSize as number));
+  const childSize = Math.max(16, Math.min(17, type.bodySm.fontSize as number));
+  /** Guaranteed 4.5:1 — never `t.brand` raw as ink. */
+  const accent = accentText(t.brand, t);
+
   return StyleSheet.create({
     headerSafe: {
       backgroundColor: t.surface,
@@ -538,46 +915,134 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: 'center',
       backgroundColor: t.surfaceRaised,
     },
+    /** 44px of hit area, no box: for controls that must not shout. */
+    plainIconButton: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
+    },
+    plainIconButtonPressed: { backgroundColor: t.surfaceMuted },
     signInButton: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
     signIn: { color: t.text, fontSize: 14, fontWeight: '600' , fontFamily: FONT_SANS },
 
-    mobileMenu: {
-      maxHeight: 480,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: t.border,
+    /* ---------- mobile overlay ---------- */
+    // `height: 100%` of the portal's fixed, viewport-sized root — and `#fs-nav-root`
+    // in the html shell raises that to `100dvh` where the browser has it, so the
+    // pinned actions clear a mobile URL bar. Deliberately NOT `flex: 1`: a flex
+    // basis of 0 would override the height and hand the dvh back to the viewport.
+    overlay: {
+      width: '100%',
+      height: '100%',
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
       backgroundColor: t.surface,
+      overflow: 'hidden',
     },
-    mobileMenuContent: { paddingHorizontal: l.gutter, paddingVertical: 8, paddingBottom: 20 },
-    mobileRow: {
-      minHeight: 48,
+    overlayWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 300 },
+    overlayTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 60,
+      paddingHorizontal: l.gutter,
+      paddingTop: 6 + safeTop,
+      paddingBottom: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: t.border,
+    },
+    overlayBrandLink: {
+      flexShrink: 0,
+      height: 44,
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      lineHeight: 0,
+    },
+    // Smaller than the header's 168×40: the sheet's job is the nav, not the mark.
+    overlayLogo: { width: 146, height: 34 },
+    overlayTopActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+
+    overlayScroll: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
+    overlayScrollContent: { paddingBottom: 12 },
+    // The divider belongs to the section, not to the row, so an expanded
+    // section keeps its children *above* the rule instead of below it.
+    overlaySection: { borderBottomWidth: 1, borderBottomColor: t.border },
+    overlayRow: {
+      minHeight: 64,
       display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: 12,
+      paddingHorizontal: l.gutter,
     },
-    mobileLabel: { color: t.text, fontSize: bodySize, fontWeight: '700' , fontFamily: FONT_SANS },
-    mobileGroup: { paddingLeft: 6, paddingBottom: 6 },
-    mobileGroupTitle: {
-      ...type.caption,
+    overlayRowPressed: { backgroundColor: t.surfaceMuted },
+    overlayLabel: {
+      fontFamily: FONT_SANS,
+      fontSize: rowSize,
+      lineHeight: Math.round(rowSize * 1.3),
+      fontWeight: '700',
+      letterSpacing: -0.2,
+      color: t.text,
+    },
+    overlayLabelActive: { color: accent },
+    navAffordance: { width: 24, alignItems: 'center', justifyContent: 'center' },
+
+    overlayChildren: { paddingBottom: 8 },
+    // 12px is the one size allowed under 14 — a short, uppercase, tracked label.
+    overlayGroupTitle: {
+      fontFamily: FONT_SANS,
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 0.9,
+      textTransform: 'uppercase',
+      fontWeight: '700',
       color: t.textSubtle,
-      fontWeight: '600',
-      marginTop: 6,
-      marginBottom: 2,
+      paddingTop: 14,
+      paddingBottom: 4,
+      paddingLeft: l.gutter + 14,
+      paddingRight: l.gutter,
     },
-    mobileSubRow: {
-      minHeight: 44,
+    overlayChildRow: {
+      minHeight: 48,
       display: 'flex',
+      // Explicit, because this style lands on a Link: react-native-web's Text
+      // base is `position: static`, and the selected-route bar is absolute.
+      position: 'relative',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      paddingLeft: 8,
+      paddingLeft: l.gutter + 14,
+      paddingRight: l.gutter,
     },
-    mobileSubLabel: { color: t.textMuted, fontSize: bodySize , fontFamily: FONT_SANS },
-    mobileActions: {
-      marginTop: 10,
-      paddingTop: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
+    overlayChildRowActive: { backgroundColor: t.surfaceMuted },
+    overlayChildBar: {
+      position: 'absolute',
+      left: l.gutter,
+      top: 9,
+      bottom: 9,
+      width: 3,
+      borderRadius: 2,
+      backgroundColor: t.brand,
+    },
+    overlayChildLabel: {
+      fontFamily: FONT_SANS,
+      fontSize: childSize,
+      lineHeight: Math.round(childSize * 1.4),
+      fontWeight: '500',
+      color: t.textMuted,
+    },
+    overlayChildLabelActive: { color: accent, fontWeight: '700' },
+
+    overlayActions: {
+      borderTopWidth: 1,
       borderTopColor: t.border,
+      backgroundColor: t.surface,
+      paddingHorizontal: l.gutter,
+      paddingTop: 12,
+      paddingBottom: 14 + safeBottom,
       gap: 10,
     },
   });

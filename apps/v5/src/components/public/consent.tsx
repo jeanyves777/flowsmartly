@@ -181,29 +181,54 @@ export function ConsentNotice() {
           aria-label="Cookie notice"
           style={styles.bannerWrap}>
           <View style={styles.banner}>
-            <View style={styles.bannerIcon}>
-              <FontAwesome6 name="cookie-bite" size={16} color={t.brand} />
-            </View>
+            {/* On a phone the 38px mark, the title line and the long paragraph
+                are the whole difference between a 307px banner covering a third
+                of the first screen and a ~128px one. The wide banner keeps all
+                three; the phone banner is two lines and the actions. */}
+            {l.isPhone ? null : (
+              <View style={styles.bannerIcon}>
+                <FontAwesome6 name="cookie-bite" size={16} color={t.brand} />
+              </View>
+            )}
             <View style={styles.bannerCopy}>
-              <Text style={styles.bannerTitle}>Before we measure anything</Text>
+              {l.isPhone ? null : <Text style={styles.bannerTitle}>Before we measure anything</Text>}
               <Text style={styles.bannerBody}>
-                We use strictly necessary storage to make the site work. Analytics and marketing
-                storage are optional and stay off until you say otherwise.{' '}
+                {l.isPhone
+                  ? // Same three facts as the wide copy — necessary storage is
+                    // in use, the two optional categories are named, and they
+                    // are off — in two lines instead of four.
+                    'Necessary storage only. Analytics and marketing stay off. '
+                  : 'We use strictly necessary storage to make the site work. Analytics and marketing storage are optional and stay off until you say otherwise. '}
                 <Text
                   accessibilityRole="link"
                   onPress={() => router.push(ROUTES.cookies as never)}
                   style={styles.bannerLink}>
-                  Read the cookie policy
+                  {l.isPhone ? 'Cookie policy' : 'Read the cookie policy'}
                 </Text>
                 .
               </Text>
             </View>
             <View style={styles.bannerActions}>
               {/* Reject sits first and looks the same as accept — refusing must
-                  not be the harder path. */}
-              <ConsentButton label="Reject optional" onPress={() => decide(false, false, 'banner')} />
-              <ConsentButton label="Accept all" primary onPress={() => decide(true, true, 'banner')} />
-              <ConsentButton label="Choose" quiet onPress={openPanel} />
+                  not be the harder path. The phone labels are shortened so all
+                  three fit one row at 390; the announced label is not. */}
+              <ConsentButton
+                label={l.isPhone ? 'Reject' : 'Reject optional'}
+                a11yLabel="Reject optional cookies"
+                onPress={() => decide(false, false, 'banner')}
+              />
+              <ConsentButton
+                label="Accept all"
+                a11yLabel="Accept all cookies"
+                primary
+                onPress={() => decide(true, true, 'banner')}
+              />
+              <ConsentButton
+                label="Choose"
+                a11yLabel="Choose which cookies to allow"
+                quiet
+                onPress={openPanel}
+              />
             </View>
           </View>
         </View>
@@ -314,11 +339,14 @@ export function ConsentNotice() {
 
 function ConsentButton({
   label,
+  a11yLabel,
   onPress,
   primary,
   quiet,
 }: {
   label: string;
+  /** What the button is announced as when the visible label is abbreviated. */
+  a11yLabel?: string;
   onPress: () => void;
   primary?: boolean;
   quiet?: boolean;
@@ -329,7 +357,7 @@ function ConsentButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={a11yLabel ?? label}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
@@ -462,7 +490,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       right: 0,
       bottom: 0,
       paddingHorizontal: l.gutter,
-      paddingBottom: l.isPhone ? 12 : 18,
+      paddingBottom: l.isPhone ? 8 : 18,
       zIndex: 90,
     },
     banner: {
@@ -471,12 +499,12 @@ function createStyles(t: ThemeTokens, l: Layout) {
       maxWidth: 1100,
       flexDirection: l.isCompact ? 'column' : 'row',
       alignItems: l.isCompact ? 'stretch' : 'center',
-      gap: l.isPhone ? 12 : 18,
+      gap: l.isPhone ? 8 : 18,
       borderWidth: 1,
       borderColor: t.borderStrong,
-      borderRadius: 18,
+      borderRadius: l.isPhone ? 14 : 18,
       backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 14 : 18,
+      padding: l.isPhone ? 12 : 18,
       ...shadow,
     },
     bannerIcon: {
@@ -489,7 +517,13 @@ function createStyles(t: ThemeTokens, l: Layout) {
       justifyContent: 'center',
       backgroundColor: softFill(t.brand, t),
     },
-    bannerCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 4 },
+    bannerCopy: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: l.isCompact ? 'auto' : 0,
+      minWidth: 0,
+      gap: l.isPhone ? 0 : 4,
+    },
     bannerTitle: { color: t.text, fontSize: 15, fontWeight: '800' , fontFamily: FONT_SANS },
     bannerBody: { ...type.caption, color: t.textMuted },
     bannerLink: { color: accentText(t.brand, t), fontWeight: '700' },
@@ -507,9 +541,12 @@ function createStyles(t: ThemeTokens, l: Layout) {
       minHeight: 44,
       flexGrow: l.isPhone ? 1 : 0,
       flexShrink: 1,
+      flexBasis: 'auto',
       minWidth: 0,
       borderRadius: 11,
-      paddingHorizontal: 16,
+      // 12 on a phone so "Reject", "Accept all" and "Choose" clear 336px of
+      // banner interior on one row; the 44px minimum height is untouched.
+      paddingHorizontal: l.isPhone ? 12 : 16,
       alignItems: 'center',
       justifyContent: 'center',
     },

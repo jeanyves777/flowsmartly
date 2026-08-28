@@ -37,6 +37,16 @@ const BASE = arg('--base', 'http://127.0.0.1:8093');
 const WIDTH = Number(arg('--width', '390'));
 const HEIGHT = WIDTH <= 430 ? 844 : WIDTH <= 820 ? 1024 : 900;
 const SHOTS = arg('--shots', '');
+/*
+ * Text over a photo FAILS by default.
+ *
+ * The ground is not computable there, and the design rule now says hero copy
+ * must sit on a surface or an opaque gradient rather than on "the photo happens
+ * to be dark enough just here". Dark navy body copy crossing a bright window
+ * and then a face is what settled it. Pass --allow-media to demote these back
+ * to a note.
+ */
+const NO_STRICT_MEDIA = process.argv.includes('--allow-media');
 
 const FLOOR = 14;          // nothing on the public site sits below this
 const LABEL_FLOOR = 12;    // except a short uppercase tracked signpost
@@ -347,6 +357,24 @@ for (const route of ROUTES) {
       if (n.unverified) {
         cat.unverified = (cat.unverified || 0) + 1;
         unverified.push({ route, cat: n.cat, text: n.text, size: n.size });
+        /*
+         * A node here has a photo behind it that no opaque layer covers, so no
+         * honest ratio exists for it. That used to be reported and not counted.
+         *
+         * It counts now, because the design rule changed: hero copy must sit on
+         * a ground whose contrast is COMPUTABLE - a surface or an opaque
+         * gradient - rather than on "the photo is dark enough just there". Dark
+         * navy body copy over an office photograph was the case that settled it;
+         * it crossed a bright window and then a face, and was unreadable for
+         * most of its length. Leaving these merely "noted" is how an audit
+         * reports a clean sweep over text nobody can read.
+         */
+        if (!NO_STRICT_MEDIA) {
+          findings.push({
+            route, kind: 'contrast',
+            detail: 'text over a photo, ground not computable at ' + n.size + 'px [' + n.cat + '] "' + n.text + '"',
+          });
+        }
       } else if (!transparent && n.grounds && n.grounds.length) {
         const fg = [p[0], p[1], p[2]];
         const cr = Math.min.apply(null, n.grounds.map((g) => ratio(fg, g)));

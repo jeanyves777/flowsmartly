@@ -1,8 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { goToEarlyAccess } from '@/lib/destinations';
+import { CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -33,6 +34,30 @@ import { FONT_SANS,
  * The order they compose in is the argument: the anchor statement says what the
  * system *is*, the capability groups say what it can operate, and only then is
  * any individual channel named — inside a group, never as the category.
+ *
+ * RESPONSIVE RECOMPOSITION
+ * ------------------------
+ * Every item grid in here is authored TWICE, deliberately, because a section
+ * that answers a narrow viewport with `flexDirection: 'column'` has not been
+ * made responsive — it is the desktop composition, taller.
+ *
+ *   wide (>= 1024)   ruled / open compositions: transparent cells separated by
+ *                    a hairline above, `flexGrow` equalising the row heights so
+ *                    the rules line up across a row. Rule 15: no box.
+ *   phone + tablet   two-column CARDS from `responsive-grid`, each holding its
+ *                    own icon, title and a two-to-three line description, with
+ *                    no seams at all.
+ *
+ * The hairline composition is *good* at 1440 and *wrong* at 390: with one item
+ * per row every rule spans the full width, the equalising does nothing, the
+ * icon detaches from the copy it belongs to, and the section becomes several
+ * screens of identical stacked rows. So the phone gets a different composition
+ * of the same content rather than a shrunken copy of this one.
+ *
+ * That is also why every item carries a `short`. A description written for a
+ * 1440px column runs to eight lines inside a ~147px card, and `numberOfLines`
+ * would clamp it mid-word. The clamp is the safety net; the phone copy is the
+ * actual answer.
  */
 
 /* ------------------------------------------------------------------ */
@@ -53,7 +78,24 @@ function accentOf(t: ThemeTokens, accent: Accent): string {
           : t.brand;
 }
 
-type Item = { icon: string; title: string; body: string; accent: Accent };
+/**
+ * `body` is the wide composition's copy. `short` is the phone/tablet card's
+ * copy — roughly forty-five characters, which is about what three lines of 17px
+ * body text actually holds in a half-width card at 390px. `featured` promotes
+ * one item to a full-width cell, so an odd count does not leave a stretched
+ * orphan and the item that needs more explanation gets it.
+ */
+type Item = {
+  icon: string;
+  title: string;
+  body: string;
+  short: string;
+  accent: Accent;
+  featured?: boolean;
+  /** No public surface yet. Lives on Item, not Group, because the card grid
+      renders Items and the honesty marker has to survive that narrowing. */
+  unreleased?: boolean;
+};
 
 /**
  * Six organisation types, chosen so no two read as the same business. A list
@@ -65,36 +107,42 @@ const INDUSTRIES: Item[] = [
     icon: 'briefcase',
     title: 'Professional services',
     body: 'Manage leads, appointments, documents, proposals, client communication, billing, and follow-ups.',
+    short: 'Leads, appointments, proposals and billing.',
     accent: 'brand',
   },
   {
     icon: 'bag-shopping',
     title: 'Retail and e-commerce',
     body: 'Create product content, operate your storefront, recover carts, run campaigns, support customers, and measure sales.',
+    short: 'Product content, storefront and campaigns.',
     accent: 'orange',
   },
   {
     icon: 'heart-pulse',
     title: 'Healthcare and elder services',
     body: 'Coordinate appointments, communicate with families, manage approved workflows, and keep human oversight over sensitive actions.',
+    short: 'Appointments, families, approved workflows.',
     accent: 'pink',
   },
   {
     icon: 'hand-holding-heart',
     title: 'Nonprofits and NGOs',
     body: 'Engage donors, coordinate volunteers, promote programs, manage events, communicate impact, and prepare reports.',
+    short: 'Donors, volunteers, events and impact.',
     accent: 'green',
   },
   {
     icon: 'file-invoice-dollar',
     title: 'Tax and financial services',
     body: 'Collect documents, remind clients, organize intake, communicate deadlines, generate educational content, and manage follow-ups.',
+    short: 'Documents, reminders, intake, deadlines.',
     accent: 'violet',
   },
   {
     icon: 'store',
     title: 'Local businesses',
     body: 'Manage listings, reviews, appointments, social content, promotions, customer communication, and daily operations.',
+    short: 'Listings, reviews, bookings, promotions.',
     accent: 'brand',
   },
 ];
@@ -119,14 +167,26 @@ const INDUSTRIES: Item[] = [
  * orchestration* under "What we are deliberately not building". Early access
  * is a waiting list for a workspace; nothing in this repo ties either group to
  * it. Naming a channel we cannot evidence is the same defect as naming a date.
+ *
+ * On a phone the marker cannot be a row of its own: `FeatureCard` is one visual
+ * object with no status slot, and `actionLabel` renders an arrow in the brand
+ * colour, which would turn "not available" into something that looks like a
+ * link. So the honesty moves into the copy and *leads* the `short`, where no
+ * clamp can ever reach it.
  */
-type Group = Item & { areas: string[]; unreleased?: boolean };
+type Group = Item & { areas: string[] };
 
 const CAPABILITY_GROUPS: Group[] = [
   {
     icon: 'arrow-trend-up',
     title: 'Business & growth',
     body: 'Reach customers, sell to them and understand what happened — social, content, email, SMS, advertising, CRM, commerce and the analytics over all of it.',
+    // The one group that genuinely needs more room, so it takes the featured
+    // full-width cell: it is the group the whole positioning depends on being
+    // read as *one of five*, and the only one whose contents a visitor already
+    // recognises by name. Everything after it still pairs up, two by two.
+    short: 'Reach customers, sell to them and understand what happened — social, email, SMS, advertising, CRM and commerce.',
+    featured: true,
     areas: ['Social', 'Content', 'Email & SMS', 'Advertising', 'CRM', 'Commerce', 'Customer engagement'],
     accent: 'brand',
   },
@@ -134,6 +194,7 @@ const CAPABILITY_GROUPS: Group[] = [
     icon: 'code-branch',
     title: 'Engineering & technology',
     body: 'Agentic engineering inside defined boundaries: planning and architecture, coding, testing, review, deployment, recovery and infrastructure operations.',
+    short: 'Agentic engineering, bounded by the authority you set.',
     areas: ['Architecture', 'Agentic coding', 'Testing', 'Review', 'Deployment', 'Recovery', 'Infrastructure ops'],
     accent: 'violet',
     unreleased: true,
@@ -142,6 +203,7 @@ const CAPABILITY_GROUPS: Group[] = [
     icon: 'list-check',
     title: 'Operations',
     body: 'The work that has to keep happening: workflow execution, approvals, monitoring, recurring processes, reporting and coordination across teams.',
+    short: 'Workflows, approvals, monitoring, reporting.',
     areas: ['Workflow execution', 'Approvals', 'Monitoring', 'Recurring processes', 'Reporting', 'Coordination'],
     accent: 'orange',
   },
@@ -149,6 +211,7 @@ const CAPABILITY_GROUPS: Group[] = [
     icon: 'brain',
     title: 'Intelligence',
     body: 'Research, analysis, planning and decision support, grounded in your business context and the organizational knowledge the system carries between runs.',
+    short: 'Research, analysis and decision support.',
     areas: ['Research', 'Analysis', 'Planning', 'Decision support', 'Business context', 'Organizational knowledge'],
     accent: 'green',
   },
@@ -156,6 +219,7 @@ const CAPABILITY_GROUPS: Group[] = [
     icon: 'diagram-project',
     title: 'Agent platform',
     body: 'The layer you build on: custom agents and specialized roles, the tools they may operate, permissions, memory, governance, observability and continuous learning.',
+    short: 'Build your own agents on the same runtime.',
     areas: ['Custom agents', 'Specialized roles', 'Tools', 'Permissions', 'Memory', 'Governance', 'Observability'],
     accent: 'pink',
     unreleased: true,
@@ -167,6 +231,11 @@ const CAPABILITY_GROUPS: Group[] = [
  *
  * Deliberately eight nouns rather than a sentence: the anchor claims the parts
  * combine, and the reader should be able to see the parts.
+ *
+ * This one needs no recomposition. It is not a multi-column group collapsing
+ * into a list — it is an inline vocabulary strip that already reflows into
+ * three or four wrapped lines on a phone, which is the shape a vocabulary
+ * should have at every width.
  */
 const SYSTEM_PARTS = [
   'Agents',
@@ -185,16 +254,54 @@ const SYSTEM_PARTS = [
  * Every line that claims action is paired with the thing that bounds it —
  * defined authority, an approval, an evaluated result. "Agentic" is the claim
  * this page is allowed to make; "autonomous" is not, and does not appear.
+ *
+ * Two shapes of one sequence. `line` is the wide panel's checklist, which gets
+ * away with not showing its order because eight ticks in a card beside a copy
+ * column read as a picture of a product surface. `title` + `body` is the
+ * phone's numbered flow: the ordering is the entire content of this section,
+ * and a stack of eight identical ticks carries none of it.
  */
-const AGENT_CAN = [
-  'Understand the objective and your business context',
-  'Build a plan and assign specialized agents',
-  'Coordinate tools and connected systems',
-  'Execute the work within defined authority',
-  'Request approval before consequential actions',
-  'Observe the result and evaluate the outcome',
-  'Recover when a step fails, and say what is still blocked',
-  'Continue from what it learned on the last run',
+const AGENT_LOOP: { line: string; title: string; body: string }[] = [
+  {
+    line: 'Understand the objective and your business context',
+    title: 'Understand',
+    body: 'The objective, and the business context around it.',
+  },
+  {
+    line: 'Build a plan and assign specialized agents',
+    title: 'Plan',
+    body: 'Build the plan and assign specialized agents.',
+  },
+  {
+    line: 'Coordinate tools and connected systems',
+    title: 'Coordinate',
+    body: 'Drive the tools and connected systems it may use.',
+  },
+  {
+    line: 'Execute the work within defined authority',
+    title: 'Execute',
+    body: 'Do the work, inside defined authority.',
+  },
+  {
+    line: 'Request approval before consequential actions',
+    title: 'Ask',
+    body: 'Request approval before consequential actions.',
+  },
+  {
+    line: 'Observe the result and evaluate the outcome',
+    title: 'Observe',
+    body: 'Check the real result and evaluate the outcome.',
+  },
+  {
+    line: 'Recover when a step fails, and say what is still blocked',
+    title: 'Recover',
+    body: 'Retry a failed step, and say what is still blocked.',
+  },
+  {
+    line: 'Continue from what it learned on the last run',
+    title: 'Continue',
+    body: 'Carry forward what it learned on the last run.',
+  },
 ];
 
 const CONTROLS: Item[] = [
@@ -202,30 +309,40 @@ const CONTROLS: Item[] = [
     icon: 'circle-check',
     title: 'Human approval',
     body: 'Review important actions before they happen.',
+    short: 'Review important actions before they happen.',
     accent: 'green',
   },
   {
     icon: 'user-shield',
     title: 'Permission-aware',
     body: 'FlowAgent only accesses what each user and workspace permits.',
+    short: 'Agents reach only what each user permits.',
     accent: 'brand',
   },
   {
     icon: 'clipboard-check',
     title: 'Verified execution',
     body: 'The system checks whether important actions actually succeeded.',
+    short: 'We check that actions actually succeeded.',
     accent: 'violet',
   },
   {
     icon: 'clock-rotate-left',
     title: 'Complete activity history',
     body: 'See what was requested, approved, executed, and completed.',
+    short: 'See what was requested, approved and done.',
     accent: 'orange',
   },
   {
+    // Five controls leave an orphan in a two-column grid, and this is the one
+    // that needs the extra width anyway — the only control that has to explain
+    // a trade-off rather than name a guarantee. It takes the full row last, and
+    // the four above it pair evenly.
     icon: 'shield-halved',
     title: 'Safe integrations',
     body: 'Connect business systems without giving every agent unlimited access.',
+    short: 'Connect business systems without giving every agent unlimited access.',
+    featured: true,
     accent: 'pink',
   },
 ];
@@ -241,6 +358,19 @@ function useStyles(): Styles {
   const l = useLayout();
   const ty = useTypeScale();
   return useMemo(() => createStyles(t, l, ty), [t, l, ty]);
+}
+
+/**
+ * True where a section must be *recomposed* as cards rather than shrunk.
+ *
+ * Deliberately not `l.isStacked`, which is < 1120: a laptop at 1080 has ample
+ * room for the three-up ruled grid, and stacking a split hero is a different
+ * question from degenerating a grid. The card composition is for the widths
+ * where the ruled grid becomes a list — phone and tablet.
+ */
+function useCardComposition(): boolean {
+  const l = useLayout();
+  return l.isPhone || l.isTablet;
 }
 
 function IconTile({ icon, color, size = 44 }: { icon: string; color: string; size?: number }) {
@@ -275,6 +405,39 @@ function SectionHead({ label, title, body }: { label: string; title: string; bod
   );
 }
 
+/**
+ * The phone/tablet composition, shared by all three item grids.
+ *
+ * One `Reveal` around the whole grid rather than one per cell: `FeatureCard`
+ * carries its own `flexBasis`, and a wrapper View between it and `CardGrid`
+ * would take the row slot *without* that basis and collapse the two columns
+ * back into one — the exact failure this section is fixing.
+ */
+function ItemCards({ items, wideColumns = 3 }: { items: Item[]; wideColumns?: 3 | 4 }) {
+  const styles = useStyles();
+  return (
+    <Reveal style={styles.cardGridWrap} distance={12}>
+      <CardGrid wideColumns={wideColumns}>
+        {items.map((item) => (
+          <FeatureCard
+            key={item.title}
+            icon={item.icon}
+            title={item.title}
+            body={item.short}
+            accent={item.accent}
+            featured={item.featured}
+            /* Its own muted line rather than the first words of the body: a clamp
+               must never be able to swallow the caveat, and the wide composition
+               has always shown this as a separate marker. */
+            status={item.unreleased ? 'Not available yet' : undefined}
+            wideColumns={wideColumns}
+          />
+        ))}
+      </CardGrid>
+    </Reveal>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* who it is for                                                       */
 /* ------------------------------------------------------------------ */
@@ -283,6 +446,7 @@ export function IndustriesSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const cards = useCardComposition();
   const columns = l.gridColumns(3);
 
   return (
@@ -294,27 +458,33 @@ export function IndustriesSection() {
         title="Built for the way your organization actually works"
         body="The capability groups are the same everywhere; what changes is which of them carry your week. FlowSmartly adapts to your business, your team, your customers and your operating rules."
       />
-      <View style={styles.grid}>
-        {INDUSTRIES.map((item, index) => (
-          <Reveal
-            key={item.title}
-            delay={40 + index * 55}
-            distance={12}
-            style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            {/* A rule, not a card. Six bordered boxes inside a seventh
-                bordered box was the shape that made this page read as a
-                dashboard; a hairline above each entry separates them just as
-                clearly and leaves the page open. */}
-            <View style={styles.ruledItem}>
-              <IconTile icon={item.icon} color={accentOf(t, item.accent)} />
-              <Heading level={3} style={styles.cardTitle}>
-                {item.title}
-              </Heading>
-              <Text style={styles.cardBody}>{item.body}</Text>
-            </View>
-          </Reveal>
-        ))}
-      </View>
+      {cards ? (
+        // Six industries pair evenly into three rows, so nothing is featured
+        // and nothing is left stretched across a half-empty last line.
+        <ItemCards items={INDUSTRIES} />
+      ) : (
+        <View style={styles.grid}>
+          {INDUSTRIES.map((item, index) => (
+            <Reveal
+              key={item.title}
+              delay={40 + index * 55}
+              distance={12}
+              style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
+              {/* A rule, not a card. Six bordered boxes inside a seventh
+                  bordered box was the shape that made this page read as a
+                  dashboard; a hairline above each entry separates them just as
+                  clearly and leaves the page open. */}
+              <View style={styles.ruledItem}>
+                <IconTile icon={item.icon} color={accentOf(t, item.accent)} />
+                <Heading level={3} style={styles.cardTitle}>
+                  {item.title}
+                </Heading>
+                <Text style={styles.cardBody}>{item.body}</Text>
+              </View>
+            </Reveal>
+          ))}
+        </View>
+      )}
     </OpenSection>
   );
 }
@@ -334,6 +504,10 @@ export function IndustriesSection() {
  *
  * It sits directly under the hero photograph, whose hard bottom edge is the
  * boundary, so it draws no separator of its own.
+ *
+ * Composed once on purpose: a single column of prose IS the phone composition
+ * of a single column of prose, and the parts strip below it already reflows.
+ * There is nothing here that rearranges.
  */
 export function AnchorStatementSection() {
   const styles = useStyles();
@@ -374,6 +548,7 @@ export function CapabilityGroupsSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const cards = useCardComposition();
   const columns = l.gridColumns(3);
 
   return (
@@ -385,44 +560,58 @@ export function CapabilityGroupsSection() {
         title="What the system can do, grouped by the work rather than the channel."
         body="Five groups describe everything FlowSmartly can operate. Marketing is one of them. The individual product experiences — social, email, SMS, advertising, commerce — live underneath the group they belong to, because they are capabilities the system operates rather than the thing being sold."
       />
-      <View style={styles.grid}>
-        {CAPABILITY_GROUPS.map((item, index) => (
-          <Reveal
-            key={item.title}
-            delay={40 + index * 55}
-            distance={12}
-            style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            {/* No border at all: the tinted ground is already separating this
-                section, and the icon carries the accent the card edge used to. */}
-            <View style={styles.pillar}>
-              <View style={styles.pillarHead}>
-                <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
-                <Heading level={3} style={styles.pillarTitle}>
-                  {item.title}
-                </Heading>
-              </View>
-              <Text style={styles.cardBody}>{item.body}</Text>
-              <View style={styles.areaRow}>
-                {item.areas.map((area) => (
-                  <View key={area} style={styles.area}>
-                    <Text style={styles.areaText}>{area}</Text>
-                  </View>
-                ))}
-              </View>
-              {/* Named, but not claimed as shipped. A group with no public
-                  surface says so here rather than sitting in the present tense
-                  beside three groups that have pages you can open today. No
-                  channel and no date: see the note on CAPABILITY_GROUPS. */}
-              {item.unreleased ? (
-                <View style={styles.unreleased}>
-                  <FontAwesome6 name="circle-info" size={11} color={t.textMuted} />
-                  <Text style={styles.unreleasedText}>Not available yet</Text>
+      {cards ? (
+        /*
+         * THE REFERENCE RECOMPOSITION.
+         *
+         * Two columns of cards, each keeping its icon, title and copy inside
+         * one visual object, and not a hairline anywhere. The seven `areas`
+         * chips do not come along: seven pills wrapped inside a ~147px cell is
+         * a specification sheet in a space that holds one sentence, and the
+         * group's own copy already names what is in it. `Business & growth`
+         * takes the full first row; the other four pair, two by two.
+         */
+        <ItemCards items={CAPABILITY_GROUPS} />
+      ) : (
+        <View style={styles.grid}>
+          {CAPABILITY_GROUPS.map((item, index) => (
+            <Reveal
+              key={item.title}
+              delay={40 + index * 55}
+              distance={12}
+              style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
+              {/* No border at all: the tinted ground is already separating this
+                  section, and the icon carries the accent the card edge used to. */}
+              <View style={styles.pillar}>
+                <View style={styles.pillarHead}>
+                  <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
+                  <Heading level={3} style={styles.pillarTitle}>
+                    {item.title}
+                  </Heading>
                 </View>
-              ) : null}
-            </View>
-          </Reveal>
-        ))}
-      </View>
+                <Text style={styles.cardBody}>{item.body}</Text>
+                <View style={styles.areaRow}>
+                  {item.areas.map((area) => (
+                    <View key={area} style={styles.area}>
+                      <Text style={styles.areaText}>{area}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Named, but not claimed as shipped. A group with no public
+                    surface says so here rather than sitting in the present tense
+                    beside three groups that have pages you can open today. No
+                    channel and no date: see the note on CAPABILITY_GROUPS. */}
+                {item.unreleased ? (
+                  <View style={styles.unreleased}>
+                    <FontAwesome6 name="circle-info" size={11} color={t.textMuted} />
+                    <Text style={styles.unreleasedText}>Not available yet</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Reveal>
+          ))}
+        </View>
+      )}
     </Band>
   );
 }
@@ -435,12 +624,13 @@ export function FlowAgentAlongsideSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const cards = useCardComposition();
   const router = useRouter();
   const open = useOpenSection();
 
   // Open split: the copy and the panel are two columns of one page, not two
-  // things inside a box. The panel itself stays a card — it is a picture of a
-  // product surface, which is exactly what a card is for.
+  // things inside a box. At desktop width the panel stays a card — it is a
+  // picture of a product surface, which is exactly what a card is for.
   return (
     <Reveal style={[open, styles.split]} distance={20}>
       <View style={styles.splitCopy}>
@@ -472,26 +662,45 @@ export function FlowAgentAlongsideSection() {
         </ButtonRow>
       </View>
 
-      <View style={styles.agentPanel}>
-        <View style={styles.agentPanelHead}>
-          <View style={styles.agentSpark}>
-            <Text style={styles.agentSparkGlyph}>✦</Text>
-          </View>
-          <Heading level={3} style={styles.agentPanelTitle}>
+      {cards ? (
+        /*
+         * The loop is a SEQUENCE. Dropped into a phone column the panel becomes
+         * eight equal-weight rows in a box below the copy: no order, no
+         * progression, and a border around content that is not an object.
+         *
+         * So it recomposes into the numbered vertical flow — a rail, a step
+         * number, and each line split into the verb and the thing that bounds
+         * it. The ordering is the whole point of this section, and this is the
+         * only narrow composition that carries it.
+         */
+        <View style={styles.agentFlow}>
+          <Heading level={3} style={styles.agentFlowTitle}>
             The working loop
           </Heading>
+          <SteppedFlow steps={AGENT_LOOP} />
         </View>
-        <View style={styles.agentList}>
-          {AGENT_CAN.map((line, index) => (
-            <Reveal key={line} delay={index * 45} distance={8} style={styles.agentRow}>
-              <View style={styles.agentTick}>
-                <FontAwesome6 name="check" size={10} color={t.successText} />
-              </View>
-              <Text style={styles.agentRowText}>{line}</Text>
-            </Reveal>
-          ))}
+      ) : (
+        <View style={styles.agentPanel}>
+          <View style={styles.agentPanelHead}>
+            <View style={styles.agentSpark}>
+              <Text style={styles.agentSparkGlyph}>✦</Text>
+            </View>
+            <Heading level={3} style={styles.agentPanelTitle}>
+              The working loop
+            </Heading>
+          </View>
+          <View style={styles.agentList}>
+            {AGENT_LOOP.map((step, index) => (
+              <Reveal key={step.line} delay={index * 45} distance={8} style={styles.agentRow}>
+                <View style={styles.agentTick}>
+                  <FontAwesome6 name="check" size={10} color={t.successText} />
+                </View>
+                <Text style={styles.agentRowText}>{step.line}</Text>
+              </Reveal>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
     </Reveal>
   );
 }
@@ -504,6 +713,7 @@ export function ControlSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const cards = useCardComposition();
   const columns = l.gridColumns(3);
 
   return (
@@ -515,25 +725,33 @@ export function ControlSection() {
         title="Agentic, and governed. Both words matter."
         body="Acting on your behalf is only useful if you can see it, bound it and check it. FlowSmartly is built for organizations that want work executed without giving up visibility, authority or accountability."
       />
-      <View style={styles.grid}>
-        {CONTROLS.map((item, index) => (
-          <Reveal
-            key={item.title}
-            delay={40 + index * 55}
-            distance={12}
-            style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <View style={styles.control}>
-              <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
-              <View style={styles.controlCopy}>
-                <Heading level={3} style={styles.controlTitle}>
-                  {item.title}
-                </Heading>
-                <Text style={styles.cardBody}>{item.body}</Text>
+      {cards ? (
+        // Icon-left / copy-right is a row, and that row inside a one-column
+        // list puts a 38px tile beside a sentence with nowhere to go. As a card
+        // the icon sits above the copy it describes, and five controls read as
+        // five things rather than five rows.
+        <ItemCards items={CONTROLS} />
+      ) : (
+        <View style={styles.grid}>
+          {CONTROLS.map((item, index) => (
+            <Reveal
+              key={item.title}
+              delay={40 + index * 55}
+              distance={12}
+              style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
+              <View style={styles.control}>
+                <IconTile icon={item.icon} color={accentOf(t, item.accent)} size={38} />
+                <View style={styles.controlCopy}>
+                  <Heading level={3} style={styles.controlTitle}>
+                    {item.title}
+                  </Heading>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                </View>
               </View>
-            </View>
-          </Reveal>
-        ))}
-      </View>
+            </Reveal>
+          ))}
+        </View>
+      )}
     </Band>
   );
 }
@@ -564,6 +782,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     cell: { flexGrow: 0, flexShrink: 0, minWidth: 0, padding: cellPad },
 
+    // `CardGrid` spaces itself with a real `gap`, so this wrapper owns only the
+    // distance from the section head. No negative margin: there is no
+    // half-padding on the cells to cancel out.
+    cardGridWrap: { marginTop: l.isPhone ? 20 : 26 },
+
     cardTitle: { ...ty.h4, color: t.text },
     cardBody: { ...ty.bodySm, color: t.textMuted },
 
@@ -587,7 +810,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     /* ---------- capability groups ---------- */
     // Chips, not a bulleted list: the areas inside a group are a vocabulary,
     // and a seven-line list under five cards is the shape that turned this
-    // section into a specification sheet.
+    // section into a specification sheet. Wide only — a phone card has room for
+    // a sentence, not for seven pills.
     areaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
     area: {
       borderWidth: 1,
@@ -603,7 +827,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     /* ---------- industries ---------- */
     // Transparent, square, and separated by a hairline above rather than a box
     // around. `flexGrow: 1` still equalises the row height so the rules across
-    // a row line up with each other.
+    // a row line up with each other. Wide only: at one item per row every rule
+    // spans the full width and equalises nothing, which is exactly the defect
+    // the card composition replaces.
     ruledItem: {
       flexGrow: 1,
       flexShrink: 1,
@@ -635,6 +861,17 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     splitCopy: l.isStacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 18 }
       : { flexGrow: 0.92, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 20 },
+    // The narrow loop carries no box: it is a sequence drawn on the page, not a
+    // product surface, so rule 15 takes the border away with the panel.
+    agentFlow: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      width: '100%',
+      minWidth: 0,
+      gap: 16,
+    },
+    agentFlowTitle: { ...ty.h3, color: t.text },
     agentPanel: {
       flexGrow: l.isStacked ? 0 : 1.08,
       flexShrink: l.isStacked ? 0 : 1,

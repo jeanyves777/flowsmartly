@@ -55,6 +55,30 @@ const FONT_CSS = `
 html { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 /* Kerning and ligatures are worth having on a display face used at 34px. */
 html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/*
+  THE MOBILE NAVIGATION OVERLAY — the three things a react-native style cannot
+  say. The ids come from src/components/public/site-header.tsx (NAV_ID); the
+  sheet itself is laid out there, and only what needs real CSS lives here.
+
+  1. A dynamic-viewport height WITH a fallback. A react-native style is one
+     value per property, so it can carry 100dvh or 100vh, never both, and the
+     older browser that drops dvh would be left with no height at all. Two
+     declarations is the only way to express "dvh, else vh".
+  2. env(safe-area-inset-bottom) under the pinned actions, which has to sit
+     inside a calc() next to the design padding.
+  3. overscroll-behavior, so flinging the expanded menu to its end never
+     chains into the page behind it.
+
+  Ids, not classes, and deliberately: react-native-web appends its own
+  stylesheet AFTER this one (confirmed in the export: <style id="expo-reset">
+  then <style id="react-native-stylesheet">), so a single-class selector here
+  would lose every tie. An id outranks any atomic class whatever the order.
+*/
+#fs-nav-root { height: 100vh; height: 100dvh; }
+#fs-nav-scroll { overscroll-behavior: contain; }
+#fs-nav-top { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
+#fs-nav-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 `;
 
 export default function Root({ children }: PropsWithChildren) {

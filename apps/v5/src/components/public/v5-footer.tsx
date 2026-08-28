@@ -8,7 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 import { ArrowLink } from '@/components/public/connectors';
 import { ConsentFooterLink } from '@/components/public/consent';
 import { ImageAsset } from '@/components/public/media';
-import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES } from '@/components/public/nav';
+import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES, type NavGroup, type NavLink } from '@/components/public/nav';
 import { Animated, Reveal, Stagger, useCountUp, useGrowIn } from '@/components/public/motion';
 import {
   Heading,
@@ -730,7 +730,7 @@ function StatusPill() {
   );
 }
 
-export function FooterNavigation() {
+function WideFooterNavigation() {
   const type = useTypeScale();
   const open = useOpenSection();
   const styles = useFooterStyles();
@@ -812,6 +812,219 @@ export function FooterNavigation() {
       </View>
     </View>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* phone navigation                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Four sections on a phone, not six columns.
+ *
+ * The wide rail prints all six groups with every link showing — forty link
+ * rows, a brand column with a tagline, an updates block and a status pill.
+ * Measured at 390px, that footer was most of a 2,243px block on every route.
+ * The same links stay reachable here, consolidated into four accordions that
+ * arrive collapsed.
+ *
+ * The sections are **derived** from FOOTER_GROUPS rather than retyped, so a
+ * link added to nav.ts appears on the phone without this file changing.
+ */
+const PHONE_SECTIONS: { title: string; groups: string[] }[] = [
+  { title: 'Platform', groups: ['Platform'] },
+  { title: 'Solutions', groups: ['Solutions'] },
+  // The learning story is one idea to a visitor, not two columns.
+  { title: 'Learn', groups: ['Learn', 'FlowLearner'] },
+  // Legal rides with Company: those five links are also in the bottom bar,
+  // which is where the wide footer already repeats them.
+  { title: 'Company', groups: ['Company', 'Legal'] },
+];
+
+function usePhoneSections(): NavGroup[] {
+  return useMemo(() => {
+    const named = new Set<string>();
+    for (const section of PHONE_SECTIONS) for (const title of section.groups) named.add(title);
+
+    const collect = (titles: string[]): NavLink[] => {
+      const links: NavLink[] = [];
+      const hrefs = new Set<string>();
+      for (const title of titles) {
+        const group = FOOTER_GROUPS.find((candidate) => candidate.title === title);
+        for (const link of group?.links ?? []) {
+          if (hrefs.has(link.href)) continue;
+          hrefs.add(link.href);
+          links.push(link);
+        }
+      }
+      return links;
+    };
+
+    const sections = PHONE_SECTIONS.map(({ title, groups }) => ({ title, links: collect(groups) }));
+
+    // A group nav.ts grows that these four do not name would otherwise be
+    // unreachable on a phone, so it lands in the last section rather than
+    // disappearing silently.
+    const last = sections[sections.length - 1];
+    const held = new Set(last.links.map((link) => link.href));
+    for (const group of FOOTER_GROUPS) {
+      if (named.has(group.title)) continue;
+      for (const link of group.links) {
+        if (held.has(link.href)) continue;
+        held.add(link.href);
+        last.links.push(link);
+      }
+    }
+    return sections;
+  }, []);
+}
+
+/**
+ * One link inside an expanded section.
+ *
+ * The press feedback lives on a wrapper rather than on the link itself:
+ * `asChild` spreads the child's props onto the anchor, so a Pressable `style`
+ * written as a function spreads to nothing (see StatusPill above). Pointer
+ * events on a View survive, and they fire for touch as well as for a mouse.
+ */
+function PhoneNavLink({ link }: { link: NavLink }) {
+  const type = useTypeScale();
+  const styles = useFooterStyles();
+  const [active, setActive] = useState(false);
+  return (
+    <View
+      onPointerEnter={() => setActive(true)}
+      onPointerLeave={() => setActive(false)}
+      onPointerDown={() => setActive(true)}
+      onPointerUp={() => setActive(false)}
+      onPointerCancel={() => setActive(false)}>
+      <Link
+        href={link.href as never}
+        accessibilityRole="link"
+        style={[styles.phoneLinkRow, active && styles.phoneLinkRowActive] as never}>
+        <Text
+          style={[type.bodySm, styles.phoneLinkText, active && styles.phoneLinkTextActive]}
+          numberOfLines={1}>
+          {link.label}
+        </Text>
+        {/* The live-status pill was a block of its own on the brand rail. On a
+            phone it becomes the trailing mark on the Status link that Platform
+            already carries — the state without the extra row. */}
+        {link.href === ROUTES.status ? (
+          <View style={styles.phoneStatus}>
+            <View style={styles.statusDot} />
+            <Text style={[type.caption, styles.phoneStatusText]} numberOfLines={1}>
+              Operational
+            </Text>
+          </View>
+        ) : null}
+      </Link>
+    </View>
+  );
+}
+
+function PhoneFooterNavigation() {
+  const t = useTokens();
+  const type = useTypeScale();
+  const styles = useFooterStyles();
+  const router = useRouter();
+  const sections = usePhoneSections();
+  // Independent toggles, all closed on arrival. Keyed by title rather than by
+  // index, so a change to PHONE_SECTIONS cannot open the wrong section.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  return (
+    <View style={styles.phoneNav}>
+      <View style={styles.phoneBrandRow}>
+        {/* The only wordmark in the footer, and the only thing naming the site
+            down here. The tagline that used to sit under it is dropped on a
+            phone: the logo already says FlowSmartly, and the line cost a row
+            on all 44 routes. */}
+        <ImageAsset
+          source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+          style={styles.phoneLogo}
+          contentFit="contain"
+          contentPosition="left"
+          alt="FlowSmartly"
+        />
+        <View style={styles.socials}>
+          {socialProfiles.map(([icon, label, color, url]) => (
+            <BrandTile
+              key={label}
+              icon={icon}
+              color={color}
+              size={44}
+              label={label}
+              onPress={() => Linking.openURL(url)}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.phoneSections}>
+        {sections.map((group) => {
+          const isOpen = expanded[group.title] === true;
+          return (
+            <View key={group.title} style={styles.phoneSection}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}
+                accessibilityLabel={`${group.title} links`}
+                onPress={() =>
+                  setExpanded((previous) => ({ ...previous, [group.title]: !previous[group.title] }))
+                }
+                style={({ pressed }) => [styles.phoneHeader, pressed && styles.phoneHeaderPressed]}>
+                <Text style={[type.bodySm, styles.phoneHeaderText]} numberOfLines={1}>
+                  {group.title}
+                </Text>
+                <View style={styles.phoneToggle}>
+                  <FontAwesome6
+                    name={isOpen ? 'chevron-up' : 'chevron-down'}
+                    size={12}
+                    color={t.textMuted}
+                  />
+                </View>
+              </Pressable>
+              {isOpen ? (
+                <View style={styles.phoneLinks}>
+                  {group.links.map((link) => (
+                    <PhoneNavLink key={link.href} link={link} />
+                  ))}
+                  {/* "Product updates" was a heading, a paragraph and a
+                      full-width button on the brand rail. Here it is one row,
+                      pointing at the same honest destination. */}
+                  {group.title === 'Company' ? (
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel="Get product updates"
+                      onPress={() => router.push(contactHref('updates') as never)}
+                      style={({ pressed }) => [
+                        styles.phoneLinkRow,
+                        pressed && styles.phoneLinkRowActive,
+                      ]}>
+                      <Text style={[type.bodySm, styles.phoneLinkText]} numberOfLines={1}>
+                        Product updates
+                      </Text>
+                      <FontAwesome6 name="envelope-open-text" size={14} color={t.textSubtle} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A phone gets four collapsed sections; tablet and desktop keep the six-column
+ * rail exactly as it was. Mobile is the baseline here, not the wide layout with
+ * its `flexDirection` flipped — the two are genuinely different objects.
+ */
+export function FooterNavigation() {
+  const l = useLayout();
+  return l.isPhone ? <PhoneFooterNavigation /> : <WideFooterNavigation />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1256,6 +1469,62 @@ function createStyles(t: ThemeTokens, l: Layout) {
     groupTitle: { color: t.text, fontWeight: '800', marginBottom: 6 },
     linkRow: { minHeight: 44, justifyContent: 'center' },
     link: { color: t.textMuted },
+
+    /* ------------------------------------------ phone navigation */
+    // Sized so the collapsed footer is an index, not a wall: a 44px brand row,
+    // four 54px section headers, and nothing else painted until one is opened.
+    phoneNav: { paddingHorizontal: l.gutter, paddingTop: 26, paddingBottom: 10, gap: 14 },
+    phoneBrandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 44,
+      gap: 12,
+    },
+    phoneLogo: { width: 126, height: 34, flexGrow: 0, flexShrink: 0 },
+    phoneSections: { borderTopWidth: 1, borderTopColor: t.divider },
+    phoneSection: { borderBottomWidth: 1, borderBottomColor: t.divider },
+    phoneHeader: {
+      minHeight: 54,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingRight: 2,
+    },
+    phoneHeaderPressed: { opacity: 0.6 },
+    phoneHeaderText: { color: t.text, fontWeight: '800', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    phoneToggle: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    phoneLinks: { paddingBottom: 8 },
+    phoneLinkRow: {
+      // a Link is a Text: react-native-web leaves it inline unless this says
+      // otherwise, and the row below would never take effect
+      display: 'flex',
+      minHeight: 46,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingLeft: 14,
+      paddingRight: 10,
+      borderRadius: 10,
+    },
+    phoneLinkRowActive: { backgroundColor: softFill(t.brand, t) },
+    phoneLinkText: { color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+    // any accent used as text goes through accentText, which guarantees 4.5:1
+    phoneLinkTextActive: { color: accentText(t.brand, t), fontWeight: '600' },
+    phoneStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 0, flexShrink: 0 },
+    phoneStatusText: { color: t.successText, fontWeight: '700' },
 
     /* -------------------------------------------------- bottom bar */
     bottom: {
