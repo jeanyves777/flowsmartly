@@ -926,9 +926,9 @@ function Hero() {
           `rgba(${t.scrimBase},${t.scrimVeil[2]})`,
           `rgba(${t.scrimBase},${t.scrimVeil[3]})`,
         ]}
-        locations={l.isStacked ? [0, 0.34, 0.56, 0.76] : [0, 0.28, 0.52, 0.74]}
+        locations={l.isPhone ? [0, 0.40, 0.72, 0.88] : l.isStacked ? [0, 0.34, 0.56, 0.76] : [0, 0.28, 0.52, 0.74]}
         start={{ x: 0, y: 0 }}
-        end={l.isStacked ? { x: 0, y: 1 } : { x: 1, y: 0 }}
+        end={l.isStacked && !l.isPhone ? { x: 0, y: 1 } : { x: 1, y: 0 }}
         style={styles.heroScrim}
         pointerEvents="none"
       />
@@ -946,45 +946,105 @@ function Hero() {
               <Heading key="title" level={1} style={styles.heroTitle}>
                 Agentic AI built to operate, adapt, and scale with your business.
               </Heading>,
-              <Text key="body" style={styles.heroBody}>
-                FlowSmartly is an agentic business operating system designed to understand goals,
-                coordinate tools, execute work, learn from feedback, and continuously improve across
-                your organization.
-              </Text>,
-              <Text key="body2" style={styles.heroBody}>
-                From marketing and customer engagement to engineering, operations, analytics, and
-                specialized workflows, FlowSmartly gives businesses an intelligent system that can do
-                more than assist. <Text style={styles.heroBodyLead}>It can act.</Text>
-              </Text>,
+              /*
+                A phone gets ONE paragraph, not two.
+
+                Both desktop paragraphs rendered at every width, which is what
+                made the phone hero a wall of reading before the photograph or
+                the CTA arrived. This is a real content variant rather than
+                smaller type - the same claim, said once - and "It can act."
+                keeps a line of its own, because it is the sentence the section
+                exists to land.
+              */
+              l.isPhone ? (
+                <Text key="body" style={styles.heroBody}>
+                  FlowSmartly is an agentic business operating system that understands goals,
+                  coordinates tools, executes work, and improves with feedback.
+                </Text>
+              ) : (
+                <Text key="body" style={styles.heroBody}>
+                  FlowSmartly is an agentic business operating system designed to understand goals,
+                  coordinate tools, execute work, learn from feedback, and continuously improve across
+                  your organization.
+                </Text>
+              ),
+              l.isPhone ? (
+                <Text key="body2" style={[styles.heroBody, styles.heroBodyLead]}>
+                  It can act.
+                </Text>
+              ) : (
+                <Text key="body2" style={styles.heroBody}>
+                  From marketing and customer engagement to engineering, operations, analytics, and
+                  specialized workflows, FlowSmartly gives businesses an intelligent system that can do
+                  more than assist. <Text style={styles.heroBodyLead}>It can act.</Text>
+                </Text>
+              ),
               <View key="metric" style={styles.heroMetric}>
                 <Text ref={prepared.ref as never} style={styles.heroMetricValue}>
                   {Math.round(prepared.value).toLocaleString('en-US')}
                 </Text>
+                {/* Two short lines on a phone. One long one wraps three times
+                    beside a 34px numeral and reads as another paragraph. */}
                 <Text style={styles.heroMetricLabel}>
-                  actions prepared this week · none of them sent without approval
+                  {l.isPhone
+                    ? 'actions prepared this week.\nNone sent without approval.'
+                    : 'actions prepared this week · none of them sent without approval'}
                 </Text>
               </View>,
               <View key="cta" style={styles.heroActions}>
-                <ButtonRow>
-                  {/* full-width on phone so every CTA down the page shares one edge */}
-                  <PrimaryButton
-                    label="Join early access"
-                    size="lg"
-                    full={l.isPhone}
-                    trackId="home.hero.start-workspace"
-                    onPress={() => goToEarlyAccess()}
-                  />
-                  {/* No demo video exists, so this books a real one rather than
-                      opening a player that has nothing to play. */}
-                  <SecondaryButton
-                    label="See FlowAgent in action"
-                    size="lg"
-                    icon="play"
-                    full={l.isPhone}
-                    trackId="home.hero.see-in-action"
-                    onPress={() => router.push(contactHref("demo") as never)}
-                  />
-                </ButtonRow>
+                {/*
+                  Side by side on a phone, which ButtonRow will not do: it sets
+                  flexDirection column below the tablet breakpoint, and every
+                  CTA down the page relies on that to share one edge. So the
+                  hero overrides it LOCALLY rather than changing the convention
+                  for the whole site - two equal halves, each button filling its
+                  own. The secondary label drops "in action" here: at ~172px of
+                  half-width the full string cannot set beside a play icon
+                  without either wrapping or clipping.
+                */}
+                {l.isPhone ? (
+                  <View style={styles.heroCtaRow}>
+                    <View style={styles.heroCtaHalf}>
+                      <PrimaryButton
+                        label="Join early access"
+                        size="md"
+                        full
+                        trackId="home.hero.start-workspace"
+                        onPress={() => goToEarlyAccess()}
+                      />
+                    </View>
+                    <View style={styles.heroCtaHalf}>
+                      <SecondaryButton
+                        label="See FlowAgent"
+                        size="md"
+                        /* no play glyph here: it costs ~24px of a 132px label box and is
+                           what pushes 'See FlowAgent' onto a second line. The label is the
+                           affordance; the triangle was decoration. */
+                        full
+                        trackId="home.hero.see-in-action"
+                        onPress={() => router.push(contactHref('demo') as never)}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <ButtonRow>
+                    <PrimaryButton
+                      label="Join early access"
+                      size="lg"
+                      trackId="home.hero.start-workspace"
+                      onPress={() => goToEarlyAccess()}
+                    />
+                    {/* No demo video exists, so this books a real one rather than
+                        opening a player that has nothing to play. */}
+                    <SecondaryButton
+                      label="See FlowAgent in action"
+                      size="lg"
+                      icon="play"
+                      trackId="home.hero.see-in-action"
+                      onPress={() => router.push(contactHref('demo') as never)}
+                    />
+                  </ButtonRow>
+                )}
               </View>,
             ]}
           </Stagger>
@@ -2031,7 +2091,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 999,
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
-      backgroundColor: t.scrimGlass,
+      backgroundColor: `rgba(${t.scrimBase},0.86)`,
       backdropFilter: t.scrimGlassBlur,
       paddingHorizontal: 13,
       paddingVertical: 7,
@@ -2039,7 +2099,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     heroLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.scrimGood },
     heroBadgeText: {
       ...ty.caption,
-      color: t.textOnScrim,
+      color: t.scrimText,
       fontWeight: '800',
       letterSpacing: 1.1,
     },
@@ -2089,7 +2149,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       color: t.scrimText,
       fontVariant: ['tabular-nums'],
     },
-    heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint },
+    heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint , maxWidth: l.isPhone ? 208 : undefined },
     heroTrust: {
       // A LOCAL field, not a floor-wide wash. The strip sits where the veil has
       // already cleared so the photograph can be seen, which left its 14px ink
@@ -2214,11 +2274,20 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     heroCopy: stacked ? { ...stackedItem, gap: 14 } : { ...fluid, flexGrow: 0.95, gap: 16 },
     // On the photograph, not on the page ground: these follow the veil, not
     // the page surface.
-    heroTitle: { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: 640 },
-    heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: 620 },
+    // The copy column is held inside the veil on a phone. The mock keeps the
+    // white ground behind the TEXT ONLY and lets the photograph stand beside
+    // it; without a cap the headline runs to 96% of the scene and there is no
+    // beside left.
+    heroTitle: { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: l.isPhone ? '70%' : 640 },
+    heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: l.isPhone ? '68%' : 620 },
     // "It can act." is the sentence the paragraph is built to reach, so it
     // carries the copy colour rather than the muted one around it.
     heroBodyLead: { color: t.scrimText, fontWeight: '700', fontFamily: FONT_SANS },
+    // Two equal halves. flexBasis 0 with flexGrow 1 rather than width 50%,
+    // so the gap comes out of the halves instead of pushing the second
+    // button past the gutter.
+    heroCtaRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+    heroCtaHalf: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     heroActions: { marginTop: 4 },
 
     /* ---------- FlowAgent card ---------- */
