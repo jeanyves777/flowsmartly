@@ -19,9 +19,9 @@
     {
       "route": "/",
       "match": "THE AGENTIC BUSINESS OPERATING SYSTEM",
-      "acceptedAtPx": 1105,
+      "acceptedAtPx": 843,
       "category": "horizontal media/copy composition",
-      "reason": "The ORIGINAL photographic hero, restored on the architect's instruction: 'the design was already perfect'. It had briefly been rebuilt as a bounded-image card at 992px - that was my over-reach, not a request. Its readability is fixed at the COLOUR layer instead, and proven rather than eyeballed: the veil floors were raised per theme and every text node over the photograph is now scored against a guaranteed bound (the measured scrim composited over both a black and a white frame, worse of the two). Zero contrast findings at 390 / 768 / 1440. 1105px is the original height, not a regression - and the gate flagging the 992 -> 1105 change is the ratchet working correctly."
+      "reason": "The ORIGINAL photographic hero, restored on the architect's instruction: 'the design was already perfect'. It had briefly been rebuilt as a bounded-image card at 992px - that was my over-reach, not a request. Its readability is fixed at the COLOUR layer instead, and proven rather than eyeballed: the veil floors were raised per theme and every text node over the photograph is now scored against a guaranteed bound (the measured scrim composited over both a black and a white frame, worse of the two). Zero contrast findings at 390 / 768 / 1440. Now 843px: the phone variant carries one paragraph instead of two, no orphan line, and an adaptive display that sets the headline in 4 balanced lines at 360, 390 and 430 rather than six ragged ones."
     },
     {
       "route": "/",

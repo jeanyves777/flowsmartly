@@ -33,7 +33,26 @@ import { writeFileSync, readFileSync, existsSync } from 'node:fs';
  */
 const REG = 'scripts/qa-recomposition-accepted.json';
 const ACCEPTED = existsSync(REG) ? JSON.parse(readFileSync(REG, 'utf8')) : { tolerancePx: 0, accepted: [] };
-const acceptedFor = (route, txt) => ACCEPTED.accepted.find((a) => a.route === route && txt.startsWith(a.match));
+/**
+ * Match a section against the register by its VISIBLE text.
+ *
+ * Icon glyphs are text nodes holding private-use codepoints, so a section whose
+ * first element gains an icon suddenly begins with a character that prints as
+ * nothing. A plain startsWith then fails against a register entry that looks
+ * identical in every terminal and every diff - the hero shrank from 1105px to
+ * 843px and was reported as an unreviewed regression because an invisible
+ * character had been prepended to its name.
+ */
+const visible = (s) => {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (!(c >= 0xe000 && c <= 0xf8ff)) out += ch;
+  }
+  return out.trim();
+};
+const acceptedFor = (route, txt) =>
+  ACCEPTED.accepted.find((a) => a.route === route && visible(txt).startsWith(visible(a.match)));
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = arg('--base', 'http://127.0.0.1:8093');

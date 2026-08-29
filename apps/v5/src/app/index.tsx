@@ -926,7 +926,7 @@ function Hero() {
           `rgba(${t.scrimBase},${t.scrimVeil[2]})`,
           `rgba(${t.scrimBase},${t.scrimVeil[3]})`,
         ]}
-        locations={l.isPhone ? [0, 0.40, 0.72, 0.88] : l.isStacked ? [0, 0.34, 0.56, 0.76] : [0, 0.28, 0.52, 0.74]}
+        locations={l.isPhone ? [0, 0.44, 0.78, 0.92] : l.isStacked ? [0, 0.34, 0.56, 0.76] : [0, 0.28, 0.52, 0.74]}
         start={{ x: 0, y: 0 }}
         end={l.isStacked && !l.isPhone ? { x: 0, y: 1 } : { x: 1, y: 0 }}
         style={styles.heroScrim}
@@ -938,7 +938,15 @@ function Hero() {
           <Stagger mode="enter" step={75} distance={16}>
             {[
               <View key="eyebrow" style={styles.heroBadge}>
-                <View style={styles.heroLiveDot} />
+                {/* A mark rather than a dot. The dot read as "live", which this
+                    is not - it is a category claim - and a glyph carries that in
+                    less room than the circle plus its gap did. */}
+                <FontAwesome6
+                  name={'wand-magic-sparkles' as never}
+                  size={12}
+                  color={t.scrimAccent}
+                  aria-hidden={true}
+                />
                 <Text style={styles.heroBadgeText}>THE AGENTIC BUSINESS OPERATING SYSTEM</Text>
               </View>,
               // The one h1 on the site root. react-native-web renders every
@@ -968,11 +976,15 @@ function Hero() {
                   your organization.
                 </Text>
               ),
-              l.isPhone ? (
-                <Text key="body2" style={[styles.heroBody, styles.heroBodyLead]}>
-                  It can act.
-                </Text>
-              ) : (
+              /*
+                No standalone 'It can act.' on a phone.
+              
+                On desktop it is the last three words of a sentence that earns them -
+                '...can do more than assist. It can act.' On its own line, stripped of
+                the clause it answers, it is a fragment that asserts rather than says
+                anything. The phone keeps the one paragraph and drops the orphan.
+              */
+              l.isPhone ? null : (
                 <Text key="body2" style={styles.heroBody}>
                   From marketing and customer engagement to engineering, operations, analytics, and
                   specialized workflows, FlowSmartly gives businesses an intelligent system that can do
@@ -2017,6 +2029,28 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
    * a flat overrun leaves the scroll container reporting phantom width.
    */
   const heroBleed = Math.max(0, Math.round((l.width - BP.maxContent) / 2));
+
+  /**
+   * The hero type ADAPTS on a phone instead of being clamped by a percentage.
+   *
+   * A fixed 34px display inside a fixed 70% column is two rigid numbers
+   * fighting each other: at 390 it broke the headline into six short lines
+   * with a ragged edge, and left the badge sitting in a pill wider than its
+   * own text. Neither number knows how wide the phone actually is.
+   *
+   * So the display scales with the viewport between 28 and the approved 34,
+   * reaching 34 by about 430px and easing down on the narrowest phones. The
+   * approved baseline is honoured where there is room for it and bends where
+   * there is not, which is what makes the line breaks fall well at every
+   * width rather than only at the one the number was picked for.
+   *
+   * Body copy does NOT scale: 17px is the floor the architect approved and
+   * shrinking running text is the exact defect this whole redesign started
+   * from.
+   */
+  const heroDisplay = l.isPhone
+    ? Math.round(Math.min(34, Math.max(28, l.width * 0.079)))
+    : 0;
   const card = elevation(t, 1) as ViewStyle;
   const panelPad = l.isPhone ? 12 : 14;
   const gridGap = l.isPhone ? 10 : 12;
@@ -2087,17 +2121,28 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: l.isPhone ? 7 : 8,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: t.scrimGlassLine,
       backgroundColor: `rgba(${t.scrimBase},0.86)`,
       backdropFilter: t.scrimGlassBlur,
-      paddingHorizontal: 13,
-      paddingVertical: 7,
+      paddingHorizontal: l.isPhone ? 10 : 13,
+      paddingVertical: l.isPhone ? 5 : 7,
     },
     heroLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.scrimGood },
     heroBadgeText: {
+      // The pill hugs its label rather than the column. alignSelf:flex-start
+      // alone did not do it: the Text inside had nothing to wrap against, so it
+      // took the full width and the pill grew to 93% of the scene with its
+      // second line half empty.
+      maxWidth: l.isPhone ? 206 : undefined,
+      // 12px on a phone: this is a short uppercase tracked signpost, which is
+      // the one role the 14px floor exempts, and at 14 it could not fit the
+      // pill on any line it chose.
+      fontSize: l.isPhone ? 12 : undefined,
+      lineHeight: l.isPhone ? 18 : undefined,
+      textTransform: 'uppercase',
       ...ty.caption,
       color: t.scrimText,
       fontWeight: '800',
@@ -2278,8 +2323,12 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // white ground behind the TEXT ONLY and lets the photograph stand beside
     // it; without a cap the headline runs to 96% of the scene and there is no
     // beside left.
-    heroTitle: { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: l.isPhone ? '70%' : 640 },
-    heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: l.isPhone ? '68%' : 620 },
+    heroTitle: l.isPhone
+      ? { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: '76%',
+          fontSize: heroDisplay, lineHeight: Math.round(heroDisplay * 1.14),
+          letterSpacing: Math.round(heroDisplay * -0.025 * 100) / 100 }
+      : { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: 640 },
+    heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: l.isPhone ? '74%' : 620 },
     // "It can act." is the sentence the paragraph is built to reach, so it
     // carries the copy colour rather than the muted one around it.
     heroBodyLead: { color: t.scrimText, fontWeight: '700', fontFamily: FONT_SANS },
