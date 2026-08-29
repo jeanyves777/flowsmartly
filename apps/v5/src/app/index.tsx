@@ -899,8 +899,26 @@ function Hero() {
       {/* The photograph is the ground. It is decorative — the headline on it
           carries the meaning — so it takes an empty alt. */}
       <Media name="scenes/careers-team" alt="" radius={0} style={styles.heroPhoto} />
-      {/* Two scrims: one across, so the copy has contrast over whatever the
-          photograph is doing; one up from the floor, for the trust strip. */}
+      {/*
+        ONE scrim, and it is LOCAL to the copy rather than a sheet over the
+        photograph.
+
+        It runs along whichever axis the copy actually occupies. Wide, the copy
+        is the left column, so the veil is strong at x=0 and gone by 70% — the
+        people, the laptop and the room are simply the photograph from there
+        on. Stacked, the copy is the top of the column instead, so the same
+        veil turns 90 degrees and clears downward; a horizontal one would fall
+        across the copy at exactly the point it has thinned out.
+
+        This replaces a veil whose four stops were 0.9 / 0.8 / 0.7 / 0.6 plus a
+        second gradient washing up to 0.8 from the floor: a 60-90% white cover
+        over the entire image, which is what made a real office photograph look
+        like frosted glass. The stops now END at zero, so past the last one
+        nothing is painted at all.
+
+        The floor scrim is gone with it. The trust markers it existed to
+        protect are inside the copy's own band, which the main veil covers.
+      */}
       <LinearGradient
         colors={[
           `rgba(${t.scrimBase},${t.scrimVeil[0]})`,
@@ -908,15 +926,9 @@ function Hero() {
           `rgba(${t.scrimBase},${t.scrimVeil[2]})`,
           `rgba(${t.scrimBase},${t.scrimVeil[3]})`,
         ]}
-        locations={[0, 0.3, 0.6, 1]}
+        locations={l.isStacked ? [0, 0.34, 0.56, 0.76] : [0, 0.28, 0.52, 0.74]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.heroScrim}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={[`rgba(${t.scrimBase},0)`, `rgba(${t.scrimBase},${t.scrimVeil[1]})`]}
-        locations={[0.68, 1]}
+        end={l.isStacked ? { x: 0, y: 1 } : { x: 1, y: 0 }}
         style={styles.heroScrim}
         pointerEvents="none"
       />
@@ -2048,7 +2060,20 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 8,
       marginTop: l.isPhone ? 16 : 22,
     },
-    heroTyped: { ...ty.caption, color: t.scrimTextMuted, fontWeight: '700', alignSelf: 'stretch', minHeight: 42 },
+    heroTyped: {
+      ...ty.caption,
+      color: t.scrimTextMuted,
+      fontWeight: '700',
+      alignSelf: 'flex-start',
+      minHeight: 42,
+      // Same reason as heroTrust: this sentence sits over the cleared part of
+      // the photograph, so it carries its own ground rather than asking the
+      // whole image to fade for it.
+      backgroundColor: `rgba(${t.scrimBase},0.86)`,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
     heroTypedTail: { color: t.scrimAccent, fontFamily: FONT_SANS },
     // One row's worth of space, held open. Both rows are ABSOLUTE inside it, so
     // they cross over without the block resizing - and an absolute child
@@ -2066,6 +2091,11 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint },
     heroTrust: {
+      // A LOCAL field, not a floor-wide wash. The strip sits where the veil has
+      // already cleared so the photograph can be seen, which left its 14px ink
+      // on bare image at 1.54:1. A band behind these four markers alone fixes
+      // that without putting anything back over the picture.
+      backgroundColor: `rgba(${t.scrimBase},0.82)`,
       marginTop: l.isPhone ? 24 : 34,
       marginHorizontal: -(heroBleed + l.gutter),
       flexDirection: 'row',

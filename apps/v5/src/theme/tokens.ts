@@ -225,7 +225,7 @@ const light: ThemeTokens = {
    * because a light veil over a dark photograph is itself dark. The photograph
    * still reads at 40% through the thinnest part and 10% through the strongest.
    */
-  scrimVeil: [0.9, 0.8, 0.7, 0.6],
+  scrimVeil: [0.94, 0.86, 0.60, 0.0],
   scrimGlass: 'rgba(10, 16, 30, 0.62)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.20)',
   // The headline tail, painted on the veil rather than on glass, so it is
@@ -391,7 +391,7 @@ const grey: ThemeTokens = {
    * thinnest part of the veil, which is the least of the three themes. That is
    * the trade a mid ground makes, taken deliberately.
    */
-  scrimVeil: [0.95, 0.9, 0.86, 0.8],
+  scrimVeil: [0.95, 0.90, 0.66, 0.0],
   // Deepened from light's 0.30, and measured rather than inherited. The glass
   // is a window onto the photograph and stays a dark tint in all three themes —
   // but it composites over the *veil*, and at 0.30 over a mid veil it landed at
@@ -520,7 +520,7 @@ const dark: ThemeTokens = {
   // paragraph on bare photograph. The picture still reads at 30% through the
   // thinnest part — the most of the three themes, since a dark veil deepens a
   // photograph instead of milking it.
-  scrimVeil: [0.95, 0.88, 0.79, 0.7],
+  scrimVeil: [0.95, 0.90, 0.70, 0.0],
   scrimGlass: 'rgba(10, 16, 30, 0.30)',
   scrimGlassLine: 'rgba(255, 255, 255, 0.18)',
   scrimAccent: '#aecdff',

@@ -257,12 +257,98 @@ for (const route of ROUTES) {
       if (isMedia) { paintLayers.push({ r, oi, kind: 'image' }); continue; }
       if (img) {
         const stops = gradientStopsA(img);
-        if (stops.length) { paintLayers.push({ r, oi, kind: 'gradient', stops, op }); continue; }
+        if (stops.length) { paintLayers.push({ r, oi, kind: 'gradient', stops, op, img }); continue; }
       }
       const bg = parseRGB(cs.backgroundColor);
       if (bg && bg.a > 0.01) paintLayers.push({ r, oi, kind: 'color', rgb: bg.rgb, a: bg.a * op });
     }
     paintLayers.sort((a, b) => a.oi - b.oi);
+
+    /**
+     * The colour a linear-gradient actually paints at one point in its box.
+     *
+     * CSS geometry, not an approximation: 0deg points to the top and angles run
+     * clockwise, the gradient line through the centre has length
+     * |W·sin a| + |H·cos a|, and a point's position along it is its projection
+     * onto that line. Stops without an explicit position are distributed evenly
+     * between their neighbours, as the spec requires.
+     */
+    const sampleGradient = (L, px, py) => {
+      const opacity = L.op === undefined ? 1 : L.op;
+      const img = L.img || '';
+      const W = L.r.width;
+      const H = L.r.height;
+
+      // angle: an explicit <n>deg, or `to <side>`, else the 180deg default
+      let deg = 180;
+      const degM = img.match(/linear-gradient\(\s*(-?[\d.]+)deg/);
+      const toM = img.match(/linear-gradient\(\s*to\s+([a-z ]+?)\s*,/);
+      if (degM) deg = parseFloat(degM[1]);
+      else if (toM) {
+        const side = toM[1].trim();
+        const map = { top: 0, right: 90, bottom: 180, left: 270 };
+        deg = map[side] !== undefined ? map[side] : 180;
+      }
+
+      // stops, with their positions where given
+      const parsed = [];
+      const re = /(rgba?\([^)]*\))\s*([\d.]+)?%?/g;
+      let m;
+      while ((m = re.exec(img))) {
+        const p = m[1].match(/rgba?\(([^)]+)\)/)[1].split(',').map((v) => parseFloat(v));
+        parsed.push({
+          rgb: [p[0], p[1], p[2]],
+          a: (p.length > 3 ? p[3] : 1) * opacity,
+          pos: m[2] === undefined ? null : parseFloat(m[2]) / 100,
+        });
+      }
+      if (!parsed.length) return { rgb: [0, 0, 0], a: 0 };
+      if (parsed.length === 1) return { rgb: parsed[0].rgb, a: parsed[0].a };
+
+      if (parsed[0].pos === null) parsed[0].pos = 0;
+      if (parsed[parsed.length - 1].pos === null) parsed[parsed.length - 1].pos = 1;
+      for (let i = 1; i < parsed.length - 1; i++) {
+        if (parsed[i].pos !== null) continue;
+        let j = i;
+        while (parsed[j].pos === null) j++;
+        const span = parsed[j].pos - parsed[i - 1].pos;
+        for (let k = i; k < j; k++) parsed[k].pos = parsed[i - 1].pos + (span * (k - i + 1)) / (j - i + 1);
+      }
+
+      const rad = (deg * Math.PI) / 180;
+      const ux = Math.sin(rad);
+      const uy = -Math.cos(rad);
+      const len = Math.abs(W * Math.sin(rad)) + Math.abs(H * Math.cos(rad));
+      if (!len) return { rgb: parsed[0].rgb, a: parsed[0].a };
+      const dx = px - (L.r.left + W / 2);
+      const dy = py - (L.r.top + H / 2);
+      let t = (dx * ux + dy * uy) / len + 0.5;
+      t = Math.max(0, Math.min(1, t));
+
+      /*
+       * Past the ends, a gradient CLAMPS to its first or last stop - it does
+       * not keep going. Falling through to lo=first / hi=last and interpolating
+       * with f>1 extrapolated instead, which produced composited grounds with
+       * negative channels and hex like "#-16-16-16" in the findings. A colour
+       * that cannot exist is a loud symptom; the quiet one was every ratio
+       * computed from it.
+       */
+      const first = parsed[0];
+      const last = parsed[parsed.length - 1];
+      if (t <= first.pos) return { rgb: first.rgb, a: first.a };
+      if (t >= last.pos) return { rgb: last.rgb, a: last.a };
+      let lo = first;
+      let hi = last;
+      for (let i = 0; i < parsed.length - 1; i++) {
+        if (t >= parsed[i].pos && t <= parsed[i + 1].pos) { lo = parsed[i]; hi = parsed[i + 1]; break; }
+      }
+      const span = hi.pos - lo.pos;
+      const f = span <= 0 ? 0 : (t - lo.pos) / span;
+      return {
+        rgb: [0, 1, 2].map((i) => lo.rgb[i] + (hi.rgb[i] - lo.rgb[i]) * f),
+        a: lo.a + (hi.a - lo.a) * f,
+      };
+    };
 
     const effBg = (el) => {
       const tr = el.getBoundingClientRect();
@@ -308,9 +394,40 @@ for (const route of ROUTES) {
           }
           return { unverified: false, overPhoto: true, grounds: bracketed };
         }
-        const cols = L.kind === 'gradient'
-          ? L.stops.slice(0, 3).map((s) => ({ rgb: s.rgb, a: s.a * (L.op === undefined ? 1 : L.op) }))
-          : [{ rgb: L.rgb, a: L.a }];
+        /*
+         * A gradient is sampled WHERE THE TEXT IS, not at its worst stop.
+         *
+         * Bracketing over every stop was right for a gradient a text node
+         * spans, and wrong for the shape this hero actually uses: a scrim that
+         * is opaque behind the copy on the left and clears to nothing on the
+         * right so the photograph shows. The copy never enters the thin end,
+         * but the worst-stop rule scored it there anyway - so it would fail a
+         * correct design and could only be satisfied by flooding the whole
+         * image, which is precisely the washed-out result being complained
+         * about. The instrument was pushing toward the wrong picture.
+         */
+        /*
+         * Sample the gradient at the WORST point the text actually covers, not
+         * at its midpoint. A paragraph is not a point: at 1024 the hero copy
+         * runs to 63% of the scene while the veil is thinning from 42% onward,
+         * so its centre sits under real protection and its last words do not.
+         * Scoring the centre would pass a line whose end is on bare photograph.
+         */
+        let cols;
+        if (L.kind === 'gradient') {
+          const pts = [
+            [tr.left + 1, y], [x, y], [tr.right - 1, y],
+            [x, tr.top + 1], [x, tr.bottom - 1],
+          ];
+          let worst = null;
+          for (const [sx, sy] of pts) {
+            const s = sampleGradient(L, sx, sy);
+            if (!worst || s.a < worst.a) worst = s;
+          }
+          cols = [worst];
+        } else {
+          cols = [{ rgb: L.rgb, a: L.a }];
+        }
         const next = [];
         for (const br of branches) {
           if (br.a >= 0.999) { next.push(br); continue; }
