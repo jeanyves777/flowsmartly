@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
-import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { creditService, TRANSACTION_TYPES, AD_BUDGET_CREDIT_TO_CENTS } from "@/lib/credits";
 import { activateOnAllChannels } from "@/lib/ads/placement-engine";
 import { getSpotlightFeeCredits } from "@/lib/ads/spotlight";
 
@@ -132,7 +132,11 @@ export async function POST(
 
       // Optionally refund credits
       if (refundCredits) {
-        const refundAmount = Math.round(campaign.budgetCents / 1) + getSpotlightFeeCredits(campaign.targeting); // 1 credit = 1 cent
+        // budgetCents was written with the ad rate, so it must be reversed by
+        // the SAME rate. A bare literal here silently breaks if that rate moves.
+        const refundAmount =
+          Math.round(campaign.budgetCents / AD_BUDGET_CREDIT_TO_CENTS) +
+          getSpotlightFeeCredits(campaign.targeting);
         await creditService.addCredits({
           userId: campaign.userId,
           type: TRANSACTION_TYPES.REFUND,

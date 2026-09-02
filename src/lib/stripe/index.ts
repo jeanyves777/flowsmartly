@@ -11,7 +11,7 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/db/client";
 
 // Re-export configuration constants for backward compatibility
-export { PLANS, CREDIT_PACKAGES, type PlanId } from "./config";
+export { PLANS, type PlanId } from "./config";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   console.warn("STRIPE_SECRET_KEY not set — Stripe features will be unavailable");

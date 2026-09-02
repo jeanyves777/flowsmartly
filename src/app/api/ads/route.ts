@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
-import { creditService, TRANSACTION_TYPES, CREDIT_TO_CENTS } from "@/lib/credits";
+import { creditService, TRANSACTION_TYPES, AD_BUDGET_CREDIT_TO_CENTS } from "@/lib/credits";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { generateAdPageHtml, generateAdPageSlug } from "@/lib/ads/ad-page-generator";
 import { getPlacementChannels, getRequestedPlacementChannels } from "@/lib/ads/placement-engine";
@@ -420,8 +420,8 @@ export async function POST(request: NextRequest) {
       referenceType: "ad_campaign",
     });
 
-    // Convert credits to cents for campaign budget
-    const budgetCents = creditBudget * CREDIT_TO_CENTS;
+    // Credits → ad-spend cents, via the pinned ad rate (never the credit rate)
+    const budgetCents = creditBudget * AD_BUDGET_CREDIT_TO_CENTS;
     const dailyBudgetCents: number | null = dailyBudget ? Math.round(dailyBudget * 100) : null;
 
     // Auto-generate AdPage for link-type ads

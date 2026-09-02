@@ -102,32 +102,64 @@ const fallbackPlans: Plan[] = [
   },
 ];
 
+// Rendered only when /api/payments/packages fails or returns nothing, so these
+// must mirror the six live CreditPackage rows — otherwise an API blip quotes
+// prices we do not sell. All six list at $0.01/credit (priceCents === credits);
+// bonus grants take the effective rate to $0.0089–$0.0100.
+// Source of truth is the DB table, seeded by scripts/seed-plans.ts.
 const fallbackCreditPackages: CreditPackage[] = [
   {
-    id: "credit-1",
-    name: "Starter Pack",
-    credits: 1000,
+    id: "credits_100",
+    name: "100 Credits",
+    credits: 100,
     bonus: 0,
-    priceCents: 1200,
-    priceFormatted: "$12",
+    priceCents: 100,
+    priceFormatted: "$1.00",
     isPopular: false,
   },
   {
-    id: "credit-2",
-    name: "Growth Pack",
-    credits: 5000,
-    bonus: 500,
-    priceCents: 4900,
-    priceFormatted: "$49",
+    id: "credits_500",
+    name: "500 Credits",
+    credits: 500,
+    bonus: 0,
+    priceCents: 500,
+    priceFormatted: "$5.00",
+    isPopular: false,
+  },
+  {
+    id: "credits_1000",
+    name: "1,000 + 50 Bonus",
+    credits: 1000,
+    bonus: 50,
+    priceCents: 1000,
+    priceFormatted: "$10.00",
+    isPopular: false,
+  },
+  {
+    id: "credits_2500",
+    name: "2,500 + 150 Bonus",
+    credits: 2500,
+    bonus: 150,
+    priceCents: 2500,
+    priceFormatted: "$25.00",
     isPopular: true,
   },
   {
-    id: "credit-3",
-    name: "Scale Pack",
-    credits: 15000,
-    bonus: 2500,
-    priceCents: 12900,
-    priceFormatted: "$129",
+    id: "credits_5000",
+    name: "5,000 + 500 Bonus",
+    credits: 5000,
+    bonus: 500,
+    priceCents: 5000,
+    priceFormatted: "$50.00",
+    isPopular: false,
+  },
+  {
+    id: "credits_25000",
+    name: "25,000 + 3,000 Bonus",
+    credits: 25000,
+    bonus: 3000,
+    priceCents: 25000,
+    priceFormatted: "$250.00",
     isPopular: false,
   },
 ];

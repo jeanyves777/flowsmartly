@@ -16,11 +16,11 @@
 import { prisma } from "@/lib/db/client";
 
 /**
- * Credit-to-cents conversion rate.
- * 1 credit = $0.01 → 1 cent.
- * Used to convert user credit budgets into real-money campaign budgets.
+ * Credit↔money rates live in the dependency-free `./rates` module so client
+ * components can import them too (this file imports Prisma). Re-exported here
+ * so existing `@/lib/credits/costs` and `@/lib/credits` importers keep working.
  */
-export const CREDIT_TO_CENTS = 1;
+export { CREDIT_TO_CENTS, AD_BUDGET_CREDIT_TO_CENTS } from "./rates";
 
 /**
  * Ad Revenue Split Configuration

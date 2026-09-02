@@ -27,9 +27,11 @@ import type { PlanStep } from "../tool-context";
  * money is only charged after the user taps Confirm. [[credit-based-not-plan-based]]
  */
 
-// Per-credit price for a CUSTOM top-up. Packs are cheaper (bonus credits) — this
-// is the plain rate for "give me exactly N credits / $X".
-const CUSTOM_CENTS_PER_CREDIT = 3;
+// Per-credit price for a CUSTOM top-up: the same $0.01/credit the six live
+// CreditPackage rows list at. Packs still beat it, because their bonus credits
+// bring the effective rate down to ~$0.0089. Was 3 (= $0.03/credit), which
+// charged custom top-ups 3x the package price for the same credit.
+const CUSTOM_CENTS_PER_CREDIT = 1;
 const CUSTOM_MIN_CENTS = 100;   // $1
 const CUSTOM_MAX_CENTS = 50000; // $500
 

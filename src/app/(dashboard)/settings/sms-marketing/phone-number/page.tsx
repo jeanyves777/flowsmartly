@@ -35,6 +35,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { CREDIT_TO_CENTS } from "@/lib/credits/rates";
 
 interface AvailableNumber {
   phoneNumber: string;
@@ -62,7 +63,6 @@ interface CurrentNumber {
 const PHONE_NUMBER_RENTAL_COST = 500; // $5.00/month in cents
 const SMS_COST = 5; // $0.05 per SMS in cents
 const MMS_COST = 10; // $0.10 per MMS in cents
-const CREDITS_PER_DOLLAR = 20; // 1 credit = $0.05
 
 const COUNTRIES = [
   { code: "US", name: "United States", flag: "🇺🇸" },
@@ -225,7 +225,10 @@ export default function PhoneNumberPage() {
     }
   };
 
-  const requiredCredits = Math.ceil((PHONE_NUMBER_RENTAL_COST / 100) * CREDITS_PER_DOLLAR);
+  // The exact formula /api/sms/numbers charges with, from the same constant,
+  // so the quote can never drift from the charge again. (Was a second, independent
+  // CREDITS_PER_DOLLAR = 20, which encoded $0.05 and quoted 100 for a 500 charge.)
+  const requiredCredits = Math.ceil(PHONE_NUMBER_RENTAL_COST / CREDIT_TO_CENTS);
   const hasEnoughCredits = userCredits >= requiredCredits;
 
   if (isLoadingCurrent) {
