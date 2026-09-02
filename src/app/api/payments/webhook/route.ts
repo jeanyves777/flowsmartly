@@ -361,6 +361,25 @@ async function processWebhookEvent(event: Stripe.Event) {
         const existingInvoice = await prisma.invoice.findFirst({
           where: { paymentId: paymentIntent.id },
         });
+
+        // **A registration invoice needs a registration.** This safety net used
+        // to fire on any paid intent with no invoice yet, so a domain the
+        // registrar had rejected still produced "Domain registration:
+        // example.com (1 year)" on the customer's account — the same collapse
+        // as the primary path, in the endpoint that exists to catch what the
+        // primary path misses.
+        const registered = await prisma.storeDomain.findFirst({
+          where: { domainName: piMetadata.domainName, registrarStatus: "active" },
+          select: { id: true },
+        });
+
+        if (!existingInvoice && !registered) {
+          console.warn(
+            `[Stripe Webhook] ${piMetadata.domainName} paid on ${paymentIntent.id} but not registered — no invoice raised.`
+          );
+          break;
+        }
+
         if (!existingInvoice) {
           // Create invoice if ecommerce webhook hasn't already
           const { createInvoice } = await import("@/lib/invoices");

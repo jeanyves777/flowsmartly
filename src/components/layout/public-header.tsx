@@ -97,8 +97,8 @@ export function PublicHeader() {
               Product <ChevronDown className={cn("h-4 w-4 transition-transform", menu === key && "rotate-180")} />
             </button>
           ))}
+          <Link href="/#platform" onMouseEnter={() => setMenu(null)} className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">Platform</Link>
           <Link href="/#work" onMouseEnter={() => setMenu(null)} className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">How it works</Link>
-          <Link href="/#surfaces" onMouseEnter={() => setMenu(null)} className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">Surfaces</Link>
           <Link href="/pricing" onMouseEnter={() => setMenu(null)} className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">Pricing</Link>
           <button
             type="button"

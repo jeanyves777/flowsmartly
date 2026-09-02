@@ -1,0 +1,1153 @@
+<title>FlowSmartly Portal — shell proposal v3</title>
+
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens are lifted verbatim from apps/v5/src/theme/tokens.ts so that
+ * anything approved here is buildable without a translation step.
+ * FlowAgent surfaces lean on --violet, which is already how the public
+ * site treats the assistant (its gradient is brand -> violet).
+ * ------------------------------------------------------------------ */
+:root {
+  --bg:#f3f6fc; --surface:#ffffff; --raised:#ffffff; --muted:#f7f9fe; --inset:#eef3fb;
+  --text:#071449; --text-muted:#42527a; --text-subtle:#606c8a; --on-brand:#ffffff;
+  --border:#dfe5f2; --border-strong:#c4cee4; --divider:#e9eef8;
+  --brand:#0a63d6; --brand-strong:#0a56b8; --brand-soft:#edf3ff;
+  --violet:#6c2cff; --violet-soft:#f1ecff;
+  --green:#0e7b3a; --orange:#ad5100; --pink:#d70459;
+  --chip-bg:#edf1ff; --chip-text:#1740db;
+  --ok-bg:#e8f8ee; --ok-text:#008034; --warn-bg:#fff1e6; --warn-text:#bd4a00;
+  --shadow:rgba(31,45,98,.10); --shadow-2:rgba(31,45,98,.20);
+  --r-card:14px; --r-tile:11px; --r-pill:999px;
+  --rail:212px; --topbar:58px; --chatw:330px;
+  --ff:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+}
+:root[data-theme="grey"] {
+  --bg:#15181d; --surface:#1d2127; --raised:#242931; --muted:#20242b; --inset:#282d35;
+  --text:#f1f4f8; --text-muted:#b2bac7; --text-subtle:#8c96a6; --on-brand:#101317;
+  --border:#333941; --border-strong:#48505c; --divider:#2b3038;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#1f2a37;
+  --violet:#a98cff; --violet-soft:#241f38;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#242e3c; --chip-text:#89b9ff;
+  --ok-bg:#17301f; --ok-text:#4ed67f; --warn-bg:#332512; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.45); --shadow-2:rgba(0,0,0,.62);
+}
+:root[data-theme="dark"] {
+  --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+  --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+  --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+  --violet:#a98cff; --violet-soft:#1b1c3d;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#17264a; --chip-text:#8ab8ff;
+  --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.66);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+    --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+    --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+    --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+    --violet:#a98cff; --violet-soft:#1b1c3d;
+    --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+    --chip-bg:#17264a; --chip-text:#8ab8ff;
+    --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+    --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.66);
+  }
+}
+
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font-family:var(--ff); font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+h1,h2,h3,h4 { margin:0; text-wrap:balance; letter-spacing:-.02em; }
+p { margin:0; }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+:focus-visible { outline:2px solid var(--violet); outline-offset:2px; border-radius:6px; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em; }
+
+.wrap { max-width:1700px; margin:0 auto; padding:26px 18px 72px; }
+
+/* ---------------- brief ---------------- */
+.brief { display:flex; flex-wrap:wrap; align-items:flex-end; gap:18px 32px; margin-bottom:18px; }
+.brief-main { flex:1 1 480px; min-width:0; }
+.eyebrow { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--violet); background:var(--violet-soft); padding:6px 12px; border-radius:var(--r-pill); display:inline-block; }
+.brief h1 { font-size:clamp(25px,3vw,35px); font-weight:800; margin:13px 0 8px; }
+.brief p { color:var(--text-muted); max-width:66ch; }
+.brief-meta { display:flex; gap:22px; flex-wrap:wrap; }
+.meta-item { display:flex; flex-direction:column; gap:2px; }
+.meta-k { font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--text-subtle); }
+.meta-v { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* ---------------- frame ---------------- */
+.frame { border:1px solid var(--border-strong); border-radius:16px; background:var(--bg); overflow:hidden; box-shadow:0 18px 44px var(--shadow); }
+.frame-bar { height:34px; display:flex; align-items:center; gap:8px; padding:0 14px; background:var(--muted); border-bottom:1px solid var(--border); }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--border-strong); }
+.frame-url { margin-left:10px; font-size:11.5px; color:var(--text-subtle); background:var(--inset); border:1px solid var(--border); padding:3px 12px; border-radius:var(--r-pill); }
+.frame-note { margin-left:auto; font-size:11px; color:var(--text-subtle); }
+.app { display:flex; min-height:940px; background:var(--surface); position:relative; }
+
+/* ---------------- rail ---------------- */
+.rail { width:var(--rail); flex:0 0 var(--rail); border-right:1px solid var(--border); background:var(--surface); display:flex; flex-direction:column; }
+.rail-head { height:var(--topbar); display:flex; align-items:center; gap:8px; padding:0 15px; }
+.mark { width:26px; height:26px; flex:none; border-radius:8px; display:grid; place-items:center; background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; font-weight:800; font-size:13px; }
+.wordmark { font-weight:800; letter-spacing:-.03em; font-size:15px; }
+.v-badge { font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:6px; background:var(--violet-soft); color:var(--violet); }
+.rail-scroll { flex:1; overflow-y:auto; padding:6px 10px; }
+.nav { width:100%; display:flex; align-items:center; gap:11px; min-height:38px; padding:0 11px; border-radius:9px; color:var(--text-muted); font-size:13.5px; font-weight:600; }
+.nav:hover { background:var(--muted); color:var(--text); }
+.nav .ico { width:17px; flex:none; text-align:center; font-size:14px; line-height:1; opacity:.9; }
+.nav .chev { margin-left:auto; font-size:9px; opacity:.6; }
+.nav[aria-current="page"] { background:var(--violet-soft); color:var(--violet); font-weight:700; }
+.refer { margin:8px 10px 8px; padding:12px; border:1px solid var(--border); border-radius:var(--r-card); background:var(--muted); }
+.refer-t { font-size:12.5px; font-weight:800; display:flex; align-items:center; gap:7px; }
+.refer-b { font-size:11px; color:var(--text-subtle); margin-top:4px; line-height:1.45; }
+.refer-cta { margin-top:9px; width:100%; min-height:32px; border-radius:8px; background:var(--violet-soft); color:var(--violet); font-size:11.5px; font-weight:800; }
+.ws { margin:0 10px 10px; padding:9px 11px; border:1px solid var(--border); border-radius:var(--r-card); display:flex; align-items:center; gap:9px; }
+.ws-badge { width:26px; height:26px; flex:none; border-radius:8px; background:var(--inset); display:grid; place-items:center; font-size:12px; }
+.ws-n { font-size:12.5px; font-weight:700; line-height:1.25; }
+.ws-s { font-size:10.5px; color:var(--text-subtle); line-height:1.25; }
+
+/* ---------------- topbar ---------------- */
+.main { flex:1; min-width:0; display:flex; flex-direction:column; }
+.topbar { height:var(--topbar); flex:none; display:flex; align-items:center; gap:11px; padding:0 16px; border-bottom:1px solid var(--border); background:var(--surface); }
+.search { flex:1; max-width:430px; margin-right:auto; min-height:38px; display:flex; align-items:center; gap:9px; padding:0 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text-subtle); font-size:13.5px; }
+.search kbd { margin-left:auto; font:inherit; font-size:10.5px; font-weight:700; padding:1px 6px; border:1px solid var(--border); border-radius:5px; color:var(--text-subtle); }
+.qcreate { display:flex; align-items:center; gap:7px; min-height:38px; padding:0 15px; border:1px solid var(--border); border-radius:10px; font-size:13px; font-weight:700; }
+.icon-btn { width:34px; height:34px; flex:none; border-radius:9px; display:grid; place-items:center; color:var(--text-muted); font-size:14px; position:relative; }
+.icon-btn:hover { background:var(--muted); color:var(--text); }
+.icon-btn .badge { position:absolute; top:-2px; right:-2px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--pink); color:#fff; font-size:9px; font-weight:800; display:grid; place-items:center; }
+.who { display:flex; align-items:center; gap:8px; padding:0 4px 0 0; }
+.avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; display:grid; place-items:center; font-size:11px; font-weight:800; }
+.who-n { font-size:12.5px; font-weight:700; line-height:1.2; }
+.who-r { font-size:10.5px; color:var(--text-subtle); line-height:1.2; }
+
+/* ------------------------------------------------------------------ *
+ * The system cluster: where the account actually stands, in the place
+ * people already look for their account. Four separate readings rather
+ * than one badge, because they fail independently — you can be on the
+ * top plan with an unfinished brand kit and no credits left.
+ * ------------------------------------------------------------------ */
+.sys { display:flex; align-items:center; gap:6px; padding-right:6px; margin-right:2px; border-right:1px solid var(--divider); }
+.sys-chip {
+  display:flex; align-items:center; gap:8px; min-height:38px; padding:0 10px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface); text-align:left;
+}
+.sys-chip:hover { border-color:var(--border-strong); background:var(--muted); }
+.sys-chip[aria-expanded="true"] { border-color:var(--violet); background:var(--violet-soft); }
+.sys-k { display:block; font-size:9.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-subtle); line-height:1.25; }
+.sys-v { display:block; font-size:12.5px; font-weight:800; line-height:1.25; font-variant-numeric:tabular-nums; }
+.sys-chip .caret { font-size:9px; opacity:.5; }
+
+/* brand identity — the palette is the fastest way to show a kit exists */
+.brand-dots { display:flex; gap:3px; flex:none; }
+.brand-dots i { width:9px; height:9px; border-radius:3px; display:block; }
+/* marketing score — a ring, because a bare number has no scale */
+.ring { width:26px; height:26px; flex:none; transform:rotate(-90deg); }
+.ring circle { fill:none; stroke-width:4; }
+.ring .track { stroke:var(--inset); }
+.ring .val { stroke:var(--green); stroke-linecap:round; }
+.score-badge { font-size:9.5px; font-weight:800; color:var(--green); }
+/* credits — the meter reads before the number does */
+/* `display:block` matters: this is a span, and a width on an inline box is
+   ignored — the meter simply did not render. */
+.cred-meter { display:block; width:52px; height:4px; border-radius:2px; background:var(--inset); overflow:hidden; margin-top:4px; }
+.cred-meter i { display:block; height:100%; border-radius:2px; background:linear-gradient(90deg,var(--violet),var(--brand)); }
+.plan-tag { font-size:9.5px; font-weight:800; padding:2px 7px; border-radius:var(--r-pill); background:var(--violet); color:#fff; letter-spacing:.03em; }
+.plan-tag.free { background:var(--inset); color:var(--text-muted); }
+
+/* one popover mechanism, shared by every dropdown in the shell */
+.menu-wrap { position:relative; }
+.menu {
+  display:none; position:absolute; right:0; top:calc(100% + 7px); z-index:70; min-width:170px;
+  border:1px solid var(--border); border-radius:12px; background:var(--surface);
+  box-shadow:0 16px 38px var(--shadow-2); padding:6px;
+}
+.menu.open { display:block; }
+.menu.wide { min-width:268px; padding:14px; }
+.menu button.item { width:100%; display:flex; align-items:center; gap:9px; min-height:34px; padding:0 10px; border-radius:8px; font-size:12.5px; font-weight:600; color:var(--text-muted); }
+.menu button.item:hover { background:var(--muted); color:var(--text); }
+.menu button.item[aria-checked="true"] { color:var(--text); font-weight:700; }
+.menu .tick { width:14px; flex:none; font-size:11px; color:var(--violet); }
+.menu-k { font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-subtle); margin:0 0 8px; }
+.menu-row { display:flex; align-items:center; gap:9px; padding:6px 0; font-size:12.5px; }
+.menu-row + .menu-row { border-top:1px solid var(--divider); }
+.menu-row .n { flex:1; color:var(--text-muted); }
+.menu-row .v { font-weight:800; font-variant-numeric:tabular-nums; }
+.menu-cta { margin-top:11px; width:100%; min-height:34px; border-radius:9px; background:var(--violet); color:#fff; font-size:12px; font-weight:800; }
+.menu-cta.ghost { background:var(--surface); color:var(--text); border:1px solid var(--border-strong); margin-top:7px; }
+.swatch-row { display:flex; gap:6px; margin:9px 0 4px; }
+.swatch-row i { width:30px; height:30px; border-radius:8px; display:block; border:1px solid var(--border); }
+
+@media (max-width:1560px){ .sys-chip .sys-text.wide-only { display:none; } }
+@media (max-width:1400px){ .who-n,.who-r,.qcreate span.lbl { display:none; } }
+@media (max-width:1200px){ .sys { display:none; } }
+
+/* ---------------- body: canvas + chat ---------------- */
+.body { flex:1; display:flex; min-height:0; position:relative; }
+.canvas { flex:1; min-width:0; overflow-y:auto; padding:20px; background:var(--bg); }
+.app[data-chat="fullpage"] .canvas { display:none; }
+
+.page-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:15px; }
+.page-head h2 { font-size:21px; font-weight:800; }
+.page-head p { color:var(--text-muted); font-size:13px; margin-top:2px; }
+.page-head .spacer { flex:1; }
+.ctrl { display:flex; align-items:center; gap:8px; min-height:36px; padding:0 13px; border:1px solid var(--border); border-radius:9px; background:var(--surface); font-size:12.5px; font-weight:600; color:var(--text-muted); }
+
+/* Every card in a row is one height, and whatever closes it sits on a shared
+   baseline. Sizing cards to their own content is what left the ragged gaps. */
+.card { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:15px; display:flex; flex-direction:column; }
+.card-foot { margin-top:auto; padding-top:11px; }
+.card-head { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+.card-head h3 { font-size:14px; font-weight:800; }
+.card-head .spacer { flex:1; }
+.card-link { font-size:11.5px; font-weight:700; color:var(--violet); }
+.pill { font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:var(--r-pill); background:var(--chip-bg); color:var(--chip-text); }
+.pill.warn { background:var(--warn-bg); color:var(--warn-text); }
+.pill.ok { background:var(--ok-bg); color:var(--ok-text); }
+.pill.violet { background:var(--violet-soft); color:var(--violet); }
+
+/* KPIs */
+.kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:11px; margin-bottom:13px; align-items:stretch; }
+/* Five cards never divide by three or two, so wrapping them always strands
+   one. Below the width that fits five, the strip scrolls instead — five equal
+   cards on one line beats four equal cards and a gap. */
+@media (max-width:1500px){
+  .kpis { display:flex; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:5px; }
+  .kpi { flex:0 0 206px; scroll-snap-align:start; }
+}
+.kpi { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:14px; display:flex; flex-direction:column; }
+.kpi-top { display:flex; align-items:flex-start; gap:9px; }
+.kpi-k { font-size:12px; color:var(--text-muted); font-weight:600; flex:1; }
+.kpi-ico { width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center; font-size:12px; background:var(--violet-soft); color:var(--violet); }
+.kpi-v { font-size:23px; font-weight:800; letter-spacing:-.035em; font-variant-numeric:tabular-nums; margin-top:5px; }
+.kpi-d { font-size:11.5px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums; }
+.kpi svg { display:block; margin-top:auto; padding-top:8px; width:100%; height:38px; }
+
+/* dashboard grid */
+/* `stretch`, not `start`: start sizes each card to its own content, which is
+   exactly what left one card short beside a tall neighbour. */
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; align-items:stretch; }
+/* At two columns the seven single cards would leave one alone on the last
+   row, so the wide card gives up its span and the eight divide evenly. */
+@media (max-width:1180px){
+  .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .span2 { grid-column:auto; }
+}
+@media (max-width:820px){ .grid { grid-template-columns:minmax(0,1fr); } }
+.span2 { grid-column:span 2; }
+.span3 { grid-column:1 / -1; }
+@media (max-width:1180px){ .span3 { grid-column:1 / -1; } }
+@media (max-width:820px){ .span2, .span3 { grid-column:auto; } }
+
+.rec { display:flex; gap:10px; align-items:center; padding:9px 0; }
+.rec + .rec { border-top:1px solid var(--divider); }
+.rec-ico { width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center; font-size:12px; }
+.rec-body { flex:1; min-width:0; }
+.rec-t { font-size:12.5px; font-weight:700; }
+.rec-b { font-size:11px; color:var(--text-subtle); margin-top:1px; }
+.rec-act { min-height:30px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:11.5px; font-weight:700; white-space:nowrap; flex:none; }
+.rec-act:hover { border-color:var(--violet); color:var(--violet); }
+
+.qc-list button { width:100%; display:flex; align-items:center; gap:10px; min-height:36px; padding:0 4px; font-size:12.5px; font-weight:600; color:var(--text-muted); border-radius:8px; }
+.qc-list button + button { border-top:1px solid var(--divider); }
+.qc-list button:hover { color:var(--violet); }
+.qc-list .ico { width:17px; text-align:center; font-size:13px; }
+.qc-list .chev { margin-left:auto; font-size:10px; opacity:.5; }
+
+/* calendar */
+.cal-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; text-align:center; margin-bottom:9px; }
+.cal-dow { font-size:9.5px; font-weight:700; color:var(--text-subtle); }
+.cal-day { font-size:12px; font-weight:700; padding:5px 0; border-radius:7px; font-variant-numeric:tabular-nums; }
+.cal-day.on { background:var(--violet); color:#fff; }
+.cal-ev { display:flex; align-items:center; gap:9px; padding:7px 0; }
+.cal-ev + .cal-ev { border-top:1px solid var(--divider); }
+.cal-bar { width:3px; align-self:stretch; border-radius:2px; flex:none; }
+.cal-t { font-size:12px; font-weight:700; flex:1; min-width:0; }
+.cal-d { font-size:10.5px; color:var(--text-subtle); }
+
+/* pipeline */
+.pipe { display:flex; align-items:center; gap:10px; padding:7px 0; }
+.pipe-k { font-size:12px; font-weight:600; width:66px; flex:none; }
+.pipe-v { font-size:12.5px; font-weight:800; width:46px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
+.pipe-bar { flex:1; height:5px; border-radius:3px; background:var(--inset); overflow:hidden; }
+.pipe-bar i { display:block; height:100%; border-radius:3px; }
+.pipe-d { font-size:10.5px; font-weight:700; color:var(--green); width:36px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
+
+/* channel + products */
+.row { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:12.5px; }
+.row + .row { border-top:1px solid var(--divider); }
+.row-ico { width:20px; flex:none; text-align:center; font-size:13px; }
+.row-n { flex:1; min-width:0; font-weight:600; }
+.row-v { font-weight:800; font-variant-numeric:tabular-nums; }
+.row-bar { width:66px; height:4px; border-radius:2px; background:var(--inset); overflow:hidden; flex:none; }
+.row-bar i { display:block; height:100%; border-radius:2px; }
+.row-d { font-size:10.5px; font-weight:700; color:var(--green); width:44px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
+.thumb { width:26px; height:26px; border-radius:7px; background:var(--inset); flex:none; display:grid; place-items:center; font-size:11px; }
+
+/* training strip — three across, one on phone */
+.res-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; }
+@media (max-width:820px){ .res-row { grid-template-columns:minmax(0,1fr); } }
+.res { display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:var(--r-tile); background:var(--muted); padding:11px; }
+
+/* store health */
+.health { display:flex; align-items:center; gap:9px; padding:7px 0; font-size:12.5px; }
+.health + .health { border-top:1px solid var(--divider); }
+.health-n { flex:1; font-weight:600; }
+.health-v { font-weight:700; color:var(--green); font-size:12px; }
+
+/* approvals */
+.appr { display:flex; align-items:center; gap:10px; padding:9px 0; }
+.appr + .appr { border-top:1px solid var(--divider); }
+.appr-ico { width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center; font-size:12px; }
+.appr-body { flex:1; min-width:0; }
+.appr-t { font-size:12.5px; font-weight:700; }
+.appr-b { font-size:11px; color:var(--text-subtle); }
+.appr-btn { min-height:30px; padding:0 14px; border-radius:8px; background:var(--violet-soft); color:var(--violet); font-size:11.5px; font-weight:800; flex:none; }
+
+/* ------------------------------------------------------------------ *
+ * FlowAgent, in three presentations. `data-chat` on .app is the only
+ * switch: sidebar docks it and shortens the canvas, floating lifts it
+ * over the canvas, full page hands it the whole screen. Collapsed is a
+ * fourth state that keeps it reachable without occupying anything.
+ * ------------------------------------------------------------------ */
+.chat { display:flex; flex-direction:column; background:var(--surface); min-height:0; }
+.app[data-chat="sidebar"] .chat {
+  width:var(--chatw); flex:0 0 var(--chatw); border-left:1px solid var(--border);
+}
+.app[data-chat="floating"] .chat {
+  position:absolute; top:14px; right:16px; bottom:14px; width:352px; z-index:40;
+  border:1px solid var(--border-strong); border-radius:16px; box-shadow:0 22px 50px var(--shadow-2);
+  overflow:hidden;
+}
+.app[data-chat="fullpage"] .chat { flex:1; min-width:0; }
+.app[data-chat="collapsed"] .chat { display:none; }
+
+.chat-bar { display:flex; align-items:center; gap:8px; padding:11px 12px; border-bottom:1px solid var(--divider); flex:none; }
+.tabs { display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--inset); }
+.tabs button { min-height:26px; padding:0 12px; border-radius:7px; font-size:12px; font-weight:700; color:var(--text-subtle); }
+.tabs button[aria-selected="true"] { background:var(--surface); color:var(--text); box-shadow:0 1px 3px var(--shadow); }
+.chat-bar .spacer { flex:1; }
+.mode-wrap { position:relative; }
+.mode-menu {
+  display:none; position:absolute; right:0; top:calc(100% + 7px); z-index:60; min-width:150px;
+  border:1px solid var(--border); border-radius:11px; background:var(--surface);
+  box-shadow:0 14px 34px var(--shadow-2); padding:5px;
+}
+.mode-menu.open { display:block; }
+.mode-menu button { width:100%; display:flex; align-items:center; gap:9px; min-height:34px; padding:0 10px; border-radius:8px; font-size:12.5px; font-weight:600; color:var(--text-muted); }
+.mode-menu button:hover { background:var(--muted); color:var(--text); }
+.mode-menu .tick { width:14px; flex:none; font-size:11px; color:var(--violet); }
+.mode-menu button[aria-checked="true"] { color:var(--text); font-weight:700; }
+
+.chat-scroll { flex:1; overflow-y:auto; padding:16px 14px; min-height:0; }
+.app[data-chat="fullpage"] .chat-scroll { padding:32px; }
+
+.hello { text-align:center; }
+.hello .glyph { width:44px; height:44px; margin:0 auto 12px; border-radius:13px; display:grid; place-items:center; background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; font-size:20px; }
+.hello h3 { font-size:19px; font-weight:800; }
+.hello p { font-size:13px; color:var(--text-muted); margin-top:3px; }
+.app[data-chat="fullpage"] .hello { margin:6vh 0 26px; }
+.app[data-chat="fullpage"] .hello .glyph { width:62px; height:62px; border-radius:18px; font-size:28px; margin-bottom:18px; }
+.app[data-chat="fullpage"] .hello h3 { font-size:31px; }
+.app[data-chat="fullpage"] .hello p { font-size:16px; margin-top:6px; }
+
+.sect-k { font-size:11.5px; font-weight:800; margin:18px 0 8px; }
+.sugg { width:100%; display:flex; align-items:center; gap:10px; min-height:38px; padding:0 11px; border-radius:9px; font-size:12.5px; font-weight:600; color:var(--text-muted); text-align:left; }
+.sugg:hover { background:var(--muted); color:var(--text); }
+.sugg .ico { width:16px; flex:none; text-align:center; font-size:12px; color:var(--violet); }
+.sugg .chev { margin-left:auto; font-size:10px; opacity:.5; }
+
+.prog { display:flex; align-items:center; gap:9px; padding:6px 0; font-size:12.5px; }
+.prog-t { flex:1; color:var(--text-muted); }
+.prog-s { width:17px; height:17px; border-radius:50%; display:grid; place-items:center; font-size:9px; font-weight:800; background:var(--ok-bg); color:var(--ok-text); flex:none; }
+.prog-s.todo { background:var(--inset); color:var(--text-subtle); }
+
+.try { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:var(--r-pill); border:1px solid var(--border); background:var(--surface); color:var(--text-muted); }
+.chip:hover { border-color:var(--violet); color:var(--violet); }
+.chip.on { background:var(--violet-soft); border-color:var(--violet-soft); color:var(--violet); font-weight:700; }
+
+/* full-page suggestion cards */
+.fp-wrap { max-width:900px; margin:0 auto; }
+.fp-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:stretch; }
+@media (max-width:1000px){ .fp-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:700px){ .fp-cards { grid-template-columns:minmax(0,1fr); } }
+.fp-card { display:flex; align-items:flex-start; gap:12px; text-align:left; border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:15px; transition:border-color .13s ease, transform .13s ease, box-shadow .13s ease; }
+.fp-card:hover { border-color:var(--violet); transform:translateY(-2px); box-shadow:0 10px 24px var(--shadow); }
+.fp-ico { width:36px; height:36px; flex:none; border-radius:10px; display:grid; place-items:center; background:var(--violet-soft); color:var(--violet); font-size:15px; }
+.fp-t { font-size:13.5px; font-weight:800; }
+.fp-b { font-size:12px; color:var(--text-subtle); margin-top:3px; line-height:1.45; }
+.fp-chev { margin-left:auto; align-self:center; color:var(--text-subtle); font-size:12px; }
+.fp-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:22px 0 16px; }
+.fp-chips .chip { padding:9px 16px; font-size:12.5px; }
+
+/* composer */
+.composer { flex:none; padding:12px 14px 14px; border-top:1px solid var(--divider); }
+.app[data-chat="fullpage"] .composer { border-top:0; padding:0 32px 30px; }
+.app[data-chat="fullpage"] .composer-inner { max-width:900px; margin:0 auto; }
+.ask {
+  display:flex; align-items:flex-end; gap:9px; padding:11px 11px 11px 14px;
+  border:1px solid var(--border); border-radius:13px; background:var(--surface);
+}
+.app[data-chat="fullpage"] .ask { min-height:118px; border-radius:15px; }
+.ask input { flex:1; min-width:0; border:0; background:none; color:var(--text); font:inherit; font-size:13.5px; outline:none; align-self:center; }
+.ask input::placeholder { color:var(--text-subtle); }
+.mic { width:38px; height:38px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--surface); color:var(--violet); font-size:14px; border:2px solid transparent; background-image:linear-gradient(var(--surface),var(--surface)),linear-gradient(135deg,var(--violet),var(--brand)); background-origin:border-box; background-clip:padding-box,border-box; }
+.disclaim { text-align:center; font-size:11px; color:var(--text-subtle); margin-top:9px; }
+
+/* ------------------------------------------------------------------ *
+ * Collapsed is a DOCK, not a launcher.
+ *
+ * A pill you have to click before you can type puts a step in front of
+ * the one thing people want from an assistant. The dock spans the foot
+ * of the work with the field already focusable: type, send, and the
+ * panel returns to whichever mode it was in when you collapsed it —
+ * with your message already in the thread.
+ * ------------------------------------------------------------------ */
+.dock {
+  display:none; position:absolute; left:20px; right:20px; bottom:16px; z-index:45;
+  align-items:center; gap:11px; padding:9px 10px 9px 14px;
+  border:1px solid var(--border-strong); border-radius:14px; background:var(--surface);
+  box-shadow:0 16px 40px var(--shadow-2);
+}
+.app[data-chat="collapsed"] .dock { display:flex; }
+/* so the last row of the dashboard is never hidden behind the dock */
+.app[data-chat="collapsed"] .canvas { padding-bottom:88px; }
+.dock-glyph { width:28px; height:28px; flex:none; border-radius:9px; display:grid; place-items:center; background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; font-size:13px; }
+.dock-id { flex:none; line-height:1.2; }
+.dock-n { font-size:12.5px; font-weight:800; }
+.dock-s { font-size:10.5px; font-weight:600; color:var(--text-subtle); }
+.dock-field { flex:1; min-width:0; display:flex; align-items:center; gap:9px; padding:0 13px; min-height:40px; border:1px solid var(--border); border-radius:11px; background:var(--inset); }
+.dock-field input { flex:1; min-width:0; border:0; background:none; color:var(--text); font:inherit; font-size:13.5px; outline:none; }
+.dock-field input::placeholder { color:var(--text-subtle); }
+.dock-send { width:40px; height:40px; flex:none; border-radius:11px; background:var(--violet); color:#fff; display:grid; place-items:center; font-size:14px; }
+.dock-mic { width:40px; height:40px; flex:none; border-radius:11px; border:1px solid var(--border); display:grid; place-items:center; color:var(--violet); font-size:13px; }
+.dock-open { min-height:40px; padding:0 13px; border-radius:11px; border:1px solid var(--border); font-size:12px; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:7px; flex:none; }
+.dock-open:hover { border-color:var(--violet); color:var(--violet); }
+@media (max-width:900px){ .dock-id, .dock-open span.lbl { display:none; } }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+
+/* conversation — replaces the intro once there is something to show */
+.thread { display:none; flex-direction:column; gap:12px; }
+.app.has-thread .thread { display:flex; }
+.app.has-thread .intro { display:none; }
+.msg { display:flex; gap:9px; align-items:flex-start; }
+.msg.mine { flex-direction:row-reverse; }
+.msg-av { width:25px; height:25px; flex:none; border-radius:8px; display:grid; place-items:center; font-size:10px; font-weight:800; }
+.msg-av.ai { background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; }
+.msg-av.me { background:var(--inset); color:var(--text-muted); }
+.bubble { border-radius:12px; padding:10px 13px; font-size:12.5px; line-height:1.55; max-width:86%; }
+.bubble.ai { background:var(--muted); border:1px solid var(--border); }
+.bubble.me { background:var(--violet-soft); color:var(--violet); font-weight:600; }
+.bubble .cost { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:11px; color:var(--text-subtle); }
+.bubble .acts { display:flex; gap:7px; margin-top:10px; }
+.bubble .acts button { flex:1; min-height:32px; border-radius:8px; font-size:11.5px; font-weight:700; }
+.acts .yes { background:var(--violet); color:#fff; }
+.acts .no { border:1px solid var(--border-strong); color:var(--text); }
+
+/* mode strip under the frame */
+.modes { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+.mode-btn { display:flex; align-items:center; gap:9px; padding:10px 14px; border:1px solid var(--border); border-radius:11px; background:var(--surface); font-size:12.5px; font-weight:700; }
+.mode-btn[aria-pressed="true"] { border-color:var(--violet); background:var(--violet-soft); color:var(--violet); }
+.mode-btn small { font-weight:600; color:var(--text-subtle); }
+.mode-btn[aria-pressed="true"] small { color:var(--violet); }
+
+/* ---------------- decisions ---------------- */
+.decisions { margin-top:32px; }
+.decisions > h2 { font-size:21px; font-weight:800; margin-bottom:6px; }
+.decisions > p.lede { color:var(--text-muted); max-width:72ch; margin-bottom:16px; }
+.decision { border:1px solid var(--border); border-left:3px solid var(--violet); border-radius:var(--r-tile); background:var(--surface); padding:16px 18px; }
+.decision.settled { border-left-color:var(--green); }
+.decision + .decision { margin-top:11px; }
+.decision-q { font-size:15px; font-weight:800; }
+.decision-why { font-size:13.5px; color:var(--text-muted); margin-top:6px; max-width:80ch; }
+.options { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:9px; margin-top:12px; }
+.option { border:1px solid var(--border); border-radius:10px; background:var(--muted); padding:11px 12px; }
+.option.rec { border-color:var(--violet); background:var(--violet-soft); }
+.option.done { border-color:var(--green); background:var(--ok-bg); }
+.option-t { font-size:12.5px; font-weight:800; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.rec-tag { font-size:9.5px; font-weight:800; padding:1px 7px; border-radius:var(--r-pill); background:var(--violet); color:#fff; }
+.rec-tag.green { background:var(--green); }
+.option-b { font-size:12.5px; color:var(--text-muted); margin-top:5px; }
+.foot { margin-top:28px; padding-top:16px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-subtle); }
+</style>
+
+<div class="wrap">
+
+  <header class="brief">
+    <div class="brief-main">
+      <span class="eyebrow">For review · v3</span>
+      <h1>The FlowSmartly portal, once you are signed in</h1>
+      <p>
+        Built to your reference. FlowAgent has three presentations rather than one — dock it as a sidebar,
+        float it over the work, or give it the whole screen — and a fourth state that collapses it to a
+        launcher. Switch from the control in its header, or from the strip under the frame.
+      </p>
+    </div>
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-k">Version</span><span class="meta-v">Shell v3</span></div>
+      <div class="meta-item"><span class="meta-k">Chat modes</span><span class="meta-v">4</span></div>
+      <div class="meta-item"><span class="meta-k">Themes</span><span class="meta-v">3 of 3</span></div>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="frame-url">app.flowsmartly.com</span>
+      <span class="frame-note">Mockup — figures are illustrative</span>
+    </div>
+
+    <div class="app" id="app" data-chat="sidebar">
+
+      <!-- ---------------- rail ---------------- -->
+      <nav class="rail" aria-label="Main">
+        <div class="rail-head">
+          <span class="mark" aria-hidden="true">✦</span>
+          <span class="wordmark">FlowSmartly</span>
+          <span class="v-badge">V5</span>
+        </div>
+        <div class="rail-scroll">
+          <button class="nav" aria-current="page"><span class="ico" aria-hidden="true">⌂</span>Home</button>
+          <button class="nav"><span class="ico" aria-hidden="true">▤</span>Dashboard</button>
+          <button class="nav"><span class="ico" aria-hidden="true">▦</span>Orders<span class="chev" aria-hidden="true">▾</span></button>
+          <button class="nav"><span class="ico" aria-hidden="true">◫</span>Products</button>
+          <button class="nav"><span class="ico" aria-hidden="true">☺</span>Customers</button>
+          <button class="nav"><span class="ico" aria-hidden="true">◈</span>Marketing<span class="chev" aria-hidden="true">▾</span></button>
+          <button class="nav"><span class="ico" aria-hidden="true">◉</span>Sales<span class="chev" aria-hidden="true">▾</span></button>
+          <button class="nav"><span class="ico" aria-hidden="true">▥</span>Analytics</button>
+          <button class="nav"><span class="ico" aria-hidden="true">$</span>Finance<span class="chev" aria-hidden="true">▾</span></button>
+          <button class="nav"><span class="ico" aria-hidden="true">⚙</span>Automations</button>
+          <button class="nav"><span class="ico" aria-hidden="true">⇄</span>Flows</button>
+          <button class="nav"><span class="ico" aria-hidden="true">⊞</span>Apps &amp; Integrations</button>
+          <button class="nav"><span class="ico" aria-hidden="true">⚙</span>Settings</button>
+        </div>
+        <div class="refer">
+          <p class="refer-t"><span aria-hidden="true">🎁</span> Refer &amp; earn</p>
+          <p class="refer-b">Invite a business you know and earn up to $245 in FlowSmartly credits.</p>
+          <button class="refer-cta">Invite now</button>
+        </div>
+        <div class="ws">
+          <span class="ws-badge" aria-hidden="true">▣</span>
+          <span><span class="ws-n">FlowSmartly Store</span><br><span class="ws-s">Primary workspace</span></span>
+          <span style="margin-left:auto; font-size:10px; opacity:.6;" aria-hidden="true">▾</span>
+        </div>
+      </nav>
+
+      <!-- ---------------- main ---------------- -->
+      <div class="main">
+        <div class="topbar">
+          <div class="search"><span aria-hidden="true">⌕</span> Search for orders, customers, products, reports… <kbd>⌘K</kbd></div>
+          <button class="qcreate"><span aria-hidden="true">+</span> <span class="lbl">Quick create</span></button>
+
+          <div class="sys">
+            <!-- brand identity -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="brandMenu" aria-haspopup="true" aria-expanded="false">
+                <span class="brand-dots" aria-hidden="true"><i style="background:#6c2cff;"></i><i style="background:#0a63d6;"></i><i style="background:#ad5100;"></i></span>
+                <span class="sys-text wide-only"><span class="sys-k">Brand</span><span class="sys-v">Bright Smile</span></span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="brandMenu">
+                <p class="menu-k">Brand identity</p>
+                <div class="menu-row"><span class="n">Logo</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Palette</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Typeface</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Tone of voice</span><span class="v" style="color:var(--warn-text);">Not set</span></div>
+                <div class="swatch-row" aria-hidden="true"><i style="background:#6c2cff;"></i><i style="background:#0a63d6;"></i><i style="background:#ad5100;"></i><i style="background:#0e7b3a;"></i></div>
+                <p style="font-size:11.5px; color:var(--text-subtle);">Everything FlowAgent makes uses these. Tone is the one still missing.</p>
+                <button class="menu-cta">Finish the brand kit</button>
+              </div>
+            </div>
+
+            <!-- marketing score -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="scoreMenu" aria-haspopup="true" aria-expanded="false">
+                <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
+                  <circle class="track" cx="18" cy="18" r="15"></circle>
+                  <circle class="val" cx="18" cy="18" r="15" stroke-dasharray="73 94"></circle>
+                </svg>
+                <span class="sys-text wide-only"><span class="sys-k">Marketing</span><span class="sys-v">78 <span class="score-badge">Good</span></span></span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="scoreMenu">
+                <p class="menu-k">Marketing score · 78 / 100</p>
+                <div class="menu-row"><span class="n">Reach</span><span class="v">84</span></div>
+                <div class="menu-row"><span class="n">Conversion</span><span class="v">71</span></div>
+                <div class="menu-row"><span class="n">Retention</span><span class="v">62</span></div>
+                <div class="menu-row"><span class="n">Local &amp; AI visibility</span><span class="v">91</span></div>
+                <p style="font-size:11.5px; color:var(--text-subtle); margin-top:9px;">Retention is holding the score down — no win-back has run in 60 days.</p>
+                <button class="menu-cta">Fix retention</button>
+                <button class="menu-cta ghost">See how this is scored</button>
+              </div>
+            </div>
+
+            <!-- credits + plan -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="planMenu" aria-haspopup="true" aria-expanded="false">
+                <span class="sys-text"><span class="sys-k">Credits</span><span class="sys-v">1,284</span><span class="cred-meter" aria-hidden="true"><i style="width:32%;"></i></span></span>
+                <span class="plan-tag">Pro</span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="planMenu">
+                <p class="menu-k">Plan &amp; credits</p>
+                <div class="menu-row"><span class="n">Plan</span><span class="v">Pro · $20/mo</span></div>
+                <div class="menu-row"><span class="n">Credits left</span><span class="v">1,284 / 4,000</span></div>
+                <div class="menu-row"><span class="n">Renews</span><span class="v">In 12 days</span></div>
+                <div class="menu-row"><span class="n">Spent this week</span><span class="v">612</span></div>
+                <p style="font-size:11.5px; color:var(--text-subtle); margin-top:9px;">At this rate you run out four days early. A video runs about 40.</p>
+                <button class="menu-cta">Top up credits</button>
+                <button class="menu-cta ghost">Compare plans</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- theme, now a dropdown -->
+          <div class="menu-wrap">
+            <button class="sys-chip" id="themeBtn" data-menu="themeMenu" aria-haspopup="true" aria-expanded="false">
+              <span aria-hidden="true">◐</span>
+              <span class="sys-text wide-only"><span class="sys-k">Theme</span><span class="sys-v" id="themeNow">Light</span></span>
+              <span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="menu" id="themeMenu" role="menu">
+              <button class="item" role="menuitemradio" data-theme-set="light" aria-checked="true"><span class="tick" aria-hidden="true">✓</span>Light</button>
+              <button class="item" role="menuitemradio" data-theme-set="grey" aria-checked="false"><span class="tick" aria-hidden="true"></span>Grey</button>
+              <button class="item" role="menuitemradio" data-theme-set="dark" aria-checked="false"><span class="tick" aria-hidden="true"></span>Dark</button>
+            </div>
+          </div>
+
+          <button class="icon-btn" aria-label="Notifications, 3 unread">◔<span class="badge">3</span></button>
+          <button class="icon-btn" aria-label="Help">?</button>
+          <div class="who">
+            <span class="avatar">JY</span>
+            <span><span class="who-n">Jean-Yves</span><br><span class="who-r">Owner · FlowSmartly Store</span></span>
+          </div>
+        </div>
+
+        <div class="body">
+
+          <!-- ---------------- dashboard ---------------- -->
+          <div class="canvas">
+            <div class="page-head">
+              <div>
+                <h2>Welcome back, Jean-Yves! 👋</h2>
+                <p>Here's what's happening with your business today.</p>
+              </div>
+              <span class="spacer"></span>
+              <span class="ctrl"><span aria-hidden="true">▦</span> May 12 – May 18, 2025 <span aria-hidden="true">▾</span></span>
+              <span class="ctrl">vs. May 5 – May 11 <span aria-hidden="true">▾</span></span>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="kpi-top"><span class="kpi-k">Total Revenue</span><span class="kpi-ico" aria-hidden="true">$</span></div>
+                <p class="kpi-v">$18,942</p><p class="kpi-d">↑ 14.7%</p>
+                <svg viewBox="0 0 200 38" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 32 L25 29 L50 30 L75 21 L100 24 L125 15 L150 17 L175 9 L200 6 L200 38 L0 38 Z" fill="var(--violet-soft)"/>
+                  <path d="M0 32 L25 29 L50 30 L75 21 L100 24 L125 15 L150 17 L175 9 L200 6" fill="none" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="kpi">
+                <div class="kpi-top"><span class="kpi-k">Orders</span><span class="kpi-ico" aria-hidden="true">▦</span></div>
+                <p class="kpi-v">1,243</p><p class="kpi-d">↑ 8.1%</p>
+                <svg viewBox="0 0 200 38" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 30 L25 26 L50 28 L75 20 L100 23 L125 17 L150 12 L175 15 L200 8 L200 38 L0 38 Z" fill="var(--violet-soft)"/>
+                  <path d="M0 30 L25 26 L50 28 L75 20 L100 23 L125 17 L150 12 L175 15 L200 8" fill="none" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="kpi">
+                <div class="kpi-top"><span class="kpi-k">Conversion Rate</span><span class="kpi-ico" aria-hidden="true">◎</span></div>
+                <p class="kpi-v">3.6%</p><p class="kpi-d">↑ 0.6pp</p>
+                <svg viewBox="0 0 200 38" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 28 L25 27 L50 22 L75 10 L100 16 L125 22 L150 21 L175 24 L200 20 L200 38 L0 38 Z" fill="var(--violet-soft)"/>
+                  <path d="M0 28 L25 27 L50 22 L75 10 L100 16 L125 22 L150 21 L175 24 L200 20" fill="none" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="kpi">
+                <div class="kpi-top"><span class="kpi-k">Avg. Order Value</span><span class="kpi-ico" aria-hidden="true">◇</span></div>
+                <p class="kpi-v">$62.41</p><p class="kpi-d">↑ 6.3%</p>
+                <svg viewBox="0 0 200 38" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 30 L25 24 L50 26 L75 18 L100 20 L125 14 L150 18 L175 13 L200 11 L200 38 L0 38 Z" fill="var(--violet-soft)"/>
+                  <path d="M0 30 L25 24 L50 26 L75 18 L100 20 L125 14 L150 18 L175 13 L200 11" fill="none" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="kpi">
+                <div class="kpi-top"><span class="kpi-k">Net Profit</span><span class="kpi-ico" aria-hidden="true">▥</span></div>
+                <p class="kpi-v">$4,352</p><p class="kpi-d">↑ 11.2%</p>
+                <svg viewBox="0 0 200 38" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 33 L25 30 L50 31 L75 24 L100 21 L125 22 L150 15 L175 12 L200 7 L200 38 L0 38 Z" fill="var(--violet-soft)"/>
+                  <path d="M0 33 L25 30 L50 31 L75 24 L100 21 L125 22 L150 15 L175 12 L200 7" fill="none" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <div class="grid">
+              <!-- recommendations -->
+              <div class="card span2">
+                <div class="card-head">
+                  <span class="kpi-ico" style="width:26px; height:26px; border-radius:8px;" aria-hidden="true">✦</span>
+                  <div><h3>FlowAgent Recommendations</h3><p style="font-size:11px; color:var(--text-subtle);">Personalised insights to grow your business</p></div>
+                  <span class="spacer"></span><span class="card-link">View all</span>
+                </div>
+                <div class="rec">
+                  <span class="rec-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">▤</span>
+                  <div class="rec-body"><p class="rec-t">Abandoned carts increased 18% this week</p><p class="rec-b">Send a recovery email to win back lost sales · 6 credits</p></div>
+                  <button class="rec-act">Create campaign</button>
+                </div>
+                <div class="rec">
+                  <span class="rec-ico" style="background:var(--chip-bg); color:var(--chip-text);" aria-hidden="true">◫</span>
+                  <div class="rec-body"><p class="rec-t">“Flow Hoodie” is low on stock</p><p class="rec-b">Reorder soon to avoid stockouts · free</p></div>
+                  <button class="rec-act">View inventory</button>
+                </div>
+                <div class="rec">
+                  <span class="rec-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">◈</span>
+                  <div class="rec-body"><p class="rec-t">Your Facebook return on spend is strong</p><p class="rec-b">Raising budget 15% should hold the same return · spends $18/day more</p></div>
+                  <button class="rec-act">Adjust budget</button>
+                </div>
+              </div>
+
+              <!-- approvals -->
+              <div class="card">
+                <div class="card-head"><h3>Approvals</h3><span class="pill warn">3 pending</span></div>
+                <div class="appr">
+                  <span class="appr-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">✉</span>
+                  <div class="appr-body"><p class="appr-t">Spring Sale Email Campaign</p><p class="appr-b">Email · 2,140 people · 9 credits</p></div>
+                  <button class="appr-btn">Review</button>
+                </div>
+                <div class="appr">
+                  <span class="appr-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">◫</span>
+                  <div class="appr-body"><p class="appr-t">New Product: Flow T-Shirt</p><p class="appr-b">Product launch · free</p></div>
+                  <button class="appr-btn">Review</button>
+                </div>
+                <div class="appr">
+                  <span class="appr-ico" style="background:var(--violet-soft); color:var(--violet);" aria-hidden="true">☺</span>
+                  <div class="appr-body"><p class="appr-t">Influencer Partnership — May</p><p class="appr-b">Partnership · $600 committed</p></div>
+                  <button class="appr-btn">Review</button>
+                </div>
+                <p class="card-foot"><span class="card-link">View all approvals</span></p>
+              </div>
+
+              <!-- quick create -->
+              <div class="card">
+                <div class="card-head"><h3>Quick create</h3></div>
+                <div class="qc-list">
+                  <button><span class="ico" aria-hidden="true">▦</span>Create order<span class="chev" aria-hidden="true">›</span></button>
+                  <button><span class="ico" aria-hidden="true">◫</span>Add product<span class="chev" aria-hidden="true">›</span></button>
+                  <button><span class="ico" aria-hidden="true">◈</span>Create campaign<span class="chev" aria-hidden="true">›</span></button>
+                  <button><span class="ico" aria-hidden="true">✉</span>Send email<span class="chev" aria-hidden="true">›</span></button>
+                  <button><span class="ico" aria-hidden="true">⇄</span>Create flow<span class="chev" aria-hidden="true">›</span></button>
+                  <button><span class="ico" aria-hidden="true">☺</span>Add customer<span class="chev" aria-hidden="true">›</span></button>
+                </div>
+              </div>
+
+              <!-- campaign calendar -->
+              <div class="card">
+                <div class="card-head"><h3>Campaign calendar</h3><span class="spacer"></span><span class="card-link">View calendar</span></div>
+                <p style="font-size:12px; font-weight:700; margin-bottom:8px;">May 2025</p>
+                <div class="cal-week">
+                  <span class="cal-dow">Sun</span><span class="cal-dow">Mon</span><span class="cal-dow">Tue</span><span class="cal-dow">Wed</span><span class="cal-dow">Thu</span><span class="cal-dow">Fri</span><span class="cal-dow">Sat</span>
+                  <span class="cal-day">11</span><span class="cal-day">12</span><span class="cal-day">13</span><span class="cal-day">14</span><span class="cal-day on">15</span><span class="cal-day">16</span><span class="cal-day">17</span>
+                </div>
+                <div class="cal-ev"><span class="cal-bar" style="background:var(--green);"></span><span class="cal-t">Mother's Day Sale<br><span class="cal-d">May 11 – May 17</span></span><span class="pill ok">Live</span></div>
+                <div class="cal-ev"><span class="cal-bar" style="background:var(--violet);"></span><span class="cal-t">Email: New Arrivals<br><span class="cal-d">May 16</span></span><span class="pill violet">Scheduled</span></div>
+                <div class="cal-ev"><span class="cal-bar" style="background:var(--border-strong);"></span><span class="cal-t">SMS: Flash Sale<br><span class="cal-d">May 18</span></span><span class="pill">Planned</span></div>
+              </div>
+
+              <!-- pipeline -->
+              <div class="card">
+                <div class="card-head"><h3>Sales pipeline</h3><span class="spacer"></span><span class="ctrl" style="min-height:26px; padding:0 9px; font-size:11px;">This month ▾</span></div>
+                <div class="pipe"><span class="pipe-k">Leads</span><span class="pipe-v">2,340</span><span class="pipe-bar"><i style="width:100%; background:var(--violet);"></i></span><span class="pipe-d">↑12%</span></div>
+                <div class="pipe"><span class="pipe-k">Qualified</span><span class="pipe-v">842</span><span class="pipe-bar"><i style="width:56%; background:var(--brand);"></i></span><span class="pipe-d">↑9%</span></div>
+                <div class="pipe"><span class="pipe-k">Proposals</span><span class="pipe-v">256</span><span class="pipe-bar"><i style="width:30%; background:#22a3d6;"></i></span><span class="pipe-d">↑4%</span></div>
+                <div class="pipe"><span class="pipe-k">Won</span><span class="pipe-v">112</span><span class="pipe-bar"><i style="width:14%; background:var(--green);"></i></span><span class="pipe-d">↑7%</span></div>
+                <p class="card-foot"><span class="card-link">View full pipeline</span></p>
+              </div>
+
+              <!-- channel performance -->
+              <div class="card">
+                <div class="card-head"><h3>Channel performance</h3><span class="spacer"></span><span class="ctrl" style="min-height:26px; padding:0 9px; font-size:11px;">This month ▾</span></div>
+                <div class="row"><span class="row-ico" aria-hidden="true">▣</span><span class="row-n">Online Store</span><span class="row-v">$9,842</span><span class="row-bar"><i style="width:92%; background:var(--violet);"></i></span><span class="row-d">↑16.3%</span></div>
+                <div class="row"><span class="row-ico" aria-hidden="true">◉</span><span class="row-n">Facebook Ads</span><span class="row-v">$4,231</span><span class="row-bar"><i style="width:44%; background:var(--brand);"></i></span><span class="row-d">↑11.8%</span></div>
+                <div class="row"><span class="row-ico" aria-hidden="true">◎</span><span class="row-n">Google Ads</span><span class="row-v">$2,104</span><span class="row-bar"><i style="width:22%; background:#22a3d6;"></i></span><span class="row-d">↑6.2%</span></div>
+                <div class="row"><span class="row-ico" aria-hidden="true">✉</span><span class="row-n">Email Marketing</span><span class="row-v">$1,342</span><span class="row-bar"><i style="width:14%; background:var(--green);"></i></span><span class="row-d">↑9.1%</span></div>
+                <p class="card-foot"><span class="card-link">View full report</span></p>
+              </div>
+
+              <!-- top products -->
+              <div class="card">
+                <div class="card-head"><h3>Top products</h3><span class="spacer"></span><span class="ctrl" style="min-height:26px; padding:0 9px; font-size:11px;">This month ▾</span></div>
+                <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow Hoodie</span><span class="row-d" style="color:var(--text-subtle);">432 sold</span><span class="row-v">$7,846</span></div>
+                <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow T-Shirt</span><span class="row-d" style="color:var(--text-subtle);">389 sold</span><span class="row-v">$5,674</span></div>
+                <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow Cap</span><span class="row-d" style="color:var(--text-subtle);">256 sold</span><span class="row-v">$2,304</span></div>
+                <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow Mug</span><span class="row-d" style="color:var(--text-subtle);">198 sold</span><span class="row-v">$1,118</span></div>
+                <p class="card-foot"><span class="card-link">View all products</span></p>
+              </div>
+
+              <!-- store health + training -->
+              <div class="card">
+                <div class="card-head"><h3>Store health</h3><span class="spacer"></span><span class="pill ok">Good</span></div>
+                <div class="health"><span aria-hidden="true">⚡</span><span class="health-n">Speed</span><span class="health-v">Good</span></div>
+                <div class="health"><span aria-hidden="true">⌕</span><span class="health-n">SEO</span><span class="health-v">Good</span></div>
+                <div class="health"><span aria-hidden="true">🔒</span><span class="health-n">Security</span><span class="health-v">Good</span></div>
+                <div class="health"><span aria-hidden="true">◔</span><span class="health-n">Uptime</span><span class="health-v">99.9%</span></div>
+                <p class="card-foot"><span class="card-link">View full report</span></p>
+              </div>
+
+              <!-- Training was inside Store health, which made that card tower
+                   over the two beside it. Its own full-width row instead. -->
+              <div class="card span3">
+                <div class="card-head"><h3>Training &amp; resources</h3><span class="spacer"></span><span class="card-link">Visit academy</span></div>
+                <div class="res-row">
+                  <div class="res">
+                    <span class="rec-ico" style="background:var(--violet-soft); color:var(--violet);" aria-hidden="true">✑</span>
+                    <div class="rec-body"><p class="rec-t">New: Automations 101</p><p class="rec-b">Save time with flows · 12 min</p></div>
+                  </div>
+                  <div class="res">
+                    <span class="rec-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">◈</span>
+                    <div class="rec-body"><p class="rec-t">Win back a lapsed customer</p><p class="rec-b">The sequence that works · 8 min</p></div>
+                  </div>
+                  <div class="res">
+                    <span class="rec-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">▶</span>
+                    <div class="rec-body"><p class="rec-t">Shoot a product ad on a phone</p><p class="rec-b">Video walkthrough · 15 min</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---------------- FlowAgent ---------------- -->
+          <section class="chat" id="chat" aria-label="FlowAgent">
+            <div class="chat-bar">
+              <div class="tabs" role="tablist">
+                <button role="tab" aria-selected="true">Chat</button>
+                <button role="tab" aria-selected="false">History</button>
+              </div>
+              <span class="spacer"></span>
+              <div class="mode-wrap">
+                <button class="icon-btn" id="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Change how FlowAgent is displayed">▥</button>
+                <div class="mode-menu" id="modeMenu" role="menu">
+                  <button role="menuitemradio" data-mode="sidebar" aria-checked="true"><span class="tick" aria-hidden="true">✓</span>Sidebar</button>
+                  <button role="menuitemradio" data-mode="floating" aria-checked="false"><span class="tick" aria-hidden="true"></span>Floating</button>
+                  <button role="menuitemradio" data-mode="fullpage" aria-checked="false"><span class="tick" aria-hidden="true"></span>Full page</button>
+                </div>
+              </div>
+              <button class="icon-btn" data-mode="collapsed" aria-label="Collapse FlowAgent">→|</button>
+            </div>
+
+            <div class="chat-scroll">
+              <div class="fp-wrap">
+                <!-- the conversation, once there is one -->
+                <div class="thread" id="thread"></div>
+
+                <div class="intro">
+                <div class="hello">
+                  <span class="glyph" aria-hidden="true">✦</span>
+                  <h3>Hello Jean-Yves 👋</h3>
+                  <p class="fp-only-hide">How can FlowAgent help today?</p>
+                </div>
+
+                <!-- full page only: six big cards -->
+                <div class="fp-only">
+                  <div class="fp-cards">
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">◎</span><span><span class="fp-t">Create email campaign</span><span class="fp-b">Design and launch a campaign that converts.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">◈</span><span><span class="fp-t">Analyse store traffic</span><span class="fp-b">Insights on visitors, sources and conversions.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">▦</span><span><span class="fp-t">Review recent orders</span><span class="fp-b">New orders, revenue and customer activity.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">▥</span><span><span class="fp-t">Improve marketing return</span><span class="fp-b">What to change to lift performance and sales.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">☺</span><span><span class="fp-t">Top products this month</span><span class="fp-b">Bestsellers, trends and inventory levels.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                    <button class="fp-card"><span class="fp-ico" aria-hidden="true">⚙</span><span><span class="fp-t">Automate your workflow</span><span class="fp-b">Build flows that save time as you grow.</span></span><span class="fp-chev" aria-hidden="true">›</span></button>
+                  </div>
+                  <div class="fp-chips">
+                    <button class="chip on"><span aria-hidden="true">✦</span> For you</button>
+                    <button class="chip">Websites</button>
+                    <button class="chip">Domains</button>
+                    <button class="chip">Ads</button>
+                    <button class="chip">Sales</button>
+                    <button class="chip">Store</button>
+                  </div>
+                </div>
+
+                <!-- sidebar / floating only -->
+                <div class="panel-only">
+                  <p class="sect-k">Suggested actions</p>
+                  <button class="sugg"><span class="ico" aria-hidden="true">✉</span>Set up email campaign<span class="chev" aria-hidden="true">›</span></button>
+                  <button class="sugg"><span class="ico" aria-hidden="true">◈</span>Check ad performance<span class="chev" aria-hidden="true">›</span></button>
+                  <button class="sugg"><span class="ico" aria-hidden="true">▥</span>Analyse store traffic<span class="chev" aria-hidden="true">›</span></button>
+                  <button class="sugg"><span class="ico" aria-hidden="true">▦</span>Review recent orders<span class="chev" aria-hidden="true">›</span></button>
+
+                  <p class="sect-k">Getting set up</p>
+                  <div class="prog"><span class="prog-t">Connect your domain</span><span class="prog-s" aria-hidden="true">✓</span></div>
+                  <div class="prog"><span class="prog-t">Set up email marketing</span><span class="prog-s" aria-hidden="true">✓</span></div>
+                  <div class="prog"><span class="prog-t">Add your first product</span><span class="prog-s" aria-hidden="true">✓</span></div>
+                  <div class="prog"><span class="prog-t">Launch your first campaign</span><span class="prog-s todo" aria-hidden="true">○</span></div>
+
+                  <p class="sect-k">Try asking FlowAgent</p>
+                  <div class="try">
+                    <button class="chip">What are my top products this month?</button>
+                    <button class="chip">Why did sales drop last week?</button>
+                    <button class="chip">Show me abandoned cart insights</button>
+                  </div>
+                </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="composer">
+              <div class="composer-inner">
+                <form class="ask" id="askForm">
+                  <label class="sr" for="ask">Ask FlowAgent anything</label>
+                  <input id="ask" placeholder="Ask FlowAgent anything…" autocomplete="off">
+                  <button class="mic" type="submit" aria-label="Speak to FlowAgent">🎙</button>
+                </form>
+                <p class="disclaim">FlowAgent can make mistakes. Double-check replies.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- collapsed: a dock you can type into, not a pill you must open first -->
+          <form class="dock" id="dock">
+            <span class="dock-glyph" aria-hidden="true">✦</span>
+            <span class="dock-id"><span class="dock-n">FlowAgent</span><br><span class="dock-s">3 things waiting</span></span>
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="dock-field">
+              <label class="sr" for="dockAsk">Ask FlowAgent anything</label>
+              <input id="dockAsk" placeholder="Ask FlowAgent anything…" autocomplete="off">
+            </span>
+            <button class="dock-mic" type="button" aria-label="Speak to FlowAgent">🎙</button>
+            <button class="dock-send" type="submit" aria-label="Send to FlowAgent">→</button>
+            <button class="dock-open" type="button" id="dockOpen" aria-label="Reopen the FlowAgent panel">
+              <span aria-hidden="true">▴</span><span class="lbl">Open panel</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modes" role="group" aria-label="FlowAgent display mode">
+    <button class="mode-btn" data-mode="sidebar" aria-pressed="true"><span aria-hidden="true">▥</span> Sidebar <small>docks beside the work</small></button>
+    <button class="mode-btn" data-mode="floating" aria-pressed="false"><span aria-hidden="true">▢</span> Floating <small>lifts over the work</small></button>
+    <button class="mode-btn" data-mode="fullpage" aria-pressed="false"><span aria-hidden="true">▣</span> Full page <small>FlowAgent is the screen</small></button>
+    <button class="mode-btn" data-mode="collapsed" aria-pressed="false"><span aria-hidden="true">●</span> Collapsed <small>a launcher, nothing more</small></button>
+  </div>
+
+  <!-- ---------------- decisions ---------------- -->
+  <section class="decisions">
+    <h2>Where the decisions stand</h2>
+    <p class="lede">Your reference settles most of them. Two are genuinely open.</p>
+
+    <div class="decision settled">
+      <p class="decision-q">Where does FlowAgent live?</p>
+      <p class="decision-why">
+        All three, switchable from its own header — plus collapsed, so it is reachable without occupying
+        anything. Each mode has a job: sidebar for working alongside it, floating for a quick question
+        without losing your place, full page when the assistant <em>is</em> the task.
+      </p>
+      <div class="options">
+        <div class="option done"><p class="option-t">Sidebar, floating, full page, collapsed <span class="rec-tag green">Settled</span></p><p class="option-b">One <code>data-chat</code> switch drives all four; the content is written once.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <p class="decision-q">Which mode does a new account open in?</p>
+      <p class="decision-why">
+        This is the real question behind the switcher. Full page says “this product is an assistant that
+        happens to have a dashboard”. Sidebar says “this is a dashboard with help attached”. It sets the
+        expectation on day one, and most people never change a default.
+      </p>
+      <div class="options">
+        <div class="option rec"><p class="option-t">Full page on first run, sidebar after <span class="rec-tag">Recommended</span></p><p class="option-b">The empty dashboard is the worst first screen a new account can get; FlowAgent asking what you want is the best. Once there is data to look at, it steps aside.</p></div>
+        <div class="option"><p class="option-t">Sidebar always</p><p class="option-b">Consistent, and it makes the assistant feel like a helper rather than the product.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <p class="decision-q">How much is FlowAgent allowed to do without asking?</p>
+      <p class="decision-why">
+        Still the one that matters most. The public site promises “human-approved by default”, and the
+        Approvals card here holds three items — but a business that has to approve forty things a day will
+        turn the assistant off. Where the line sits decides how the whole product feels.
+      </p>
+      <div class="options">
+        <div class="option rec"><p class="option-t">Rules once, then it runs <span class="rec-tag">Recommended</span></p><p class="option-b">Approve a <em>kind</em> of action once — “always answer the phone”, “never spend over $50/day” — and anything outside it lands in Approvals.</p></div>
+        <div class="option"><p class="option-t">Every action, every time</p><p class="option-b">Safest, and unusable by week two.</p></div>
+      </div>
+    </div>
+
+    <div class="decision settled">
+      <p class="decision-q">Do costs appear before you commit?</p>
+      <p class="decision-why">
+        Kept from v1 and folded into your layout rather than added as a separate meter: every
+        recommendation and every approval carries what it costs, in credits or in money. The rail keeps the
+        refer-and-earn card you had instead of a balance.
+      </p>
+      <div class="options">
+        <div class="option done"><p class="option-t">Cost on the item, not a meter <span class="rec-tag green">Settled</span></p><p class="option-b">“9 credits”, “$600 committed”, “spends $18/day more” — next to the button that spends it.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Tokens, radii, type sizes and the three themes come from <code>apps/v5/src/theme/tokens.ts</code>, so
+    what is approved here is buildable without redrawing it. Names, figures and the store are illustrative.
+  </p>
+</div>
+
+<style>
+/* Which blocks belong to which presentation. Kept at the end so it wins
+   cleanly over the layout rules above without an !important anywhere. */
+.fp-only { display:none; }
+.app[data-chat="fullpage"] .fp-only { display:block; }
+.app[data-chat="fullpage"] .panel-only { display:none; }
+.app[data-chat="fullpage"] .tabs { display:none; }
+</style>
+
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var root = document.documentElement;
+
+  /* one popover controller for every dropdown in the shell */
+  // Closes every popover except `except`, and resets every trigger. The caller
+  // marks the one it just opened, so expanded state can never go stale.
+  function closeAllMenus(except) {
+    [].slice.call(document.querySelectorAll('.menu, .mode-menu')).forEach(function (m) {
+      if (m !== except) m.classList.remove('open');
+    });
+    [].slice.call(document.querySelectorAll('[aria-haspopup="true"]')).forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+  }
+  [].slice.call(document.querySelectorAll('[data-menu]')).forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var m = document.getElementById(btn.getAttribute('data-menu'));
+      var willOpen = !m.classList.contains('open');
+      closeAllMenus(willOpen ? m : null);
+      m.classList.toggle('open', willOpen);
+      btn.setAttribute('aria-expanded', String(willOpen));
+    });
+  });
+
+  /* theme — a dropdown now, and it names the theme you are in */
+  var themeLabel = { light: 'Light', grey: 'Grey', dark: 'Dark' };
+  var themeItems = [].slice.call(document.querySelectorAll('[data-theme-set]'));
+  function paint(name) {
+    root.setAttribute('data-theme', name);
+    document.getElementById('themeNow').textContent = themeLabel[name];
+    themeItems.forEach(function (b) {
+      var on = b.getAttribute('data-theme-set') === name;
+      b.setAttribute('aria-checked', String(on));
+      b.querySelector('.tick').textContent = on ? '✓' : '';
+    });
+  }
+  themeItems.forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      paint(b.getAttribute('data-theme-set'));
+      closeAllMenus(null);
+    });
+  });
+  paint(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  var menu = document.getElementById('modeMenu');
+  var menuBtn = document.getElementById('modeBtn');
+
+  /* The mode to come back to. Collapsing is a pause, not a reset — sending
+     from the dock has to return you to the shape you were already using. */
+  var lastOpenMode = 'sidebar';
+
+  function setMode(mode) {
+    if (mode !== 'collapsed') lastOpenMode = mode;
+    app.setAttribute('data-chat', mode);
+    [].slice.call(document.querySelectorAll('.mode-menu [data-mode]')).forEach(function (b) {
+      var on = b.getAttribute('data-mode') === mode;
+      b.setAttribute('aria-checked', String(on));
+      b.querySelector('.tick').textContent = on ? '✓' : '';
+    });
+    [].slice.call(document.querySelectorAll('.mode-btn')).forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === mode));
+    });
+    menu.classList.remove('open');
+    menuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  [].slice.call(document.querySelectorAll('[data-mode]')).forEach(function (b) {
+    b.addEventListener('click', function (e) { e.stopPropagation(); setMode(b.getAttribute('data-mode')); });
+  });
+
+  menuBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = !menu.classList.contains('open');
+    closeAllMenus(open ? menu : null);
+    menu.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', function () { closeAllMenus(null); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllMenus(null); });
+
+  /* ---------------- the conversation ---------------- */
+  var thread = document.getElementById('thread');
+  var scroll = document.querySelector('.chat-scroll');
+
+  function bubble(who, html) {
+    var row = document.createElement('div');
+    row.className = 'msg' + (who === 'me' ? ' mine' : '');
+    row.innerHTML =
+      '<span class="msg-av ' + who + '" aria-hidden="true">' + (who === 'me' ? 'JY' : '✦') + '</span>' +
+      '<div class="bubble ' + who + '"></div>';
+    row.querySelector('.bubble').innerHTML = html;
+    thread.appendChild(row);
+    app.classList.add('has-thread');
+    scroll.scrollTop = scroll.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function send(text) {
+    if (!text) return;
+    // Collapsed is a pause: sending resumes the mode you were last in.
+    if (app.getAttribute('data-chat') === 'collapsed') setMode(lastOpenMode);
+    bubble('me', escapeHtml(text));
+    bubble(
+      'ai',
+      'On it. I will show you the plan and what it costs before anything happens.' +
+        '<div class="cost"><span class="pill violet">Estimating</span> Nothing sends until you approve</div>' +
+        '<div class="acts"><button class="no" type="button">Adjust</button>' +
+        '<button class="yes" type="button">Looks right</button></div>',
+    );
+  }
+
+  document.getElementById('askForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = document.getElementById('ask');
+    send(input.value.trim());
+    input.value = '';
+  });
+
+  document.getElementById('dock').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = document.getElementById('dockAsk');
+    var text = input.value.trim();
+    input.value = '';
+    // An empty send is a request to see the panel, not to say nothing.
+    if (!text) { setMode(lastOpenMode); return; }
+    send(text);
+  });
+
+  document.getElementById('dockOpen').addEventListener('click', function () { setMode(lastOpenMode); });
+
+  // the suggestion chips and rows all ask the same way
+  [].slice.call(document.querySelectorAll('.sugg, .fp-card, .try .chip')).forEach(function (el) {
+    el.addEventListener('click', function () {
+      send(el.textContent.replace(/\s+/g, ' ').trim());
+    });
+  });
+})();
+</script>

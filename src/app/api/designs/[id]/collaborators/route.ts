@@ -265,6 +265,9 @@ export async function POST(
           `, `${inviterName} invited you to collaborate on ${designName}`);
 
           const result = await sendMarketingEmail({
+            // A collaboration invite the owner explicitly triggered, to one named
+            // person — account mail, not marketing.
+            kind: "transactional",
             provider: marketingConfig.emailProvider,
             emailConfig: emailConfig as Record<string, unknown>,
             from,

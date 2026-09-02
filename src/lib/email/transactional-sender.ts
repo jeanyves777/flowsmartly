@@ -76,6 +76,8 @@ export async function sendTransactionalEmail(params: TransactionalEmailParams): 
 
     // Send via configured provider
     const result = await sendMarketingEmail({
+      // Transactional by definition — this module only sends account mail.
+      kind: "transactional",
       provider: config.emailProvider,
       emailConfig: emailConfig as Record<string, unknown>,
       from,

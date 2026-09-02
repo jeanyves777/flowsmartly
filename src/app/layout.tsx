@@ -15,11 +15,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL("https://flowsmartly.com"),
   title: {
-    default: "FlowSmartly - AI-Powered Content Creation & Marketing Platform",
+    default: "FlowSmartly — The Autonomous Growth Workspace",
     template: "%s | FlowSmartly",
   },
   description:
-    "Create, share, and grow with AI-powered tools. FlowSmartly combines AI content creation, social media management, email & SMS marketing, ad campaigns, and smart analytics — all in one platform.",
+    "Turn every customer signal into the next approved growth action. FlowSmartly connects content, conversations, campaigns, commerce, local discovery, and analytics in one AI workspace.",
   keywords: [
     "AI content creation",
     "social media management",

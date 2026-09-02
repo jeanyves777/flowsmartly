@@ -39,26 +39,33 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         const cleanId = nanoid(8).replace(/[^a-zA-Z0-9]/g, "");
         const cleanPw = nanoid(16).replace(/[^a-zA-Z0-9]/g, "");
 
-        // Fetch user's Brand Identity for contact info
-        const brandKit = await prisma.brandKit.findFirst({
-          where: { userId: session.userId },
-          select: { name: true, email: true, phone: true, address: true, city: true, state: true, zip: true, country: true },
-        });
+        // The registrant contact, from the one place that assembles one.
+        // This route carried its own copy of the same invention as the paid
+        // webhook — "New York", "NY", "10001", "US", and the business name
+        // split into a first and last name — which is why the completeness
+        // guard downstream never fired: the caller had supplied the facts it
+        // checks for.
+        const { resolveRegistrantContact, describeMissingRegistrant } = await import(
+          "@/lib/domains/registrant"
+        );
+        const resolved = await resolveRegistrantContact(session.userId);
 
-        const contact = brandKit?.name && brandKit?.email && brandKit?.phone && brandKit?.address
-          ? {
-              first_name: brandKit.name.split(/\s+/)[0] || "Domain",
-              last_name: brandKit.name.split(/\s+/).slice(1).join(" ") || "Owner",
-              org_name: brandKit.name,
-              address1: brandKit.address,
-              city: brandKit.city || "New York",
-              state: brandKit.state || "NY",
-              postal_code: brandKit.zip || "10001",
-              country: brandKit.country?.length === 2 ? brandKit.country : "US",
-              phone: brandKit.phone.startsWith("+") ? brandKit.phone : `+1.${brandKit.phone.replace(/\D/g, "")}`,
-              email: brandKit.email,
-            }
-          : undefined;
+        if (!resolved.ok) {
+          // Not a registrar failure, so it is not recorded as one. Retrying
+          // would send the owner round a loop that cannot terminate — what
+          // they need is to finish their details.
+          return NextResponse.json(
+            {
+              error: describeMissingRegistrant(resolved.missing),
+              code: "INCOMPLETE_REGISTRANT",
+              missingFields: resolved.missing.map((m) => m.label),
+              missing: resolved.missing,
+            },
+            { status: 400 }
+          );
+        }
+
+        const contact = resolved.contact;
 
         const result = await registerDomain({
           domain: domain.domainName,

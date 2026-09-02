@@ -23,20 +23,87 @@ if (OPENSRS_USERNAME) {
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
 
-// ── Fallback contact (only used when user's Brand Identity is incomplete) ──
+// ── Registrant contact ──
 
-const DEFAULT_CONTACT = {
-  first_name: "FlowSmartly",
-  last_name: "Customer",
-  org_name: "FlowSmartly Inc",
-  address1: "123 Main Street",
-  city: "New York",
-  state: "NY",
-  postal_code: "10001",
-  country: "US",
-  phone: "+1.2125551234",
-  email: "domains@flowsmartly.com",
+/**
+ * The registrant details filed with the registrar.
+ *
+ * This used to be a `DEFAULT_CONTACT` object that any missing field silently
+ * fell back to — "FlowSmartly Inc, 123 Main Street, New York, NY 10001,
+ * +1.2125551234". Two things wrong with that. It filed a registrant that does
+ * not exist (the company is General Computing Solutions, and in any case the
+ * registrant of a customer's domain is the customer, never us), and ICANN
+ * requires registrant data to be accurate — a domain registered with invented
+ * details can be suspended or cancelled, which loses the customer the domain
+ * they paid for.
+ *
+ * Note what the objection is **not**. Since ICANN's Registration Data Policy
+ * took effect in 2025, personal registration data is redacted from public RDDS
+ * output by default, so this is not "it will be published". It is that filing
+ * something untrue with a registrar risks the customer's domain. That is
+ * enough, and it is what we tell them — promising that their home address goes
+ * on a public record would be its own inaccuracy.
+ *
+ * So there is no fallback any more, here or upstream: `lib/domains/registrant`
+ * is the only thing that assembles one of these, and a missing field stays
+ * missing all the way to a refusal that names it.
+ */
+export type DomainRegistrantContact = {
+  first_name: string;
+  last_name: string;
+  /** optional: an individual registrant legitimately has no organisation */
+  org_name?: string;
+  address1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  phone: string;
+  email: string;
 };
+
+const REQUIRED_REGISTRANT_FIELDS = [
+  "first_name",
+  "last_name",
+  "address1",
+  "city",
+  "state",
+  "postal_code",
+  "country",
+  "phone",
+  "email",
+] as const satisfies readonly (keyof DomainRegistrantContact)[];
+
+/** Human labels, because this message is shown to the person who has to fix it. */
+const FIELD_LABELS: Record<string, string> = {
+  first_name: "first name",
+  last_name: "last name",
+  address1: "street address",
+  city: "city",
+  state: "state or region",
+  postal_code: "postal code",
+  country: "country",
+  phone: "phone number",
+  email: "email address",
+};
+
+function assertCompleteRegistrant(
+  contact: Partial<DomainRegistrantContact> | undefined,
+  domain: string
+): DomainRegistrantContact {
+  const missing = REQUIRED_REGISTRANT_FIELDS.filter(
+    (field) => !String(contact?.[field] ?? "").trim()
+  );
+  if (missing.length) {
+    throw new Error(
+      `Cannot register ${domain}: the domain owner's ${missing
+        .map((field) => FIELD_LABELS[field] ?? field)
+        .join(", ")} ${missing.length === 1 ? "is" : "are"} missing. ` +
+        "Add these under Brand Identity — domain registrars require accurate owner contact details, and a registration filed with invented ones can be suspended."
+    );
+  }
+  return contact as DomainRegistrantContact;
+}
 
 // ── Types ──
 
@@ -52,11 +119,11 @@ export interface RegisterDomainParams {
   regUsername: string;
   regPassword: string;
   nameservers?: string[];
-  contact?: Partial<typeof DEFAULT_CONTACT>;
+  contact?: Partial<DomainRegistrantContact>;
   whoisPrivacy?: boolean;
 }
 
-export type DomainContactInfo = Partial<typeof DEFAULT_CONTACT>;
+export type DomainContactInfo = Partial<DomainRegistrantContact>;
 
 export interface RegisterDomainResult {
   orderId: string;
@@ -468,7 +535,7 @@ export async function registerDomain(
     whoisPrivacy = true,
   } = params;
 
-  const mergedContact = { ...DEFAULT_CONTACT, ...contact };
+  const mergedContact = assertCompleteRegistrant(contact, domain);
 
   // Build contact set — same contact for all roles
   const contactSet: Record<string, unknown> = {};
@@ -645,7 +712,7 @@ export async function updateDomainContacts(
     "tech",
   ]
 ): Promise<UpdateDomainContactsResult> {
-  const mergedContact = { ...DEFAULT_CONTACT, ...contact };
+  const mergedContact = assertCompleteRegistrant(contact, domain);
   const contactSet: Record<string, unknown> = {};
 
   for (const type of types) {
