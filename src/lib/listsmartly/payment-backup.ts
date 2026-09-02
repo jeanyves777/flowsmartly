@@ -115,6 +115,10 @@ export async function chargeListSmartlyBackupCredits(params: {
     throw new Error("STRIPE_NOT_CONFIGURED");
   }
 
+  // Charging a card *for* credits, so this wants the SALE price. Today the sale
+  // price and CREDIT_TO_CENTS are both $0.01, so the constant is correct here.
+  // They are not the same concept: if credits are ever repriced, the sale price
+  // follows the CreditPackage table and this line must stop using this constant.
   const amountCents = Math.max(50, params.credits * CREDIT_TO_CENTS);
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountCents,

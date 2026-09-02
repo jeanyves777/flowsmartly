@@ -869,7 +869,7 @@ export default function SmsMarketingSettingsPage() {
             <span className="text-border">|</span>
             <span>MMS <strong className="text-foreground">${(MMS_COST / 100).toFixed(2)}</strong>/msg</span>
             <span className="text-border">|</span>
-            <span>1 credit = $0.05</span>
+            <span>1 credit = $0.01</span>
           </div>
         </>
         );

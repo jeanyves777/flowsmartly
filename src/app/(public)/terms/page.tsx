@@ -302,7 +302,7 @@ export default function TermsOfServicePage() {
                     <span className="font-medium text-foreground">
                       Credit Value:
                     </span>{" "}
-                    1 credit = $0.05 USD. Credit costs for specific actions are
+                    1 credit = $0.01 USD. Credit costs for specific actions are
                     displayed in the application before you confirm.
                   </li>
                   <li>

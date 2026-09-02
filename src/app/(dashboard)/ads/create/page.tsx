@@ -50,6 +50,7 @@ import { StoreProductPicker } from "@/components/ads/store-product-picker";
 import { AIAdCreativePanel } from "@/components/ecommerce/ai-ad-creative-panel";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
+import { AD_BUDGET_CREDIT_TO_CENTS } from "@/lib/credits/rates";
 
 type AdType = "POST" | "PRODUCT_LINK" | "LANDING_PAGE" | "EXTERNAL_URL";
 type TagCategory = "age" | "gender" | "interest" | "behavior" | "location" | "income" | "device";
@@ -158,8 +159,6 @@ const DEFAULT_TAGS: AudienceTag[] = [
   { label: "Worldwide", category: "location" },
   ...REGIONS.slice(0, 16).map((region) => ({ label: region.name, category: "location" as const })),
 ];
-
-const CREDIT_TO_CENTS = 1;
 
 const PROVIDER_META: Record<string, { icon: ComponentType<{ className?: string }>; tone: string }> = {
   feed: {
@@ -277,7 +276,7 @@ export default function CreateCampaignPage() {
   const spotlightSelected = selectedProviderIds.has(PREMIER_SPOTLIGHT_CHANNEL_ID);
   const spotlightFeeCredits = spotlightSelected ? PREMIER_SPOTLIGHT_FEE_CREDITS : 0;
   const totalChargeCredits = budgetCredits + spotlightFeeCredits;
-  const budgetCents = budgetCredits * CREDIT_TO_CENTS;
+  const budgetCents = budgetCredits * AD_BUDGET_CREDIT_TO_CENTS;
   const budgetDollars = budgetCents / 100;
   const cpvDollars = parseFloat(costPerView) || 0.01;
   const cpvCents = Math.max(1, Math.round(cpvDollars * 100));

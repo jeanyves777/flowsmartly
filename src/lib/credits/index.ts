@@ -492,6 +492,7 @@ export {
   CREDIT_COST_LABELS,
   AI_FEATURE_COST_MAP,
   CREDIT_TO_CENTS,
+  AD_BUDGET_CREDIT_TO_CENTS,
   getCreditCost,
   getCreditCostLabel,
   checkCreditsForFeature,

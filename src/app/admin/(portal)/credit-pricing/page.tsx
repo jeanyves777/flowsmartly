@@ -561,7 +561,7 @@ export default function AdminCreditPricingPage() {
                     className="w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:border-emerald-500 bg-muted/50 border-input text-foreground placeholder:text-muted-foreground"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Cost: ${((parseInt(editCredits) || 0) * 0.05).toFixed(2)} ({editCredits || 0} credits x $0.05)
+                    Cost: ${((parseInt(editCredits) || 0) * 0.01).toFixed(2)} ({editCredits || 0} credits x $0.01)
                   </p>
                 </div>
                 <div>

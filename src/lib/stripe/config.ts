@@ -90,13 +90,3 @@ export const PLANS = {
 
 export type PlanId = keyof typeof PLANS;
 
-// ── Credit packages ──
-
-export const CREDIT_PACKAGES = [
-  { id: "credits_50", credits: 50, priceCents: 199, bonus: 0, label: "50 Credits" },
-  { id: "credits_150", credits: 150, priceCents: 499, bonus: 0, label: "150 Credits" },
-  { id: "credits_500", credits: 500, priceCents: 1499, bonus: 25, label: "500 + 25 Bonus" },
-  { id: "credits_1000", credits: 1000, priceCents: 2499, bonus: 75, label: "1,000 + 75 Bonus" },
-  { id: "credits_3000", credits: 3000, priceCents: 5999, bonus: 300, label: "3,000 + 300 Bonus" },
-  { id: "credits_10000", credits: 10000, priceCents: 14999, bonus: 1500, label: "10,000 + 1,500 Bonus" },
-] as const;
