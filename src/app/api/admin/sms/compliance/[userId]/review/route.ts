@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 import { notifyComplianceApproved, notifyComplianceRejected } from "@/lib/notifications";
+import { assignNumberToCampaign, getA2pCampaignStatus } from "@/lib/telnyx/numbers";
 
 // POST /api/admin/sms/compliance/[userId]/review - Approve or reject a compliance submission
 export async function POST(
@@ -70,6 +71,26 @@ export async function POST(
         ...(action === "approve" ? { smsEnabled: true } : {}),
       },
     });
+
+    // On approval, route the business under our default system campaign so
+    // "approved" → "ready to send" is one step. Idempotent; the attach is
+    // deferred (non-fatal) until the campaign clears carrier review.
+    if (action === "approve") {
+      const defaultCampaignId = process.env.TELNYX_DEFAULT_CAMPAIGN_ID;
+      if (defaultCampaignId && updated.smsPhoneNumber) {
+        const assign = await assignNumberToCampaign(updated.smsPhoneNumber, defaultCampaignId).catch(() => ({ ok: false as const, error: "assign failed" }));
+        const status = await getA2pCampaignStatus("", defaultCampaignId).catch(() => ({ success: false, status: undefined as string | undefined }));
+        await prisma.marketingConfig.update({
+          where: { userId },
+          data: {
+            smsA2pCampaignSid: defaultCampaignId,
+            smsA2pCampaignStatus: assign.ok ? (status.status || "VERIFIED") : "PENDING",
+            smsA2pBrandSid: updated.smsA2pBrandSid || process.env.TELNYX_10DLC_BRAND_ID || null,
+            smsA2pBrandStatus: "APPROVED",
+          },
+        }).catch(() => {});
+      }
+    }
 
     // Send notification email to user (fire-and-forget)
     if (action === "approve") {
