@@ -1,0 +1,1246 @@
+Approved. For V5, the correct move is a **new backend architecture**, not more rules added around the current looping system.
+
+The main problem is likely that the current backend treats tools, skills, workflows, and agents too similarly. Without a clearly defined goal, context boundary, completion condition, and execution owner, the system keeps calling capabilities without knowing whether it is progressing.
+
+# 1. V5 backend objective
+
+The V5 backend should operate as a business execution system that can:
+
+1. Understand the user’s goal.
+2. Load the correct business context.
+3. Discover what capabilities are available.
+4. Create a bounded plan.
+5. Execute deterministic actions where possible.
+6. Use an agent only where reasoning is genuinely required.
+7. Detect progress, failure, or lack of progress.
+8. Stop, retry, repair, re-plan, or request approval.
+9. Record every decision and action.
+10. Continue across long-running workflows without losing state.
+
+The backend should never run an open-ended agent loop.
+
+---
+
+# 2. Complete FlowSmartly V5 capability inventory
+
+## A. Flow.AI Assistant
+
+The assistant is the universal interface across the portal.
+
+### User-facing abilities
+
+* Sidebar chat
+* Floating chat
+* Full-page chat
+* Shared history across all three modes
+* Voice input
+* File and media input
+* Business-aware responses
+* Page-aware assistance
+* Suggested actions
+* Progress updates
+* Approval requests
+* Action previews
+* Draft generation
+* Follow-up questions
+* Conversation history
+* Saved tasks
+* Resumable work
+
+### System abilities
+
+* Understand user intent
+* Resolve workspace and business context
+* Read relevant business data
+* Search available capabilities
+* Build an execution plan
+* Call tools and skills
+* Start workflows
+* Delegate to specialist agents
+* Track long-running jobs
+* Request human approval
+* Explain what it is doing
+* Resume interrupted tasks
+* Report final outcomes
+
+---
+
+## B. Growth Command Center
+
+* Revenue influenced
+* Leads generated
+* Conversions
+* Engagement
+* ROI
+* Customer retention
+* Channel performance
+* Opportunity detection
+* Next-best actions
+* Approval queue
+* Recent activity
+* Campaign calendar
+* Sales pipeline
+* Store performance
+* Training performance
+* Agent performance
+* Autonomous-action history
+* “Ran without you” reporting
+* Alerts and exceptions
+
+---
+
+## C. Customer and CRM system
+
+* Contacts
+* Companies
+* Leads
+* Customers
+* Unified customer profiles
+* Customer activity history
+* Consent and communication preferences
+* Tags
+* Segments
+* Custom fields
+* Lead scoring
+* Lead enrichment
+* Identity resolution
+* Duplicate detection
+* Customer journeys
+* Pipeline stages
+* Tasks and follow-ups
+* Notes
+* Deals
+* Opportunities
+* Revenue attribution
+
+---
+
+## D. Lead Finder
+
+* Business discovery
+* Contact discovery
+* Lead qualification
+* Lead scoring
+* Industry filtering
+* Location filtering
+* Company-size filtering
+* Intent filtering
+* Lead-list creation
+* Duplicate prevention
+* Data enrichment
+* Contact validation
+* Saved searches
+* Prospect monitoring
+* Export and CRM synchronization
+
+---
+
+## E. Pitch Studio
+
+Full journey:
+
+```text
+Lead discovery
+→ Qualification
+→ Personalized outreach
+→ Follow-up sequence
+→ Response detection
+→ Opportunity analysis
+→ Proposal generation
+→ PDF rendering
+→ Approval
+→ Delivery
+→ Tracking
+→ Deal follow-up
+```
+
+Capabilities:
+
+* Find target prospects
+* Research prospect companies
+* Analyze prospect needs
+* Generate personalized cold emails
+* Generate subject lines
+* Create follow-up sequences
+* Detect and classify replies
+* Pause outreach when a reply arrives
+* Generate proposal strategy
+* Create scope and deliverables
+* Generate timeline
+* Generate pricing
+* Apply brand kit
+* Render professional PDF
+* Send proposal
+* Track opens and engagement
+* Manage proposal versions
+* Request electronic acceptance
+* Update deal stage
+* Schedule follow-ups
+* Report pipeline performance
+
+---
+
+## F. Content Studio
+
+* Social posts
+* Images
+* Carousels
+* Graphics
+* Flyers
+* Promotional content
+* Blog content
+* Ad creatives
+* Product visuals
+* Campaign concepts
+* Captions
+* Hashtags
+* Content rewriting
+* Brand adaptation
+* Content resizing
+* Background generation
+* Image editing
+* Template selection
+* Template generation
+* Brand-kit enforcement
+* Media library
+* Asset versioning
+* Approval workflow
+
+---
+
+## G. Video & Voice Studio
+
+* Campaign films
+* Multi-scene video
+* UGC ads
+* Product ads
+* Product-photo animation
+* Virtual try-on
+* AI spokesperson
+* Approved digital likeness
+* Video presentations
+* Social videos
+* Voiceovers
+* Narration
+* Voice cloning
+* Lip synchronization
+* Video podcasts
+* Multi-avatar conversations
+* Captions
+* Translation
+* Dubbing
+* Storyboards
+* Shot generation
+* Scene planning
+* Video editing
+* Audio mixing
+* Thumbnail generation
+* Platform resizing
+* Video publishing
+* Video analytics
+
+---
+
+## H. Training Studio and FlowLearn
+
+### Creation
+
+* Training brief
+* Learning goals
+* Audience definition
+* Training outline
+* Teaching moments
+* Presentation slides
+* Realistic visuals
+* 3D explainers
+* Live drawings
+* Interactive whiteboard
+* Speaker notes
+* Activities
+* Quizzes
+* Knowledge checks
+* Training resources
+* AI co-host
+* Narration synchronization
+
+### Delivery
+
+* Live training rooms
+* Video conferencing
+* Screen sharing
+* Presenter stage
+* Whiteboard
+* Participant chat
+* Questions and answers
+* Waiting room
+* Attendance
+* Recording
+* Session moderation
+
+### Learning Center
+
+* Courses
+* Modules
+* Lessons
+* Learner access
+* Progress tracking
+* Quizzes
+* Completion rules
+* Certificates
+* Paid and free enrollment
+* Student dashboard
+* Course analytics
+* Instructor analytics
+
+---
+
+## I. Social Media
+
+* Account connection
+* Multi-network publishing
+* Scheduling
+* Calendar
+* Drafts
+* Approval
+* Content adaptation by channel
+* Comments
+* Direct messages
+* Mentions
+* Unified social inbox
+* Engagement automation
+* Social listening
+* Response drafting
+* Campaign grouping
+* Performance analytics
+* Best-time recommendations
+* Content recycling
+* Link tracking
+
+Supported channel architecture should accommodate:
+
+* Facebook
+* Instagram
+* LinkedIn
+* X
+* TikTok
+* YouTube
+* Pinterest
+* Google Business Profile
+* Additional networks through adapters
+
+---
+
+## J. Email and SMS
+
+* Email campaigns
+* SMS campaigns
+* Templates
+* Audience segmentation
+* Personalization
+* Broadcasts
+* Sequences
+* Drip campaigns
+* Journey automation
+* Transactional messages
+* Scheduling
+* A/B testing
+* Deliverability monitoring
+* Consent management
+* Suppression lists
+* Unsubscribe handling
+* Bounce management
+* Reply detection
+* Click tracking
+* Conversion tracking
+* Follow-up automation
+* Compliance controls
+
+---
+
+## K. Ads Manager
+
+* Campaign creation
+* Creative generation
+* Copy generation
+* Audience generation
+* Budget planning
+* Channel selection
+* Campaign publishing
+* Approval before spending
+* Performance monitoring
+* Budget adjustment
+* Creative testing
+* Campaign pausing
+* Campaign scaling
+* Lead synchronization
+* Conversion attribution
+* Anomaly detection
+* Recommendations
+
+---
+
+## L. FlowShop
+
+* Storefront creation
+* Products
+* Services
+* Digital products
+* Training products
+* Subscriptions
+* Pricing
+* Inventory
+* Checkout
+* Payments
+* Orders
+* Customers
+* Discounts
+* Coupons
+* Shipping
+* Tax configuration
+* Product content
+* Product media
+* Abandoned-cart recovery
+* Upsells
+* Cross-sells
+* Order notifications
+* Store analytics
+* AI-shopping readiness
+
+---
+
+## M. Websites and domains
+
+* Website builder
+* Landing pages
+* Forms
+* Lead capture
+* Templates
+* Domain connection
+* Domain management
+* Publishing
+* SEO settings
+* Analytics
+* Conversion tracking
+* Brand-kit application
+* AI page generation
+* Page editing
+* Blog publishing
+* Store embedding
+* Training embedding
+* Campaign landing pages
+
+---
+
+## N. ListSmartly and local growth
+
+* Location management
+* Business information
+* Listing synchronization
+* Listing accuracy
+* Opening hours
+* Photos
+* Categories
+* Local posts
+* Review monitoring
+* Review response
+* Reputation management
+* Duplicate listing detection
+* Local ranking visibility
+* AI-search visibility
+* Citation consistency
+* Location analytics
+* Multi-location support
+
+---
+
+## O. Flow.AI automation
+
+* Event triggers
+* Scheduled triggers
+* Conditional triggers
+* Business rules
+* Multi-step workflows
+* Branching
+* Waiting
+* Delays
+* Human approval
+* Retry
+* Compensation
+* Escalation
+* Notifications
+* Cross-channel actions
+* Workflow templates
+* Workflow versions
+* Workflow testing
+* Execution history
+* Cost limits
+* Time limits
+* Action limits
+
+---
+
+## P. Agent Marketplace
+
+* Built-in agents
+* Third-party agents
+* Custom agents
+* Agent installation
+* Agent configuration
+* Agent permissions
+* Agent tools
+* Agent skills
+* Agent memory
+* Agent knowledge
+* Agent schedules
+* Agent triggers
+* Agent versioning
+* Agent testing
+* Agent health
+* Agent activity history
+* Agent evaluation
+* Agent cost reporting
+* Agent rollback
+* Agent disablement
+
+---
+
+## Q. Analytics
+
+* Unified reporting
+* Revenue attribution
+* Campaign attribution
+* Customer journey analytics
+* Social analytics
+* Email analytics
+* SMS analytics
+* Ad analytics
+* Store analytics
+* Local analytics
+* Pitch analytics
+* Training analytics
+* Video analytics
+* Agent analytics
+* Workflow analytics
+* Cost analytics
+* Credit usage
+* Conversion funnels
+* Cohorts
+* Retention
+* Custom dashboards
+* Scheduled reports
+* Exporting
+
+---
+
+## R. Platform administration
+
+* Organizations
+* Workspaces
+* Client accounts
+* Team members
+* Roles
+* Permissions
+* Approval policies
+* Connected accounts
+* Integrations
+* API keys
+* Webhooks
+* Notifications
+* Subscription plans
+* Credits
+* Usage
+* Billing
+* Audit logs
+* Security settings
+* Data retention
+* Governance
+* Compliance
+* Support access
+
+---
+
+# 3. Core V5 capability taxonomy
+
+This separation is essential.
+
+## Tool
+
+A single atomic operation.
+
+Examples:
+
+```text
+send_email
+publish_social_post
+create_contact
+render_pdf
+retrieve_orders
+generate_image
+pause_ad_campaign
+```
+
+A tool should not reason or loop.
+
+---
+
+## Skill
+
+A reusable, bounded sequence of tools.
+
+Examples:
+
+```text
+create_branded_social_post
+research_prospect
+prepare_proposal_pdf
+recover_abandoned_cart
+publish_video_campaign
+```
+
+A skill has:
+
+* Defined inputs
+* Defined outputs
+* Known steps
+* Completion criteria
+* Failure handling
+* Maximum execution time
+
+A skill should normally be deterministic.
+
+---
+
+## Workflow
+
+A durable, long-running business process.
+
+Examples:
+
+```text
+cold_outreach_campaign
+customer_onboarding
+course_enrollment
+abandoned_cart_recovery
+review_response_process
+proposal_to_signed_deal
+```
+
+A workflow can wait hours or days and resume without losing state.
+
+---
+
+## Agent
+
+A goal-directed reasoning component.
+
+Examples:
+
+* Prospect Research Agent
+* Campaign Strategy Agent
+* Proposal Agent
+* Content Agent
+* Training Agent
+* Growth Analyst Agent
+* Customer Support Agent
+
+An agent should be used only when the next step cannot be completely predetermined.
+
+---
+
+## Trigger
+
+Starts work.
+
+Examples:
+
+* User command
+* New lead
+* New order
+* Cart abandoned
+* Review received
+* Scheduled time
+* Campaign performance threshold
+* Incoming reply
+* Course completion
+
+---
+
+## Policy
+
+Controls what the system is allowed to do.
+
+Examples:
+
+* Never spend over $100 without approval
+* Never send more than 50 cold emails per day
+* Require approval before publishing
+* Never contact an unsubscribed customer
+* Do not generate a proposal below a margin threshold
+
+---
+
+## Memory
+
+Stores relevant information with explicit scope.
+
+Types:
+
+* Conversation memory
+* Task memory
+* Customer memory
+* Workspace memory
+* Agent memory
+* Workflow state
+* Long-term business knowledge
+
+Memory must never be treated as one unrestricted global prompt.
+
+---
+
+# 4. Proposed V5 master architecture
+
+```text
+User / Portal / API / Events
+              │
+              ▼
+┌─────────────────────────────────────┐
+│ Flow Gateway                        │
+│ Authentication · tenancy · routing  │
+└──────────────────┬──────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────┐
+│ Flow Kernel                         │
+│ Goal · context · planning · control │
+└───────┬────────────┬───────────┬────┘
+        │            │           │
+        ▼            ▼           ▼
+ Flow Registry   Context Engine  Policy Engine
+        │            │           │
+        └────────────┼───────────┘
+                     ▼
+┌─────────────────────────────────────┐
+│ Execution Runtime                   │
+│ tools · skills · agents · workflows │
+└──────────────┬──────────────────────┘
+               │
+     ┌─────────┼───────────┐
+     ▼         ▼           ▼
+ Internal   Provider     Domain
+ services   adapters     modules
+               │
+               ▼
+┌─────────────────────────────────────┐
+│ Events · jobs · state · audit       │
+└─────────────────────────────────────┘
+```
+
+---
+
+# 5. The Flow Kernel
+
+The master hub should be called the **Flow Kernel**.
+
+It should not directly contain every business feature. Its role is to control execution.
+
+## Flow Kernel responsibilities
+
+* Normalize the user’s request into a structured goal
+* Determine the relevant workspace
+* Load the necessary context
+* Identify required capabilities
+* Build or select a plan
+* Validate the plan against policies
+* Start the correct workflow, skill, or agent
+* Track progress
+* Evaluate results
+* Detect no-progress loops
+* Retry recoverable failures
+* Re-plan when assumptions fail
+* Request approval when needed
+* Stop when the goal is reached
+* Record final outcomes
+
+---
+
+# 6. Flow Registry
+
+The registry is the professional catalog of everything the platform can do.
+
+It should register:
+
+* Tools
+* Skills
+* Agents
+* Workflows
+* Triggers
+* Policies
+* Data sources
+* Provider adapters
+* Models
+* Templates
+
+Every capability should declare:
+
+| Field             | Purpose                                 |
+| ----------------- | --------------------------------------- |
+| Capability ID     | Permanent machine-readable identity     |
+| Type              | Tool, skill, agent, workflow or trigger |
+| Domain            | Social, email, store, training, etc.    |
+| Version           | Controlled capability version           |
+| Description       | What it does                            |
+| Supported intents | Goals it can help accomplish            |
+| Inputs            | Required structured inputs              |
+| Outputs           | Guaranteed output structure             |
+| Preconditions     | What must already be true               |
+| Permissions       | Required user or system permission      |
+| Side effects      | What external data it changes           |
+| Approval policy   | Whether approval is required            |
+| Cost estimate     | Credits, money or provider cost         |
+| Time estimate     | Expected execution duration             |
+| Timeout           | Maximum allowed time                    |
+| Retry policy      | When and how retry is allowed           |
+| Idempotency       | How duplicate execution is prevented    |
+| Compensation      | How an action can be reversed           |
+| Success criteria  | How completion is proven                |
+| Failure codes     | Known failure categories                |
+| Health status     | Available, degraded or disabled         |
+| Owner             | Responsible internal module             |
+| Audit level       | Required logging detail                 |
+
+The kernel should never call an undocumented capability.
+
+---
+
+# 7. Context architecture
+
+The system needs a dedicated **Context Engine**.
+
+## Context should be assembled by scope
+
+```text
+User
+└── Organization
+    └── Workspace
+        ├── Brand
+        ├── Customers
+        ├── Products
+        ├── Campaigns
+        ├── Channels
+        ├── Policies
+        ├── Current page
+        ├── Current conversation
+        └── Current task
+```
+
+## Context packages
+
+Each task receives a limited context package containing:
+
+* Goal
+* Workspace
+* User permissions
+* Current portal location
+* Relevant records
+* Brand rules
+* Business policies
+* Conversation summary
+* Current workflow state
+* Previous attempts
+* Budget and credit limits
+* Required approval level
+* Success definition
+
+This prevents agents from receiving too much irrelevant information.
+
+---
+
+# 8. Agent execution lifecycle
+
+```text
+Receive goal
+   ↓
+Validate goal
+   ↓
+Load scoped context
+   ↓
+Discover capabilities
+   ↓
+Create bounded plan
+   ↓
+Policy and permission check
+   ↓
+Execute next step
+   ↓
+Observe result
+   ↓
+Evaluate progress
+   ├── Goal achieved → Complete
+   ├── Approval needed → Pause
+   ├── Recoverable error → Retry
+   ├── Invalid assumption → Re-plan
+   ├── Missing information → Ask user
+   ├── No progress → Stop and diagnose
+   └── Terminal failure → Escalate
+```
+
+---
+
+# 9. Start, stop, retry, innovate and repair rules
+
+## Start
+
+An agent may start only when:
+
+* A structured goal exists
+* Success criteria exist
+* Required context is available
+* Permissions are known
+* Budget limits are defined
+* Maximum steps are defined
+* Stop conditions are defined
+
+## Stop
+
+The system stops when:
+
+* Goal is achieved
+* User cancels
+* Approval is required
+* Required information is missing
+* Step limit is reached
+* Cost limit is reached
+* Time limit is reached
+* The same state repeats
+* No measurable progress occurs
+* A terminal error occurs
+* Policy blocks the action
+
+## Retry
+
+Retries must happen at the correct layer.
+
+### Tool retry
+
+For temporary technical failures:
+
+* Network timeout
+* Provider unavailable
+* Rate limit
+* Temporary database conflict
+
+### Skill retry
+
+Only when the complete skill can safely restart.
+
+### Workflow retry
+
+Resume from the failed durable step, not from the beginning.
+
+### Agent retry
+
+The agent should not repeat the same plan. It must change an assumption, capability, or strategy.
+
+## Innovate
+
+Innovation should mean bounded re-planning, not unrestricted experimentation.
+
+An agent may produce an alternative plan when:
+
+* The selected capability fails
+* The original assumption is false
+* The expected result is not achieved
+* A better path is discovered within policy
+
+## Repair
+
+A repair process should:
+
+1. Identify the failed output.
+2. Determine the responsible step.
+3. Preserve successful prior work.
+4. Run the smallest corrective action.
+5. Revalidate the final result.
+
+---
+
+# 10. Loop prevention
+
+Every agent run should track:
+
+* Goal hash
+* Current state
+* Previous state
+* Plan version
+* Capability calls
+* Tool inputs
+* Tool outputs
+* Progress score
+* Repeated-action count
+* Cost consumed
+* Time elapsed
+* Remaining steps
+
+Terminate or escalate when:
+
+```text
+same capability + same input + same result
+```
+
+occurs repeatedly.
+
+The evaluator should also detect:
+
+* Rewording without progress
+* Repeated research
+* Repeated planning
+* Tool-call cycling
+* Repeated validation
+* Context expansion without action
+* Attempts to retry permanent failures
+
+---
+
+# 11. Recommended backend structure
+
+Do not begin with dozens of microservices.
+
+Use a **modular V5 backend with durable workers**, clear domain boundaries, and an event-driven core.
+
+```text
+apps/
+  api
+  worker
+  scheduler
+
+core/
+  kernel
+  registry
+  runtime
+  context
+  policy
+  approvals
+  events
+  observability
+
+domains/
+  identity
+  workspaces
+  customers
+  leads
+  content
+  video
+  training
+  social
+  messaging
+  ads
+  commerce
+  listings
+  pitch
+  analytics
+  billing
+  agents
+  integrations
+```
+
+Each domain owns its:
+
+* Models
+* Commands
+* Queries
+* Events
+* Tools
+* Skills
+* Policies
+* Adapters
+
+---
+
+# 12. Core V5 records
+
+At minimum, the new backend requires:
+
+* Organization
+* Workspace
+* User
+* Role
+* Permission
+* BusinessProfile
+* BrandKit
+* Customer
+* Contact
+* Lead
+* Campaign
+* Asset
+* Conversation
+* Goal
+* Task
+* Plan
+* PlanStep
+* Capability
+* CapabilityVersion
+* AgentDefinition
+* AgentRun
+* SkillRun
+* WorkflowDefinition
+* WorkflowRun
+* ToolCall
+* Approval
+* Policy
+* Event
+* Notification
+* AuditEntry
+* ProviderConnection
+* UsageRecord
+* CreditTransaction
+* Evaluation
+* FailureRecord
+
+---
+
+# 13. Human approval model
+
+Every action should be assigned an autonomy level.
+
+| Level               | Behavior                                 |
+| ------------------- | ---------------------------------------- |
+| 0 — Suggest         | AI only recommends                       |
+| 1 — Draft           | AI prepares content                      |
+| 2 — Approve once    | User approves each execution             |
+| 3 — Rule-based auto | AI runs when policy conditions match     |
+| 4 — Autonomous      | AI runs within strict limits             |
+| 5 — Restricted      | Reserved for internal trusted operations |
+
+Examples:
+
+* Generate proposal: Level 1
+* Send proposal: Level 2
+* Respond to reviews: Level 2 or 3
+* Publish scheduled content: Level 3
+* Change ad budget: Level 2
+* Update listing hours: Level 3
+* Delete customer data: restricted
+
+---
+
+# 14. V5 architecture phases
+
+## Phase 1 — Capability audit
+
+Document every existing:
+
+* Tool
+* Skill
+* Agent
+* Workflow
+* Trigger
+* Provider
+* Database dependency
+* Approval rule
+
+Classify each as:
+
+```text
+Keep
+Rewrite
+Replace
+Remove
+Unknown
+```
+
+## Phase 2 — Core foundation
+
+Build:
+
+* Identity
+* Organizations
+* Workspaces
+* Permissions
+* Registry
+* Context Engine
+* Policy Engine
+* Audit system
+* Events
+* Job execution
+* Approval system
+
+## Phase 3 — Execution runtime
+
+Build:
+
+* Goal model
+* Planner
+* Tool runtime
+* Skill runtime
+* Workflow runtime
+* Agent runtime
+* Evaluator
+* Loop detection
+* Retry and repair
+* Cost and step limits
+
+## Phase 4 — Flow.AI interface
+
+Connect:
+
+* Sidebar mode
+* Floating mode
+* Full-page mode
+* Shared history
+* Progress stream
+* Approval cards
+* Tool-result cards
+* Resumable tasks
+
+## Phase 5 — First complete business journey
+
+The first vertical journey should include:
+
+```text
+Find a lead
+→ Research the business
+→ Create outreach
+→ Request approval
+→ Send email
+→ Detect reply
+→ Build proposal
+→ Render PDF
+→ Request approval
+→ Send proposal
+→ Update pipeline
+```
+
+This tests the registry, context, agents, workflows, approvals, external tools, long-running state and analytics in one complete journey.
+
+## Phase 6 — Add platform domains
+
+After the first journey works reliably:
+
+* Social
+* Content
+* Video
+* Training
+* Email and SMS
+* Ads
+* FlowShop
+* ListSmartly
+* Analytics
+* Agent Marketplace
+
+---
+
+# Recommended V5 architecture naming
+
+```text
+Flow Kernel       Master orchestration hub
+Flow Registry     Capability catalog
+Flow Context      Scoped business context
+Flow Runtime      Execution engine
+Flow Policy       Permission and autonomy control
+Flow Memory       Structured memory system
+Flow Events       Event and trigger backbone
+Flow Guard        Safety, limits and loop prevention
+Flow Observe      Logs, traces and evaluations
+```
+
+The first design artifact should now be the **V5 capability registry specification**, followed by the **goal, plan, task and execution-state model**.

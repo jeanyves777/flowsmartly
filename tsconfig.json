@@ -43,6 +43,17 @@
     "stores-output",
     "sites-output",
     "backups",
-    "tmp"
+    "tmp",
+    // `apps/v5` is a separate Expo application with its own
+    // package.json, its own dependencies and its own tsconfig. This
+    // project is the Next.js app and does not install expo-router or
+    // react-native, so sweeping those files in here produced hundreds of
+    // TS2307s that can never resolve — and the gate that is supposed to
+    // catch real type errors was permanently red for a reason nobody
+    // could fix from this side.
+    //
+    // Excluded here **and** given its own CI job, because excluding it
+    // alone would turn the gate green by no longer checking V5 at all.
+    "apps/v5"
   ]
 }

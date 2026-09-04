@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
     const fromName = config.defaultFromName || APP_NAME;
 
     const result = await sendMarketingEmail({
+      // Deliverability check — allowed only to the internal allowlist.
+      kind: "test",
       provider: config.emailProvider,
       emailConfig,
       from: `${fromName} <${fromEmail}>`,

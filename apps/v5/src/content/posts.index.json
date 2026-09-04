@@ -1,0 +1,83 @@
+[
+  {
+    "slug": "rebuilt-not-redesigned",
+    "title": "We rebuilt the site instead of redesigning it",
+    "description": "The previous pass ended with 400 colour literals, eleven body-text sizes and seven competing breakpoint systems. Neighbouring sections disagreed about when to stack.",
+    "topic": "Behind the build",
+    "tone": "brand",
+    "date": "2026-08-09",
+    "readMinutes": 4,
+    "author": "Jean-Yves Koffi",
+    "authorRole": "Co-founder & CEO, FlowSmartly",
+    "authorAvatar": "people/jean-yves-koffi",
+    "art": "editorial/guide-playbook-spread",
+    "artAlt": "A design system laid out as a set of measured pages",
+    "takeaways": [
+      "Four hundred colour literals and seven breakpoint systems is not a styling problem, it is an absence of a system.",
+      "Connectors drawn between measured nodes survive a resize; fixed-width dashed borders do not.",
+      "Thirty-eight decorations placed by eye all landed on live copy, one of them 78 pixels deep.",
+      "A detector keyed to the wrong CSS property reported a clean sweep on a page full of clipped text."
+    ]
+  },
+  {
+    "slug": "three-themes-and-unreadable-white",
+    "title": "Three themes, and the day white text stopped being readable",
+    "description": "Our accents get lighter in the dark themes so they read against the page. That decision pushed the white label on every button below the accessibility floor.",
+    "topic": "Design systems",
+    "tone": "violet",
+    "date": "2026-08-09",
+    "readMinutes": 3,
+    "author": "Jean-Yves Koffi",
+    "authorRole": "Co-founder & CEO, FlowSmartly",
+    "authorAvatar": "people/jean-yves-koffi",
+    "art": "editorial/blog-three-themes",
+    "artAlt": "One interface shown in a light, a grey and a dark palette side by side",
+    "takeaways": [
+      "A theme is not a colour swap; an accent lightened to work on a dark page stops being able to carry white text.",
+      "White on our accent measured between 2.0 and 2.9 to 1 in the dark themes, under even the 3:1 floor for large text.",
+      "Inverting a single ink token fixed roughly 44 call sites without any of them being edited.",
+      "Build the stylesheet from the theme rather than patching a light one, or this class of bug keeps returning."
+    ]
+  },
+  {
+    "slug": "we-deleted-our-own-numbers",
+    "title": "We deleted the numbers that made us look successful",
+    "description": "A pass through our own marketing site removed a $32M funding round, 120 staff across 22 countries, 25,000 customers and six colleagues. None of them existed.",
+    "topic": "Behind the build",
+    "tone": "orange",
+    "date": "2026-08-09",
+    "readMinutes": 3,
+    "author": "Jean-Yves Koffi",
+    "authorRole": "Co-founder & CEO, FlowSmartly",
+    "authorAvatar": "people/jean-yves-koffi",
+    "art": "editorial/press-kit",
+    "artAlt": "A press page with most of its claims struck out",
+    "takeaways": [
+      "A fabricated customer count is checkable, and a named customer is checkable by anyone who searches the name.",
+      "Placeholder marketing copy survives because nobody re-reads a page after it ships.",
+      "Labelling a figure illustrative works for a product mockup and does not work for a testimonial with a photograph beside it.",
+      "We keep the unfinished part of the audit in a file in the repo, so what is left is a decision rather than an oversight."
+    ],
+    "featured": true
+  },
+  {
+    "slug": "we-let-the-ai-crawlers-in",
+    "title": "We let the AI crawlers in, and blocked the ones that don't cite",
+    "description": "Most sites are choosing between allowing every AI crawler and blocking all of them. Neither is the interesting option. The line worth drawing is attribution.",
+    "topic": "AI visibility",
+    "tone": "green",
+    "date": "2026-08-09",
+    "readMinutes": 3,
+    "author": "Jean-Yves Koffi",
+    "authorRole": "Co-founder & CEO, FlowSmartly",
+    "authorAvatar": "people/jean-yves-koffi",
+    "art": "editorial/blog-ai-conversations",
+    "artAlt": "An assistant answering a question and naming its source",
+    "takeaways": [
+      "Blocking every AI crawler also blocks the ones that send visitors and name their sources.",
+      "The useful line is not AI versus no AI, it is engines that cite versus scrapers that do not.",
+      "robots.txt grants the permission, ai.txt states the terms, and llms.txt is the summary an assistant can read in one request.",
+      "Being cited well is a distribution channel, and it rewards page-level structure rather than clever copy."
+    ]
+  }
+]

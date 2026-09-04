@@ -156,15 +156,20 @@ export async function retryFailedRegistrations() {
   for (const domain of failedDomains) {
     try {
       const { registerDomain } = await import("@/lib/domains/opensrs-client");
+      const { getRegistrantContactForUser } = await import("@/lib/domains/manager");
 
       // OpenSRS only allows alphanumerics — no hyphens or special chars
       const ts = Date.now().toString(36).replace(/[^a-zA-Z0-9]/g, "");
       const rnd = Math.random().toString(36).replace(/[^a-zA-Z0-9]/g, "");
+      // The retry used to pass no contact at all, so every domain it re-filed
+      // went in under the fallback registrant. It is the owner's domain, so it
+      // is the owner's details that belong on it.
       const result = await registerDomain({
         domain: domain.domainName,
         period: 1,
         regUsername: `fsretry${ts}`,
         regPassword: `${ts}${rnd}`,
+        contact: await getRegistrantContactForUser(domain.userId),
       });
 
       await prisma.storeDomain.update({

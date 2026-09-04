@@ -1,0 +1,62 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+node_modules.partial-install/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# QA artefacts — regenerable from `npx expo export -p web` + the screenshot harness
+/qa-v5/
+/qa*.png
+/v5-*.png
+/replica.png
+
+# stray build outputs from verification runs
+/dist-*/
+
+# Derived image trees.
+#
+# `v5w/` IS committed — it is what the app bundles, and committing it means a
+# build needs neither sharp nor Python.
+#
+# `v5cut/` is the intermediate between the two: regenerate it from the originals
+# with `python scripts/cutouts.py`, then `node scripts/build-images.js`.
+assets/images/v5cut/
