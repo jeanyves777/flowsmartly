@@ -35,3 +35,23 @@ jobs:
         env:
           # Big repo — give tsc room so it never OOMs on the runner.
           NODE_OPTIONS: --max-old-space-size=8192
+
+  contact-consent:
+    name: Contact consent invariant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Possession of an email address or phone number is contact data, not
+      # marketing consent. This job fails if any source starts deriving a
+      # consent flag from the presence of a channel. No database needed.
+      - name: Contact consent invariant
+        run: npm run test:contacts
