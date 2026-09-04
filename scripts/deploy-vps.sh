@@ -29,6 +29,10 @@ HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/flow-ai}"  # checked after reloa
 HEALTH_RETRIES="${HEALTH_RETRIES:-10}"                     # attempts, ~2s apart
 # Where Nginx serves the branded maintenance page from when the app upstream is down.
 MAINT_DIR="${MAINT_DIR:-/var/www/flowsmartly-maintenance}"
+# Breadcrumb of the phase currently running. poll-deploy.sh reads this on failure
+# so the operator is told WHERE a deploy died ("Building", "Syncing DB schema",
+# "Health check") instead of just "exit 1".
+PHASE_FILE="${DEPLOY_PHASE_FILE:-${APP_DIR}/.deploy-phase}"
 # Bigger V8 heap for the build — this box has OOM'd `next build` at the default.
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
@@ -39,13 +43,16 @@ export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 command -v node >/dev/null 2>&1 || { echo "FATAL: node not on PATH"; exit 1; }
 command -v pm2  >/dev/null 2>&1 || { echo "FATAL: pm2 not on PATH";  exit 1; }
 
-log() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
+note() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
+log()  { note "$*"; printf '%s' "$*" > "$PHASE_FILE" 2>/dev/null || true; }
 
 cd "$APP_DIR"
 
 # --- always bring voice services back, even if the build fails ----------------
+# NOTE: uses note(), not log() — this runs from the EXIT trap on the failure path
+# too, and must not overwrite the breadcrumb of the phase that actually failed.
 voice_up() {
-  log "Restoring voice services: ${VOICE_SERVICES}"
+  note "Restoring voice services: ${VOICE_SERVICES}"
   # shellcheck disable=SC2086
   pm2 start ${VOICE_SERVICES} >/dev/null 2>&1 || true
 }
