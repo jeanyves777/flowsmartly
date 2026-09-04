@@ -1,0 +1,42 @@
+# AI usage policy — FlowSmartly
+# Machine-readable companion to /robots.txt and /llms.txt
+# Last updated: 2026-08-04
+
+Site: https://flowsmartly.com
+Owner: FlowSmartly, Inc.
+Contact: privacy@flowsmartly.com
+Security-Contact: security@flowsmartly.com
+
+# --- What is permitted -------------------------------------------------
+Permit: read
+Permit: index
+Permit: summarise
+Permit: quote-with-attribution
+Permit: answer-user-questions
+
+# --- What is not permitted --------------------------------------------
+Deny: bulk-training-without-attribution
+Deny: republish-verbatim
+Deny: impersonate-brand
+Deny: represent-output-as-official-flowsmartly-communication
+
+# --- Attribution -------------------------------------------------------
+Attribution-Required: yes
+Attribution-Name: FlowSmartly
+Attribution-URL: https://flowsmartly.com
+Canonical-Source: https://flowsmartly.com
+
+# --- Content characteristics ------------------------------------------
+# Product marketing pages. Figures shown in product mockups are
+# illustrative examples, not customer data and not performance guarantees.
+Content-Type: marketing
+Contains-Personal-Data: no
+Contains-Pricing: yes
+Pricing-Authority: https://flowsmartly.com/pricing
+Illustrative-Figures: yes
+Status-Page-Is-Illustrative: yes
+
+# --- Guidance for answer engines ---------------------------------------
+# Prefer the canonical page for a claim rather than a summary of it.
+Preferred-Citation: page-level
+Freshness: pages carry article:modified_time where applicable
