@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { effectiveFormFields } from "@/lib/data-forms/self-entry-fields";
+import {
+  buildContactSyncPlan,
+  initialConsentFields,
+  submittedValue,
+} from "@/lib/data-forms/contact-sync";
 
 export async function POST(
   request: NextRequest,
@@ -16,7 +22,7 @@ export async function POST(
 
     const form = await prisma.dataForm.findFirst({
       where: { id, userId: session.userId },
-      select: { userId: true, fields: true, title: true },
+      select: { userId: true, type: true, fields: true, title: true },
     });
 
     if (!form) {
@@ -54,11 +60,18 @@ export async function POST(
     }
 
     const submissions = await prisma.dataFormSubmission.findMany({ where });
-    const fields = JSON.parse(form.fields || "[]");
+    // Same resolver as both form reads, so legacy forms are understood
+    // identically everywhere without anyone writing.
+    const fields = effectiveFormFields({ type: form.type, fields: form.fields });
 
     let created = 0;
     let linked = 0;
     let skipped = 0;
+    // Existing contacts whose gaps this sync closed.
+    let filled = 0;
+    // SMS boxes ticked but not promoted to an opt-in — see
+    // SMS_CONSENT_IS_AUTHORITATIVE. The answer stays on the submission.
+    let smsConsentPending = 0;
 
     for (const submission of submissions) {
       const data = JSON.parse(submission.data || "{}");
@@ -84,6 +97,19 @@ export async function POST(
         if (nameField) name = data[nameField.id]?.trim() || null;
       }
 
+      // Self-entry forms label their fields with the contact column they mean,
+      // so take them directly rather than inferring from field type — the
+      // heuristics above find "First name" and drop the surname entirely, and
+      // never carry birthday, address, city or state at all.
+      const direct = (key: string) => submittedValue(data, key);
+      const directFirstName = direct("firstName");
+      const directLastName = direct("lastName");
+      if (directFirstName || directLastName) {
+        name = [directFirstName, directLastName].filter(Boolean).join(" ") || name;
+      }
+      email = email || direct("email");
+      phone = phone || direct("phone");
+
       if (!email && !phone) {
         skipped++;
         continue;
@@ -106,6 +132,37 @@ export async function POST(
       }
 
       if (contact) {
+        // email and phone are unique per owner, so they may only be filled when
+        // absent AND unclaimed by another contact. Resolve that first — the
+        // channel a consent tick refers to may be supplied by this very
+        // submission, so consent has to be judged against the contact as it
+        // will be, not as it was.
+        const approvedChannels: { email?: string | null; phone?: string | null } = {};
+        if (!contact.email && email) {
+          const clash = await prisma.contact.findFirst({
+            where: { userId: session.userId, email, id: { not: contact.id } },
+            select: { id: true },
+          });
+          if (!clash) approvedChannels.email = email;
+        }
+        if (!contact.phone && phone) {
+          const clash = await prisma.contact.findFirst({
+            where: { userId: session.userId, phone, id: { not: contact.id } },
+            select: { id: true },
+          });
+          if (!clash) approvedChannels.phone = phone;
+        }
+
+        // Fill the gaps this respondent just closed, never overwriting a value
+        // the owner already holds, and grant consent against the result.
+        const plan = buildContactSyncPlan(contact, data, approvedChannels);
+        if (plan.smsConsentWithheld) smsConsentPending++;
+
+        if (Object.keys(plan.update).length > 0) {
+          await prisma.contact.update({ where: { id: contact.id }, data: plan.update });
+          filled++;
+        }
+
         if (listId) {
           const alreadyInList = await prisma.contactListMember.findUnique({
             where: {
@@ -133,6 +190,9 @@ export async function POST(
         continue;
       }
 
+      // Consent is what the respondent agreed to, never what they supplied.
+      // Having someone's address is not permission to market to them, and an
+      // owner clicking Sync does not turn contact information into consent.
       const newContact = await prisma.contact.create({
         data: {
           userId: session.userId,
@@ -140,10 +200,11 @@ export async function POST(
           phone,
           firstName,
           lastName,
-          emailOptedIn: !!email,
-          emailOptedInAt: email ? new Date() : null,
-          smsOptedIn: !!phone,
-          smsOptedInAt: phone ? new Date() : null,
+          birthday: direct("birthday"),
+          address: direct("address"),
+          city: direct("city"),
+          state: direct("state"),
+          ...initialConsentFields(data, email, phone),
         },
       });
 
@@ -166,9 +227,11 @@ export async function POST(
         created,
         linked,
         skipped,
+        filled,
+        smsConsentPending,
         total: submissions.length,
         listId: listId || null,
-        message: `Synced ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
+        message: `Synced ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${filled > 0 ? `, filled gaps on ${filled}` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
       },
     });
   } catch (error) {

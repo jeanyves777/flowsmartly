@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SELF_ENTRY_FORM_FIELDS } from "@/types/data-form";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Search, Sparkles, FileText, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Sparkles, FileText, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FIELD_TYPES, type DataFormField, type DataFormFieldType, type DataFormType } from "@/types/data-form";
@@ -330,7 +331,7 @@ export default function NewFormPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">Smart Collect</h3>
-                  <p className="text-xs text-muted-foreground">Search existing contacts, fill missing info</p>
+                  <p className="text-xs text-muted-foreground">Respondents enter their details, you sync them in</p>
                 </div>
               </div>
             </button>
@@ -468,11 +469,11 @@ export default function NewFormPage() {
                   <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">How Smart Collect Works</h3>
                     <ul className="text-sm text-purple-700 dark:text-purple-400 space-y-1">
-                      <li>1. Contact types their first name in the search bar</li>
-                      <li>2. Matching contacts from your list are displayed</li>
-                      <li>3. They select their name and see what info is already on file</li>
-                      <li>4. Only missing fields are shown for them to complete</li>
-                      <li>5. If everything is already filled, they see a thank you</li>
+                      <li>1. They open your link and type their own details</li>
+                      <li>2. Name, email, phone, birthday and address are collected</li>
+                      <li>3. They choose whether to receive email or text updates</li>
+                      <li>4. Every answer lands in Submissions for you to review</li>
+                      <li>5. You sync the ones you want into your contact list</li>
                     </ul>
                   </div>
                 )}
@@ -480,11 +481,11 @@ export default function NewFormPage() {
                   <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 mb-2">How Attendance Works</h3>
                     <ul className="text-sm text-emerald-700 dark:text-emerald-400 space-y-1">
-                      <li>1. Returning users are auto-recognized by their device</li>
-                      <li>2. One-tap &quot;Yes, that&apos;s me&quot; to check in instantly</li>
-                      <li>3. New users search by name and fill in info once</li>
-                      <li>4. Date and time are recorded automatically</li>
-                      <li>5. Each check-in is logged in submissions</li>
+                      <li>1. They open your link and enter their own details</li>
+                      <li>2. Date and time are recorded automatically</li>
+                      <li>3. Each check-in is logged in Submissions</li>
+                      <li>4. They choose whether to receive email or text updates</li>
+                      <li>5. You sync attendees into your contact list when ready</li>
                     </ul>
                   </div>
                 )}
@@ -604,24 +605,34 @@ export default function NewFormPage() {
                   <div className="border-8 border-gray-800 dark:border-gray-600 rounded-3xl overflow-hidden shadow-2xl">
                     <div className="bg-background h-[600px] overflow-y-auto">
                       <div className="p-6 space-y-6">
-                        {formType === "SMART_COLLECT" ? (
+                        {formType === "SMART_COLLECT" || formType === "ATTENDANCE" ? (
                           <>
                             {title && <h3 className="text-xl font-bold text-foreground text-center">{title}</h3>}
                             {description && <p className="text-sm text-muted-foreground text-center">{description}</p>}
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <input type="text" placeholder="Start typing your first name..." className="w-full pl-10 pr-3 py-2.5 border border-border rounded-xl bg-card text-foreground text-sm" disabled />
-                            </div>
-                            <div className="space-y-2">
-                              {["John D.", "Jane S.", "Joe M."].map((name) => (
-                                <div key={name} className="flex items-center gap-3 p-3 rounded-xl border border-border">
-                                  <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs font-bold">{name[0]}</div>
-                                  <span className="text-sm font-medium text-foreground">{name}</span>
+                            <div className="space-y-4">
+                              {SELF_ENTRY_FORM_FIELDS.map((field) => (
+                                <div key={field.id}>
+                                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                    {field.label}{field.required && <span className="text-red-500 ml-1">*</span>}
+                                  </label>
+                                  {field.type === "checkbox" ? (
+                                    <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <input type="checkbox" disabled className="rounded border-border" />
+                                      {field.options?.[0]}
+                                    </label>
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      placeholder={field.placeholder || ""}
+                                      className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                                      disabled
+                                    />
+                                  )}
                                 </div>
                               ))}
                             </div>
                             <p className="text-xs text-center text-muted-foreground italic">
-                              Contacts search &rarr; select &rarr; fill missing fields
+                              Respondents enter their own details &rarr; you review and sync
                             </p>
                           </>
                         ) : (

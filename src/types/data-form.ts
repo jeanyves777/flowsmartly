@@ -89,3 +89,119 @@ export interface DataFormSubmissionData {
   respondentPhone: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Self-entry forms (Smart Collect / Attendance)
+// ---------------------------------------------------------------------------
+// These forms used to carry no field definitions at all: the public page looked
+// the respondent up by name and prefilled from the owner's contact records.
+// That lookup is closed, so respondents type their own details — and the
+// details have to be REAL form fields, because the owner's submissions view
+// renders answers by iterating `form.fields`. A form with no definitions shows
+// no answers, however much was collected.
+//
+// The ids deliberately match Contact columns so a submission maps into a
+// contact without guesswork.
+//
+// The two consent fields are the only basis on which a marketing opt-in may be
+// set. Handing over an address is not agreement to be marketed to; ticking a
+// box that says so is. Nothing infers consent from the presence of a value.
+export const SELF_ENTRY_CONSENT_EMAIL_ID = "consent_email";
+export const SELF_ENTRY_CONSENT_SMS_ID = "consent_sms";
+
+// The exact affirmative each consent box records. Consent is evidence of a
+// specific act, so the stored answer has to BE that act — not merely be
+// present. A submission is a public API payload: the browser builds these
+// arrays correctly, but the server cannot take the browser's word for it.
+export const SELF_ENTRY_EMAIL_CONSENT_VALUE = "Yes, send me email updates";
+export const SELF_ENTRY_SMS_CONSENT_VALUE = "Yes, send me text updates";
+
+/**
+ * Whether a ticked SMS box is, by itself, sufficient authority to set
+ * `smsOptedIn`. It is not, yet: compliance has not cleared the disclosure copy
+ * the respondent is agreeing to, and A2P consent has requirements beyond a
+ * tick. Until it is cleared, the answer is PRESERVED as submitted evidence and
+ * never promoted into an opt-in.
+ *
+ * Flip this only alongside a compliance sign-off on the copy in
+ * SELF_ENTRY_FORM_FIELDS.
+ */
+export const SMS_CONSENT_IS_AUTHORITATIVE = false;
+
+export const SELF_ENTRY_FORM_FIELDS: DataFormField[] = [
+  { id: "firstName", type: "text", label: "First name", required: true },
+  { id: "lastName", type: "text", label: "Last name", required: true },
+  {
+    id: "email",
+    type: "email",
+    label: "Email",
+    required: false,
+    helpText: "So we can reach you. Enter an email or a phone number.",
+  },
+  { id: "phone", type: "phone", label: "Phone", required: false },
+  {
+    id: "birthday",
+    type: "text",
+    label: "Birthday",
+    required: false,
+    placeholder: "MM-DD (e.g. 08-15)",
+  },
+  { id: "address", type: "text", label: "Address", required: false },
+  { id: "city", type: "text", label: "City", required: false },
+  { id: "state", type: "text", label: "State", required: false },
+  {
+    id: SELF_ENTRY_CONSENT_EMAIL_ID,
+    type: "checkbox",
+    label: "Email updates",
+    required: false,
+    options: [SELF_ENTRY_EMAIL_CONSENT_VALUE],
+  },
+  {
+    id: SELF_ENTRY_CONSENT_SMS_ID,
+    type: "checkbox",
+    label: "Text updates",
+    required: false,
+    options: [SELF_ENTRY_SMS_CONSENT_VALUE],
+  },
+];
+
+/**
+ * True only when the named field carries the EXACT affirmative it claims to
+ * represent.
+ *
+ * "Is something there?" is not evidence — `["no"]`, `["banana"]` and `[""]` are
+ * all answers, and none of them is agreement. Nor does an affirmative under one
+ * field prove the other: the email wording submitted under `consent_sms` is not
+ * SMS consent.
+ */
+export function hasConsentEvidence(
+  data: Record<string, unknown>,
+  fieldId: string,
+  expectedValue: string
+): boolean {
+  const value = data[fieldId];
+  if (!Array.isArray(value)) return false;
+  return value.some((entry) => typeof entry === "string" && entry === expectedValue);
+}
+
+/** The respondent ticked the email box, exactly. */
+export function hasEmailConsent(data: Record<string, unknown>): boolean {
+  return hasConsentEvidence(
+    data,
+    SELF_ENTRY_CONSENT_EMAIL_ID,
+    SELF_ENTRY_EMAIL_CONSENT_VALUE
+  );
+}
+
+/**
+ * The respondent ticked the SMS box, exactly. This is EVIDENCE of what was
+ * submitted; see SMS_CONSENT_IS_AUTHORITATIVE for whether it may set an opt-in.
+ * The two questions are deliberately separate.
+ */
+export function hasSmsConsent(data: Record<string, unknown>): boolean {
+  return hasConsentEvidence(
+    data,
+    SELF_ENTRY_CONSENT_SMS_ID,
+    SELF_ENTRY_SMS_CONSENT_VALUE
+  );
+}

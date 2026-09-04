@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SELF_ENTRY_FORM_FIELDS } from "@/types/data-form";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
@@ -102,7 +103,17 @@ export async function POST(request: NextRequest) {
       slug = generateSlug();
     }
 
-    const hasFields = fields && Array.isArray(fields) && fields.length > 0;
+    // Self-entry forms need real field definitions or the owner's submissions
+    // view — which iterates form.fields — shows nothing at all.
+    const isSelfEntry = formType === "SMART_COLLECT" || formType === "ATTENDANCE";
+    const effectiveFields =
+      fields && Array.isArray(fields) && fields.length > 0
+        ? fields
+        : isSelfEntry
+          ? SELF_ENTRY_FORM_FIELDS
+          : null;
+
+    const hasFields = effectiveFields !== null;
     // Smart Collect and Attendance forms are ACTIVE immediately
     const initialStatus = (formType === "SMART_COLLECT" || formType === "ATTENDANCE") ? "ACTIVE" : (hasFields ? "ACTIVE" : "DRAFT");
 
@@ -112,7 +123,7 @@ export async function POST(request: NextRequest) {
         type: formType,
         title: title.trim(),
         description: description?.trim() || null,
-        fields: hasFields ? JSON.stringify(fields) : "[]",
+        fields: hasFields ? JSON.stringify(effectiveFields) : "[]",
         slug,
         status: initialStatus,
         thankYouMessage: thankYouMessage?.trim() || "Thank you for your submission!",
