@@ -24,32 +24,24 @@ const DIST = path.join(ROOT, 'dist');
  * people recognise the site by, so every icon here derives from the same one.
  */
 const SOURCE = path.join(ROOT, 'assets', 'images', 'favicon-mark.png');
-/** the brand blue the icon is built on — also the PWA/browser chrome colour */
-const BRAND = '#1f6fe5';
-
 /*
- * The app icon still wants a solid ground behind the mark — a transparent glyph
- * disappears against wallpaper. It does not want a *different* mark.
+ * 🛑 **Nothing is added to the mark.** Owner's instruction, 2026-09-09, after the
+ * tile was reported as a different brand. No plate, no ground, no fill — every
+ * icon here is `favicon-mark.png` resized on transparency, and the mark's own
+ * blue/violet/amber is the only colour any of them carries.
  *
- * ⚠️ This was `assets/images/icon.png`, the blue rounded-square chevron, which
- * contradicted the paragraph above `SOURCE`: the tab showed the F swoosh while
- * every installed-app surface showed a mark from a different identity. It was
- * reported from a home screen, where the tile is the only thing a person sees.
+ * What was here: `PLATED = assets/images/icon.png`, a blue rounded-square chevron
+ * — a *second mark* — which every `icon-*` and `apple-touch-icon` size was cut
+ * from, while only the favicons used the swoosh. And a `BRAND = '#1f6fe5'` ground
+ * behind it, a colour that appeared **exactly once in this repository**, on the
+ * line that declared it: no token file, no stylesheet, nothing else.
  *
- * The plate is now BUILT from `SOURCE`, so there is one mark and no second file
- * that can drift away from it. `assets/images/icon.png` is no longer read here.
+ * `BRAND` survives for the one job it should never have shared — the PWA and
+ * browser chrome colour, which is a bar around the page and not something drawn
+ * on the icon. It is now `brand.primary` from `packages/design-tokens`.
  */
-async function platedMark(size, inset) {
-  const inner = Math.round(size * inset);
-  const mark = await sharp(SOURCE)
-    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
-  return sharp({ create: { width: size, height: size, channels: 4, background: BRAND } })
-    .composite([{ input: mark, gravity: 'center' }])
-    .png()
-    .toBuffer();
-}
+/** brand.primary — the PWA/browser chrome colour. Never drawn on the mark. */
+const BRAND = '#0A63D6';
 
 const SIZES = [
   // `icon.png` is what the Organization JSON-LD points at, so it has to exist
@@ -74,16 +66,9 @@ async function build() {
     return;
   }
 
+  // Every size, one rule: the mark, resized, on transparency. No branch, because
+  // a branch here is what let the app icons wander off to a different image.
   for (const { name, size } of SIZES) {
-    // The tab and the Organization logo take the mark on transparency; the
-    // installed-app icons take the plated one, because a home screen shows it
-    // against wallpaper and a transparent glyph disappears there.
-    const plated = name.startsWith('icon-') || name === 'apple-touch-icon.png';
-    if (plated) {
-      // 0.68 leaves the mark room to breathe inside iOS's own corner mask.
-      fs.writeFileSync(path.join(DIST, name), await platedMark(size, 0.68));
-      continue;
-    }
     await sharp(SOURCE)
       .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
@@ -91,17 +76,26 @@ async function build() {
   }
 
   /*
-   * Maskable is a different image, not a different size: Android crops it to
-   * whatever shape the launcher uses, so the mark has to sit inside the safe
-   * zone or the crop eats it.
+   * Maskable is the one size that is a different image, not a different scale:
+   * Android crops it to whatever shape the launcher uses, so the mark has to sit
+   * inside the safe zone or the crop eats its edges. 0.56 of the canvas clears
+   * the tightest launcher shape.
    *
-   * 0.56 rather than 0.8, because the mark is now inset onto the plate rather
-   * than being a full-bleed image that was already its own background — the
-   * mark itself has to clear the crop, not merely the artwork it sat on. And
-   * the blur-ground trick is gone with the second source: a flat brand plate
-   * cannot seam against itself.
+   * Still nothing added — the surrounding area is transparent, not filled. The
+   * launcher supplies its own ground there, which is the platform's decision to
+   * make and not this script's.
    */
-  fs.writeFileSync(path.join(DIST, 'icon-maskable-512.png'), await platedMark(512, 0.56));
+  const inner = Math.round(512 * 0.56);
+  const mark = await sharp(SOURCE)
+    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  await sharp({
+    create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: mark, gravity: 'center' }])
+    .png()
+    .toFile(path.join(DIST, 'icon-maskable-512.png'));
 
   const manifest = {
     name: 'FlowSmartly',
