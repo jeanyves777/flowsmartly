@@ -42,7 +42,24 @@ const SOURCE = path.join(ROOT, 'assets', 'images', 'favicon-mark.png');
  */
 /** brand.primary — the PWA/browser chrome colour. Never drawn on the mark. */
 const BRAND = '#0A63D6';
+/** the mark alone, with whatever is behind it left to whatever is behind it */
+const CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
 
+/*
+ * 🛑 **No background colour on any icon.** Owner's instruction, stated three
+ * times on 2026-09-09. Not the `#1f6fe5` this file invented, not the white plate
+ * that briefly replaced it. The mark, resized, on transparency — that is the
+ * whole rule, and there is no row, flag or branch that can opt out of it.
+ *
+ * A per-row `ground` column lived here for one commit. It is gone rather than
+ * set to transparent everywhere, because the defect this file already produced
+ * was a per-row choice that drifted: leaving the mechanism in place invites the
+ * next edit to use it.
+ *
+ * Known and accepted: iOS does not honour alpha in a home-screen icon and
+ * composites onto black, and Android crops a maskable to the launcher's shape.
+ * Both are the platform's ground, not this script's.
+ */
 const SIZES = [
   // `icon.png` is what the Organization JSON-LD points at, so it has to exist
   { name: 'icon.png', size: 512 },
@@ -53,6 +70,19 @@ const SIZES = [
   { name: 'favicon-32.png', size: 32 },
   { name: 'favicon-16.png', size: 16 },
 ];
+
+/**
+ * One source, one rule, no variable but the size.
+ *
+ * There is no path through here that reads a file other than `SOURCE` and none
+ * that fills anything behind it. The old `PLATED` branch violated the first, and
+ * it reached a home screen because it looked like a formatting choice rather
+ * than a change of identity. Keeping this function argument-poor is what stops
+ * that shape returning.
+ */
+async function render(size) {
+  return sharp(SOURCE).resize(size, size, { fit: 'contain', background: CLEAR }).png().toBuffer();
+}
 
 async function build() {
   if (!fs.existsSync(SOURCE)) {
@@ -66,33 +96,19 @@ async function build() {
     return;
   }
 
-  // Every size, one rule: the mark, resized, on transparency. No branch, because
-  // a branch here is what let the app icons wander off to a different image.
   for (const { name, size } of SIZES) {
-    await sharp(SOURCE)
-      .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toFile(path.join(DIST, name));
+    fs.writeFileSync(path.join(DIST, name), await render(size));
   }
 
   /*
-   * Maskable is the one size that is a different image, not a different scale:
-   * Android crops it to whatever shape the launcher uses, so the mark has to sit
-   * inside the safe zone or the crop eats its edges. 0.56 of the canvas clears
-   * the tightest launcher shape.
-   *
-   * Still nothing added — the surrounding area is transparent, not filled. The
-   * launcher supplies its own ground there, which is the platform's decision to
-   * make and not this script's.
+   * Maskable is the same image inset, not a different one: Android crops it to
+   * whatever shape the launcher uses, so the mark sits inside the safe zone —
+   * 0.56 of the canvas clears the tightest shape — and the rest is transparent.
+   * The launcher supplies its own ground there.
    */
   const inner = Math.round(512 * 0.56);
-  const mark = await sharp(SOURCE)
-    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
-  await sharp({
-    create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
+  const mark = await render(inner);
+  await sharp({ create: { width: 512, height: 512, channels: 4, background: CLEAR } })
     .composite([{ input: mark, gravity: 'center' }])
     .png()
     .toFile(path.join(DIST, 'icon-maskable-512.png'));
