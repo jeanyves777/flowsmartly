@@ -24,11 +24,32 @@ const DIST = path.join(ROOT, 'dist');
  * people recognise the site by, so every icon here derives from the same one.
  */
 const SOURCE = path.join(ROOT, 'assets', 'images', 'favicon-mark.png');
-/** the app icon still wants a solid ground behind the mark */
-const PLATED = path.join(ROOT, 'assets', 'images', 'icon.png');
-
 /** the brand blue the icon is built on — also the PWA/browser chrome colour */
 const BRAND = '#1f6fe5';
+
+/*
+ * The app icon still wants a solid ground behind the mark — a transparent glyph
+ * disappears against wallpaper. It does not want a *different* mark.
+ *
+ * ⚠️ This was `assets/images/icon.png`, the blue rounded-square chevron, which
+ * contradicted the paragraph above `SOURCE`: the tab showed the F swoosh while
+ * every installed-app surface showed a mark from a different identity. It was
+ * reported from a home screen, where the tile is the only thing a person sees.
+ *
+ * The plate is now BUILT from `SOURCE`, so there is one mark and no second file
+ * that can drift away from it. `assets/images/icon.png` is no longer read here.
+ */
+async function platedMark(size, inset) {
+  const inner = Math.round(size * inset);
+  const mark = await sharp(SOURCE)
+    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  return sharp({ create: { width: size, height: size, channels: 4, background: BRAND } })
+    .composite([{ input: mark, gravity: 'center' }])
+    .png()
+    .toBuffer();
+}
 
 const SIZES = [
   // `icon.png` is what the Organization JSON-LD points at, so it has to exist
@@ -42,7 +63,7 @@ const SIZES = [
 ];
 
 async function build() {
-  if (!fs.existsSync(SOURCE) || !fs.existsSync(PLATED)) {
+  if (!fs.existsSync(SOURCE)) {
     console.error('icons: a source mark is missing — nothing to resize');
     process.exitCode = 1;
     return;
@@ -58,27 +79,29 @@ async function build() {
     // installed-app icons take the plated one, because a home screen shows it
     // against wallpaper and a transparent glyph disappears there.
     const plated = name.startsWith('icon-') || name === 'apple-touch-icon.png';
-    await sharp(plated ? PLATED : SOURCE)
-      .resize(size, size, { fit: 'contain', background: plated ? BRAND : { r: 0, g: 0, b: 0, alpha: 0 } })
+    if (plated) {
+      // 0.68 leaves the mark room to breathe inside iOS's own corner mask.
+      fs.writeFileSync(path.join(DIST, name), await platedMark(size, 0.68));
+      continue;
+    }
+    await sharp(SOURCE)
+      .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toFile(path.join(DIST, name));
   }
 
   /*
    * Maskable is a different image, not a different size: Android crops it to
-   * whatever shape the launcher uses, so the mark has to sit inside the middle
-   * 80% or the crop eats it. The source is full-bleed, so it is inset onto its
-   * own brand ground rather than scaled up.
+   * whatever shape the launcher uses, so the mark has to sit inside the safe
+   * zone or the crop eats it.
+   *
+   * 0.56 rather than 0.8, because the mark is now inset onto the plate rather
+   * than being a full-bleed image that was already its own background — the
+   * mark itself has to clear the crop, not merely the artwork it sat on. And
+   * the blur-ground trick is gone with the second source: a flat brand plate
+   * cannot seam against itself.
    */
-  const inner = Math.round(512 * 0.8);
-  // The ground is the icon's own blur, not a flat brand fill: the source is a
-  // gradient, so any single colour seams against it along two edges.
-  const ground = await sharp(PLATED).resize(512, 512, { fit: 'cover' }).blur(40).png().toBuffer();
-  const scaled = await sharp(PLATED).resize(inner, inner, { fit: 'cover' }).png().toBuffer();
-  await sharp(ground)
-    .composite([{ input: scaled, gravity: 'center' }])
-    .png()
-    .toFile(path.join(DIST, 'icon-maskable-512.png'));
+  fs.writeFileSync(path.join(DIST, 'icon-maskable-512.png'), await platedMark(512, 0.56));
 
   const manifest = {
     name: 'FlowSmartly',
