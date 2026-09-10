@@ -145,7 +145,7 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="system"
           enableSystem
-          themes={["light", "grey", "dark"]}
+          themes={["light", "dark"]}
           disableTransitionOnChange
         >
           <ChunkErrorHandler />

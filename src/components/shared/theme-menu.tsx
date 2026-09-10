@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Contrast, Check } from "lucide-react";
+import { Sun, Moon, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Shared theme picker — a dropdown (not a cycling button) so more themes can be
- * added later. Light / Grey ("lighter dark") / Dark. Uses next-themes.
+ * added later. Light / Dark. Uses next-themes.
+ *
+ * Grey ("lighter dark") is hidden for now — its tokens stay in globals.css, so
+ * restoring it means re-adding the entry here, in Settings > Appearance, and in
+ * the layout ThemeProvider "themes" array.
  */
 const THEMES = [
   { key: "light", label: "Light", icon: Sun },
-  { key: "grey", label: "Grey", icon: Contrast },
   { key: "dark", label: "Dark", icon: Moon },
 ] as const;
 
@@ -32,7 +35,7 @@ export function ThemeMenu({ up = false, className }: { up?: boolean; className?:
   }, [open]);
 
   const active = !mounted ? "dark" : theme === "system" ? resolvedTheme ?? "light" : theme ?? "light";
-  const Current = (THEMES.find((t) => t.key === active) ?? THEMES[2]).icon;
+  const Current = (THEMES.find((t) => t.key === active) ?? THEMES[1]).icon;
 
   return (
     <div className={cn("relative", className)} ref={ref}>

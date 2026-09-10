@@ -582,7 +582,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
             <TooltipContent>Report issue</TooltipContent>
           </Tooltip>
 
-          {/* Theme picker — Light / Grey / Dark */}
+          {/* Theme picker — Light / Dark */}
           <ThemeMenu />
 
           {/* Messages */}
