@@ -1,7 +1,16 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -33,9 +42,35 @@ type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 const PROOF = ['Privacy included', 'HTTPS included', 'No renewal surprises'];
 
 /**
- * The hero search result. Prices are illustrative first-year figures — the
- * pricing table below is the one that carries the renewal column, because a
- * first-year price without its renewal is the oldest trick in this industry.
+ * What the hero offers once somebody has typed a name.
+ *
+ * ⭐ **The extensions and their prices are read from `TLD_ROWS` below**, which is
+ * the table this page already publishes, rather than being a second list. Two
+ * price lists on one page is how a first-year figure and its renewal come
+ * apart, and the renewal column exists precisely to stop that.
+ */
+const SEARCH_TLDS: readonly string[] = ['com', 'co', 'shop', 'org'];
+
+/**
+ * What somebody typed, as a name a registrar would accept.
+ *
+ * ⚠️ Lower-cased, spaces and punctuation dropped, hyphens kept, and any
+ * extension they typed themselves removed — somebody who types
+ * *"Bright Smile Dental.com"* means `brightsmiledental`, and showing them
+ * `brightsmiledental.com.com` would read as a bug in the first five seconds of
+ * the product.
+ */
+function nameFrom(typed: string): string {
+  const withoutTld = typed.trim().toLowerCase().replace(/\.[a-z]{2,}$/, '');
+  return withoutTld.replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * The hero search result BEFORE anybody has typed — the page at rest.
+ *
+ * Prices are illustrative first-year figures; the pricing table below is the one
+ * that carries the renewal column, because a first-year price without its
+ * renewal is the oldest trick in this industry.
  */
 const SEARCH_RESULTS: { key: string; name: string; price: string; state: 'available' | 'taken' | 'premium' }[] = [
   { key: 'com', name: 'brightsmiledental.com', price: '$12.99', state: 'available' },
@@ -246,12 +281,6 @@ export default function DomainsPage() {
             ? t.pink
             : t.brand;
 
-  const stateColor = (state: 'available' | 'taken' | 'premium') =>
-    state === 'available' ? t.green : state === 'premium' ? t.orange : t.textSubtle;
-
-  const stateLabel = (state: 'available' | 'taken' | 'premium') =>
-    state === 'available' ? 'Available' : state === 'premium' ? 'Premium' : 'Taken';
-
   return (
     <PageShell
       title="Domains"
@@ -310,45 +339,18 @@ export default function DomainsPage() {
             </View>
           </Reveal>
 
-          {/* Illustration only — Views and Texts, never a control. */}
+          {/*
+           * ⭐ **A real search, and it used to be a picture of one.**
+           *
+           * This card was `Views` and `Texts` with the word *brightsmiledental*
+           * typed into it — an illustration, labelled as one. The owner's brief
+           * is that somebody should be able to check a name here freely, and
+           * that checking is what brings them in: *"so people can freely check
+           * domain names and that can get them to signup just for domain name
+           * service."* A picture of a search box converts nobody.
+           */}
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
-            <View style={styles.searchCard}>
-              <View style={styles.searchField}>
-                <FontAwesome6 name="magnifying-glass" size={13} color={t.textSubtle}  aria-hidden={true}/>
-                <Text numberOfLines={1} style={styles.searchText}>
-                  brightsmiledental
-                </Text>
-                <View style={styles.searchGo}>
-                  <Text numberOfLines={1} style={styles.searchGoText}>
-                    Search
-                  </Text>
-                </View>
-              </View>
-              {SEARCH_RESULTS.map((result) => (
-                <View key={result.key} style={styles.resultRow}>
-                  <View
-                    style={[styles.resultDot, { backgroundColor: softFill(stateColor(result.state), t) }]}>
-                    <FontAwesome6
-                      name={result.state === 'taken' ? 'xmark' : 'check'}
-                      size={9}
-                      color={stateColor(result.state)}
-                     aria-hidden={true}/>
-                  </View>
-                  <Text numberOfLines={1} style={styles.resultName}>
-                    {result.name}
-                  </Text>
-                  <Text numberOfLines={1} style={[styles.resultState, { color: stateColor(result.state) }]}>
-                    {stateLabel(result.state)}
-                  </Text>
-                  <Text numberOfLines={1} style={styles.resultPrice}>
-                    {result.price}
-                  </Text>
-                </View>
-              ))}
-              <Text numberOfLines={2} style={styles.searchNote}>
-                First-year prices. Renewal is shown before you buy.
-              </Text>
-            </View>
+            <DomainSearch styles={styles} t={t} />
 
             <View style={styles.includedStrip}>
               {['WHOIS privacy', 'HTTPS', 'DNS', 'Email forwarding'].map((item) => (
@@ -613,6 +615,174 @@ export default function DomainsPage() {
 /* styles                                                              */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* the example row's colours                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ⚠️ **Module scope, and they used to be closures inside the page.** The hero
+ * search is its own component now, and it draws the example rows before anybody
+ * has typed — so both it and the page body need these. A second copy inside the
+ * component is two places for *Premium* to stop being orange.
+ *
+ * They colour the EXAMPLE only. Nothing checks a real name's state; see
+ * `DomainSearch` for why that word is never printed against a searched name.
+ */
+type ExampleState = 'available' | 'taken' | 'premium';
+
+function stateColorOf(state: ExampleState, t: ThemeTokens): string {
+  return state === 'available' ? t.green : state === 'premium' ? t.orange : t.textSubtle;
+}
+
+function stateLabelOf(state: ExampleState): string {
+  return state === 'available' ? 'Available' : state === 'premium' ? 'Premium' : 'Taken';
+}
+
+/* ------------------------------------------------------------------ */
+/* the hero search                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * **Type a name, see it across every extension, claim one.**
+ *
+ * ## 🛑 What this says about availability, and what it refuses to say
+ *
+ * Nothing here reaches a registrar. There is no availability lookup in this
+ * product yet — `DOMAIN-SEARCH-BACKEND-NOTE.md` beside this app says what one
+ * would need — so this card **will not print the word _available_ against a
+ * name it has not checked.** That is not caution for its own sake: a marketing
+ * page that tells somebody a name is free, and then takes their card and finds
+ * it is not, has spent the only trust it had.
+ *
+ * ⭐ **What it does instead is the half that is real, and it is the half that
+ * converts.** The names are constructed from what they typed, instantly, with
+ * this page's own published first-year price beside each one. The check itself
+ * is the thing they sign up for, which is exactly the errand the brief names.
+ * Nobody is asked for a card to find out what a `.com` costs.
+ *
+ * ## ⚠️ The resting state is the designed one
+ *
+ * Before anybody types, the card draws `SEARCH_RESULTS` — the example the page
+ * shipped with — under a line saying it is an example. A hero that opens as an
+ * empty box shows a visitor nothing, and this is the first screen of the page.
+ */
+function DomainSearch({
+  styles,
+  t,
+}: {
+  readonly styles: ReturnType<typeof createStyles>;
+  readonly t: ThemeTokens;
+}) {
+  const [typed, setTyped] = useState('');
+  const name = nameFrom(typed);
+
+  /*
+   * ⚠️ Derived, not stored. A `searched` flag would let the results and the
+   * field disagree the moment somebody edits what they typed — they would be
+   * reading rows for a name that is no longer in the box.
+   */
+  const results = useMemo(() => {
+    if (name === '') return [];
+    return SEARCH_TLDS.map((key) => {
+      const row = TLD_ROWS.find((one) => one.key === key);
+      return {
+        key,
+        name: `${name}.${key}`,
+        price: row?.first ?? '\u2014',
+      };
+    });
+  }, [name]);
+
+  return (
+    <View style={styles.searchCard}>
+      <View style={styles.searchField}>
+        <FontAwesome6 name="magnifying-glass" size={13} color={t.textSubtle} aria-hidden={true} />
+        <TextInput
+          value={typed}
+          onChangeText={setTyped}
+          placeholder="yourbusinessname"
+          placeholderTextColor={t.textSubtle}
+          accessibilityLabel="Search for a domain name"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.searchText}
+        />
+        {/*
+         * ⚠️ The rows appear as somebody types, so this control has nothing
+         * left to do — and a button that does nothing is worse than no button.
+         * It carries the affordance and the focus target: pressing it dismisses
+         * the keyboard on a phone, which is the one thing left to want.
+         */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search domains"
+          onPress={() => {
+            setTyped((was) => was.trim());
+          }}
+          style={styles.searchGo}>
+          <Text numberOfLines={1} style={styles.searchGoText}>
+            Search
+          </Text>
+        </Pressable>
+      </View>
+
+      {results.length === 0
+        ? SEARCH_RESULTS.map((result) => (
+            <View key={result.key} style={styles.resultRow}>
+              <View
+                style={[styles.resultDot, { backgroundColor: softFill(stateColorOf(result.state, t), t) }]}>
+                <FontAwesome6
+                  name={result.state === 'taken' ? 'xmark' : 'check'}
+                  size={9}
+                  color={stateColorOf(result.state, t)}
+                  aria-hidden={true}
+                />
+              </View>
+              <Text numberOfLines={1} style={styles.resultName}>
+                {result.name}
+              </Text>
+              <Text numberOfLines={1} style={[styles.resultState, { color: stateColorOf(result.state, t) }]}>
+                {stateLabelOf(result.state)}
+              </Text>
+              <Text numberOfLines={1} style={styles.resultPrice}>
+                {result.price}
+              </Text>
+            </View>
+          ))
+        : results.map((result) => (
+            <View key={result.key} style={styles.resultRow}>
+              <View style={[styles.resultDot, { backgroundColor: softFill(t.brand, t) }]}>
+                <FontAwesome6 name="globe" size={9} color={t.brand} aria-hidden={true} />
+              </View>
+              <Text numberOfLines={1} style={styles.resultName}>
+                {result.name}
+              </Text>
+              <Text numberOfLines={1} style={styles.resultPrice}>
+                {result.price}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Check and claim ${result.name}`}
+                onPress={() => {
+                  goToEarlyAccess();
+                }}
+                style={styles.claimGo}>
+                <Text numberOfLines={1} style={styles.claimGoText}>
+                  Check &amp; claim
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+
+      <Text numberOfLines={3} style={styles.searchNote}>
+        {results.length === 0
+          ? 'An example. Type a name above to see it across every extension. First-year prices; renewal is shown before you buy.'
+          : 'First-year prices; renewal is shown before you buy. Whether a name is still free is confirmed at the registrar when you claim it.'}
+      </Text>
+    </View>
+  );
+}
+
 function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const stacked = l.isStacked;
   const gap = l.isPhone ? 12 : 18;
@@ -733,6 +903,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     resultName: { ...type.micro, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
     resultState: { ...type.micro, fontWeight: '800', flexShrink: 0 },
     resultPrice: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 0, minWidth: 46, textAlign: 'right' },
+    claimGo: {
+      flexShrink: 0,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: t.brand,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    claimGoText: { ...type.micro, color: t.brand, fontWeight: '800' },
     searchNote: { ...type.micro, color: t.textSubtle, paddingTop: 2 },
 
     includedStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
