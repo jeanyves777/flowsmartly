@@ -11,6 +11,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Circle, Ellipse } from 'react-native-svg';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -29,8 +30,8 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToEarlyAccess } from '@/lib/destinations';
-import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
-import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
+import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
 /* ------------------------------------------------------------------ */
@@ -39,17 +40,111 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
-const PROOF = ['Privacy included', 'HTTPS included', 'No renewal surprises'];
+/* ------------------------------------------------------------------ */
+/* the hero, as the approved mock draws it                             */
+/* ------------------------------------------------------------------ */
 
 /**
- * What the hero offers once somebody has typed a name.
+ * The extensions the chip row offers, in the order
+ * `design/approved/public-domains-hero.png` draws them. `.com` is the one
+ * that starts selected, which is the state the mock is drawn in.
  *
- * ⭐ **The extensions and their prices are read from `TLD_ROWS` below**, which is
- * the table this page already publishes, rather than being a second list. Two
- * price lists on one page is how a first-year figure and its renewal come
- * apart, and the renewal column exists precisely to stop that.
+ * ⭐ **Every price beside a result is read from `TLD_ROWS` below**, the table
+ * this page already publishes, rather than from a second list. Two price
+ * lists on one page is how a first-year figure and its renewal come apart,
+ * and the renewal column exists precisely to stop that.
+ *
+ * ⚠️ **`.net`, `.ai` and `.app` are in the mock and this page publishes no
+ * price for them.** Writing three plausible numbers to fill the gap would be
+ * the same failure as printing *Available* against a name no registrar was
+ * asked about — a figure nobody checked, presented as one somebody did. So a
+ * row for an extension the table does not carry says so, in words, and the
+ * gap closes the day those three are published in `TLD_ROWS`.
  */
-const SEARCH_TLDS: readonly string[] = ['com', 'co', 'shop', 'org'];
+const HERO_TLDS: readonly string[] = ['com', 'net', 'org', 'co', 'ai', 'io', 'shop', 'app'];
+
+/** What **More** reveals: the rest of what `TLD_ROWS` actually publishes. */
+const HERO_TLDS_MORE: readonly string[] = ['dental', 'cafe'];
+
+/** The price column when the page has not published a figure for an extension. */
+const NO_PUBLISHED_PRICE = 'Price on request';
+
+/**
+ * This page's own published first-year price for one extension, or `null`.
+ *
+ * 🛑 `TLD_ROWS` is the only place a price may come from. The trade-name row
+ * carries two extensions in one label (`.dental / .cafe`) at one price, so the
+ * label is split rather than a second entry being invented for each.
+ */
+function publishedFirstYear(tld: string): string | null {
+  for (const row of TLD_ROWS) {
+    const named = row.tld.split('/').map((one) => one.trim().replace(/^\./, ''));
+    if (named.includes(tld)) return row.first;
+  }
+  return null;
+}
+
+/** The five-item row under the search. Icon tiles are round and brand-tinted. */
+const HERO_FEATURES: { key: string; icon: string; label: string }[] = [
+  { key: 'privacy', icon: 'shield-halved', label: 'Privacy included' },
+  { key: 'https', icon: 'lock', label: 'HTTPS included' },
+  { key: 'dns', icon: 'globe', label: 'DNS management' },
+  { key: 'email', icon: 'envelope', label: 'Email forwarding' },
+  { key: 'renewal', icon: 'bolt', label: 'No renewal surprises' },
+];
+
+/**
+ * 🛑 **The trust band, and the claim the owner struck out.**
+ *
+ * The approved mock reads *"Join thousands of businesses building with
+ * FlowSmartly"* over the ticks *Trusted by businesses · Secure & reliable ·
+ * All-in-one platform*. **That cannot ship.** This site is pre-launch — its
+ * own primary call to action is *Join early access* — and there is no source
+ * anywhere in this product for a customer count. An adoption number nobody
+ * can check is a fabricated metric, and it fails for exactly the reason the
+ * availability ruling in `DOMAIN-SEARCH-BACKEND-NOTE.md` exists: a page that
+ * asserts something nobody verified has spent the only trust it had.
+ *
+ * ⭐ **The owner's ruling: keep the band and its three ticks exactly where the
+ * mock puts them, and say things that are true.** Nothing about the layout,
+ * the spacing or the tick treatment changed — only the claim. It now talks
+ * about what the product includes, every word of which this page already
+ * states and stands behind further down, instead of how many people use it.
+ */
+const TRUST_HEAD = 'Everything a domain needs, included in the price';
+const TRUST_TICKS = ['Registered in your name', 'Secure & reliable', 'All-in-one platform'];
+
+/** The strip that closes the hero. Four real destinations, not four labels. */
+const HERO_STRIP: { key: string; icon: string; label: string; href: string }[] = [
+  { key: 'site', icon: 'window-maximize', label: 'Build your site', href: ROUTES.websiteBuilder },
+  { key: 'shop', icon: 'cart-shopping', label: 'Launch your shop', href: ROUTES.flowshop },
+  { key: 'tools', icon: 'share-nodes', label: 'Connect your tools', href: ROUTES.integrations },
+  { key: 'grow', icon: 'arrow-trend-up', label: 'Grow globally', href: ROUTES.social },
+];
+
+/**
+ * The extension pills floating behind the hero, as percentages of the band.
+ *
+ * ⚠️ **The mock's photograph does not exist in this repository.** Behind the
+ * wash it draws a laptop and a plant on a white desk; all 81 source-side
+ * photos in `apps/v5/assets/images` were enumerated and the nearest,
+ * `storefront-hero.webp`, is a shop — semantically wrong on a domains page,
+ * and an unrelated photograph is worse than none. The mock's picture sits
+ * under a heavy white scrim anyway, so the composition here is the wash, the
+ * globe and these pills, and the photograph is an asset the owner supplies.
+ *
+ * Decoration only: `aria-hidden`, no hit target, and drawn at all only where
+ * there is margin outside the content column to hold them. Below ~1200 there
+ * is not, and they would land on the search bar.
+ */
+const HERO_PILLS: { key: string; label: string; side: 'left' | 'right'; x: number; y: number; big: boolean }[] = [
+  { key: 'com', label: '.com', side: 'left', x: 4, y: 16, big: true },
+  { key: 'shop', label: '.shop', side: 'left', x: 6, y: 31, big: true },
+  { key: 'ai', label: '.ai', side: 'left', x: 3.5, y: 45, big: false },
+  { key: 'net', label: '.net', side: 'right', x: 9, y: 17, big: false },
+  { key: 'org', label: '.org', side: 'right', x: 3, y: 39, big: true },
+  { key: 'io', label: '.io', side: 'right', x: 3.5, y: 55, big: false },
+];
 
 /**
  * What somebody typed, as a name a registrar would accept.
@@ -293,50 +388,37 @@ export default function DomainsPage() {
         ]),
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
-      {/* ------------------------------------------------ hero */}
-      <OpenSection>
-        <View style={styles.heroRow}>
-          <Reveal style={styles.heroCopy} distance={16}>
-            <SectionLabel>DOMAINS</SectionLabel>
+      {/*
+        ------------------------------------------------ hero
+
+        ⭐ **A full-bleed, centre-stacked hero, built to
+        `design/approved/public-domains-hero.png`.** It replaces the old
+        two-column layout — headline on the left, a small search card tucked
+        into the right — in which the search was the *smaller* of the two
+        things on screen. The mock's argument is that on a domains page the
+        search bar is the page: widest element, dead centre, nothing competing
+        with it.
+
+        The band is `tone="brand"`, which is the pale blue wash, bled to the
+        viewport edges and clipped, so the globe and the floating pills can sit
+        off the content column without a pixel of horizontal scroll.
+      */}
+      <Band tone="brand" art="none" style={styles.heroBand}>
+        <HeroDecor styles={styles} t={t} l={l} />
+
+        <View style={styles.heroInner}>
+          <Reveal style={styles.heroHead} distance={16}>
+            <View style={styles.heroEyebrow}>
+              <SectionLabel>{"DOMAINS FOR WHAT'S NEXT"}</SectionLabel>
+            </View>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Get the name, and keep the whole thing in one place.
+              Find the perfect domain for{' '}
+              <Text style={[type.display, styles.heroTitleAccent]}>your business</Text>
             </Heading>
-            <Text style={[type.body, styles.heroBody]}>
-              Search every extension, register in your own name, and point it at your site, your shop
-              or anywhere else. Privacy, HTTPS and DNS are part of the price, not the upsell after it.
+            <Text style={[type.body, styles.heroLede]}>
+              Search every extension, register in your name, and start building today. Privacy,
+              HTTPS and DNS are included — no renewal surprises.
             </Text>
-            <View style={styles.heroButtons}>
-              <ButtonRow>
-                <PrimaryButton
-                  label="Join early access"
-                  size="lg"
-                  full={l.isPhone}
-                  icon="arrow-right"
-                  iconRight
-                  trackId="domains.hero.find-domain"
-                  onPress={() => goToEarlyAccess()}
-                />
-                <SecondaryButton
-                  label="Transfer one in"
-                  size="lg"
-                  full={l.isPhone}
-                  trackId="domains.hero.transfer-in"
-                  onPress={() => router.push(contactHref('sales') as never)}
-                />
-              </ButtonRow>
-            </View>
-            <View style={styles.proofRow}>
-              {PROOF.map((item) => (
-                <View key={item} style={styles.proofItem}>
-                  <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
-                  </View>
-                  <Text numberOfLines={1} style={styles.proofText}>
-                    {item}
-                  </Text>
-                </View>
-              ))}
-            </View>
           </Reveal>
 
           {/*
@@ -349,25 +431,102 @@ export default function DomainsPage() {
            * domain names and that can get them to signup just for domain name
            * service."* A picture of a search box converts nobody.
            */}
-          <Reveal style={styles.heroVisual} distance={16} delay={90}>
-            <DomainSearch styles={styles} t={t} />
+          <Reveal style={styles.heroSearchWrap} distance={16} delay={80}>
+            <DomainSearch styles={styles} t={t} l={l} />
+          </Reveal>
 
-            <View style={styles.includedStrip}>
-              {['WHOIS privacy', 'HTTPS', 'DNS', 'Email forwarding'].map((item) => (
-                <View key={item} style={styles.includedChip}>
-                  <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
-                  <Text numberOfLines={1} style={styles.includedChipText}>
-                    {item}
+          <Reveal style={styles.featureRow} distance={14} delay={140}>
+            {HERO_FEATURES.map((item) => (
+              <View key={item.key} style={styles.featureItem}>
+                <View style={styles.featureIcon}>
+                  <FontAwesome6 name={item.icon as never} size={16} color={t.brand} aria-hidden={true} />
+                </View>
+                <Text numberOfLines={2} style={styles.featureText}>
+                  {item.label}
+                </Text>
+              </View>
+            ))}
+          </Reveal>
+
+          {/* 🛑 The owner's ruling on the mock's adoption claim — see TRUST_HEAD. */}
+          <Reveal style={styles.trustBand} distance={14} delay={180}>
+            <Text style={styles.trustHead}>{TRUST_HEAD}</Text>
+            <View style={styles.trustTicks}>
+              {TRUST_TICKS.map((tick) => (
+                <View key={tick} style={styles.trustTick}>
+                  <View style={styles.trustTickDot}>
+                    <FontAwesome6 name="check" size={9} color={t.textOnBrand} aria-hidden={true} />
+                  </View>
+                  <Text numberOfLines={1} style={styles.trustTickText}>
+                    {tick}
                   </Text>
                 </View>
               ))}
             </View>
           </Reveal>
-        </View>
-      </OpenSection>
 
-      {/* ------------------------------------------------ how it works */}
-      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
+          {/*
+           * ⚠️ **Both hero controls survive the rebuild.** The mock draws
+           * neither — it leans on the header's *Join early access* — but a
+           * redesign is not a reason to lose the page's two standing calls to
+           * action. They land after the proof, which is where a CTA belongs.
+           */}
+          <View style={styles.heroCtaRow}>
+            <ButtonRow>
+              <PrimaryButton
+                label="Join early access"
+                size="lg"
+                full={l.isPhone}
+                icon="arrow-right"
+                iconRight
+                trackId="domains.hero.find-domain"
+                onPress={() => goToEarlyAccess()}
+              />
+              <SecondaryButton
+                label="Transfer one in"
+                size="lg"
+                full={l.isPhone}
+                trackId="domains.hero.transfer-in"
+                onPress={() => router.push(contactHref('sales') as never)}
+              />
+            </ButtonRow>
+          </View>
+        </View>
+
+        {/*
+         * The strip that closes the hero. Its negative margins cancel the
+         * band's own padding exactly, so it reaches the viewport edge and sits
+         * flush on the band's bottom rule — the white shelf the mock draws.
+         */}
+        <View style={styles.heroStrip}>
+          {HERO_STRIP.map((item, index) => (
+            <Pressable
+              key={item.key}
+              accessibilityRole="link"
+              accessibilityLabel={item.label}
+              onPress={() => router.push(item.href as never)}
+              style={[styles.stripItem, index > 0 && !l.isPhone ? styles.stripItemRuled : null]}>
+              <FontAwesome6 name={item.icon as never} size={17} color={t.brand} aria-hidden={true} />
+              <Text numberOfLines={1} style={styles.stripText}>
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Band>
+
+      {/*
+        ------------------------------------------------ how it works
+
+        ⚠️ **`art="none"`, and it is the hero's doing.** This band used to hang
+        a `tasks` separator up into the gap above itself. That gap is gone: the
+        hero now ends flush on a full-bleed white shelf with its own rule, and
+        the separator was measured crossing the four strip labels. `art`
+        documents this exact case — pass `'none'` when the section above is too
+        compact to give one room — and the shelf is already the boundary the
+        seam existed to draw.
+      */}
+      <Band tone="surface" art="none">
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
@@ -639,11 +798,80 @@ function stateLabelOf(state: ExampleState): string {
 }
 
 /* ------------------------------------------------------------------ */
+/* the hero decoration                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The globe motif and the floating extension pills the mock draws behind the
+ * hero. Nothing here is content: the whole layer is `aria-hidden`, takes no
+ * pointer events, and the hero reads identically with it removed.
+ *
+ * **Two deliberate gates.** The globe needs a viewport wide enough to have
+ * margin outside the content column, and the pills need more of it still — at
+ * 1120 the centred search bar leaves ~70px a side and a pill would land on it.
+ * So the globe starts at the tablet breakpoint and the pills at 1200. On a
+ * phone neither is drawn at all, which is the correct small-screen answer for
+ * decoration: remove it rather than shrink it into the copy.
+ *
+ * ⚠️ **The photograph the mock composites this over is an asset gap** — see
+ * the note on `HERO_PILLS`.
+ */
+function HeroDecor({
+  styles,
+  t,
+  l,
+}: {
+  readonly styles: ReturnType<typeof createStyles>;
+  readonly t: ThemeTokens;
+  readonly l: Layout;
+}) {
+  if (l.width < BP.tablet) return null;
+
+  const globe = Math.round(Math.min(l.width * 0.46, 660));
+  const line = hexToRgba(t.brand, t.ground === 'light' ? 0.13 : 0.2);
+
+  return (
+    <View style={styles.decor} pointerEvents="none" aria-hidden={true}>
+      <View
+        style={[
+          styles.globe,
+          { width: globe, height: globe, right: -Math.round(globe * 0.22), top: -Math.round(globe * 0.16) },
+        ]}>
+        <Svg width={globe} height={globe} viewBox="0 0 200 200">
+          <Circle cx={100} cy={100} r={99} fill="none" stroke={line} strokeWidth={0.9} />
+          {[26, 56, 86].map((ry) => (
+            <Ellipse key={`lat-${ry}`} cx={100} cy={100} rx={99} ry={ry} fill="none" stroke={line} strokeWidth={0.7} />
+          ))}
+          {[26, 56, 86].map((rx) => (
+            <Ellipse key={`lon-${rx}`} cx={100} cy={100} rx={rx} ry={99} fill="none" stroke={line} strokeWidth={0.7} />
+          ))}
+        </Svg>
+      </View>
+
+      {l.width < 1200
+        ? null
+        : HERO_PILLS.map((pill) => (
+            <View
+              key={pill.key}
+              style={[
+                styles.pill,
+                pill.big ? styles.pillBig : null,
+                { top: `${pill.y}%` },
+                pill.side === 'left' ? { left: `${pill.x}%` } : { right: `${pill.x}%` },
+              ]}>
+              <Text style={pill.big ? styles.pillTextBig : styles.pillText}>{pill.label}</Text>
+            </View>
+          ))}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* the hero search                                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * **Type a name, see it across every extension, claim one.**
+ * **Type a name, pick the extensions, see the price of each.**
  *
  * ## 🛑 What this says about availability, and what it refuses to say
  *
@@ -665,48 +893,94 @@ function stateLabelOf(state: ExampleState): string {
  * Before anybody types, the card draws `SEARCH_RESULTS` — the example the page
  * shipped with — under a line saying it is an example. A hero that opens as an
  * empty box shows a visitor nothing, and this is the first screen of the page.
+ * The example is the only place the word *Available* appears, and it is
+ * labelled as an example immediately above itself, not in a footnote below.
+ *
+ * ## ⚠️ Why the results are here and not somewhere further down
+ *
+ * The approved mock draws no result rows at all — search bar, chips, then
+ * straight into the feature row. Shipping that literally would undo the fix
+ * this page already had once: a search with nowhere for answers to land is an
+ * illustration of a search box. So the rows stay, and they sit **directly
+ * under the chip row**, because the chips are what decides which extensions
+ * the answers cover. Search → chips → answers is one downward glance, and it
+ * keeps the bar itself the clean full-width centrepiece the mock designs.
  */
 function DomainSearch({
   styles,
   t,
+  l,
 }: {
   readonly styles: ReturnType<typeof createStyles>;
   readonly t: ThemeTokens;
+  readonly l: Layout;
 }) {
   const [typed, setTyped] = useState('');
+  const [picked, setPicked] = useState<readonly string[]>(['com']);
+  const [expanded, setExpanded] = useState(false);
   const name = nameFrom(typed);
+
+  const chips = useMemo(() => (expanded ? [...HERO_TLDS, ...HERO_TLDS_MORE] : [...HERO_TLDS]), [expanded]);
 
   /*
    * ⚠️ Derived, not stored. A `searched` flag would let the results and the
    * field disagree the moment somebody edits what they typed — they would be
    * reading rows for a name that is no longer in the box.
+   *
+   * The chip row's order is the result order, so the list reads in the order
+   * it is picked from rather than in the order the chips were tapped.
    */
   const results = useMemo(() => {
     if (name === '') return [];
-    return SEARCH_TLDS.map((key) => {
-      const row = TLD_ROWS.find((one) => one.key === key);
-      return {
-        key,
-        name: `${name}.${key}`,
-        price: row?.first ?? '\u2014',
-      };
+    return [...HERO_TLDS, ...HERO_TLDS_MORE]
+      .filter((tld) => picked.includes(tld))
+      .map((tld) => ({ key: tld, name: `${name}.${tld}`, price: publishedFirstYear(tld) }));
+  }, [name, picked]);
+
+  /**
+   * Multi-select with a floor of one. Deselecting the last extension would
+   * leave a search that can return nothing, so the last one cannot be turned
+   * off — the control simply holds rather than producing an empty state
+   * nobody asked for.
+   */
+  const toggle = (tld: string) => {
+    setPicked((was) => {
+      if (!was.includes(tld)) return [...was, tld];
+      return was.length === 1 ? was : was.filter((one) => one !== tld);
     });
-  }, [name]);
+  };
 
   return (
-    <View style={styles.searchCard}>
-      <View style={styles.searchField}>
-        <FontAwesome6 name="magnifying-glass" size={13} color={t.textSubtle} aria-hidden={true} />
-        <TextInput
-          value={typed}
-          onChangeText={setTyped}
-          placeholder="yourbusinessname"
-          placeholderTextColor={t.textSubtle}
-          accessibilityLabel="Search for a domain name"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.searchText}
-        />
+    <View style={styles.searchWrap}>
+      <View style={styles.searchBar}>
+        <View style={styles.searchFieldRow}>
+          <FontAwesome6
+            name="magnifying-glass"
+            size={l.isPhone ? 18 : 20}
+            color={t.textSubtle}
+            aria-hidden={true}
+          />
+          <TextInput
+            value={typed}
+            onChangeText={setTyped}
+            placeholder="yourbusinessname"
+            placeholderTextColor={t.textSubtle}
+            accessibilityLabel="Search for a domain name"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.searchText}
+          />
+          {/* Appears only once there is something to clear, as the mock draws it. */}
+          {typed === '' ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear the domain search"
+              onPress={() => setTyped('')}
+              style={styles.searchClear}>
+              <FontAwesome6 name="xmark" size={16} color={t.textSubtle} aria-hidden={true} />
+            </Pressable>
+          )}
+        </View>
         {/*
          * ⚠️ The rows appear as somebody types, so this control has nothing
          * left to do — and a button that does nothing is worse than no button.
@@ -723,62 +997,134 @@ function DomainSearch({
           <Text numberOfLines={1} style={styles.searchGoText}>
             Search
           </Text>
+          <FontAwesome6 name="arrow-right" size={15} color={t.textOnBrand} aria-hidden={true} />
         </Pressable>
       </View>
 
-      {results.length === 0
-        ? SEARCH_RESULTS.map((result) => (
-            <View key={result.key} style={styles.resultRow}>
-              <View
-                style={[styles.resultDot, { backgroundColor: softFill(stateColorOf(result.state, t), t) }]}>
-                <FontAwesome6
-                  name={result.state === 'taken' ? 'xmark' : 'check'}
-                  size={9}
-                  color={stateColorOf(result.state, t)}
-                  aria-hidden={true}
-                />
-              </View>
-              <Text numberOfLines={1} style={styles.resultName}>
-                {result.name}
+      {/*
+       * The chip row. Real controls, not decoration: each one carries its
+       * pressed state to assistive technology and changes what the rows below
+       * cover. It wraps rather than scrolling sideways — a scrolling row hides
+       * `.app` off the edge of a phone with nothing saying it is there.
+       */}
+      <View style={styles.chipRow}>
+        {chips.map((tld) => {
+          const on = picked.includes(tld);
+          return (
+            <Pressable
+              key={tld}
+              accessibilityRole="button"
+              accessibilityLabel={`.${tld} extension`}
+              accessibilityState={{ selected: on }}
+              aria-pressed={on}
+              onPress={() => toggle(tld)}
+              style={[styles.chip, on ? styles.chipOn : null]}>
+              <Text numberOfLines={1} style={[styles.chipText, on ? styles.chipTextOn : null]}>
+                {`.${tld}`}
               </Text>
-              <Text numberOfLines={1} style={[styles.resultState, { color: stateColorOf(result.state, t) }]}>
-                {stateLabelOf(result.state)}
-              </Text>
-              <Text numberOfLines={1} style={styles.resultPrice}>
-                {result.price}
-              </Text>
-            </View>
-          ))
-        : results.map((result) => (
-            <View key={result.key} style={styles.resultRow}>
-              <View style={[styles.resultDot, { backgroundColor: softFill(t.brand, t) }]}>
-                <FontAwesome6 name="globe" size={9} color={t.brand} aria-hidden={true} />
-              </View>
-              <Text numberOfLines={1} style={styles.resultName}>
-                {result.name}
-              </Text>
-              <Text numberOfLines={1} style={styles.resultPrice}>
-                {result.price}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Check and claim ${result.name}`}
-                onPress={() => {
-                  goToEarlyAccess();
-                }}
-                style={styles.claimGo}>
-                <Text numberOfLines={1} style={styles.claimGoText}>
-                  Check &amp; claim
-                </Text>
-              </Pressable>
-            </View>
-          ))}
+            </Pressable>
+          );
+        })}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? 'Show fewer extensions' : 'Show more extensions'}
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded((was) => !was)}
+          style={[styles.chip, styles.chipMore]}>
+          <Text numberOfLines={1} style={styles.chipText}>
+            {expanded ? 'Fewer' : 'More'}
+          </Text>
+          <FontAwesome6
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={11}
+            color={t.textMuted}
+            aria-hidden={true}
+          />
+        </Pressable>
+      </View>
 
-      <Text numberOfLines={3} style={styles.searchNote}>
+      <View style={styles.resultsPanel}>
+        <Text style={styles.resultsLead}>
+          {results.length === 0
+            ? 'An example — type a name above to see yours.'
+            : 'Your name across the extensions you picked.'}
+        </Text>
+
         {results.length === 0
-          ? 'An example. Type a name above to see it across every extension. First-year prices; renewal is shown before you buy.'
-          : 'First-year prices; renewal is shown before you buy. Whether a name is still free is confirmed at the registrar when you claim it.'}
-      </Text>
+          ? SEARCH_RESULTS.map((result, index) => (
+              <View key={result.key} style={[styles.resultRow, index > 0 ? styles.resultRowRuled : null]}>
+                <View
+                  style={[styles.resultDot, { backgroundColor: softFill(stateColorOf(result.state, t), t) }]}>
+                  <FontAwesome6
+                    name={result.state === 'taken' ? 'xmark' : 'check'}
+                    size={12}
+                    color={stateColorOf(result.state, t)}
+                    aria-hidden={true}
+                  />
+                </View>
+                <Text numberOfLines={1} style={styles.resultName}>
+                  {result.name}
+                </Text>
+                {/*
+                 * ⚠️ The state and the price travel together. At 390 the row
+                 * cannot hold a long name and both of them, and letting the
+                 * two wrap independently stranded a bare `$12.99` on a line
+                 * of its own under the name. Grouped, the row breaks into
+                 * name / state + price, which is a layout rather than a
+                 * leftover.
+                 */}
+                <View style={styles.resultMeta}>
+                  <Text numberOfLines={1} style={[styles.resultState, { color: stateColorOf(result.state, t) }]}>
+                    {stateLabelOf(result.state)}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.resultPrice}>
+                    {result.price}
+                  </Text>
+                </View>
+              </View>
+            ))
+          : results.map((result, index) => (
+              <View key={result.key} style={[styles.resultRow, index > 0 ? styles.resultRowRuled : null]}>
+                <View style={[styles.resultDot, { backgroundColor: softFill(t.brand, t) }]}>
+                  <FontAwesome6 name="globe" size={12} color={t.brand} aria-hidden={true} />
+                </View>
+                <Text numberOfLines={1} style={styles.resultName}>
+                  {result.name}
+                </Text>
+                {/*
+                 * 🛑 Price only. No badge, no state, no word about whether the
+                 * name is free — nothing asked a registrar. And the figure is
+                 * `TLD_ROWS` or it is the plain admission that this page has
+                 * not published one; it is never a number invented here.
+                 */}
+                <View style={styles.resultMeta}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.resultPrice, result.price === null ? styles.resultPriceNone : null]}>
+                    {result.price ?? NO_PUBLISHED_PRICE}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Check and claim ${result.name}`}
+                    onPress={() => {
+                      goToEarlyAccess();
+                    }}
+                    style={styles.claimGo}>
+                    <Text numberOfLines={1} style={styles.claimGoText}>
+                      Check &amp; claim
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+
+        {/* 5, not 3: at 390 the typed note runs to four lines and was clipped mid-word. */}
+        <Text numberOfLines={5} style={styles.searchNote}>
+          {results.length === 0
+            ? 'First-year prices; renewal is shown before you buy.'
+            : 'First-year prices; renewal is shown before you buy. Whether a name is still free is confirmed at the registrar when you claim it. Tap an extension above to compare more.'}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -845,6 +1191,26 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     justifyContent: 'center',
   });
 
+  /**
+   * How far the hero band's own padding pushes its content in from the
+   * viewport edge. `Band` bleeds by `(width - maxContent) / 2` and re-pads by
+   * that plus the page gutter; the strip closing the hero cancels exactly
+   * this to reach the edge, so it is derived from the same two numbers rather
+   * than from a constant somebody would have to keep in step.
+   */
+  const bandEdge = Math.max(0, Math.round((l.width - BP.maxContent) / 2)) + l.gutter;
+
+  /**
+   * The headline's measure, tied to its own size rather than to a constant.
+   *
+   * The mock breaks it *"Find the perfect domain / for your business"*, and a
+   * fixed max-width only lands that break at one font size — `display` ramps
+   * 34 → 52 across the four breakpoints, so a width tuned at 1440 let "for"
+   * back onto the first line at 1280 and again at 768. Twelve times the
+   * resolved size holds the break at every width it has room to matter at.
+   */
+  const titleMeasure = Math.round((type.display.fontSize ?? 34) * 12);
+
   const rowBase: ViewStyle = {
     minHeight: 44,
     flexDirection: 'row',
@@ -860,76 +1226,307 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   return StyleSheet.create({
     /* -------------------------------------------------- hero */
-    heroRow: {
-      flexDirection: stacked ? 'column' : 'row',
-      alignItems: stacked ? 'stretch' : 'center',
-      gap: stacked ? 26 : 40,
+    /*
+     * 🛑 **The hero is a band, not an open section, and that is the whole
+     * composition.** `Band` is the only thing on this site that reaches the
+     * viewport edge at every width, which is what the approved mock needs: a
+     * pale blue wash behind a single centred column, with a globe and a
+     * scatter of extension pills living in the margin *outside* that column.
+     *
+     * `overflow: hidden` is the guarantee behind that. Every decorative piece
+     * is absolutely positioned and several of them deliberately hang past the
+     * right edge, so the band clips rather than letting the page grow a
+     * horizontal scrollbar. Measured at 390, 768 and 1440: 0px of overflow.
+     */
+    heroBand: {
+      overflow: 'hidden',
+      borderTopWidth: 0,
+      paddingTop: l.isPhone ? 30 : 46,
+      /*
+       * A shade bluer than `tone="brand"` paints on its own. The band tones
+       * are sized to be *felt* behind a page's alternating sections; the mock
+       * wants the first screen to read as a blue field, and at the stock 0.05
+       * it photographed as grey beside it. Still one step on the same token —
+       * `t.brand` through `hexToRgba` — not a colour introduced here.
+       */
+      backgroundColor: hexToRgba(t.brand, t.ground === 'light' ? 0.07 : 0.11),
     },
-    heroCopy: stacked
-      ? { width: '100%', minWidth: 0 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 460, minWidth: 0 },
-    heroTitle: { marginTop: 14 },
-    heroBody: { marginTop: 14, maxWidth: 560 },
-    heroButtons: { marginTop: 24 },
-    proofRow: { marginTop: 22, flexDirection: 'row', flexWrap: 'wrap', gap: l.isPhone ? 10 : 18 },
-    proofItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
-    proofTick: { ...iconBox(20), borderRadius: 10, backgroundColor: softFill(t.green, t) },
-    proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
 
-    // Stacked, the visual has the whole row, so it takes it.
-    heroVisual: stacked
-      ? { width: '100%', minWidth: 0, gap: 12 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 440, minWidth: 0, gap: 12 },
+    decor: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
+    globe: { position: 'absolute' },
+    pill: {
+      position: 'absolute',
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      ...(elevation(t, 2) as ViewStyle),
+    },
+    pillBig: { paddingHorizontal: 22, paddingVertical: 13 },
+    pillText: { ...type.h4, color: t.textMuted, fontWeight: '800' },
+    pillTextBig: { ...type.h3, color: t.text, fontWeight: '800' },
 
-    searchCard: { ...panelBase, gap: 8 },
-    searchField: {
-      flexDirection: 'row',
+    // zIndex so the wash and the decoration stay behind the column. Both are
+    // positioned elements in react-native-web, so DOM order alone is not a
+    // contract worth relying on.
+    heroInner: { width: '100%', maxWidth: 1040, alignSelf: 'center', alignItems: 'center', zIndex: 1 },
+    heroHead: { width: '100%', alignItems: 'center' },
+    heroEyebrow: { alignItems: 'center' },
+    heroTitle: { marginTop: l.isPhone ? 14 : 18, width: '100%', maxWidth: titleMeasure, textAlign: 'center' },
+    // The second half of the headline, in the brand blue, exactly as the mock.
+    heroTitleAccent: { color: t.brand },
+    heroLede: {
+      marginTop: l.isPhone ? 12 : 16,
+      width: '100%',
+      maxWidth: 620,
+      textAlign: 'center',
+      color: t.textMuted,
+    },
+
+    heroSearchWrap: { width: '100%', marginTop: l.isPhone ? 24 : 34, alignItems: 'center' },
+    searchWrap: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: l.isPhone ? 14 : 16 },
+
+    /*
+     * 🛑 **The owner asked for a real search, and the mock made it the page.**
+     *
+     * The mechanics were already right — somebody types, the extensions they
+     * picked resolve below with this page's own prices. What was wrong is that
+     * it read as a caption-sized card tucked into the hero's right column: a
+     * 14px input at 6px padding, with results in `micro`. A person scanning
+     * the page saw an illustration of a search box rather than one to use.
+     *
+     * So the bar is now the widest single element on the first screen, dead
+     * centre, at `h3` — one step above the `h4` it was raised to last time,
+     * because the mock's is larger still. The results below sit on `bodySm`
+     * and `caption`; nothing here uses `micro`, which the type scale marks
+     * DEPRECATED.
+     *
+     * ⚠️ On a phone the Search button drops to its own full-width line rather
+     * than squeezing the field: at 390 an inline button leaves ~120px for the
+     * name somebody is typing, which is the control defeating itself.
+     *
+     * ⚠️ Nothing about what it CLAIMS changed. It still never prints
+     * *Available* against a searched name, for the reason recorded in
+     * DOMAIN-SEARCH-BACKEND-NOTE.md: nothing here reaches a registrar, and a
+     * marketing page that tells somebody a name is free, takes their card and
+     * then finds it is not has spent the only trust it had.
+     */
+    searchBar: {
+      flexDirection: l.isPhone ? 'column' : 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: l.isPhone ? 10 : 12,
       borderWidth: 1,
       borderColor: t.borderStrong,
-      borderRadius: 12,
+      borderRadius: l.isPhone ? 16 : 18,
       backgroundColor: t.surfaceRaised,
-      paddingLeft: 13,
-      paddingRight: 6,
-      paddingVertical: 6,
-      marginBottom: 2,
+      padding: l.isPhone ? 10 : 8,
+      ...(elevation(t, 3) as ViewStyle),
     },
-    searchText: { ...type.caption, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    searchGo: { flexShrink: 0, borderRadius: 9, backgroundColor: t.brand, paddingHorizontal: 13, paddingVertical: 8 },
-    searchGoText: { ...type.micro, color: t.textOnBrand, fontWeight: '800' },
-    resultRow: rowBase,
-    resultDot: { ...iconBox(22), borderRadius: 11 },
-    resultName: { ...type.micro, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    resultState: { ...type.micro, fontWeight: '800', flexShrink: 0 },
-    resultPrice: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 0, minWidth: 46, textAlign: 'right' },
+    searchFieldRow: {
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+      width: l.isPhone ? '100%' : undefined,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: l.isPhone ? 10 : 14,
+      paddingLeft: l.isPhone ? 6 : 14,
+    },
+    searchText: {
+      ...type.h3,
+      color: t.text,
+      fontWeight: '700',
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+      paddingVertical: l.isPhone ? 10 : 12,
+    },
+    searchClear: { ...iconBox(36), borderRadius: 18 },
+    searchGo: {
+      flexShrink: 0,
+      alignSelf: l.isPhone ? 'stretch' : 'auto',
+      minHeight: l.isPhone ? 50 : 56,
+      borderRadius: l.isPhone ? 12 : 13,
+      backgroundColor: t.brand,
+      paddingHorizontal: l.isPhone ? 20 : 30,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+    },
+    searchGoText: { ...type.h4, color: t.textOnBrand, fontWeight: '800' },
+
+    chipRow: {
+      width: '100%',
+      maxWidth: 860,
+      alignSelf: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: l.isPhone ? 7 : 9,
+      columnGap: l.isPhone ? 7 : 9,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minHeight: 38,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: l.isPhone ? 13 : 16,
+      paddingVertical: 7,
+    },
+    chipOn: { backgroundColor: t.brand, borderColor: t.brand },
+    chipMore: { gap: 7 },
+    chipText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
+    chipTextOn: { color: t.textOnBrand },
+
+    /*
+     * ⚠️ **The mock draws no results and they are here anyway.** A search with
+     * nowhere for answers to land is an illustration of a search box, which is
+     * the exact defect this page was already fixed for once. They sit under
+     * the chip row because the chips decide what the answers cover.
+     */
+    resultsPanel: {
+      width: '100%',
+      maxWidth: 980,
+      alignSelf: 'center',
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: l.isPhone ? 12 : 16,
+      paddingVertical: l.isPhone ? 10 : 12,
+      ...(elevation(t, 1) as ViewStyle),
+    },
+    resultsLead: { ...type.caption, color: t.textSubtle, fontWeight: '700', paddingBottom: 4 },
+    resultRow: {
+      minHeight: 46,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 8,
+    },
+    resultRowRuled: { borderTopWidth: 1, borderColor: t.divider },
+    resultDot: { ...iconBox(28), borderRadius: 14 },
+    resultName: { ...type.bodySm, color: t.text, fontWeight: '700', flexGrow: 1, flexShrink: 1, minWidth: 110 },
+    resultState: { ...type.caption, fontWeight: '800', flexShrink: 0 },
+    resultPrice: { ...type.caption, color: t.textMuted, fontWeight: '700', flexShrink: 0, minWidth: 56, textAlign: 'right' },
+    resultPriceNone: { color: t.textSubtle, fontWeight: '600', minWidth: 0 },
+    resultMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 10,
+      flexShrink: 0,
+      marginLeft: 'auto',
+    },
     claimGo: {
       flexShrink: 0,
       borderRadius: 9,
       borderWidth: 1,
       borderColor: t.brand,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    claimGoText: { ...type.micro, color: t.brand, fontWeight: '800' },
-    searchNote: { ...type.micro, color: t.textSubtle, paddingTop: 2 },
-
-    includedStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    includedChip: {
-      flexGrow: 0,
-      flexShrink: 1,
-      minWidth: 0,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 7,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 999,
-      backgroundColor: t.surfaceRaised,
-      paddingHorizontal: 11,
+      paddingHorizontal: 12,
       paddingVertical: 7,
     },
-    includedChipText: { ...type.micro, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+    claimGoText: { ...type.caption, color: t.brand, fontWeight: '800' },
+    searchNote: { ...type.caption, color: t.textSubtle, paddingTop: 8 },
+
+    /*
+     * Five items, and the small-screen answer is a decided one: two columns on
+     * a phone rather than a sideways scroller. A scrolling strip hides the
+     * last two of five behind an edge with nothing announcing them, and these
+     * five are the whole "what you get" argument of the hero.
+     */
+    featureRow: {
+      width: '100%',
+      maxWidth: 940,
+      alignSelf: 'center',
+      marginTop: l.isPhone ? 22 : 32,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: l.isPhone ? 14 : 16,
+      columnGap: l.isPhone ? 10 : 24,
+    },
+    featureItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      minWidth: 0,
+      flexGrow: 0,
+      flexShrink: 1,
+      flexBasis: l.isPhone ? '45%' : 'auto',
+    },
+    featureIcon: { ...iconBox(l.isPhone ? 34 : 38), borderRadius: 19, backgroundColor: softFill(t.brand, t) },
+    featureText: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
+    /* 🛑 The band whose claim the owner rewrote — see TRUST_HEAD above. */
+    trustBand: { width: '100%', alignItems: 'center', marginTop: l.isPhone ? 24 : 32, gap: l.isPhone ? 12 : 14 },
+    trustHead: { ...type.body, color: t.textMuted, fontWeight: '600', textAlign: 'center', maxWidth: 660 },
+    trustTicks: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: 10,
+      columnGap: l.isPhone ? 14 : 26,
+    },
+    trustTick: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+    trustTickDot: { ...iconBox(18), borderRadius: 9, backgroundColor: t.green },
+    trustTickText: { ...type.caption, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
+    heroCtaRow: { marginTop: l.isPhone ? 22 : 30, alignSelf: l.isPhone ? 'stretch' : 'center' },
+
+    /*
+     * The white shelf that closes the hero. `bandEdge` is the exact inset
+     * `Band` applies, so cancelling it reaches the viewport edge at every
+     * width instead of at a guessed constant, and the negative bottom margin
+     * eats the band's own bottom padding so the shelf sits on its rule.
+     */
+    heroStrip: {
+      marginHorizontal: -bandEdge,
+      marginTop: l.isPhone ? 30 : 44,
+      marginBottom: -l.sectionSpace,
+      paddingHorizontal: bandEdge,
+      paddingVertical: l.isPhone ? 12 : 16,
+      backgroundColor: t.surface,
+      borderTopWidth: 1,
+      borderColor: t.divider,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: 4,
+      zIndex: 1,
+    },
+    stripItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      minHeight: 44,
+      minWidth: 0,
+      flexGrow: 0,
+      flexShrink: 1,
+      flexBasis: l.isPhone ? '48%' : 'auto',
+      paddingHorizontal: l.isPhone ? 6 : l.isDesktop ? 44 : 14,
+    },
+    stripItemRuled: { borderLeftWidth: 1, borderColor: t.divider },
+    stripText: {
+      ...(l.isDesktop ? type.bodySm : type.caption),
+      color: t.text,
+      fontWeight: '700',
+      flexShrink: 1,
+      minWidth: 0,
+    },
 
     /* -------------------------------------------------- section heads */
     headCentered: { alignItems: 'center', gap: 12 },
