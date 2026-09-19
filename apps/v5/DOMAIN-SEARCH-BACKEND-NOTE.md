@@ -49,6 +49,20 @@ a claim path                       today "Check & claim" goes to early access, w
                                    so the signup form opens with it already filled in
 ```
 
+🛑 **Registering a domain is not a second commercial system.** Locked rule **A7 — one
+concern, one authority**: domains do not get their own billing, wallet or provider-payment
+authority. Whatever a registrar charges FlowSmartly is an internal settlement fact; the
+customer-facing path is the one every paid capability runs:
+
+```
+Smart Subscription → included credits → PAYG/top-up → spending ceiling → reservation
+→ approved capability execution → registrar action → evidence → settlement
+```
+
+A renewal is a **recurring add-on** under Smart Subscription, the same shape a phone number takes
+— not a domains-specific subscription. And the prices this marketing page publishes are marketing:
+the number a customer is actually charged comes from the authority, never from `TLD_ROWS`.
+
 ⚠️ **The portal side is a separate gap and it is bigger.** `/sites/domains` exists in the
 portal and `blocks/sites/name-search.tsx` is explicit that there is no endpoint behind
 either half: `FoundNames` is *"a read of names already looked for"* and `AcquiringNames`
@@ -60,3 +74,27 @@ no payment. The public hero and the portal screen want the same lookup.
 The whole point is that checking a name is free and signing up is what claiming costs.
 Nobody is asked for a card to find out what a `.com` costs. When the lookup lands, keep
 that shape: **check without an account, claim with one.**
+
+---
+
+## ⚠️ What the rebuilt hero added to this list (2026-09-19)
+
+The hero was rebuilt to `design/approved/public-domains-hero.png`. The ruling above
+survived it unchanged and is exercised at 390, 768 and 1440: before anybody types the card
+draws the labelled example, and the moment somebody types, the word *Available* is absent
+from the whole page while real `name.tld` rows appear with **price only**.
+
+One new gap came out of the mock, and it is the same kind of gap:
+
+```
+.net, .ai and .app       the mock's chip row offers them and TLD_ROWS publishes no price
+                         for any of the three. Three plausible numbers would have filled
+                         the row and none of them would have been checked, so the price
+                         column says "Price on request" instead. Publishing them in
+                         TLD_ROWS -- first year AND renewal, as every other row has --
+                         closes it, and the hero picks them up with no code change
+```
+
+The chip row is now a multi-select filter over the extensions, so when the registrar
+lookup lands it already has its input: **the typed name plus the set of extensions the
+visitor selected**, rather than a fixed four.
