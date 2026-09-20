@@ -34,34 +34,66 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
         return;
       }
 
-      const brandKit = await prisma.brandKit.findFirst({
-        where: { userId },
-        select: { name: true, email: true, phone: true, address: true, city: true, state: true, zip: true, country: true },
-      });
+      // The registrant contact, from the one place that assembles one. This
+      // webhook used to build its own — substituting "New York", "NY", "10001"
+      // and "US" for anything the owner had not filled in, and splitting the
+      // business name into a first and last name. The completeness guard in
+      // the OpenSRS client could never catch that, because the caller had
+      // already invented the facts it checks for.
+      const { resolveRegistrantContact, describeMissingRegistrant } = await import(
+        "@/lib/domains/registrant"
+      );
+      const resolved = await resolveRegistrantContact(userId);
 
-      const contact = brandKit?.name && brandKit?.email && brandKit?.phone && brandKit?.address
-        ? {
-            first_name: brandKit.name.split(/\s+/)[0] || "Domain",
-            last_name: brandKit.name.split(/\s+/).slice(1).join(" ") || "Owner",
-            org_name: brandKit.name,
-            address1: brandKit.address,
-            city: brandKit.city || "New York",
-            state: brandKit.state || "NY",
-            postal_code: brandKit.zip || "10001",
-            country: brandKit.country?.length === 2 ? brandKit.country : "US",
-            phone: brandKit.phone.startsWith("+") ? brandKit.phone : `+1.${brandKit.phone.replace(/\D/g, "")}`,
-            email: brandKit.email,
-          }
-        : undefined;
+      if (!resolved.ok) {
+        // Paid, and we cannot lawfully file the registration. This is not a
+        // registration failure to retry blindly — it is the owner's details
+        // being incomplete, and it needs its own visible state.
+        await recordPaidButUnsettled({
+          userId,
+          storeId: meta.storeId || null,
+          domainName: domainName || `${sld}.${tld}`,
+          tld,
+          paymentIntentId: paymentIntent.id,
+          amountCents: paymentIntent.amount,
+          reason: describeMissingRegistrant(resolved.missing),
+        });
+        return;
+      }
 
-      const result = await purchaseDomain({
+      const outcome = await purchaseDomain({
         storeId: meta.storeId || null,
         userId,
         domainName: sld,
         tld,
         isFree: false,
-        contact,
       });
+
+      // **The registrar's answer decides what happens next.** This used to read
+      // "it returned, therefore it worked": the log said "Domain registered",
+      // an invoice for a registration was raised, and the owner was emailed to
+      // say their domain was live — for a domain the registrar had rejected.
+      if (outcome.status !== "registered") {
+        console.error(
+          `[Webhook:DomainPurchase] ${outcome.domain.domainName} paid but not registered (${outcome.status})`
+        );
+        await recordPaidButUnsettled({
+          userId,
+          storeId: meta.storeId || null,
+          domainName: outcome.domain.domainName,
+          tld,
+          paymentIntentId: paymentIntent.id,
+          amountCents: paymentIntent.amount,
+          reason:
+            outcome.status === "registration_failed"
+              ? outcome.error
+              : "No registrar is configured for this environment, so the domain was not registered.",
+          domainId: outcome.domain.id,
+        });
+        return;
+      }
+
+      const result = outcome.domain;
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
 
       // Attach to a Portfolio (Portfolio / Digital Resume Studio) — set the
@@ -108,8 +140,18 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
       }
     } catch (error: any) {
       console.error(`Failed to register domain ${domainName} after payment:`, error);
-      const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
-      if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
+      try {
+        const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
+        if (userId) await notifyDomainRegistrationFailed(userId, domainName || `${sld}.${tld}`, error.message);
+      } catch (notifyError) {
+        console.error("[Webhook:DomainPurchase] Could not notify the owner:", notifyError);
+      }
+      // **Rethrown.** Money changed hands here. Returning normally tells Stripe
+      // the event was handled and it is never sent again — so an unrecorded
+      // failure would become permanent silence. Failing the endpoint asks for
+      // a redelivery instead, and the paid-but-unsettled write is idempotent
+      // on the domain name.
+      throw error;
     }
     return;
   }
@@ -461,4 +503,83 @@ export async function handleEcommercePayoutEvent(payout: Stripe.Payout, connecte
   });
 
   console.log(`[ecommerce-webhook] Payout ${payout.id} ${payout.status} for store ${store.id}`);
+}
+
+/**
+ * Money taken, domain not registered.
+ *
+ * Its own state, because the two facts are both true and neither cancels the
+ * other. Before this, a registrar refusal after a successful payment produced a
+ * registration invoice and a "your domain is registered" email, which left the
+ * owner with a receipt for something that does not exist.
+ *
+ * Deliberately **not** a refund and **not** an automatic retry. Which of those
+ * is right depends on why the registrar said no — a name taken thirty seconds
+ * earlier wants a refund, an owner with a missing postcode wants to finish
+ * their details — and choosing on their behalf here would be an accounting
+ * decision made by a webhook. What this does is make the state findable, tell
+ * the owner the truth, and leave the payment id attached so whoever decides has
+ * something to act on.
+ */
+async function recordPaidButUnsettled(params: {
+  userId: string;
+  storeId: string | null;
+  domainName: string;
+  tld: string;
+  paymentIntentId: string;
+  amountCents: number;
+  reason: string;
+  domainId?: string;
+}) {
+  const { userId, domainName, paymentIntentId, amountCents, reason, domainId } = params;
+
+  // **Not caught.** If this write fails there is no durable record that money
+  // was taken and nothing was registered, and swallowing the error would let
+  // the webhook return normally — Stripe would mark the event handled and never
+  // send it again, leaving a server log as the only evidence a customer paid
+  // for something they did not get. Throwing makes the endpoint fail, which
+  // makes Stripe redeliver, which is exactly what should happen.
+  if (domainId) {
+    await prisma.storeDomain.update({
+      where: { id: domainId },
+      data: {
+        registrarStatus: "paid_registration_unsettled",
+        registrarVerificationError: reason,
+        purchasePaymentIntentId: paymentIntentId,
+      },
+    });
+  } else {
+    // No row yet — the refusal happened before anything was created. One is
+    // made here so the payment is not the only trace that this ever happened.
+    await prisma.storeDomain.create({
+      data: {
+        storeId: params.storeId,
+        userId,
+        domainName,
+        tld: params.tld,
+        registrarStatus: "paid_registration_unsettled",
+        registrarVerificationError: reason,
+        purchasePaymentIntentId: paymentIntentId,
+        isFree: false,
+        purchasePriceCents: amountCents,
+        whoisPrivacy: true,
+        autoRenew: false,
+        verificationStatus: "pending",
+        isConnected: false,
+      },
+    });
+  }
+
+  console.error(
+    `[Webhook:DomainPurchase] PAID BUT UNSETTLED — ${domainName}, payment ${paymentIntentId}, ${amountCents} cents: ${reason}`
+  );
+
+  // The notification is a courtesy on top of a fact that is already durable, so
+  // this one may fail without losing anything that cannot be recovered.
+  try {
+    const { notifyDomainRegistrationFailed } = await import("@/lib/notifications/domain");
+    await notifyDomainRegistrationFailed(userId, domainName, reason);
+  } catch (e) {
+    console.error("[Webhook:DomainPurchase] Could not notify the owner:", e);
+  }
 }

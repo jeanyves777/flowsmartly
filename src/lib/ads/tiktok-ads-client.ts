@@ -3,6 +3,8 @@
  * Handles campaign creation, pausing, and stats retrieval on TikTok Ads.
  */
 
+import { assertAdMutationsAllowed } from "./legacy-shutdown";
+
 const TIKTOK_API_BASE = "https://business-api.tiktok.com/open_api/v1.3";
 
 // --- Configuration check ---
@@ -100,6 +102,7 @@ export interface TikTokAdsCampaignStats {
 export async function createTikTokAdsCampaign(
   input: TikTokAdsCampaignInput
 ): Promise<TikTokAdsCampaignResult> {
+  assertAdMutationsAllowed("create TikTok Ads campaign");
   const advertiserId = process.env.TIKTOK_ADS_ADVERTISER_ID!;
 
   // TikTok Ads API uses dollars (not cents), convert cents to dollars

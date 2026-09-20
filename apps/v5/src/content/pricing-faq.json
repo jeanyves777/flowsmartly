@@ -1,0 +1,26 @@
+[
+  {
+    "q": "What is a credit, exactly?",
+    "a": "A credit is one unit of AI work: a generated image, a short block of video, a drafted campaign, a minute of call handling. Ordinary work — writing a post, scheduling it, reading a report — costs nothing. Your plan includes a monthly allowance and every action shows its cost before you run it."
+  },
+  {
+    "q": "Can I change plans later?",
+    "a": "Yes, at any time and in either direction. Upgrades take effect immediately and you only pay the difference for the rest of the billing period. Downgrades take effect at your next renewal, so you keep what you already paid for."
+  },
+  {
+    "q": "Do unused credits roll over?",
+    "a": "Included plan credits reset each month, so the allowance always matches the month it belongs to. Credits you buy on top of a plan do not expire — they sit in the same balance and are only spent once the monthly allowance is used up."
+  },
+  {
+    "q": "Is there a setup fee?",
+    "a": "No. There is no setup fee, no onboarding fee and no platform fee on top of your plan. What you see on this page is what you pay, plus any usage-based work you choose to run."
+  },
+  {
+    "q": "Which payment methods do you accept?",
+    "a": "All major credit and debit cards, and bank transfer for annual Business plans. Payments are processed by our PCI-compliant provider — card details never touch our servers."
+  },
+  {
+    "q": "How does annual billing work?",
+    "a": "You pay for twelve months up front and save 20% against the monthly rate. Your full year of credits is issued monthly, at the same allowance, so nothing changes day to day except the price."
+  }
+]

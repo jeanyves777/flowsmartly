@@ -74,11 +74,28 @@ if [ -f "${APP_DIR}/public/maintenance.html" ]; then
     || echo "WARN: could not install maintenance page to ${MAINT_DIR} (continuing)"
 fi
 
-# --- 2. patch Prisma provider for prod (sqlite -> postgresql) ------------------
-log "Patching Prisma provider -> postgresql"
-sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
-grep -q 'provider = "postgresql"' prisma/schema.prisma \
-  || { echo "FATAL: Prisma provider patch did not apply"; exit 1; }
+# --- 2. derive the production Prisma schema (NO tracked-source mutation) -------
+# This used to sed -i prisma/schema.prisma IN PLACE, on the live server. That left
+# the deployed tree permanently dirty, so git status there could never distinguish
+# "someone edited production" from "the deploy ran".
+#
+# Worse: any build that skipped the sed silently produced a SQLite client, which
+# type-checks, builds, starts, and then fails EVERY query at runtime with
+#   Error validating datasource db: the URL must start with the protocol file:
+# That is exactly how the first staged build of /api/v1/leads failed - a correct
+# endpoint running on a client generated for the wrong database.
+#
+# The schema is now DERIVED into prisma/generated/ (gitignored) and named
+# explicitly with --schema on every prisma invocation below. The tracked file is
+# read-only to this path, and the git guard turns that into a check.
+log "Deriving production Prisma schema (tracked source untouched)"
+npm run prisma:schema:prod || { echo "FATAL: could not derive the production schema"; exit 1; }
+PRISMA_PROD_SCHEMA="prisma/generated/schema.production.prisma"
+[ -s "$PRISMA_PROD_SCHEMA" ] || { echo "FATAL: derived schema missing"; exit 1; }
+grep -q 'provider = "postgresql"' "$PRISMA_PROD_SCHEMA" \
+  || { echo "FATAL: derived schema is not postgresql"; exit 1; }
+git diff --quiet -- prisma/schema.prisma \
+  || { echo "FATAL: the TRACKED Prisma schema was modified during deploy"; exit 1; }
 
 # --- 3. install deps -----------------------------------------------------------
 # Install when the lockfile/.npmrc signature changed OR when node_modules was
@@ -119,17 +136,17 @@ fi
 # --accept-data-loss so a safe constraint-add can never block a release.
 log "Syncing DB schema (prisma db push)"
 DBURL="$(grep -m1 '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2- | sed 's/^"//; s/"$//')"
-SCHEMA_DIFF="$(npx prisma migrate diff --from-url "$DBURL" --to-schema-datamodel prisma/schema.prisma --script 2>/dev/null || echo '__DIFF_FAILED__')"
+SCHEMA_DIFF="$(npx prisma migrate diff --from-url "$DBURL" --to-schema-datamodel "$PRISMA_PROD_SCHEMA" --script 2>/dev/null || echo '__DIFF_FAILED__')"
 if [ "$SCHEMA_DIFF" = "__DIFF_FAILED__" ] || echo "$SCHEMA_DIFF" | grep -qiE 'DROP[[:space:]]+(COLUMN|TABLE)'; then
   # Destructive (or we couldn't tell) — never silently drop rows; fail loudly.
   log "Schema diff is destructive or unknown — pushing WITHOUT --accept-data-loss (aborts if it drops data)"
-  npx prisma db push --skip-generate
+  npx prisma db push --schema "$PRISMA_PROD_SCHEMA" --skip-generate
 else
   log "Schema diff is additive-only — applying (safe to accept new constraints)"
-  npx prisma db push --skip-generate --accept-data-loss
+  npx prisma db push --schema "$PRISMA_PROD_SCHEMA" --skip-generate --accept-data-loss
 fi
 log "Generating Prisma client"
-npx prisma generate
+npx prisma generate --schema "$PRISMA_PROD_SCHEMA"
 
 # --- 4b. yt-dlp for Reel Studio URL ingest (download links -> clips) ----------
 # Standalone binary; non-fatal — if it fails, URL ingest degrades to FAILED and

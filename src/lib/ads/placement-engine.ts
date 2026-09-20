@@ -12,6 +12,7 @@ import { isTikTokAdsConfigured } from "./tiktok-ads-client";
 import { activateOnTikTokAds, pauseOnTikTokAds } from "./tiktok-ads-handler";
 import { REGIONS } from "@/lib/constants/regions";
 import { PREMIER_SPOTLIGHT_CHANNEL_ID, PREMIER_SPOTLIGHT_FEE_CREDITS } from "@/lib/ads/spotlight";
+import { assertAdMutationsAllowed } from "./legacy-shutdown";
 
 export interface PlacementChannel {
   id: string;
@@ -196,6 +197,7 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
   tiktokAds: boolean;
   spotlight: boolean;
 }> {
+  assertAdMutationsAllowed("activate campaign on all channels");
   const campaign = await prisma.adCampaign.findUnique({
     where: { id: campaignId },
     select: {

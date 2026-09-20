@@ -7,6 +7,71 @@
 import nodemailer from "nodemailer";
 import { createHmac } from "crypto";
 
+/* ------------------------------------------------------------------ *
+ * LEGACY MARKETING SHUTDOWN
+ *
+ * This backend is a disposable beta and is being replaced. Its
+ * `{{unsubscribeLink}}` merge tag resolves to `context?.unsubscribeUrl || ""`
+ * and no unsubscribe route exists anywhere in the codebase, so every marketing
+ * send goes out without a working opt-out.
+ *
+ * Rather than repair a system that is being retired, marketing dispatch is
+ * disabled at the single choke point every caller passes through.
+ *
+ * FAIL CLOSED: a caller that does not declare its `kind` is treated as
+ * marketing and blocked. A future call site cannot reintroduce the exposure by
+ * forgetting to think about it.
+ *
+ * Re-enabling requires a working unsubscribe route and suppression behaviour
+ * first. Setting the flag without those is a compliance decision, not a
+ * configuration one.
+ * ------------------------------------------------------------------ */
+
+/** What kind of mail this is. Decides whether the shutdown applies. */
+export type EmailKind =
+  /** Bulk or automated outbound to contacts. Disabled. */
+  | "marketing"
+  /** Account mail the recipient's own action caused — invites, receipts, resets. */
+  | "transactional"
+  /** Deliverability checks. Allowed only to the internal allowlist. */
+  | "test";
+
+const MARKETING_ENABLED = () => process.env.LEGACY_MARKETING_SEND_ENABLED === "true";
+
+const ALLOWLIST = () =>
+  (process.env.LEGACY_MARKETING_TEST_ALLOWLIST ?? "")
+    .split(",")
+    .map((address) => address.trim().toLowerCase())
+    .filter(Boolean);
+
+/** Shutdown date, for the record. */
+export const LEGACY_MARKETING_DISABLED_ON = "2026-08-05";
+
+type Refusal = { success: false; error: string; blocked: true };
+
+/**
+ * `null` when the send may proceed, otherwise the refusal to return.
+ * Exported so callers can pre-check and avoid rendering a campaign that will
+ * not be sent.
+ */
+export function marketingSendBlocked(kind: EmailKind, to: string): Refusal | null {
+  if (kind === "transactional") return null;
+  if (MARKETING_ENABLED()) return null;
+
+  // A test send is still permitted to addresses we control, so deliverability
+  // can be checked without any customer receiving mail.
+  if (kind === "test" && ALLOWLIST().includes(to.trim().toLowerCase())) return null;
+
+  return {
+    success: false,
+    blocked: true,
+    error:
+      kind === "test"
+        ? "Test sending is limited to approved internal addresses while marketing email is disabled."
+        : "Marketing email is disabled on this workspace. It will return in the new system, which sends every message with a working unsubscribe.",
+  };
+}
+
 // Derive SES SMTP password from IAM secret access key
 // See: https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html
 function deriveSesSmtpPassword(secretAccessKey: string, region: string): string {
@@ -294,13 +359,23 @@ export interface MarketingEmailParams {
   html: string;
   text?: string;
   replyTo?: string;
+  /**
+   * Omitted means marketing, which is blocked. Declaring `transactional` is a
+   * statement that the recipient's own action caused this message.
+   */
+  kind?: EmailKind;
 }
 
 export async function sendMarketingEmail(params: MarketingEmailParams): Promise<{
   success: boolean;
   messageId?: string;
   error?: string;
+  blocked?: boolean;
 }> {
+  // Fail closed: an undeclared caller is marketing.
+  const refusal = marketingSendBlocked(params.kind ?? "marketing", params.to);
+  if (refusal) return refusal;
+
   try {
     if (params.provider === "MAILGUN") {
       await sendViaMailgunApi(

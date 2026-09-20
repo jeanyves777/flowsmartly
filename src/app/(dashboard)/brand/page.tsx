@@ -129,6 +129,8 @@ interface BrandKit {
   phone: string | null;
   website: string | null;
   address: string | null;
+  ownerFirstName: string | null;
+  ownerLastName: string | null;
   city: string | null;
   state: string | null;
   zip: string | null;
@@ -183,6 +185,8 @@ export default function BrandIdentityPage() {
     phone: "",
     website: "",
     address: "",
+    ownerFirstName: "",
+    ownerLastName: "",
     city: "",
     state: "",
     zip: "",
@@ -262,6 +266,8 @@ export default function BrandIdentityPage() {
         phone: formData.phone || null,
         website: formData.website || null,
         address: formData.address || null,
+        ownerFirstName: formData.ownerFirstName || null,
+        ownerLastName: formData.ownerLastName || null,
         city: formData.city || null,
         state: formData.state || null,
         zip: formData.zip || null,
@@ -731,6 +737,26 @@ export default function BrandIdentityPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
+                  <Label htmlFor="ownerFirstName">Owner first name</Label>
+                  <Input
+                    id="ownerFirstName"
+                    placeholder="Jean-Yves"
+                    value={formData.ownerFirstName || ""}
+                    onChange={(e) => setFormData({ ...formData, ownerFirstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerLastName">Owner last name</Label>
+                  <Input
+                    id="ownerLastName"
+                    placeholder="Kouakou"
+                    value={formData.ownerLastName || ""}
+                    onChange={(e) => setFormData({ ...formData, ownerLastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
@@ -770,7 +796,10 @@ export default function BrandIdentityPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Used in AI designs, listings, and local search optimization
+                Used in AI designs, listings, and local search optimization. The owner
+                name, full address, country code and phone with its country code
+                (+1 555 123 4567) are also what a domain registrar files you under —
+                they have to be real, and we never fill them in for you.
               </p>
             </CardContent>
           </Card>

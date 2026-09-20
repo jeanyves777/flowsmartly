@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlowAgent dock — approval affordance · design review v2</title>
+<style>
+/* ═══ tokens — verbatim from portal-shell-v1.html ═══════════════════════════ */
+:root{
+  --bg:#f3f6fc; --surface:#ffffff; --raised:#ffffff; --muted:#f7f9fe; --inset:#eef3fb;
+  --text:#071449; --text-muted:#42527a; --text-subtle:#606c8a; --on-brand:#ffffff;
+  --border:#dfe5f2; --border-strong:#c4cee4; --divider:#e9eef8;
+  --brand:#0a63d6; --brand-strong:#0a56b8; --brand-soft:#edf3ff;
+  --violet:#6c2cff; --violet-soft:#f1ecff;
+  --green:#0e7b3a; --orange:#ad5100; --pink:#d70459;
+  --chip-bg:#edf1ff; --chip-text:#1740db;
+  --ok-bg:#e8f8ee; --ok-text:#008034; --warn-bg:#fff1e6; --warn-text:#bd4a00;
+  --shadow:rgba(31,45,98,.10); --shadow-2:rgba(31,45,98,.20);
+  --r-card:14px; --r-tile:11px; --r-pill:999px;
+  --rail:212px; --topbar:58px; --chatw:334px;
+  --ff:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,monospace;
+}
+html[data-theme="grey"]{
+  --bg:#15181d; --surface:#1d2127; --raised:#242931; --muted:#20242b; --inset:#282d35;
+  --text:#f1f4f8; --text-muted:#b2bac7; --text-subtle:#8c96a6; --on-brand:#101317;
+  --border:#333941; --border-strong:#48505c; --divider:#2b3038;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#1f2a37;
+  --violet:#a98cff; --violet-soft:#241f38;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#242e3c; --chip-text:#89b9ff;
+  --ok-bg:#17301f; --ok-text:#4ed67f; --warn-bg:#332512; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.45); --shadow-2:rgba(0,0,0,.62);
+}
+html[data-theme="dark"]{
+  --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+  --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+  --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+  --violet:#a98cff; --violet-soft:#1b1c3d;
+  --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#17264a; --chip-text:#8ab8ff;
+  --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.66);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ff);
+     font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+h1,h2,h3,p{margin:0}
+/* kept from the approved shell — both were dropped in the first pass */
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ═══ review chrome — quiet, and never smaller than 11px ═══════════════════ */
+.reviewbar{position:sticky;top:0;z-index:120;display:flex;align-items:flex-end;gap:18px;
+  flex-wrap:wrap;padding:11px 20px;background:var(--surface);border-bottom:1px solid var(--border);
+  box-shadow:0 1px 3px var(--shadow)}
+.reviewbar .t{font-size:14px;font-weight:800;letter-spacing:-.01em;line-height:1.3}
+.reviewbar .sub{font-size:11.5px;color:var(--text-subtle);font-weight:600;line-height:1.3}
+.grow{flex:1 1 auto}
+.klbl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-subtle);margin-bottom:5px;display:block}
+.seg{display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--inset)}
+.seg button{padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;color:var(--text-muted);
+  min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--violet);box-shadow:0 1px 3px var(--shadow)}
+.sel{min-height:36px;padding:0 10px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:12px;font-weight:700}
+
+.page{padding:26px 20px 90px;max-width:1560px;margin:0 auto}
+.stagewrap{display:flex;justify-content:center}
+.frame{flex:0 0 auto;transition:width .2s ease}
+.framecap{display:flex;align-items:baseline;gap:10px;margin-bottom:9px;padding:0 2px;flex-wrap:wrap}
+.framecap b{font-size:13px;font-weight:800}
+.framecap span{font-size:11.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.framecap .clamped{color:var(--warn-text);font-weight:700}
+
+/* ═══ the portal shell ════════════════════════════════════════════════════ */
+.app{display:flex;height:772px;background:var(--surface);position:relative;overflow:hidden;
+  border:1px solid var(--border-strong);border-radius:var(--r-card);box-shadow:0 18px 48px var(--shadow-2)}
+.rail{width:var(--rail);flex:0 0 var(--rail);border-right:1px solid var(--border);background:var(--surface);
+  display:flex;flex-direction:column}
+.rail-head{height:var(--topbar);display:flex;align-items:center;gap:8px;padding:0 15px;flex:none}
+.mark{width:26px;height:26px;flex:none;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--violet),var(--brand));color:#fff;font-weight:800;font-size:13px}
+.wordmark{font-size:15px;font-weight:800;letter-spacing:-.02em}
+.v-badge{font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--r-pill);
+  background:var(--violet-soft);color:var(--violet)}
+.rail-scroll{flex:1;overflow-y:auto;padding:6px 10px}
+.nav{width:100%;display:flex;align-items:center;gap:11px;min-height:40px;padding:0 11px;border-radius:9px;
+  color:var(--text-muted);font-size:13.5px;font-weight:600;text-align:left}
+.nav .ico{width:16px;text-align:center;font-size:12.5px;opacity:.85}
+.nav[aria-current="page"]{background:var(--violet-soft);color:var(--violet);font-weight:800}
+.nav:hover:not([aria-current]){background:var(--inset);color:var(--text)}
+.refer{margin:8px 10px;padding:12px;border-radius:var(--r-tile);background:var(--violet-soft);flex:none}
+.refer-t{font-size:12.5px;font-weight:800;color:var(--violet)}
+.refer-b{font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.45}
+.refer-cta{margin-top:9px;width:100%;min-height:36px;border-radius:8px;background:var(--violet);color:#fff;
+  font-size:12px;font-weight:800}
+.ws{display:flex;align-items:center;gap:9px;padding:11px 14px;border-top:1px solid var(--border);flex:none}
+.ws-badge{width:28px;height:28px;border-radius:8px;background:var(--inset);display:grid;place-items:center;
+  font-size:12px;color:var(--text-muted)}
+.ws-n{font-size:12.5px;font-weight:800}.ws-s{font-size:11px;color:var(--text-subtle)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar);flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;
+  border-bottom:1px solid var(--border);background:var(--surface)}
+.search{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;
+  border:1px solid var(--border);border-radius:10px;background:var(--inset);color:var(--text-subtle);
+  font-size:13px;white-space:nowrap;overflow:hidden}
+.search kbd{margin-left:auto;font-family:var(--ff);font-size:11px;border:1px solid var(--border);
+  border-radius:5px;padding:1px 5px;background:var(--surface)}
+.qcreate{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:10px;
+  background:var(--violet);color:#fff;font-size:12.5px;font-weight:800;flex:none}
+.sys{display:flex;align-items:center;gap:6px;padding-right:7px;border-right:1px solid var(--divider);flex:none}
+.sys-chip{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 10px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface)}
+.sys-k{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-subtle);line-height:1.2}
+.sys-v{display:block;font-size:12.5px;font-weight:800;line-height:1.25;font-variant-numeric:tabular-nums}
+.brand-dots{display:flex;gap:2px}.brand-dots i{width:8px;height:8px;border-radius:50%}
+.cred-meter{display:block;width:54px;height:4px;border-radius:var(--r-pill);background:var(--inset);
+  margin-top:3px;overflow:hidden}
+.cred-meter i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--brand))}
+.plan-tag{font-size:11px;font-weight:800;padding:1px 7px;border-radius:var(--r-pill);
+  background:var(--chip-bg);color:var(--chip-text)}
+.icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);display:grid;
+  place-items:center;color:var(--text-muted);font-size:13px;flex:none}
+.who{display:flex;align-items:center;gap:9px;flex:none}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--violet),var(--brand));
+  color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+.who-n{font-size:12.5px;font-weight:800}.who-r{font-size:11px;color:var(--text-subtle)}
+
+.bodyrow{flex:1;display:flex;min-height:0;position:relative}
+.canvas{flex:1;min-width:0;overflow-y:auto;padding:18px;background:var(--bg)}
+.app[data-chat="collapsed"] .canvas{padding-bottom:100px}
+.h-row{display:flex;align-items:baseline;gap:11px;margin-bottom:15px;flex-wrap:wrap}
+.h-row h2{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.h-row p{font-size:12.5px;color:var(--text-subtle)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:13px}
+.kpi{border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);padding:14px}
+.kpi-top{display:flex;align-items:flex-start;gap:9px}
+.kpi-k{font-size:12px;color:var(--text-muted);font-weight:700;flex:1}
+.kpi-ico{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;
+  background:var(--violet-soft);color:var(--violet)}
+.kpi-v{font-size:23px;font-weight:800;letter-spacing:-.035em;font-variant-numeric:tabular-nums;margin-top:5px;
+  line-height:1.15}
+.kpi-d{font-size:11.5px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.card{border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);padding:15px}
+.card-head{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.card-head h3{font-size:14px;font-weight:800;flex:1}
+.card-link{font-size:12px;font-weight:800;color:var(--violet)}
+.appr{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--divider)}
+.appr:first-of-type{border-top:0}
+.appr-ico{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;
+  background:var(--warn-bg);color:var(--warn-text)}
+.appr-body{flex:1;min-width:0}
+.appr-t{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appr-b{font-size:11.5px;color:var(--text-subtle)}
+.appr-btn{position:relative;min-height:32px;padding:0 14px;border-radius:8px;background:var(--violet-soft);
+  color:var(--violet);font-size:12px;font-weight:800;flex:none}
+/* C-13's fix: the visual box stays small, the hit area is 44 */
+.appr-btn::before,.dk-btn::before{content:"";position:absolute;left:0;right:0;top:50%;height:44px;
+  transform:translateY(-50%)}
+
+/* ═══ the dock ════════════════════════════════════════════════════════════ */
+.dock{display:none;position:absolute;left:18px;right:18px;bottom:16px;z-index:45;align-items:center;
+  gap:12px;padding:9px 10px 9px 14px;border:1px solid var(--border-strong);border-radius:14px;
+  background:var(--surface);box-shadow:0 16px 40px var(--shadow-2)}
+.app[data-chat="collapsed"] .dock{display:flex}
+.dock-glyph{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--violet),var(--brand));color:#fff;font-size:14px;position:relative}
+.dock-glyph .cbadge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;
+  border-radius:var(--r-pill);background:var(--pink);color:#fff;font-size:11px;font-weight:800;
+  display:grid;place-items:center;border:2px solid var(--surface)}
+.dock-id{flex:none;line-height:1.25}
+.dock-n{font-size:13px;font-weight:800}
+.dock-s{font-size:11px;font-weight:600;color:var(--text-subtle)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:none;
+  animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.dock-field{flex:1;min-width:0;display:flex;align-items:center;gap:9px;padding:0 13px;min-height:42px;
+  border:1px solid var(--border);border-radius:11px;background:var(--inset);color:var(--text-subtle);
+  font-size:13.5px}
+.dock-mic,.dock-send{width:42px;height:42px;flex:none;border-radius:11px;display:grid;place-items:center;
+  font-size:13.5px}
+.dock-mic{border:1px solid var(--border);color:var(--violet)}
+.dock-send{background:var(--violet);color:#fff;font-size:15px}
+.dock-open{min-height:42px;padding:0 13px;border-radius:11px;border:1px solid var(--border);font-size:12.5px;
+  font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:7px;flex:none}
+.dock-open:hover{border-color:var(--violet);color:var(--violet)}
+
+/* decide composition — the label is the loudest thing in its own row */
+.dk-appr{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.dk-what{flex:1;min-width:0;font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-facts{flex:none;display:flex;align-items:baseline;gap:7px;padding-left:12px;
+  border-left:1px solid var(--divider);font-size:12px;color:var(--text-subtle);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.dk-facts b{font-size:13px;font-weight:800;color:var(--text-muted)}
+.dk-facts.expired{color:var(--warn-text)}
+.dk-facts.expired b{color:var(--warn-text)}
+.dk-nocost{flex:none;font-size:12px;color:var(--warn-text);font-weight:700;white-space:nowrap;
+  padding-left:12px;border-left:1px solid var(--divider)}
+.dk-pos{flex:none;font-size:11.5px;font-weight:700;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.dk-btn{position:relative;min-height:42px;padding:0 15px;border-radius:11px;font-size:13px;font-weight:800;
+  flex:none;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid var(--border);color:var(--text-muted)}
+.dk-btn.primary{background:var(--violet);border-color:var(--violet);color:#fff}
+.dk-btn.reject{border-color:var(--pink);color:var(--pink)}
+.dk-btn[disabled]{opacity:.42;cursor:not-allowed}
+.dk-icon{width:44px;height:44px;min-height:44px;padding:0}
+.spin{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;
+  animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.problemline{color:var(--warn-text);font-weight:700}
+.problemline.neutral{color:var(--text)}
+.dk-note{flex:none;font-size:11.5px;color:var(--text-subtle);white-space:nowrap}
+
+/* ═══ the panel ═══════════════════════════════════════════════════════════ */
+.chat{width:var(--chatw);flex:0 0 var(--chatw);display:flex;flex-direction:column;background:var(--surface);
+  border-left:1px solid var(--border);min-height:0}
+.app[data-chat="collapsed"] .chat{display:none}
+.chat-bar{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--divider);flex:none}
+.chat-bar b{font-size:13px;font-weight:800;flex:1}
+.tabs{display:flex;gap:2px;padding:3px;border-radius:9px;background:var(--inset)}
+.tabs button{padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:800;color:var(--text-muted);
+  min-height:30px}
+.tabs button[aria-pressed="true"]{background:var(--surface);color:var(--violet)}
+.chat-scroll{flex:1;overflow-y:auto;padding:14px 12px;min-height:0;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;gap:9px;align-items:flex-start}
+.msg.mine{flex-direction:row-reverse}
+.msg-av{width:26px;height:26px;flex:none;border-radius:8px;display:grid;place-items:center;font-size:11px;
+  font-weight:800}
+.msg-av.ai{background:linear-gradient(135deg,var(--violet),var(--brand));color:#fff}
+.msg-av.me{background:var(--inset);color:var(--text-muted)}
+.bubble{border-radius:12px;padding:10px 13px;font-size:12.5px;line-height:1.55;max-width:86%}
+.bubble.ai{background:var(--muted);border:1px solid var(--border)}
+.bubble.me{background:var(--violet-soft);color:var(--violet);font-weight:600}
+.composer{flex:none;padding:11px 12px 12px;border-top:1px solid var(--divider)}
+.composer .f{display:flex;align-items:center;gap:9px;min-height:42px;padding:0 12px;border:1px solid var(--border);
+  border-radius:11px;background:var(--inset);color:var(--text-subtle);font-size:13px}
+.composer .cnote{font-size:11px;color:var(--text-subtle);text-align:center;margin-top:7px}
+
+.acard{border:1px solid var(--border-strong);border-radius:var(--r-card);background:var(--surface);
+  overflow:hidden;box-shadow:0 3px 10px var(--shadow)}
+.acard-h{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--warn-bg);
+  border-bottom:1px solid var(--border)}
+.acard-h b{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--warn-text)}
+.acard-h .exp{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--warn-text);
+  font-variant-numeric:tabular-nums}
+.acard-b{padding:13px 12px}
+.acard-t{font-size:14px;font-weight:800;line-height:1.4;letter-spacing:-.01em}
+.acard-p{font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5}
+.acard-kv{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--divider);
+  font-size:12px;color:var(--text-muted)}
+.acard-kv:first-of-type{margin-top:11px}
+.acard-kv b{color:var(--text);font-variant-numeric:tabular-nums}
+.acard-reason{width:100%;margin-top:11px;font:inherit;font-size:12px;padding:9px 10px;border-radius:9px;
+  border:1px solid var(--border);background:var(--inset);color:var(--text);resize:vertical;min-height:52px}
+.acard-acts{display:flex;gap:9px;margin-top:11px}
+.acard-acts button{flex:1;min-height:44px;border-radius:10px;font-size:12.5px;font-weight:800}
+.acard-acts .ok{background:var(--violet);color:#fff}
+.acard-acts .no{border:1px solid var(--pink);color:var(--pink)}
+.acard-acts button[disabled]{opacity:.42;cursor:not-allowed}
+.acard-done{margin-top:11px;padding:10px 12px;border-radius:10px;background:var(--ok-bg);color:var(--ok-text);
+  font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
+.acard-done.wait{background:var(--inset);color:var(--text-muted)}
+
+/* ═══ tablet / mobile — driven by the §4.5 slot table ═════════════════════ */
+.app[data-bp="tablet"]{--rail:66px;--chatw:304px}
+.app[data-bp="tablet"] .wordmark,.app[data-bp="tablet"] .v-badge,.app[data-bp="tablet"] .nav span:not(.ico),
+.app[data-bp="tablet"] .refer,.app[data-bp="tablet"] .ws-n,.app[data-bp="tablet"] .ws-s,
+.app[data-bp="tablet"] .sys-text,.app[data-bp="tablet"] .who span:not(.avatar),
+.app[data-bp="tablet"] .qcreate .lbl{display:none}
+.app[data-bp="tablet"] .rail-head{justify-content:center;padding:0}
+.app[data-bp="tablet"] .nav{justify-content:center;padding:0}
+.app[data-bp="tablet"] .ws{justify-content:center;padding:11px 0}
+.app[data-bp="tablet"] .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+.app[data-bp="tablet"] .grid2{grid-template-columns:1fr}
+.app[data-bp="mobile"]{--chatw:100%}
+.app[data-bp="mobile"] .rail{display:none}
+.app[data-bp="mobile"] .search,.app[data-bp="mobile"] .sys,
+.app[data-bp="mobile"] .who span:not(.avatar),.app[data-bp="mobile"] .qcreate .lbl{display:none}
+.app[data-bp="mobile"] .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+.app[data-bp="mobile"] .grid2{grid-template-columns:1fr}
+.app[data-bp="mobile"] .dock{left:12px;right:12px}
+.app[data-bp="mobile"] .canvas{padding:14px}
+.mobilemark{display:none;align-items:center;gap:8px;flex:1}
+.app[data-bp="mobile"] .mobilemark{display:flex}
+
+/* ═══ variants + credits ══════════════════════════════════════════════════ */
+.sec{margin-top:38px}
+.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;padding:0 2px;flex-wrap:wrap}
+.sec-h h2{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.sec-h p{font-size:12.5px;color:var(--text-subtle)}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:15px}
+.vgrid.three{grid-template-columns:repeat(auto-fit,minmax(268px,1fr))}
+.vcard{border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);
+  display:flex;flex-direction:column}
+.vcard.pick{border-color:var(--violet);box-shadow:0 0 0 2px var(--violet-soft)}
+.vcard-h{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--divider)}
+.vcard-h b{font-size:13px;font-weight:800}
+.pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:var(--r-pill);letter-spacing:.03em;
+  text-transform:uppercase;white-space:nowrap}
+.pill.rec{background:var(--violet);color:#fff}
+.pill.alt{background:var(--inset);color:var(--text-subtle)}
+.pill.no{background:var(--warn-bg);color:var(--warn-text)}
+/* the demo band SCROLLS rather than clipping — the previous pass cut off
+   Variant B's Reject button below 1280px, hiding the thing being compared */
+.vcard-demo{padding:20px 14px;background:var(--bg);overflow-x:auto;min-height:104px;
+  display:flex;align-items:center;border-bottom:1px solid var(--divider)}
+.vcard-demo .dock{position:static;display:flex;left:auto;right:auto;bottom:auto;
+  flex:0 0 auto;min-width:min-content;margin:0 auto}
+.vcard-demo.narrow .dock{width:366px}
+.vcard-f{padding:12px 14px;font-size:12.5px;color:var(--text-muted);line-height:1.55;margin-top:auto}
+.vcard-f b{color:var(--text)}
+.demolbl{font-size:11px;font-weight:800;color:var(--text-subtle);text-transform:uppercase;
+  letter-spacing:.06em;padding:0 14px 9px}
+
+/* ═══ notes — separate, collapsed, never auto-opened ══════════════════════ */
+.notes{margin-top:38px;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface)}
+.notes>summary{padding:15px 16px;font-size:13.5px;font-weight:800;cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:10px;min-height:52px}
+.notes>summary::-webkit-details-marker{display:none}
+.notes>summary::after{content:"▾";margin-left:auto;color:var(--text-subtle);font-size:11px}
+.notes[open]>summary{border-bottom:1px solid var(--divider)}
+.notes[open]>summary::after{content:"▴"}
+.notes .inner{padding:16px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);font-weight:800}
+td code,.mono{font-family:var(--mono);font-size:11.5px;background:var(--inset);padding:1px 5px;border-radius:4px}
+.tag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:var(--r-pill);
+  text-transform:uppercase;white-space:nowrap}
+.tag.has{background:var(--ok-bg);color:var(--ok-text)}
+.tag.missing{background:var(--warn-bg);color:var(--warn-text)}
+.scroll-x{overflow-x:auto}
+.trace{margin-top:13px;padding:12px 13px;border-radius:var(--r-tile);background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;color:var(--text-muted);white-space:pre-wrap;min-height:56px;
+  line-height:1.6}
+.hint{font-size:12.5px;color:var(--text-subtle);margin-top:11px;padding:0 2px;min-height:20px}
+</style>
+</head>
+<body>
+
+<div class="reviewbar">
+  <div>
+    <div class="t">FlowAgent dock — approval affordance</div>
+    <div class="sub">PORTAL-SHELL-SPEC §4 · design-only · v2</div>
+  </div>
+  <div class="grow"></div>
+
+  <div><span class="klbl">State</span>
+  <div class="seg" id="stateSeg">
+    <button aria-pressed="true"  data-s="normal">Normal</button>
+    <button aria-pressed="false" data-s="pending">Pending</button>
+    <button aria-pressed="false" data-s="panel">Panel</button>
+    <button aria-pressed="false" data-s="approving">Approving</button>
+    <button aria-pressed="false" data-s="problem">Problem</button>
+  </div></div>
+
+  <div><span class="klbl">§4.3 recorded outcome</span>
+  <select class="sel" id="authSel">
+    <option value="ok">canRespond · no full review</option>
+    <option value="full">requiresFullReview = true</option>
+    <option value="deny">canRespond = false</option>
+    <option value="nocost">no cost ceiling on the request</option>
+    <option value="expired">expired — now &gt; expiresAt</option>
+  </select></div>
+
+  <div><span class="klbl">Refusal</span>
+  <select class="sel" id="probSel">
+    <option value="approval_stale">approval_stale</option>
+    <option value="approval_expired">approval_expired</option>
+    <option value="approval_already_used">approval_already_used</option>
+    <option value="scope_mismatch">scope_mismatch</option>
+    <option value="cost_exceeds_approval">cost_exceeds_approval</option>
+    <option value="approval_rejected">approval_rejected</option>
+    <option value="offline">network — offline</option>
+  </select></div>
+
+  <div><span class="klbl">Width</span>
+  <div class="seg" id="bpSeg">
+    <button aria-pressed="false" data-w="390">Mobile</button>
+    <button aria-pressed="false" data-w="768">Tablet</button>
+    <button aria-pressed="false" data-w="1024">Desktop</button>
+    <button aria-pressed="true"  data-w="1440">Wide</button>
+  </div></div>
+
+  <div><span class="klbl">Theme</span>
+  <div class="seg" id="themeSeg">
+    <button aria-pressed="true"  data-t="light">Light</button>
+    <button aria-pressed="false" data-t="grey">Grey</button>
+    <button aria-pressed="false" data-t="dark">Dark</button>
+  </div></div>
+</div>
+
+<div class="page">
+
+  <div class="stagewrap">
+    <div class="frame" id="frame">
+      <div class="framecap">
+        <b id="capState">Normal — nothing waiting on you</b>
+        <span id="capBp"></span>
+      </div>
+
+      <div class="app" id="app" data-chat="collapsed" data-bp="wide">
+
+        <nav class="rail" aria-label="Main">
+          <div class="rail-head">
+            <span class="mark" aria-hidden="true">✦</span>
+            <span class="wordmark">FlowSmartly</span>
+            <span class="v-badge">V5</span>
+          </div>
+          <div class="rail-scroll">
+            <button class="nav" aria-current="page"><span class="ico" aria-hidden="true">⌂</span><span>Home</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">▤</span><span>Dashboard</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">☺</span><span>Customers</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">▥</span><span>Analytics</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">⚙</span><span>Automations</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">⊞</span><span>Apps</span></button>
+            <button class="nav"><span class="ico" aria-hidden="true">⚙</span><span>Settings</span></button>
+          </div>
+          <div class="refer">
+            <p class="refer-t">🎁 Refer &amp; earn</p>
+            <p class="refer-b">Invite a business you know and earn up to $245 in credits.</p>
+            <button class="refer-cta">Invite now</button>
+          </div>
+          <div class="ws">
+            <span class="ws-badge" aria-hidden="true">▣</span>
+            <span><span class="ws-n">FlowSmartly Store</span><br><span class="ws-s">Primary workspace</span></span>
+          </div>
+        </nav>
+
+        <div class="main">
+          <div class="topbar">
+            <span class="mobilemark"><span class="mark" aria-hidden="true">✦</span><b style="font-size:14px">Home</b></span>
+            <div class="search"><span aria-hidden="true">⌕</span> Search orders, customers, reports… <kbd>⌘K</kbd></div>
+            <button class="qcreate"><span aria-hidden="true">+</span><span class="lbl">Quick create</span></button>
+            <div class="sys">
+              <div class="sys-chip">
+                <span class="brand-dots" aria-hidden="true"><i style="background:#6c2cff"></i><i style="background:#0a63d6"></i><i style="background:#ad5100"></i></span>
+                <span class="sys-text"><span class="sys-k">Brand</span><span class="sys-v">Bright Smile</span></span>
+              </div>
+              <div class="sys-chip" id="creditChip">
+                <span class="sys-text"><span class="sys-k">Credits</span><span class="sys-v">1,284</span>
+                <span class="cred-meter" aria-hidden="true"><i style="width:32%"></i></span></span>
+                <span class="plan-tag">Pro</span>
+              </div>
+            </div>
+            <button class="icon-btn" aria-label="Notifications">◔</button>
+            <div class="who">
+              <span class="avatar" aria-hidden="true">JY</span>
+              <span><span class="who-n">Jean-Yves</span><br><span class="who-r">Owner</span></span>
+            </div>
+          </div>
+
+          <div class="bodyrow">
+            <div class="canvas">
+              <div class="h-row">
+                <h2>Good afternoon, Jean-Yves</h2>
+                <p>Tuesday, 14 August</p>
+              </div>
+              <div class="kpis">
+                <div class="kpi"><div class="kpi-top"><span class="kpi-k">Revenue today</span><span class="kpi-ico" aria-hidden="true">$</span></div>
+                  <div class="kpi-v">$4,182</div><div class="kpi-d">▲ 12.4%</div></div>
+                <div class="kpi"><div class="kpi-top"><span class="kpi-k">Orders</span><span class="kpi-ico" aria-hidden="true">▦</span></div>
+                  <div class="kpi-v">63</div><div class="kpi-d">▲ 8 vs yesterday</div></div>
+                <div class="kpi"><div class="kpi-top"><span class="kpi-k">New customers</span><span class="kpi-ico" aria-hidden="true">☺</span></div>
+                  <div class="kpi-v">17</div><div class="kpi-d">▲ 4</div></div>
+                <div class="kpi"><div class="kpi-top"><span class="kpi-k">Conversion</span><span class="kpi-ico" aria-hidden="true">◈</span></div>
+                  <div class="kpi-v">3.1%</div><div class="kpi-d">▲ 0.4pt</div></div>
+              </div>
+              <div class="grid2">
+                <div class="card">
+                  <div class="card-head"><h3>Waiting on you</h3><span class="card-link">See all</span></div>
+                  <div class="appr"><span class="appr-ico" aria-hidden="true">!</span>
+                    <span class="appr-body"><p class="appr-t">Spring Sale email — 2,140 people</p>
+                    <p class="appr-b">9 cr · expires in 11m</p></span>
+                    <button class="appr-btn">Review</button></div>
+                  <div class="appr"><span class="appr-ico" aria-hidden="true">!</span>
+                    <span class="appr-body"><p class="appr-t">New product: Flow T-Shirt</p>
+                    <p class="appr-b">3 cr · expires in 2h</p></span>
+                    <button class="appr-btn">Review</button></div>
+                  <div class="appr"><span class="appr-ico" aria-hidden="true">!</span>
+                    <span class="appr-body"><p class="appr-t">Influencer partnership — May</p>
+                    <p class="appr-b">$600 committed · expires in 1d</p></span>
+                    <button class="appr-btn">Review</button></div>
+                </div>
+                <div class="card">
+                  <div class="card-head"><h3>FlowAgent is working on</h3><span class="card-link">Activity</span></div>
+                  <div class="appr"><span class="appr-ico" style="background:var(--violet-soft);color:var(--violet)" aria-hidden="true">⟳</span>
+                    <span class="appr-body"><p class="appr-t">Rebuilding the win-back segment</p>
+                    <p class="appr-b">Step 3 of 5 · running</p></span></div>
+                  <div class="appr"><span class="appr-ico" style="background:var(--ok-bg);color:var(--ok-text)" aria-hidden="true">✓</span>
+                    <span class="appr-body"><p class="appr-t">August performance report</p>
+                    <p class="appr-b">Finished 20 minutes ago</p></span></div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="chat">
+              <div class="chat-bar">
+                <b>FlowAgent</b>
+                <div class="tabs"><button aria-pressed="true">Chat</button><button aria-pressed="false">History</button></div>
+                <button class="icon-btn" id="collapseBtn" aria-label="Collapse to the dock">▾</button>
+              </div>
+              <div class="chat-scroll" id="thread"></div>
+              <div class="composer">
+                <div class="f">Ask FlowAgent anything…<span style="margin-left:auto" aria-hidden="true">🎙</span></div>
+                <p class="cnote">FlowAgent can make mistakes.</p>
+              </div>
+            </aside>
+
+            <div class="dock" id="dock"></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </div>
+
+  <!-- ═══ variants ═══════════════════════════════════════════════════════ -->
+  <div class="sec">
+    <div class="sec-h">
+      <h2>Where Reject belongs</h2>
+      <p>§4.3 and the C-1 wording disagree. Both drawn at 390 — the width that decides it.</p>
+    </div>
+    <div class="vgrid">
+      <div class="vcard pick">
+        <div class="vcard-h"><b>A · Approve in the dock, Reject in the panel</b>
+          <span class="pill rec">Recommended</span></div>
+        <p class="demolbl" style="padding-top:12px">Mobile · 390</p>
+        <div class="vcard-demo narrow" id="vA"></div>
+        <div class="vcard-f">
+          §4.3 as authored. <b>A refusal always carries a reason</b>, because the panel captures one.
+          Fits 390 with the label truncating and cost/expiry intact.
+        </div>
+      </div>
+      <div class="vcard">
+        <div class="vcard-h"><b>B · Approve and Reject both in the dock</b>
+          <span class="pill alt">C-1 wording</span></div>
+        <p class="demolbl" style="padding-top:12px">Mobile · 390 — scroll the band to see what overflows</p>
+        <div class="vcard-demo narrow" id="vB"></div>
+        <div class="vcard-f">
+          One tap to refuse, <b>but no reason is recorded</b> — and the row now overflows 390. The only
+          slots left to drop are cost and expiry, which §4.5 says never drop.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ credits ════════════════════════════════════════════════════════ -->
+  <div class="sec">
+    <div class="sec-h">
+      <h2>Credits treatment</h2>
+      <p>C-10 — the settled note and the top bar say opposite things.</p>
+    </div>
+    <div class="vgrid three">
+      <div class="vcard">
+        <div class="vcard-h"><b>1 · Meter + plan tag</b><span class="pill no">As drawn</span></div>
+        <div class="vcard-demo" style="justify-content:center">
+          <div class="sys-chip"><span class="sys-text"><span class="sys-k">Credits</span>
+            <span class="sys-v">1,284</span><span class="cred-meter"><i style="width:32%"></i></span></span>
+            <span class="plan-tag">Pro</span></div>
+        </div>
+        <div class="vcard-f">A 32% fill asserts a denominator — a plan allowance. <b>Nothing in V5 owns
+          that number</b>, so the client computed it. That is FE15a.</div>
+      </div>
+      <div class="vcard pick">
+        <div class="vcard-h"><b>2 · Cost on the item</b><span class="pill rec">Recommended</span></div>
+        <div class="vcard-demo" style="justify-content:center">
+          <span class="dk-facts" style="border-left:0;padding-left:0"><b>9 cr</b><span>·</span><span>11m</span></span>
+        </div>
+        <div class="vcard-f">The settled note, kept. Cost sits beside the button that spends it, and needs
+          no field beyond the <b>cost ceiling C-2 already requests</b>.</div>
+      </div>
+      <div class="vcard">
+        <div class="vcard-h"><b>3 · Balance, no meter</b><span class="pill alt">Later</span></div>
+        <div class="vcard-demo" style="justify-content:center">
+          <div class="sys-chip"><span class="sys-text"><span class="sys-k">Credits</span>
+            <span class="sys-v">1,284</span></span></div>
+        </div>
+        <div class="vcard-f">Not a rule violation — a recorded balance is a backend fact, like
+          <code>expiresAt</code>. It is a <b>contract gap</b>: available once C62 item 8 lands.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ notes ══════════════════════════════════════════════════════════ -->
+  <details class="notes" id="notes">
+    <summary>Backend contract notes — what the read model cannot supply
+      <span class="tag missing" style="margin-left:6px">C-2</span></summary>
+    <div class="inner">
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Slot</th><th>Source in §4.2</th><th>In <code>PendingWait</code>?</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td><b>title / what</b></td><td><code>reason</code> + capability label</td>
+              <td><span class="tag missing">partial</span></td>
+              <td>No title and no preview exist. Inferring one from <code>reason</code> is ADR 0005 reinterpretation.</td></tr>
+          <tr><td><b>cost</b></td><td><code>estimatedCredits</code>/<code>maxCredits</code></td>
+              <td><span class="tag missing">missing</span></td>
+              <td>Exists only as <code>ledger.approval.maxCredits</code>, written <i>after</i> a decision.</td></tr>
+          <tr><td><b>expiry</b></td><td><code>expiresAt</code></td><td><span class="tag has">exists</span></td>
+              <td>Relative in the row, absolute in the accessible name.</td></tr>
+          <tr><td><b>position</b></td><td><code>awaiting</code> index</td><td><span class="tag has">exists</span></td>
+              <td><code>1/3</code> in the projection's order. Never re-sorted.</td></tr>
+          <tr><td><b>actions</b></td><td><code>canRespond</code> · <code>requiresFullReview</code></td>
+              <td><span class="tag missing">missing</span></td>
+              <td>Must be recorded backend outcomes. FE15a: the client computes neither.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="trace" id="trace">Press Approve in the Pending state to trace §4.3.</div>
+    </div>
+  </details>
+
+</div>
+
+<script>
+const F={label:'Send the Spring Sale email to 2,140 people',cost:'9 cr',costLong:'nine credits',
+  exp:'11m',expLong:'11 minutes',expAbs:'14 August at 16:42',queue:3,waitId:'wait_9f2c41',
+  capability:'marketing.email.send'};
+const $=s=>document.querySelector(s);
+let W=1440, S='normal', settled=false, reasonText='';
+
+const bpOf=w=>w<768?'mobile':w<1024?'tablet':w<1440?'desktop':'wide';
+function el(t,c,txt){const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
+
+const PROB={
+  approval_stale:'What would happen now differs from what was approved',
+  approval_expired:'This approval expired before it was submitted',
+  approval_already_used:'This approval has already been used',
+  scope_mismatch:'This is outside what you may approve',
+  cost_exceeds_approval:'This now costs more than the approved ceiling',
+  approval_rejected:'This approval was rejected',
+  offline:'You are offline — this was not sent',
+};
+
+/* ── the dock ───────────────────────────────────────────────────────────── */
+function dock(o){
+  const bp=o.bp||bpOf(W), mobile=bp==='mobile', tablet=bp==='tablet';
+  const auth=o.auth||'ok';
+  const d=el('div','dock'); d.style.display='flex';
+  if(o.inline){d.style.position='static';d.style.left='auto';d.style.right='auto';d.style.bottom='auto';}
+
+  const g=el('span','dock-glyph'); g.textContent='✦'; g.setAttribute('aria-hidden','true');
+  // §4.5: at mobile the identity becomes a badge on the glyph — in BOTH compositions
+  if(mobile){
+    const n = o.mode==='decide' ? F.queue : 2;
+    g.appendChild(el('span','cbadge',String(n)));
+  }
+  d.appendChild(g);
+
+  // §4.5: wide/desktop = name + count; tablet = count only; mobile = badge
+  if(!mobile){
+    const id=el('span','dock-id');
+    if(!tablet){
+      id.appendChild(el('span','dock-n','FlowAgent'));
+      id.appendChild(document.createElement('br'));
+    }
+    id.appendChild(el('span','dock-s',
+      o.mode==='decide' ? `${F.queue} things waiting` : '2 things running'));
+    d.appendChild(id);
+  }
+  d.appendChild(el('span','live-dot'));
+
+  if(o.mode!=='decide'){
+    d.appendChild(el('span','dock-field','Ask FlowAgent anything…'));
+    if(!mobile){const m=el('button','dock-mic','🎙');m.setAttribute('aria-label','Speak to FlowAgent');d.appendChild(m);}
+    const s=el('button','dock-send','→');s.setAttribute('aria-label','Send to FlowAgent');d.appendChild(s);
+    const op=el('button','dock-open');
+    op.innerHTML=(mobile||tablet)?'▴':'▴ <span>Open</span>';
+    op.setAttribute('aria-label','Open the FlowAgent panel');
+    if(!o.inert) op.onclick=()=>setState('panel');
+    d.appendChild(op);
+    return d;
+  }
+
+  /* decide */
+  const ap=el('div','dk-appr');
+  const what=el('div','dk-what');
+  if(o.phase==='problem'){
+    what.className='dk-what problemline'+(o.problem==='approval_stale'?' neutral':'');
+    what.textContent=PROB[o.problem];
+  } else what.textContent=F.label;
+  ap.appendChild(what);
+
+  if(auth==='nocost'){
+    // architect's slot spec: summary | expiry | position | Review.
+    // Cost is absent, expiry is NOT — and Approve does not render at all.
+    const f=el('span','dk-facts'); f.appendChild(el('span',null,F.exp));
+    ap.appendChild(f);
+    ap.appendChild(el('span','dk-nocost','Open to see what this costs'));
+  } else if(auth==='expired'){
+    const f=el('span','dk-facts expired'); f.appendChild(el('b',null,'Expired'));
+    ap.appendChild(f);
+  } else {
+    const f=el('span','dk-facts');
+    f.appendChild(el('b',null,F.cost));
+    f.appendChild(el('span',null,'·'));
+    f.appendChild(el('span',null,F.exp));
+    ap.appendChild(f);
+  }
+  d.appendChild(ap);
+
+  const review=el('button','dk-btn'+(mobile?' dk-icon':''));
+  review.textContent=mobile?'⌕':'Review';
+  review.setAttribute('aria-label',
+    `Review ${F.label}, ${auth==='nocost'?'cost unknown':F.costLong}, expires ${F.expAbs}, 1 of ${F.queue}`);
+  if(auth==='deny') review.title='You cannot approve this';
+  if(!o.inert) review.onclick=()=>setState('panel');
+
+  const approve=el('button','dk-btn primary');
+  const showApprove = auth!=='deny' && auth!=='full' && auth!=='nocost';
+
+  if(o.phase==='approving'){
+    approve.appendChild(el('span','spin'));
+    approve.appendChild(el('span',null,'Approving'));
+    approve.disabled=true; review.disabled=true;
+  } else {
+    approve.textContent='Approve';
+    if(auth==='nocost'||auth==='expired') approve.disabled=true;
+    else if(!o.inert) approve.onclick=()=>runApprove();
+  }
+
+  d.appendChild(review);
+  if(o.rejectInDock && showApprove){
+    const r=el('button','dk-btn reject','Reject');
+    if(!o.inert) r.onclick=()=>{setState('panel');};
+    d.appendChild(r);
+  }
+  if(showApprove) d.appendChild(approve);
+  else if(auth!=='nocost') d.appendChild(el('span','dk-note',
+    auth==='deny' ? 'You cannot approve this' : 'Needs a full review'));
+
+  // §4.1: position is the last slot; §4.5 drops it at mobile into the a11y name
+  if(!mobile) d.appendChild(el('span','dk-pos',`1/${F.queue}`));
+  return d;
+}
+
+/* ── the panel thread ───────────────────────────────────────────────────── */
+function thread(withCard){
+  const t=$('#thread'); t.replaceChildren();
+  const add=(who,txt)=>{
+    const m=el('div','msg'+(who==='me'?' mine':''));
+    m.appendChild(el('span','msg-av '+(who==='me'?'me':'ai'), who==='me'?'JY':'✦'));
+    m.appendChild(el('div','bubble '+(who==='me'?'me':'ai'),txt));
+    t.appendChild(m);
+  };
+  add('me','Put together the spring sale push for the engaged list.');
+  add('ai','I drafted the campaign and built the segment — 2,140 people who opened something in the last 90 days. Sending needs your approval.');
+  if(!withCard) return;
+
+  const auth=$('#authSel').value;
+  const c=el('div','acard');
+  const h=el('div','acard-h');
+  h.appendChild(el('b',null,'Waiting on you'));
+  h.appendChild(el('span','exp', auth==='expired'?'Expired':`${F.exp} left`));
+  c.appendChild(h);
+  const b=el('div','acard-b');
+  b.appendChild(el('div','acard-t',F.label));
+  b.appendChild(el('div','acard-p','Subject “Spring Sale — 20% off everything”, to the Engaged last 90 days segment.'));
+  const kv=(k,v)=>{const r=el('div','acard-kv');r.appendChild(el('span',null,k));r.appendChild(el('b',null,v));b.appendChild(r);};
+  kv('Cost ceiling', auth==='nocost' ? 'Not stated' : '9 credits');
+  kv('Expires', auth==='expired' ? 'Expired' : 'in 11 minutes');
+  kv('Capability', F.capability);
+
+  if(S==='approving'){
+    const dn=el('div','acard-done wait');
+    dn.appendChild(el('span','spin'));
+    dn.appendChild(el('span',null,'Approving — waiting for the projection to agree'));
+    b.appendChild(dn);
+  } else if(settled){
+    b.appendChild(el('div','acard-done','✓ Approved · the projection no longer lists this wait'));
+  } else {
+    const ta=el('textarea','acard-reason');
+    ta.placeholder='Reason — kept with the decision';
+    ta.value=reasonText;
+    ta.oninput=e=>{reasonText=e.target.value;};
+    b.appendChild(ta);
+    const acts=el('div','acard-acts');
+    const ok=el('button','ok','Approve');
+    if(auth==='deny'||auth==='nocost'||auth==='expired') ok.disabled=true;
+    else ok.onclick=()=>runApprove();
+    const no=el('button','no','Reject');
+    if(auth==='deny') no.disabled=true;
+    else no.onclick=()=>{
+      trace(`reject submitted with a reason of ${reasonText.length} characters.\n\n`+
+        `This is why Reject lives here and not on the strip: the refusal carries why.\n`+
+        `The row stays until the projection stops listing ${F.waitId}.`);
+      S='approving'; paint();
+    };
+    acts.appendChild(ok); acts.appendChild(no); b.appendChild(acts);
+  }
+  c.appendChild(b);
+
+  const m=el('div','msg');
+  m.appendChild(el('span','msg-av ai','✦'));
+  const w=el('div'); w.style.maxWidth='96%'; w.appendChild(c); m.appendChild(w);
+  t.appendChild(m);
+  t.scrollTop=t.scrollHeight;
+}
+
+/* ── flow ───────────────────────────────────────────────────────────────── */
+let approveTimer=null;
+function runApprove(){
+  settled=false;
+  S='approving';
+  [...$('#stateSeg').children].forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s==='approving')));
+  paint();
+  trace(`live region → "Approving ${F.label}"\nboth controls disabled; the row enters submitting.`);
+  clearTimeout(approveTimer);
+  approveTimer=setTimeout(()=>{
+    if(S!=='approving') return;
+    trace(`2xx accepted — and the row is STILL HERE.\n\n`+
+      `ADR 0005: an empty list is an assertion only the projection may make. The dock waits for a `+
+      `refreshed ConversationView that no longer lists ${F.waitId}.\n\n`+
+      `→ press "Projection settles" under the frame to deliver it.`);
+    showSettleButton();
+  },1000);
+}
+function showSettleButton(){
+  const h=$('#hint'); h.replaceChildren();
+  h.appendChild(document.createTextNode('Server said yes. The projection has not agreed yet — '));
+  const b=el('button','dk-btn',' Projection settles ');
+  b.style.cssText='min-height:34px;padding:0 12px;font-size:12px;display:inline-flex;vertical-align:middle';
+  b.onclick=()=>{
+    settled=true; S=($('#authSel').value==='ok')?'normal':'normal';
+    [...$('#stateSeg').children].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s==='normal')));
+    trace(`refreshed ConversationView no longer lists ${F.waitId}.\n\n`+
+      `Only NOW does the row leave and the ask composition return.\n`+
+      `That gap is the whole of "no optimistic removal".`);
+    paint();
+  };
+  h.appendChild(b);
+}
+function trace(t){ $('#trace').textContent=t; }   /* never force-opens the notes */
+
+const CAP={
+  normal:'Normal — nothing waiting on you',
+  pending:'Pending approval — the decide composition takes the row',
+  panel:'Open panel — the ApprovalCard, where a reason is captured',
+  approving:'Approving — submitted, waiting for the projection to agree',
+  problem:'Problem — the refusal rendered from Problem.title',
+};
+
+function setState(s){
+  S=s; settled=false;
+  [...$('#stateSeg').children].forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===s)));
+  paint();
+}
+
+function paint(){
+  const bp=bpOf(W), app=$('#app');
+  app.dataset.bp=bp;
+  const want=W, got=Math.min(W,window.innerWidth-56);
+  $('#frame').style.width=got+'px';
+  $('#capBp').innerHTML = got<want
+    ? `${want} × 772 · ${bp} <span class="clamped">— window too narrow, showing ${got}px</span>`
+    : `${want} × 772 · ${bp}`;
+  $('#capState').textContent=CAP[S];
+
+  const panelOpen = S==='panel' || (S==='approving' && lastWasPanel);
+  app.dataset.chat = panelOpen ? 'sidebar' : 'collapsed';
+  thread(panelOpen);
+
+  const auth=$('#authSel').value;
+  let mode='ask', ph='idle', problem=null;
+  if(S==='pending'){mode='decide';}
+  if(S==='approving'){mode='decide'; ph='approving';}
+  if(S==='problem'){mode='decide'; ph='problem'; problem=$('#probSel').value;}
+
+  if(panelOpen) $('#dock').replaceChildren();
+  else {
+    const d=dock({mode,phase:ph,problem,bp,auth});
+    $('#dock').replaceChildren(...d.childNodes);
+  }
+
+  /* variants — inert, and both drawn at the width that decides it */
+  $('#vA').replaceChildren(dock({mode:'decide',phase:'idle',bp:'mobile',inline:true,inert:true,
+    rejectInDock:false,auth:'ok'}));
+  $('#vB').replaceChildren(dock({mode:'decide',phase:'idle',bp:'mobile',inline:true,inert:true,
+    rejectInDock:true,auth:'ok'}));
+
+  if(S!=='approving'||!approveTimer){
+    const hints={
+      normal:settled?'The wait is gone because the projection stopped listing it — not because the click succeeded.'
+        :'The status line is a count — “2 things running”. Never “2 pending”: pending is not a StepState.',
+      pending:{ok:'Press Approve to walk §4.3. The composition changed because of data, not a mode.',
+        full:'Policy says this needs a full review — the strip offers Review only.',
+        deny:'Authority says you cannot respond — Review only, and it says so on focus.',
+        nocost:'§4.4 — no usable cost ceiling: summary · expiry · position · Review. Approve does not render at all. This is the state PF2 would ship today.',
+        expired:'§4.4 — expired renders and disables Approve. It never silently drops the row.'}[auth],
+      panel:'Reject lives here because this is where a reason can be recorded. Type one and press Reject.',
+      approving:'The row stays until the projection stops listing the waitId.',
+      problem:'Rendered from Problem.title. approval_stale is neutral, not red — the system caught a change.',
+    };
+    $('#hint').textContent=hints[S]||'';
+  }
+}
+let lastWasPanel=false;
+
+$('#stateSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  lastWasPanel=(b.dataset.s==='panel');setState(b.dataset.s);};
+$('#bpSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  W=+b.dataset.w;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));paint();};
+$('#themeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  document.documentElement.dataset.theme=b.dataset.t;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};
+$('#authSel').onchange=()=>{settled=false;paint();};
+$('#probSel').onchange=()=>{if(S!=='problem')setState('problem');else paint();};
+$('#collapseBtn').onclick=()=>{lastWasPanel=false;setState('pending');};
+
+/* resize must not rebuild the thread — it would wipe a typed reason */
+let rt=null;
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(paint,120);});
+paint();
+</script>
+</body>
+</html>

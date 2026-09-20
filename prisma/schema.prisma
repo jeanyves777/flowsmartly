@@ -1272,8 +1272,15 @@ model BrandKit {
   iconLogo    String? // Icon logo URL (square, used for social avatars & feeds)
 
   // Contact Information
+  //
+  // `ownerFirstName` / `ownerLastName` are the *person* who owns the business,
+  // not the business. Domain registrars verify the registrant's identity from
+  // these, and the previous code split the business name into two — filing
+  // "Acme Plumbing" as a human called Acme Plumbing.
+  ownerFirstName String? // Owner's first name (domain registrant identity)
+  ownerLastName  String? // Owner's last name (domain registrant identity)
   email   String? // Business email
-  phone   String? // Business phone number
+  phone   String? // Business phone number, in full international format (+CC…)
   website String? // Website URL
   address String? // Street address
   city    String? // City
@@ -4495,6 +4502,15 @@ model StoreDomain {
 
   // OpenSRS
   registrarOrderId                   String? // OpenSRS order ID
+  /**
+   * The Stripe PaymentIntent that paid for this domain.
+   *
+   * Durable, not a log line. When a payment succeeds and the registration does
+   * not, the two facts have to stay tied together or nobody can decide between
+   * a refund and a recovery later — and "check the server logs" is not an
+   * accounting link.
+   */
+  purchasePaymentIntentId            String?
   registrarStatus                    String    @default("pending") // pending, active, expired, transferred
   registrarVerificationStatus        String? // OpenSRS registrant email verification status
   registrarVerificationDeadline      DateTime?
@@ -4539,6 +4555,7 @@ model StoreDomain {
   @@index([storeId])
   @@index([userId])
   @@index([domainName])
+  @@index([purchasePaymentIntentId])
 }
 
 // ── Product Feeds (Google Shopping, Facebook Catalog, TikTok) ────────────────

@@ -5,6 +5,7 @@
 
 import { GoogleAdsApi, enums, ResourceNames } from "google-ads-api";
 import { prisma } from "@/lib/db/client";
+import { assertAdMutationsAllowed } from "./legacy-shutdown";
 
 // --- Configuration check ---
 
@@ -99,6 +100,7 @@ export interface GoogleAdsCampaignStats {
 export async function createGoogleAdsCampaign(
   input: GoogleAdsCampaignInput
 ): Promise<GoogleAdsCampaignResult> {
+  assertAdMutationsAllowed("create Google Ads campaign");
   const customer = await getCustomer();
   const customerId = process.env.GOOGLE_ADS_CUSTOMER_ID!.replace(/-/g, "");
 

@@ -3,6 +3,8 @@
  * Handles campaign creation, pausing, and stats retrieval on Meta Ads.
  */
 
+import { assertAdMutationsAllowed } from "./legacy-shutdown";
+
 const META_GRAPH_BASE = "https://graph.facebook.com/v21.0";
 
 // --- Configuration check ---
@@ -125,6 +127,7 @@ export interface MetaAdsCampaignStats {
 export async function createMetaAdsCampaign(
   input: MetaAdsCampaignInput
 ): Promise<MetaAdsCampaignResult> {
+  assertAdMutationsAllowed("create Meta Ads campaign");
   const accountId = getAccountId();
 
   // 1. Create campaign

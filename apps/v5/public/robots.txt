@@ -1,0 +1,65 @@
+# FlowSmartly — https://flowsmartly.com
+# Full policy for AI agents: /ai.txt   Site summary for LLMs: /llms.txt
+
+# ---------------------------------------------------------------
+# Conventional search crawlers
+# ---------------------------------------------------------------
+User-agent: *
+Allow: /
+Disallow: /+not-found
+
+# ---------------------------------------------------------------
+# Answer engines and AI assistants — explicitly ALLOWED.
+# These send real visitors and cite sources, and being findable in an
+# assistant's answer is the outcome this product exists to deliver.
+# ---------------------------------------------------------------
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# ---------------------------------------------------------------
+# Bulk training scrapers that neither cite nor refer traffic.
+# Not a judgement on AI — a judgement on attribution.
+# ---------------------------------------------------------------
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Omgilibot
+Disallow: /
+
+Sitemap: https://flowsmartly.com/sitemap.xml

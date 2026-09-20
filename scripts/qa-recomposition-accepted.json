@@ -1,0 +1,160 @@
+{
+  "_why": [
+    "A copy-beside-a-visual split legitimately becomes one column on a phone - the",
+    "architect's own instruction names 'horizontal media/copy composition' as one of",
+    "the three valid answers. So the audit's height heuristic will flag well-composed",
+    "sections forever, and a gate that can never go green is not a gate: it gets",
+    "skimmed, then ignored, then deleted.",
+    "",
+    "This is the register of sections that have been LOOKED AT and accepted, each",
+    "with the reason and the height it was accepted at. It is a ratchet, not an",
+    "exemption: if an accepted section grows past its recorded height by more than",
+    "the tolerance, it fails again. Nothing here is hidden - the audit prints every",
+    "accepted section and its reason on each run.",
+    "",
+    "To accept a new one you have to write down why, which is the point."
+  ],
+  "tolerancePx": 60,
+  "accepted": [
+    {
+      "route": "/",
+      "match": "THE AGENTIC BUSINESS OPERATING SYSTEM",
+      "acceptedAtPx": 843,
+      "category": "horizontal media/copy composition",
+      "reason": "The ORIGINAL photographic hero, restored on the architect's instruction: 'the design was already perfect'. It had briefly been rebuilt as a bounded-image card at 992px - that was my over-reach, not a request. Its readability is fixed at the COLOUR layer instead, and proven rather than eyeballed: the veil floors were raised per theme and every text node over the photograph is now scored against a guaranteed bound (the measured scrim composited over both a black and a white frame, worse of the two). Zero contrast findings at 390 / 768 / 1440. Now 843px: the phone variant carries one paragraph instead of two, no orphan line, and an adaptive display that sets the headline in 4 balanced lines at 360, 390 and 430 rather than six ragged ones."
+    },
+    {
+      "route": "/",
+      "match": "FLOWAGENT",
+      "acceptedAtPx": 826,
+      "category": "card grid",
+      "reason": "Was 1431. The eight-step vertical rail became a numbered two-up grid; the ordinal carries the sequence the rail used to."
+    },
+    {
+      "route": "/",
+      "match": "FLOWSHOP",
+      "acceptedAtPx": 1007,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 1293. Body clamped, storefront mock reduced to one row of two products, reserved second name line removed."
+    },
+    {
+      "route": "/",
+      "match": "UNIFIED CUSTOMER INTELLIGENCE",
+      "acceptedAtPx": 1294,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 1460. Three signal cards became one card of three 44px rows, profile photo 124 to 76, meta 5 rows to 3, reason blocks became a wrapping chip row."
+    },
+    {
+      "route": "/",
+      "match": "FLOWSMARTLY CALL AGENT",
+      "acceptedAtPx": 1379,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 1877. Now three children on phone against two at desktop - pitch, console, then the supporting evidence as its caption - so the console starts at ~377px instead of ~614px. The remaining height is a live call, four outcomes, five modes, four numbers and three replacements: the next cut deletes evidence, not layout."
+    },
+    {
+      "route": "/",
+      "match": "LISTSMARTLY",
+      "acceptedAtPx": 916,
+      "category": "horizontal media/copy composition",
+      "reason": "Already pulls all three levers: written copy, a bounded 3:2 framed screenshot that is never full-bleed, and four supporting claims as a two-up grid. It grew from 834 because the image was correctly restored after being wrongly deleted."
+    },
+    {
+      "route": "/product",
+      "match": "THE AGENTIC BUSINESS OPERATING SYSTEM",
+      "acceptedAtPx": 983,
+      "category": "horizontal media/copy composition",
+      "reason": "Aligned to the home hero: the eight capability names are now opaque plates inside one bounded hub card rather than a loose chip strip under it."
+    },
+    {
+      "route": "/flowagent",
+      "match": "FLOWAGENT",
+      "acceptedAtPx": 1109,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 1465. Nine-verb paragraph clamped from 8 lines to 4, and the queue card lost six unpressable mock Review controls that were also squeezing every row title into two lines."
+    },
+    {
+      "route": "/platform/ads",
+      "match": "ADS WITH CONNECTED INTELLIGENCE",
+      "acceptedAtPx": 1764,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 2158. Three children on phone now: 470px of figures and quote moved out from between the CTA and the product to after the console. Dropped the unpressable Approve pill, builder fields 4 to 3, projections became one-line rows."
+    },
+    {
+      "route": "/platform/social",
+      "match": "ONE SOCIAL WORKSPACE",
+      "acceptedAtPx": 1225,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 1576. Calendar 7 days to 4, channel previews 6 to 4, and the scheduled/drafts chip folded into the line above - that chip was flexShrink:0 at ~200px and had been ellipsizing 'Content calendar' on every phone."
+    },
+    {
+      "route": "/platform/social",
+      "match": "02WRITTEN FOR WHERE IT LANDS",
+      "acceptedAtPx": 610,
+      "category": "card grid",
+      "reason": "Was 701. The repeated per-row Optimized tag became one group label and the four facts went two-across."
+    },
+    {
+      "route": "/platform/social",
+      "match": "07APPROVALS AND SAFETY",
+      "acceptedAtPx": 662,
+      "category": "card grid",
+      "reason": "Was 900. Phone columns 1 to 2; tablet and up were already 2."
+    },
+    {
+      "route": "/solutions/custom-automation",
+      "match": "BUILT AROUND YOUR BUSINESS",
+      "acceptedAtPx": 974,
+      "category": "horizontal media/copy composition",
+      "reason": "Body clamped 6 lines to 4. The residual is an h1 that legitimately runs four lines at display size, one paragraph, two CTAs and one bounded card. The remaining lever is custom-automation-panel.tsx, a shared component - tracked separately, not silently absorbed here."
+    },
+    {
+      "route": "/solutions/flowshop",
+      "match": "AI-READY COMMERCE",
+      "acceptedAtPx": 1826,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 2141, and the weakest result at -14%. Category strip 4 to 2, dashboard stats took the compact one-line form, migration card moved below the mock. This hero carries a storefront mock AND a dashboard AND a readiness score AND the migration answer; ~1826 is the floor without deleting content."
+    },
+    {
+      "route": "/solutions/flowshop",
+      "match": "01AI STORE BUILDER",
+      "acceptedAtPx": 708,
+      "category": "card grid",
+      "reason": "Was 744. Four comparable claims went two-across. The editable card below stays a single column: a two-column version buys 33px and costs an orphan cell and the icons."
+    },
+    {
+      "route": "/resources/templates",
+      "match": "TEMPLATES",
+      "acceptedAtPx": 632,
+      "category": "horizontal media/copy composition",
+      "reason": "Was 692. Phone banner 220 to 160 (a 2.3:1 band rather than a 1.6:1 block). CTA pair lands at ~415px."
+    },
+    {
+      "route": "/company/about",
+      "match": "ABOUT FLOWSMARTLY",
+      "acceptedAtPx": 971,
+      "category": "card grid",
+      "reason": "Not a collapsed row: its right half is ALREADY a 2x2 grid of four comparable capabilities at every width, which is the correct answer for comparable items. The lede renders 5 lines at 1440 and 7 at 390, so only ~56px is a narrow-column penalty, and clamping would cut the closing clause the paragraph exists to reach."
+    },
+    {
+      "route": "/education/ai-fluency",
+      "match": "AI FLUENCY",
+      "acceptedAtPx": 678,
+      "category": "single column, sequential",
+      "reason": "Already recomposes per breakpoint: JourneyDiagram switches from a rising four-across row to a vertical icon-left rail with re-measured connector geometry. 678px is 0.80 of a 390x844 viewport - the whole hero is on one screen."
+    },
+    {
+      "route": "/education/ai-fluency",
+      "match": "Governance resources you can use today",
+      "acceptedAtPx": 944,
+      "category": "card grid",
+      "reason": "Was 1101. A four-row link list cannot fit a 163px cell, so the pair goes one-up. The fat was inside AssistantMock: dropped a generic draft bubble and a fake composer row - a 44px pill that looks like a text field but is pointerEvents:none is a dead control on a touch device."
+    },
+    {
+      "route": "/early-access",
+      "match": "Early access",
+      "acceptedAtPx": 1617,
+      "category": "horizontal media/copy composition",
+      "reason": "The defect here was ORDER, not height, and height is deliberately unchanged. The form moved from 853px to 306px with both required fields inside the first 589px of an 844px viewport; the argument and the promises now follow it. Same nodes, nothing dropped or truncated, and no heading-level skip at either breakpoint."
+    }
+  ]
+}

@@ -46,6 +46,10 @@ const brandKitSchema = z.object({
   }).optional().or(z.null()),
   products: z.array(z.string()).optional().or(z.null()),
   uniqueValue: optionalString(500),
+  // The person who owns the business, kept apart from the business name.
+  // Domain registrars verify the registrant's identity from these.
+  ownerFirstName: optionalString(100),
+  ownerLastName: optionalString(100),
   email: optionalString(200),
   phone: optionalString(50),
   website: optionalString(300),
@@ -174,6 +178,8 @@ export async function POST(request: NextRequest) {
       handles: JSON.stringify(data.handles || {}),
       products: JSON.stringify(data.products || []),
       uniqueValue: data.uniqueValue || null,
+      ownerFirstName: data.ownerFirstName || null,
+      ownerLastName: data.ownerLastName || null,
       email: data.email || null,
       phone: data.phone || null,
       website: data.website || null,

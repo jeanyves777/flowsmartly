@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V5 hero — two alternatives</title>
+<style>
+  /* Real V5 tokens, not invented colour. Light and dark only; grey sits
+     between them and adds nothing to this decision. */
+  :root{
+    --bg:#f3f6fc; --surface:#fff; --raised:#fff; --muted:#f7f9fe; --inset:#eef3fb;
+    --text:#071449; --textMuted:#42527a; --textSubtle:#59647f; --onBrand:#fff;
+    --border:#dfe5f2; --borderStrong:#c4cee4; --divider:#e9eef8;
+    --brand:#0a63d6; --brandStrong:#0a56b8; --brandSoft:#edf3ff;
+    --violet:#6c2cff; --green:#0e7b3a; --orange:#ad5100; --pink:#d70459;
+    --chipBg:#edf3ff; --chipText:#0a56b8; --successBg:#e7f7ee; --successText:#0e7b3a;
+  }
+  [data-theme="dark"]{
+    --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+    --text:#f5f8ff; --textMuted:#a9b6d2; --textSubtle:#8b98b8; --onBrand:#0b1220;
+    --border:#26304a; --borderStrong:#3a4763; --divider:#1c2540;
+    --brand:#4f9dff; --brandStrong:#7cb6ff; --brandSoft:#132441;
+    --violet:#a98cff; --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+    --chipBg:#17264a; --chipText:#8ab8ff; --successBg:#0d2b1c; --successText:#4ed67f;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .bar{
+    position:sticky; top:0; z-index:20; display:flex; gap:12px; align-items:center;
+    padding:12px 22px; background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .bar h1{font-size:14px; margin:0; font-weight:800; letter-spacing:.2px}
+  .bar .sp{flex:1}
+  .bar button{
+    font:inherit; font-size:12px; font-weight:700; cursor:pointer;
+    padding:7px 13px; border-radius:9px; border:1px solid var(--border);
+    background:var(--muted); color:var(--text);
+  }
+  .bar button[aria-pressed="true"]{background:var(--brand); border-color:var(--brand); color:var(--onBrand)}
+
+  .note{
+    max-width:1180px; margin:26px auto 0; padding:0 26px;
+    color:var(--textMuted); font-size:14px; line-height:1.6;
+  }
+  .note b{color:var(--text)}
+
+  section.opt{max-width:1180px; margin:0 auto; padding:26px}
+  .tag{
+    display:inline-block; font-size:11px; font-weight:800; letter-spacing:.9px;
+    color:var(--chipText); background:var(--chipBg); padding:6px 11px; border-radius:999px;
+  }
+  .optHead{display:flex; align-items:baseline; gap:14px; margin:34px 0 6px}
+  .optHead h2{font-size:20px; margin:0; font-weight:800}
+  .optHead p{margin:0; color:var(--textSubtle); font-size:13px}
+  .frame{
+    border:1px solid var(--border); border-radius:18px; overflow:hidden;
+    background:var(--bg); margin-top:16px;
+  }
+  .chrome{
+    display:flex; align-items:center; gap:9px; padding:10px 14px;
+    background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--borderStrong)}
+  .chrome span{font-size:11px;color:var(--textSubtle);margin-left:6px}
+
+  /* ---------- shared hero pieces ---------- */
+  .badge{
+    display:inline-block; font-size:10.5px; font-weight:800; letter-spacing:1px;
+    color:var(--chipText); background:var(--chipBg); padding:7px 12px; border-radius:999px;
+  }
+  .h1{font-weight:800; letter-spacing:-1.6px; line-height:1.06; margin:16px 0 0}
+  .lede{color:var(--textMuted); line-height:1.6; margin:14px 0 0}
+  .cta{display:flex; gap:12px; flex-wrap:wrap; margin-top:22px}
+  .btn{
+    font-size:14px; font-weight:700; padding:13px 20px; border-radius:12px;
+    border:1px solid transparent; cursor:default;
+  }
+  .btn.p{background:var(--brand); color:var(--onBrand)}
+  .btn.s{background:var(--surface); color:var(--text); border-color:var(--border)}
+  .trust{margin-top:16px; font-size:12px; color:var(--textSubtle)}
+
+  .panel{
+    background:var(--raised); border:1px solid var(--border); border-radius:16px;
+    padding:14px;
+  }
+  .row{
+    display:flex; align-items:center; gap:11px; padding:11px 12px; border-radius:11px;
+    border:1px solid var(--border); background:var(--surface); margin-bottom:9px;
+  }
+  .ic{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;font-size:13px}
+  .row b{display:block; font-size:13px}
+  .row small{display:block; color:var(--textSubtle); font-size:11.5px; margin-top:2px}
+  .pill{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .ok{background:var(--successBg);color:var(--successText)}
+  .warn{background:var(--chipBg);color:var(--chipText)}
+
+  /* ---------- A: statement, then the product wide ---------- */
+  .A .stage{padding:56px 40px 0; text-align:center}
+  .A .h1{font-size:56px; max-width:16ch; margin-inline:auto}
+  .A .lede{max-width:60ch; margin-inline:auto; font-size:17px}
+  .A .cta{justify-content:center}
+  .A .wide{padding:40px 40px 44px}
+  .A .board{
+    background:var(--raised); border:1px solid var(--border); border-radius:16px;
+    box-shadow:0 24px 60px -34px rgba(7,20,73,.45); overflow:hidden;
+  }
+  [data-theme="dark"] .A .board{box-shadow:0 24px 60px -30px rgba(0,0,0,.7)}
+  .A .boardTop{
+    display:flex;align-items:center;gap:10px;padding:12px 16px;
+    border-bottom:1px solid var(--divider); background:var(--muted);
+  }
+  .A .boardTop b{font-size:13px}
+  .A .cols{display:grid; grid-template-columns:1.35fr 1fr; gap:14px; padding:14px}
+  .A .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:0 14px 14px}
+  .A .kpi{border:1px solid var(--border);border-radius:12px;background:var(--muted);padding:11px}
+  .A .kpi span{font-size:11px;color:var(--textSubtle);font-weight:700}
+  .A .kpi b{display:block;font-size:20px;margin-top:3px;letter-spacing:-.5px}
+
+  /* ---------- B: the work itself, front and centre ---------- */
+  .B .stage{padding:44px 40px 0; display:grid; grid-template-columns:auto 1fr; gap:26px; align-items:end}
+  .B .h1{font-size:40px; max-width:15ch}
+  .B .side{padding-bottom:6px}
+  .B .queue{margin:26px 40px 44px; border-radius:18px; overflow:hidden; border:1px solid var(--border); background:var(--raised)}
+  .B .qTop{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--muted);border-bottom:1px solid var(--divider)}
+  .B .qTop b{font-size:14px}
+  .B .qTop .who{margin-left:auto;font-size:11.5px;color:var(--textSubtle)}
+  .B .qRow{display:grid;grid-template-columns:34px 1fr auto auto;gap:14px;align-items:center;padding:15px 18px;border-bottom:1px solid var(--divider)}
+  .B .qRow:last-child{border-bottom:0}
+  .B .qRow b{display:block;font-size:14px}
+  .B .qRow small{display:block;color:var(--textSubtle);font-size:12px;margin-top:3px}
+  .B .approve{font-size:12px;font-weight:800;padding:8px 14px;border-radius:9px;background:var(--brand);color:var(--onBrand)}
+  .B .later{font-size:12px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid var(--border);color:var(--textMuted)}
+
+  .foot{max-width:1180px;margin:8px auto 60px;padding:0 26px;color:var(--textSubtle);font-size:13px;line-height:1.65}
+  .foot b{color:var(--text)}
+  @media (max-width:900px){
+    .A .h1{font-size:38px} .B .stage{grid-template-columns:1fr}
+    .A .cols,.A .kpis{grid-template-columns:1fr}
+    .B .qRow{grid-template-columns:34px 1fr;row-gap:8px}
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>V5 hero — two alternatives</h1>
+  <div class="sp"></div>
+  <button id="tLight" aria-pressed="true">Light</button>
+  <button id="tDark" aria-pressed="false">Dark</button>
+</div>
+
+<p class="note">
+  Both keep the approved copy, the tokens and the type scale — the only thing changing is
+  <b>what the hero leads with</b>. Today it leads with a claim on the left and a product panel on the
+  right, which splits attention: the headline competes with a busy mock for the same first look.
+</p>
+
+<section class="opt A">
+  <div class="optHead"><span class="tag">OPTION A</span><h2>Say it once, then show it wide</h2>
+    <p>Statement centred · product gets the full width beneath</p></div>
+
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>flowsmartly.com</span></div>
+
+    <div class="stage">
+      <span class="badge">THE AI BUSINESS OPERATING SYSTEM</span>
+      <div class="h1">One intelligent platform to run, connect, and grow your business.</div>
+      <p class="lede">FlowSmartly helps small and midsize businesses manage their digital presence,
+        automate daily work, serve customers, create content, sell products and services, train teams,
+        and make better decisions — with a secure AI partner working alongside them.</p>
+      <div class="cta">
+        <span class="btn p">Start building your workspace</span>
+        <span class="btn s">▶ See FlowAgent in action</span>
+      </div>
+      <p class="trust">Human-approved automation · Secure integrations · Role-based access · Built for real businesses</p>
+    </div>
+
+    <div class="wide">
+      <div class="board">
+        <div class="boardTop"><b>FlowAgent Command Center</b>
+          <span class="pill warn">Beta</span>
+          <span style="margin-left:auto" class="pill ok">● Live</span></div>
+        <div class="cols">
+          <div>
+            <div class="row"><i class="ic" style="background:var(--brandSoft);color:var(--brand)">📄</i>
+              <div><b>Prepare five tax-client follow-ups</b><small>12 clients are missing required documents</small></div>
+              <span class="pill ok" style="margin-left:auto">Ready for review</span></div>
+            <div class="row"><i class="ic" style="background:var(--chipBg);color:var(--pink)">👥</i>
+              <div><b>Fill three open elder-care appointments</b><small>Matched available caregivers to open visits</small></div>
+              <span class="pill warn" style="margin-left:auto">Approval required</span></div>
+            <div class="row" style="margin-bottom:0"><i class="ic" style="background:var(--successBg);color:var(--green)">🛒</i>
+              <div><b>Recover abandoned carts</b><small>37 customers left before checkout</small></div>
+              <span class="pill ok" style="margin-left:auto">Ready to send</span></div>
+          </div>
+          <div class="panel">
+            <b style="font-size:13px">Connected systems</b>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px">
+              <div class="row" style="margin:0;justify-content:center;font-size:12px">Website</div>
+              <div class="row" style="margin:0;justify-content:center;font-size:12px">Store</div>
+              <div class="row" style="margin:0;justify-content:center;font-size:12px">Email</div>
+              <div class="row" style="margin:0;justify-content:center;font-size:12px">Calendar</div>
+            </div>
+            <p style="font-size:11.5px;color:var(--textSubtle);margin:11px 0 0">
+              Social · CRM · Documents · Analytics · Business listings</p>
+          </div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><span>Work completed</span><b>326</b></div>
+          <div class="kpi"><span>Customers served</span><b>1,284</b></div>
+          <div class="kpi"><span>Hours saved</span><b>54</b></div>
+          <div class="kpi"><span>Awaiting you</span><b>4</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>Why it works:</b> the headline gets the first look with nothing competing, and the
+  product then gets the full page width instead of a half-column — the command centre is currently
+  squeezed into ~500px and its own stat tiles had to be redesigned to fit.
+  <b>Trade-off:</b> the product moves below the fold on a laptop.</p>
+</section>
+
+<section class="opt B">
+  <div class="optHead"><span class="tag">OPTION B</span><h2>Lead with the work, not the claim</h2>
+    <p>Short headline · the agent's actual output is the hero</p></div>
+
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>flowsmartly.com</span></div>
+
+    <div class="stage">
+      <div>
+        <span class="badge">THE AI BUSINESS OPERATING SYSTEM</span>
+        <div class="h1">Four things were ready for you this morning.</div>
+      </div>
+      <div class="side">
+        <p class="lede" style="font-size:15px;margin:0">One platform to run, connect and grow your business —
+          FlowAgent prepares the work, you approve it, nothing happens without you.</p>
+        <div class="cta" style="margin-top:16px">
+          <span class="btn p">Start building your workspace</span>
+          <span class="btn s">▶ See FlowAgent in action</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="queue">
+      <div class="qTop"><b>This week, across your business</b>
+        <span class="pill ok">● Live</span>
+        <span class="who">Human approval enabled ✓</span></div>
+
+      <div class="qRow"><i class="ic" style="background:var(--brandSoft);color:var(--brand)">📄</i>
+        <div><b>Prepare five tax-client follow-ups</b><small>12 clients are missing required documents</small></div>
+        <span class="later">Later</span><span class="approve">Approve</span></div>
+
+      <div class="qRow"><i class="ic" style="background:var(--chipBg);color:var(--pink)">👥</i>
+        <div><b>Fill three open elder-care appointments</b><small>Matched available caregivers to open visits</small></div>
+        <span class="later">Later</span><span class="approve">Approve</span></div>
+
+      <div class="qRow"><i class="ic" style="background:var(--successBg);color:var(--green)">🛒</i>
+        <div><b>Recover 37 abandoned carts</b><small>Message drafted, discount inside your rules</small></div>
+        <span class="later">Later</span><span class="approve">Approve</span></div>
+
+      <div class="qRow"><i class="ic" style="background:var(--chipBg);color:var(--violet)">📊</i>
+        <div><b>Monthly NGO donor report</b><small>Campaign, donation and outreach data compiled</small></div>
+        <span class="later">Later</span><span class="approve">Approve</span></div>
+    </div>
+  </div>
+  <p class="foot"><b>Why it works:</b> it demonstrates the promise instead of asserting it, and the
+  approve buttons make "human-approved by default" visible in the first screen rather than a line of
+  small print. <b>Trade-off:</b> the positioning line gets less room, so the page leans on the
+  sections below it to carry the "operating system" claim.</p>
+</section>
+
+<script>
+  const L=document.getElementById('tLight'), D=document.getElementById('tDark');
+  const set=(dark)=>{
+    document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+    L.setAttribute('aria-pressed', String(!dark)); D.setAttribute('aria-pressed', String(dark));
+  };
+  L.onclick=()=>set(false); D.onclick=()=>set(true);
+</script>
+</body>
+</html>
