@@ -31,7 +31,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL, contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { EXTERNAL, contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -238,7 +238,16 @@ const SNIPPETS: Snippet[] = [
  * do not exist in this app, so linking to the product page is the honest
  * destination — `href: null` would leave a link that goes nowhere.
  */
-type Quickstart = { icon: string; title: string; body: string; tone: Tone; href: string; external?: boolean };
+type Quickstart = {
+  icon: string;
+  title: string;
+  body: string;
+  tone: Tone;
+  href?: string;
+  external?: boolean;
+  /** Wins over `href`, for a destination this app cannot route to itself. */
+  onPress?: () => void;
+};
 
 const QUICKSTARTS: Quickstart[] = [
   {
@@ -246,9 +255,11 @@ const QUICKSTARTS: Quickstart[] = [
     title: 'Authentication',
     body: 'Create a key and sign your first request.',
     tone: 'brand',
-    // Keys are issued from a V5 account, and accounts open with early access.
-    // Internal route, so no `external: true` — it routes client-side.
-    href: ROUTES.earlyAccess,
+    // Keys are issued from an account, so this opens the real registration
+    // form. `onPress`, not `href`: /register is served by the application
+    // rather than by this export, so it needs a document navigation — a
+    // client-side push would land on expo-router's not-found page.
+    onPress: goToRegister,
   },
   {
     icon: 'bullhorn',
@@ -436,13 +447,16 @@ function LinkRow({
   tone = 'brand',
   href,
   external,
+  onPress,
   trackId,
 }: {
   label: string;
   tone?: Tone;
-  href: string;
+  href?: string;
   /** the destination lives outside this app */
   external?: boolean;
+  /** takes precedence over `href` — used where navigation must leave the SPA */
+  onPress?: () => void;
   trackId: string;
 }) {
   const styles = useStyles();
@@ -455,7 +469,22 @@ function LinkRow({
     </>
   );
 
-  if (external) {
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={label}
+        onPress={() => {
+          trackCta(trackId, { variant: 'link', destination: 'register' });
+          onPress();
+        }}
+        style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
+        {body}
+      </Pressable>
+    );
+  }
+
+  if (external && href) {
     return (
       <Pressable
         accessibilityRole="link"
@@ -472,7 +501,7 @@ function LinkRow({
 
   return (
     <Link
-      href={href as never}
+      href={(href ?? '/') as never}
       accessibilityRole="link"
       accessibilityLabel={label}
       style={styles.linkRowAnchor as never}>
@@ -626,13 +655,13 @@ function Hero() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             icon="arrow-right"
             iconRight
             full={l.isPhone}
             trackId="api.hero.start-building"
             onPress={() => {
-              goToEarlyAccess();
+              goToRegister();
             }}
           />
           {/* The SDKs are the reference that actually exists today. */}
@@ -703,6 +732,7 @@ function Quickstarts() {
                 tone={item.tone}
                 href={item.href}
                 external={item.external}
+                onPress={item.onPress}
                 trackId={`api.quickstart.${item.title.toLowerCase().replace(/\s+/g, '-')}`}
               />
             </Card>
@@ -985,14 +1015,14 @@ function Closing() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             icon="arrow-right"
             iconRight
             size="lg"
             full={l.isPhone}
             trackId="api.closing.start-building"
             onPress={() => {
-              goToEarlyAccess();
+              goToRegister();
             }}
           />
           <SecondaryButton

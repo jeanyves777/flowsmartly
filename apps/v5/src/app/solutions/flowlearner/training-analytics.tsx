@@ -31,7 +31,7 @@ import { FONT_SANS,
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -781,13 +781,13 @@ export default function TrainingAnalyticsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
                   trackId="training-analytics.hero.explore"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 <SecondaryButton
                   label="View a sample report"

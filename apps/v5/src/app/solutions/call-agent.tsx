@@ -40,7 +40,7 @@ import { FONT_SANS,
   useTypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -525,13 +525,13 @@ export default function CallAgentPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
                   trackId="call-agent.hero.build"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 <SecondaryButton
                   label="Hear a demo"
@@ -858,13 +858,13 @@ export default function CallAgentPage() {
             </View>
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel="Join early access to clone your voice"
+              accessibilityLabel="Create an account to clone your voice"
               onPress={() => {
                 trackCta('call-agent.voices.clone-your-voice');
-                goToEarlyAccess();
+                goToRegister();
               }}
               style={({ pressed }) => [styles.cloneButton, pressed ? styles.pressed : null]}>
-              <Text style={styles.cloneButtonText}>Join early access</Text>
+              <Text style={styles.cloneButtonText}>Create account</Text>
               <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
             </Pressable>
           </View>
@@ -1311,13 +1311,13 @@ export default function CallAgentPage() {
               </View>
               <View style={styles.priceButton}>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full
                   icon="arrow-right"
                   iconRight
                   trackId="call-agent.pricing.build"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
               </View>
             </View>

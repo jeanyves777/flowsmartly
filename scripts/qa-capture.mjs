@@ -46,15 +46,21 @@ for (const { w, h } of SIZES) {
     /*
      * The HERO's call to action, not the header's.
      *
-     * The site header carries a "Join early access" button too, so a plain
+     * The site header carries a "Create account" button too, so a plain
      * text match found it first and reported the CTA at 10px from the top at
      * 1440 - a number that looks like a pass and measures the wrong control.
      * Anything inside the banner landmark is excluded.
+     *
+     * This regex is the CTA's LABEL, so it has to be swept whenever the label
+     * is. It read /^join early access$/ until registration opened; a stale
+     * pattern here does not fail, it just finds nothing and reports
+     * ctaTop: null, which is a clean-looking result that measured no control
+     * at all.
      */
     const byText = (re) => [...document.querySelectorAll('[role="button"], button, a[href]')]
       .filter((e) => !e.closest('header, [role="banner"], [role="dialog"]'))
       .find((e) => re.test((e.textContent || '').trim()));
-    const cta = byText(/^join early access$/i);
+    const cta = byText(/^create account$/i);
     const second = byText(/see flowagent in action/i);
     const h1 = document.querySelector('h1, [role="heading"][aria-level="1"]');
     // is any hero text sitting on a photograph?

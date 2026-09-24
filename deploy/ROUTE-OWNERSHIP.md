@@ -36,8 +36,8 @@ grepping for strings. A row that stops being true fails CI.
 | `/flowagent` | `V5_STATIC` | `flowagent.html` | — | — | |
 | `/flow-ai` | `REDIRECT_V5` | **301** | `/flowagent` | yes | A real server 301, which `apps/v5/scripts/agent-assets.js` asks for by name — the export's `flow-ai/index.html` stub carries `rel=canonical` but cannot consolidate ranking signals. The stub still serves `/flow-ai/`. Free on the apex only because V4's authenticated `/flow-ai` moved to the legacy host. **The V4 deploy health check is unaffected**: `scripts/deploy-vps.sh` checks `127.0.0.1:3000/flow-ai`, straight to the upstream, bypassing Nginx |
 | `<any V5 route>.html` | `REDIRECT_V5` | **301** | the clean URL | yes | `expo export` writes `flowagent.html`; serving it at that URL makes expo-router match nothing and render its not-found page **with a 200**. Scoped to the V5 namespace so customer-published `.html` URLs under `/sites/*` and `/store/*` are untouched. See `scripts/qa-serve.mjs` |
-| `/login` | `V5_STATIC` | `login.html` | — | — | Transition page, **not** authentication |
-| `/early-access` | `V5_STATIC` | `early-access.html` | — | — | Lead funnel |
+| `/login` | `V4_LEGACY_APP` (on the apex) | V4 `:3000` | — | yes (proxied) | **The real sign-in form**, `src/app/(auth)/login/page.tsx`. Claimed by the section-3 regex, which is declared before the V5 static block and therefore wins. The export still ships `login.html` (a transition page with no form) but it is unreachable here — serving it left an expired session with nowhere to authenticate, which read as a login loop |
+| `/early-access` | `V5_STATIC` | `early-access.html` | — | — | Lead funnel. Still live and still posting to `/api/v1/leads`, but **no CTA points at it** since registration opened — kept so links already in the wild resolve |
 | `/solutions/*` | `V5_STATIC` | export | — | — | 11 routes |
 | `/platform/*` | `V5_STATIC` | export | — | — | 6 routes |
 | `/resources/*` | `V5_STATIC` | export | — | — | Incl. `blog/[slug]` |
@@ -57,7 +57,8 @@ grepping for strings. A row that stops being true fails CI.
 | `/terms` | `REDIRECT_V5` | 301 | `/legal/terms` | yes | |
 | `/sms-terms` | `REDIRECT_V5` | 301 | `/legal/sms-terms` | yes | Cited in carrier campaign registration |
 | `/gdpr` | `REDIRECT_V5` | 301 | `/legal/gdpr` | yes | |
-| `/register` `/signup` `/get-started` `/start` | `REDIRECT_V5` | **302** | `/early-access` | yes | 302, not 301: these become real V5 registration later and a cached 301 would outlive that. The query is preserved because these are the URLs paid and referral traffic lands on — dropping it destroys the `utm_*` attribution for exactly the visitors the funnel exists to measure |
+| `/register` | `V4_LEGACY_APP` (on the apex) | V4 `:3000` | — | yes (proxied) | **The real account form**, `src/app/(auth)/register/page.tsx`. Every public CTA on the site opens this. Claimed by the section-3 regex, and there must be **no `location = /register`** — an exact match outranks every regex regardless of source order, which is how the retired `return 302 /early-access` used to shadow it. Same host as `/login` for the same reason: the OAuth `redirect_uri`, the host-only session cookie and `NEXT_PUBLIC_APP_URL` all name the apex |
+| `/signup` `/get-started` `/start` | `REDIRECT_V5` | **302** | `/register` | **yes — matters** | 302, not 301: the earlier 302s to `/early-access` are already in browser caches. The query is preserved because these are the URLs paid and referral traffic lands on — the register page reads `?ref=` to attribute the referral and `?redirect=` to choose where the new account goes next, so dropping it breaks the referral programme as well as `utm_*` attribution |
 | `/book-demo` | `REDIRECT_V5` | 301 | `/company/contact?topic=demo` | no | |
 | `/reset-password` | `REDIRECT_LEGACY` | 301 | `legacy…/reset-password` | **yes — critical** | Live tokens in already-sent email |
 | `/verify-email` | `REDIRECT_LEGACY` | 301 | `legacy…/verify-email` | **yes — critical** | Live tokens in already-sent email |

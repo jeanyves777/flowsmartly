@@ -19,7 +19,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { goToEarlyAccess, LEGACY } from '@/lib/destinations';
+import { goToRegister, LEGACY } from '@/lib/destinations';
 import { accentText, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -39,8 +39,18 @@ import { useTokens } from '@/theme/v5-theme-provider';
  * has to compromise. The legacy host is named in `LEGACY` in
  * `lib/destinations.ts` and nothing but this page may import it.
  *
- * When V5 auth ships, this page becomes the real sign-in form and the legacy
- * card is deleted. Nothing else on the site changes.
+ * ⚠️ This page no longer renders on the apex.
+ * ------------------------------------------
+ * `deploy/nginx-flowsmartly-v5.conf` now proxies `/login` to the application,
+ * which serves the real sign-in form at `src/app/(auth)/login/page.tsx`. That
+ * regex location is declared *before* the V5 static block and wins, so on
+ * flowsmartly.com this file is unreachable — it still renders under
+ * `expo start` and is still emitted into the export.
+ *
+ * It is kept rather than deleted because the export, `ROUTE-OWNERSHIP.md` and
+ * `scripts/precheck-v5-routes.mjs` all still claim `/login`, and because no
+ * CTA points here any more: `goToLogin()` performs a document navigation so
+ * the request reaches Nginx and therefore the real form.
  */
 
 const RECOGNISE: { icon: string; title: string; body: string }[] = [
@@ -80,7 +90,7 @@ export default function LoginScreen() {
   return (
     <PageShell
       title="Sign in"
-      description="FlowSmartly V5, the agentic business operating system, is rolling out in stages. Existing customers can reach their workspace; new visitors can join early access."
+      description="FlowSmartly V5, the agentic business operating system, is rolling out in stages. Existing customers can reach their workspace; new visitors can create an account."
       cta={false}
       jsonLd={[
         breadcrumbJsonLd([
@@ -147,22 +157,22 @@ export default function LoginScreen() {
                 New to FlowSmartly
               </Heading>
               <Text style={styles.doorBody}>
-                V5 accounts are not open to everyone yet. Join early access and we will bring you in
-                as soon as your place is ready.
+                Create an account and start using FlowSmartly straight away — there is no waiting
+                list and no invitation to wait for.
               </Text>
               <View style={styles.spacer} />
               <Text style={styles.notice}>
                 Takes under a minute. No card, no commitment.
               </Text>
               <SecondaryButton
-                label="Join early access"
+                label="Create account"
                 icon="arrow-right"
                 iconRight
                 full
-                onPress={goToEarlyAccess}
-                trackId="login.new.early-access"
+                onPress={goToRegister}
+                trackId="login.new.register"
               />
-              <Text style={styles.quietNote}>We will only email you about your access.</Text>
+              <Text style={styles.quietNote}>We will only email you about your account.</Text>
             </Card>
           </View>
         </Reveal>

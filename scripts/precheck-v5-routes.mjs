@@ -445,11 +445,45 @@ function checkConf() {
     );
   }
 
-  /* -- 6. registration funnels into early access ----------------------- */
-  for (const path of ['/register', '/signup', '/get-started']) {
+  /* -- 6. registration reaches the real account form ------------------- */
+  // /register is the destination of every public CTA on the site. It must be
+  // PROXIED to the application, not redirected: an exact `location = /register`
+  // outranks the regex that claims it, which is how the retired
+  // `return 302 /early-access` used to win from further down the file. If that
+  // block ever comes back, this check is what notices.
+  const register = at('/register');
+  check(
+    'nginx',
+    '/register reaches the application, not a redirect',
+    register.kind === 'proxy',
+    register.kind === 'proxy'
+      ? `proxy ${register.upstream ?? ''}`
+      : `${register.kind} ${register.status ?? ''} ${register.target ?? ''} — a CTA pointing here would not reach the account form`,
+  );
+  check(
+    'nginx',
+    '/register is not shadowed by an exact-match redirect',
+    Boolean(register.loc) && register.loc.modifier !== '=',
+    register.loc ? `${register.loc.modifier || '(regex)'} ${register.loc.pattern}` : 'no match',
+  );
+
+  // The aliases paid and referral traffic lands on. The query has to survive:
+  // the register page reads ?ref= for the referral and ?redirect= for where
+  // the new account goes next.
+  for (const path of ['/signup', '/get-started', '/start']) {
     const b = at(path);
-    const ok = b.kind === 'return' && b.status >= 300 && b.status < 400 && /\/early-access/.test(b.target ?? '');
-    check('nginx', `${path} -> /early-access`, ok, ok ? `${b.status} ${b.target}` : `${b.kind} ${b.status ?? ''}`);
+    const ok =
+      b.kind === 'return' &&
+      b.status >= 300 &&
+      b.status < 400 &&
+      /\/register/.test(b.target ?? '') &&
+      /\$is_args\$args/.test(b.target ?? '');
+    check(
+      'nginx',
+      `${path} -> /register with the query preserved`,
+      ok,
+      ok ? `${b.status} ${b.target}` : `${b.kind} ${b.status ?? ''} ${b.target ?? ''}`,
+    );
   }
 
   /* -- 7. nothing falls through to V4 by accident ---------------------- */

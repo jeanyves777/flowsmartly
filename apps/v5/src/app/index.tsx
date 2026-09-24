@@ -61,7 +61,7 @@ import { FONT_SANS,
 import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
 import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
-import { contactHref, goToEarlyAccess } from "@/lib/destinations";
+import { contactHref, goToRegister } from "@/lib/destinations";
 import { accentText, brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
 import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
@@ -1018,11 +1018,11 @@ function Hero() {
                   <View style={styles.heroCtaRow}>
                     <View style={styles.heroCtaHalf}>
                       <PrimaryButton
-                        label="Join early access"
+                        label="Create account"
                         size="md"
                         full
                         trackId="home.hero.start-workspace"
-                        onPress={() => goToEarlyAccess()}
+                        onPress={() => goToRegister()}
                       />
                     </View>
                     <View style={styles.heroCtaHalf}>
@@ -1041,10 +1041,10 @@ function Hero() {
                 ) : (
                   <ButtonRow>
                     <PrimaryButton
-                      label="Join early access"
+                      label="Create account"
                       size="lg"
                       trackId="home.hero.start-workspace"
-                      onPress={() => goToEarlyAccess()}
+                      onPress={() => goToRegister()}
                     />
                     {/* No demo video exists, so this books a real one rather than
                         opening a player that has nothing to play. */}

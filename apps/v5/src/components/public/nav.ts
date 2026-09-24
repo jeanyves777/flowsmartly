@@ -28,10 +28,16 @@ export const ROUTES = {
   flowAgent: '/flowagent',
 
   /**
-   * The two access routes. Neither is authentication: V5 auth does not exist
-   * yet, so `login` is a branded transition page that hands existing customers
-   * to the legacy host, and `earlyAccess` is the lead funnel that replaces
-   * registration until V5 accounts open.
+   * Neither of these is the real authentication any more, and **no CTA should
+   * use them** — see `AUTH` in `lib/destinations.ts` for the routes that are.
+   *
+   * `login` is this export's static transition page. Nginx proxies `/login` on
+   * the apex to the application's real sign-in form, so this file is
+   * unreachable in production and survives only for the export manifest.
+   *
+   * `earlyAccess` is the lead funnel. It still works and is still claimed in
+   * `deploy/ROUTE-OWNERSHIP.md` so existing links resolve, but registration is
+   * open now, so no button points at it.
    */
   login: '/login',
   earlyAccess: '/early-access',

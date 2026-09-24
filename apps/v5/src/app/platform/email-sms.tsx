@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import { Linking, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
@@ -584,11 +584,11 @@ export default function EmailSmsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   trackId="email-sms.hero.start-free"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 <SecondaryButton
                   label="Watch a demo"

@@ -25,7 +25,7 @@ import { FONT_SANS,
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { goToEarlyAccess } from '@/lib/destinations';
+import { goToRegister } from '@/lib/destinations';
 import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -874,13 +874,13 @@ export default function ProductPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
                   trackId="product.hero.start-free"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 {/* Was "Explore the platform", which had no destination other
                     than the page it sits on. Pricing is the question a visitor
