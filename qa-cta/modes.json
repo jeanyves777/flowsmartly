@@ -1,0 +1,157 @@
+{
+  "sha": "0b0136f037c3b99416a8c12656e58227ccb2faa1",
+  "rows": [
+    {
+      "mode": "scroll-through",
+      "identity": {
+        "route": "/",
+        "notFound": false,
+        "heading": true,
+        "chars": 9971
+      },
+      "shaOk": true,
+      "info": {
+        "hostFound": true,
+        "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+        "bgColor": "rgba(0, 0, 0, 0)",
+        "rect": {
+          "x": 14,
+          "y": 362.65625,
+          "w": 362,
+          "h": 466
+        },
+        "effectiveOpacity": 1,
+        "ink": "rgb(255, 255, 255)"
+      },
+      "sample": {
+        "colors": [
+          "#0971d6",
+          "#1a48d1",
+          "#5330d6"
+        ],
+        "distinct": 3,
+        "contrast": 4.83
+      }
+    },
+    {
+      "mode": "jump",
+      "identity": {
+        "route": "/",
+        "notFound": false,
+        "heading": true,
+        "chars": 9975
+      },
+      "shaOk": true,
+      "info": {
+        "hostFound": true,
+        "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+        "bgColor": "rgba(0, 0, 0, 0)",
+        "rect": {
+          "x": 14,
+          "y": 374.65625,
+          "w": 362,
+          "h": 466
+        },
+        "effectiveOpacity": 0,
+        "ink": "rgb(255, 255, 255)"
+      },
+      "sample": {
+        "colors": [
+          "#0971d6",
+          "#1a48d1",
+          "#5330d6"
+        ],
+        "distinct": 3,
+        "contrast": 4.83
+      }
+    },
+    {
+      "mode": "grown-viewport",
+      "identity": {
+        "route": "/",
+        "notFound": false,
+        "heading": true,
+        "chars": 9970
+      },
+      "shaOk": true,
+      "info": {
+        "hostFound": true,
+        "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+        "bgColor": "rgba(0, 0, 0, 0)",
+        "rect": {
+          "x": 14,
+          "y": 16467.65625,
+          "w": 362,
+          "h": 466
+        },
+        "effectiveOpacity": 0,
+        "ink": "rgb(255, 255, 255)"
+      },
+      "sample": null
+    },
+    {
+      "mode": "no-js",
+      "identity": {
+        "route": "/",
+        "notFound": false,
+        "heading": true,
+        "chars": 10443
+      },
+      "shaOk": "n/a (no fetch)",
+      "info": {
+        "hostFound": true,
+        "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+        "bgColor": "rgba(0, 0, 0, 0)",
+        "rect": {
+          "x": 28,
+          "y": -187,
+          "w": 334,
+          "h": 4511
+        },
+        "effectiveOpacity": 1,
+        "ink": "rgb(255, 255, 255)"
+      },
+      "sample": {
+        "colors": [
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ],
+        "distinct": 1,
+        "contrast": 1
+      }
+    },
+    {
+      "mode": "reduced-motion",
+      "identity": {
+        "route": "/",
+        "notFound": false,
+        "heading": true,
+        "chars": 10001
+      },
+      "shaOk": true,
+      "info": {
+        "hostFound": true,
+        "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+        "bgColor": "rgba(0, 0, 0, 0)",
+        "rect": {
+          "x": 14,
+          "y": 374.65625,
+          "w": 362,
+          "h": 466
+        },
+        "effectiveOpacity": 1,
+        "ink": "rgb(255, 255, 255)"
+      },
+      "sample": {
+        "colors": [
+          "#0972d6",
+          "#1a48d1",
+          "#5330d6"
+        ],
+        "distinct": 3,
+        "contrast": 4.78
+      }
+    }
+  ]
+}
