@@ -1,0 +1,127 @@
+Admin
+
+Control Panel
+
+ADMIN PANEL
+Dashboard
+Users
+Plans
+Features
+Credits
+Credit Pricing
+Content
+Moderation
+Media
+Analytics
+Visitors
+Audit Logs
+Earnings
+Agents
+Referrals
+Subscriptions
+Feed Engagement
+Cron Jobs
+Image Pipeline
+System
+Settings
+SERVICES
+Websites
+Story Ad Movie
+AI Jobs
+E-Commerce
+Landing Pages
+Domains
+Automations
+Events
+ListSmartly
+Proposal Visuals
+MARKETING
+Feedback Reports
+AI Chat Feedback
+Demo Requests
+Campaigns
+Ad Review
+Premier Spotlight
+Email Marketing
+SMS Marketing
+SMS Compliance
+Number Status
+USER EXPERIENCE
+User Dashboard
+AI Studio
+Story Ad Movie
+Feed
+User Campaigns
+Email Marketing
+SMS Marketing
+User Ads
+User Analytics
+User Earnings
+User Referrals
+User Settings
+Sign Out
+View Site
+V
+Credit Pricing
+
+Manage AI feature credit costs across the platform
+
+Refresh
+Seed Defaults
+
+2
+
+Total Features
+
+2
+
+Active
+
+0
+
+Text Features
+
+0
+
+Image Features
+
+All Categories
+image_generation (1)
+text_generation (1)
+image_generation
+1 feature
+AI Logo Generation
+AI_LOGO_GENERATION
+
+Generate a logo
+
+Last updated: Sep 1, 2026, 11:02 PM
+
+25
+credits
+Edit
+text_generation
+1 feature
+AI Post Generation
+AI_POST
+
+Generate a social post with AI
+
+Last updated: Sep 1, 2026, 11:02 PM
+
+5
+credits
+Edit
+Edit Pricing
+
+AI_LOGO_GENERATION
+
+image_generation
+Display Name
+Credit Cost
+
+Cost: $1.25 (25 credits x $0.05)
+
+Description
+Cancel
+Save Changes
