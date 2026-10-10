@@ -85,6 +85,8 @@ model User {
   businessPlans         BusinessPlan[]
   contentTemplates      ContentTemplate[]
   creditTransactions    CreditTransaction[]
+  creditReservations    CreditReservation[]
+  creditSettlements     CreditSettlement[]
   invoices              Invoice[]
   designs               Design[]
   designChats           DesignChat[]
@@ -6522,4 +6524,155 @@ model TrainingMessage {
   session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
+}
+
+// ============================================
+// FLOWBUILD MANAGED SPEND — RESERVE / SETTLE
+// ============================================
+//
+// Three models, additive only, so `prisma db push` creates and never drops. Every one
+// of them must be valid under `provider = "sqlite"` AND under `provider = "postgresql"`,
+// because `scripts/deploy-vps.sh` patches ONLY the provider token and builds production
+// from this same file. That rules out Prisma `enum`, scalar lists and `@db.*` native
+// types: String, Int, BigInt, DateTime, Boolean only.
+
+/// Where a FlowSmartly payer's FlowBuild tenancy lives.
+///
+/// The payer reference is polymorphic — `billingAccountKind` + `billingAccountId` — so a
+/// `Team` payer becomes a new value of `kind` rather than a migration of every row that
+/// names a `User`. `user` is the only kind any deployment provisions today, and NOTHING
+/// here migrates credits off `User`.
+///
+/// The tenancy ids are DERIVED from the account reference (src/lib/flowbuild/tenancy.ts)
+/// and stored anyway: a derivation that is only ever recomputed is a derivation whose
+/// formula can change under rows written by the old one.
+model FlowbuildTenantBinding {
+  id String @id @default(cuid())
+
+  billingAccountKind String
+  billingAccountId   String
+
+  tenantId    String
+  workspaceId String
+  projectId   String
+  principalId String
+
+  /// BOUND. One value today; the column exists so a future revoked or migrated binding
+  /// is a state and not a deleted row.
+  state String @default("BOUND")
+
+  provisionedAt DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  /// The idempotency of provisioning: one account has exactly one tenancy, and a
+  /// concurrent second provisioner loses on this constraint rather than on a read.
+  @@unique([billingAccountKind, billingAccountId])
+  @@unique([tenantId])
+  @@index([billingAccountId])
+}
+
+/// Credits held against a FlowBuild run BEFORE any managed provider call.
+///
+/// `reservedCredits` have LEFT `User.aiCredits`. That is the whole mechanism: credits
+/// that are not in the spendable balance cannot be spent by anything that spends the
+/// spendable balance, so the other 66 `deductCredits` writers need no change and no new
+/// lock is introduced.
+model CreditReservation {
+  id     String @id @default(cuid())
+  userId String
+
+  billingAccountKind String @default("user")
+  billingAccountId   String
+
+  /// The caller's own idempotency key for "fund this run".
+  ///
+  /// UNIQUE, so a retried request loses on the CONSTRAINT rather than on a read: a
+  /// findFirst-then-create would let two concurrent retries both find nothing and both
+  /// reserve, which is the read-then-write shape this whole path refuses.
+  idempotencyKey String @unique
+
+  /// The FlowBuild task this reservation funds. Allocated by the PRODUCT before the
+  /// submission, so it exists to be unique at the moment the row is written — which is
+  /// what makes a duplicated attempt a constraint violation and not a second reservation.
+  flowbuildTaskId String  @unique
+  flowbuildRunId  String?
+
+  flowbuildTenantId    String
+  flowbuildWorkspaceId String
+  flowbuildProjectId   String
+
+  /// ceil(ceilingUsd * 100) whole credits at the canonical 1 credit = $0.01.
+  reservedCredits Int
+  settledCredits  Int @default(0)
+  releasedCredits Int @default(0)
+
+  /// The same ceiling as exact integer picodollars, so the row states the money and not
+  /// only the rounded unit it was reserved in. This is the number FlowBuild enforces as
+  /// budget.max_flowsmartly_managed_cost_usd; both halves read one number.
+  ceilingPicoUsd BigInt
+
+  /// OPEN | CLOSED. A closed reservation settles nothing further.
+  state String @default("OPEN")
+
+  /// PENDING | SUBMITTED | FAILED. The submission happens AFTER the transaction commits,
+  /// so a reservation exists in PENDING for the duration of a network call and survives
+  /// its failure. This column is what the compensation sweep reads.
+  submissionState    String    @default("PENDING")
+  submissionAttempts Int       @default(0)
+  submissionCode     String?
+  submittedAt        DateTime?
+
+  /// A reservation whose run never started must not hold credits for ever.
+  expiresAt DateTime
+
+  /// Why the reservation closed: SETTLED_COMPLETE | EXPIRED | SUBMISSION_FAILED |
+  /// OVER_RESERVATION. Null while OPEN.
+  closedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settlements CreditSettlement[]
+
+  @@index([userId, state])
+  @@index([state, expiresAt])
+  @@index([flowbuildRunId])
+  @@index([submissionState, state])
+}
+
+/// One settled managed provider call.
+///
+/// The primary key IS the idempotency handle, and it is the FlowBuild usage-record id
+/// (usage:<stepId>#managed-model) — derived from the step and mentioning no attempt. NOT
+/// referenceType/referenceId: that pair was falsified against production as 26 distinct
+/// types carrying duplicate pairs over ~2,489 rows, and there is no global uniqueness
+/// retrofit here.
+model CreditSettlement {
+  usageRecordId String @id
+
+  reservationId String
+  userId        String
+
+  creditsCharged Int
+  chargePicoUsd  BigInt
+
+  /// SETTLED | OVER_RESERVATION. The second means the charge exceeded what remained of
+  /// the reservation and is recorded as an obligation rather than absorbed, and never as
+  /// ordinary negative credit.
+  state String @default("SETTLED")
+
+  /// Set only on OVER_RESERVATION: the part that could not be taken from the reservation
+  /// and is owed.
+  shortfallCredits Int @default(0)
+
+  flowbuildRunId  String
+  flowbuildStepId String
+  settledAt       DateTime @default(now())
+
+  reservation CreditReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId])
+  @@index([userId, state])
 }
