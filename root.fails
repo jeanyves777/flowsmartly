@@ -1,0 +1,20 @@
+  [FAIL] FB-HEAD (source)
+         flowbuild HEAD is 3b30b01eb06a, evidence names a419797
+  [FAIL] FB-UNMUTATED (source)
+         flowbuild working tree is NOT clean:
+?? RESUME-HANDOFF.md
+  [FAIL] NS-ADR-30 (source)
+         flowbuild:docs/adr holds 55 matching entries, evidence says 30
+  [FAIL] NS-SCHEMA-20 (source)
+         flowbuild:docs/contracts holds 28 matching entries, evidence says 20
+  [FAIL] NS-ROOT-MD-4 (source)
+         flowbuild:. holds 5 matching entries, evidence says 4
+  [FAIL] NS-TRACKED-MD-84 (source)
+         git-tracked *.md in D:\flowsmartly-build at a419797 holds 116 tracked files, evidence says 84
+  [FAIL] NS-TRACKED-SCHEMA-20 (source)
+         git-tracked *.schema.json in D:\flowsmartly-build at a419797 holds 28 tracked files, evidence says 20
+  [FAIL] DOC27-31-RULES (source)
+         /^\s*\d+\./ matches 35 times in docs/architecture/27-architecture-rules.md (numbered list entries in docs/architecture/27-architecture-rules.md), evidence says 31
+  [FAIL] CONTRACTS-README-60 (source)
+         flowbuild:docs/contracts/README.md:58 does not contain "Adding a schema without registering it here fails the build."
+         line reads: "`funding-display` is the body of `GET /v1/usage`. It is a **single object and not a collection**: it aggregates many `us"

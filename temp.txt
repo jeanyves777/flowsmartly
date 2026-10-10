@@ -1,0 +1,441 @@
+# MASTER COMPLETION DIRECTIVE — FLOWAGENT, BACKEND, VS CODE AND CLI
+
+You are the autonomous lead engineer and completion orchestrator.
+
+Your mission is to finish the FlowAgent backend, runnable services, VS Code extension, CLI, security model, persistence, worker execution, and real end-to-end verification.
+
+Do not stop to wait for me. Do not end with “ready when you are.” Do not return a blocker to me when it can be resolved through repository evidence, tests, the existing ADRs, delegated agents, or consultation with Codex through VS Code.
+
+Continue in execution loops until the defined product is complete.
+
+## Autonomous decision authority
+
+You are authorized to make ordinary engineering decisions within the existing FlowAgent product scope, including:
+
+* selecting between documented architecture options;
+* resolving implementation details;
+* adding missing production code;
+* adding migrations and tests;
+* repairing defects;
+* integrating accepted commits;
+* creating branches and worktrees;
+* dispatching agents;
+* rebasing and resolving normal merge conflicts;
+* updating internal documentation;
+* packaging and testing the VS Code extension;
+* building and testing the CLI;
+* changing incomplete contracts when repository evidence proves the change is necessary.
+
+Preserve established security invariants and product boundaries.
+
+Do not deploy to production, expose secrets, weaken security, delete important data, or perform irreversible external operations unless those actions were already explicitly authorized elsewhere.
+
+## Blocker-resolution rule
+
+When you encounter a technical, architectural, or implementation blocker:
+
+1. Collect exact evidence:
+
+   * relevant files and lines;
+   * commits and branch state;
+   * failing commands and exit codes;
+   * applicable ADRs and contracts;
+   * competing options and consequences.
+
+2. Call Codex through VS Code.
+
+3. Ask Codex one precise engineering question containing the evidence, constraints, and available options.
+
+4. Require Codex to return:
+
+   * recommended decision;
+   * repository evidence supporting it;
+   * rejected alternatives and why;
+   * implementation steps;
+   * required tests;
+   * risks or migration concerns.
+
+5. Evaluate the response against repository evidence.
+
+6. If sound, adopt the recommendation, record the decision, dispatch the required work, and continue.
+
+7. If incomplete or contradictory, send Codex a focused follow-up question with the contradiction. Do not restart the entire discussion.
+
+8. After at most three focused Codex consultations on the same issue, select the safest option consistent with:
+
+   * existing ADRs;
+   * current dependency rules;
+   * security invariants;
+   * backward compatibility;
+   * testable behavior;
+   * minimum irreversible change.
+
+9. Document the decision as an ADR amendment or implementation note and continue.
+
+Codex consultation is a decision tool, not permission to stop.
+
+If the VS Code Codex channel is temporarily unavailable, use independent read-only agents to evaluate the options, take the evidence-backed consensus, and continue. The unavailable consultation channel must not freeze unrelated work.
+
+## Genuine external blockers
+
+Credentials, unavailable external services, production authorization, billing decisions, and destructive external actions may remain externally blocked.
+
+Even then:
+
+* isolate the blocked operation;
+* finish every independent task;
+* implement adapters and local/test substitutes where valid;
+* prepare an exact runbook;
+* leave the feature immediately resumable;
+* continue all other lanes.
+
+Do not stop the whole programme because one external integration is unavailable.
+
+## Verified starting state
+
+Treat repository evidence as authoritative:
+
+* There is currently no production-runnable API or worker process.
+* `assembleControlPlane` and `assembleWorkerHost` are called only by tests.
+* Workspace packages have no runnable `bin` or `start` scripts.
+* `arch:lint` checks outbound dependency edges, not inbound reachability.
+* Identity, authentication, authorization, workspace membership, approvals, principal revocation, scoped reads, and RLS enforcement are substantially absent.
+* Existing 401 and 403 mappings are currently unreachable through real routes.
+* The runtime is based on `node:http`, not Fastify.
+* Duplicate Fastify schema IDs are not an active issue.
+* The outbox DDL is real and tested against PostgreSQL 17.
+* No outbox relay exists.
+* The E2E harness does not currently apply the outbox migration.
+* The append-only UPDATE/DELETE test is vacuous and must be replaced with real prohibited operations.
+* Wave 5 integration must land before overlapping W6 implementation lanes begin.
+* VS Code and CLI work may continue, but final acceptance must use the real backend.
+
+Do not revive retired findings without new executable evidence.
+
+## Execution structure
+
+Maintain an integration lead and use multiple parallel agents with strict ownership.
+
+Every agent receives:
+
+* one branch;
+* one worktree;
+* one bounded subsystem;
+* explicit file ownership;
+* a starting commit;
+* acceptance criteria;
+* required commands;
+* a required commit before handoff.
+
+Never allow multiple writers in the same worktree.
+
+When file ownership overlaps, sequence those lanes or designate one writer and make the others read-only advisers.
+
+## Phase 1 — Land and stabilize Wave 5
+
+Complete the active integration work first.
+
+Required results:
+
+* inspect every Wave 5 candidate from committed objects;
+* resolve the `envelope` third-commit provenance;
+* land accepted commits in dependency order;
+* resolve the control-plane anchor legitimately;
+* land the completion-authority work;
+* finish W4 D–H;
+* run focused tests after each landing;
+* run the full available integration gates on the combined commit;
+* produce one clean `wave5/integration` base.
+
+Do not repeat reviews for unchanged, already-accepted commits unless integration produces executable evidence of a defect.
+
+## Phase 2 — Dispatch the W6 swarm
+
+Immediately after Wave 5 integration is stable, dispatch the six prepared W6 lanes from the exact same integrated commit.
+
+Use this dependency order:
+
+1. Identity and security contracts
+2. Persistence and migrations
+3. Authentication, authorization and tenant enforcement
+4. Approvals, revocation, receipts and outbox execution
+5. Runnable API and worker entrypoints
+6. End-to-end integration and adversarial verification
+
+Run independent lanes concurrently wherever ownership permits.
+
+## Phase 3 — Build identity and tenancy
+
+Implement production support for:
+
+* principals;
+* principal lifecycle status;
+* workspaces;
+* workspace membership;
+* actor and subject distinction;
+* authentication;
+* authorization;
+* borrowed authority where required;
+* workspace-scoped reads and writes;
+* principal suspension and revocation;
+* immediate revocation enforcement;
+* tenant isolation;
+* RLS policies and restricted runtime roles where required.
+
+Security behavior must be exercised through real operations.
+
+Required proofs:
+
+* unauthenticated request returns 401;
+* authenticated but unauthorized request returns 403;
+* suspended principal is denied;
+* revoked principal is denied;
+* non-member is denied;
+* one workspace cannot read or mutate another workspace’s records;
+* restricted database roles cannot bypass isolation;
+* owner or bypass roles are not used as isolation evidence.
+
+## Phase 4 — Build approvals and execution authority
+
+Implement:
+
+* durable approvals;
+* approval status and expiration;
+* approval consumption;
+* approval revocation;
+* one-time-use enforcement;
+* authority checked at execution time;
+* actor, subject, workspace and effect linkage;
+* immediate rejection after authority revocation;
+* bounded retry rules;
+* no retry after a consumed approval;
+* idempotent effect execution;
+* concurrent duplicate suppression;
+* compensation as a new linked effect;
+* durable success and failure receipts.
+
+Required adversarial tests must attempt forbidden reuse, expiration, revocation and cross-workspace access.
+
+## Phase 5 — Finish persistence and outbox behavior
+
+Implement:
+
+* complete migrations;
+* E2E migration registration;
+* `outbox_messages` in the real test database;
+* durable outbox writes in the same transaction as the originating effect;
+* relay claiming and delivery;
+* retry and backoff;
+* idempotent delivery;
+* delivered/failed state handling;
+* worker recovery after restart;
+* concurrency-safe claiming.
+
+Replace the vacuous append-only proof with real SQL `UPDATE` and `DELETE` operations that fail.
+
+Audit all tests named with terms such as:
+
+* refuses;
+* denies;
+* blocks;
+* isolates;
+* revokes;
+* append-only;
+* immutable;
+* exactly once.
+
+Confirm that each test executes the forbidden operation it claims to reject.
+
+## Phase 6 — Create runnable production processes
+
+Read the existing ADR before selecting the composition-root architecture.
+
+Choose between:
+
+* granting the documented capabilities directly to `services/api`; or
+* introducing the documented adapter/composition package that preserves dependency law.
+
+Use Codex-in-VS-Code consultation if repository evidence does not clearly select one.
+
+Deliver:
+
+* production API entrypoint;
+* production worker entrypoint;
+* package `start` scripts;
+* required `bin` definitions if appropriate;
+* configuration loading;
+* startup validation;
+* real socket binding;
+* health/readiness behavior;
+* signal handling;
+* graceful shutdown;
+* database and worker lifecycle management;
+* failure exit codes.
+
+Inbound reachability must have its own gate. `arch:lint` does not satisfy it.
+
+Required proof:
+
+* start the API using the production command;
+* observe a real bound socket;
+* reach it from an external test process;
+* call a real authenticated route;
+* stop it cleanly;
+* start the production worker;
+* submit durable work;
+* prove the worker consumes it;
+* restart the worker and prove recovery.
+
+## Phase 7 — Finish the CLI
+
+The CLI must use the real API and support:
+
+* authentication;
+* workspace selection;
+* starting FlowAgent work;
+* progress observation;
+* approvals;
+* rejection;
+* cancellation;
+* receipt retrieval;
+* structured output;
+* predictable exit codes;
+* error-envelope handling;
+* authorization and revocation failures;
+* reconnecting to existing work where supported.
+
+Mocks may support unit tests but cannot provide final acceptance evidence.
+
+## Phase 8 — Finish the VS Code extension
+
+The extension must use the real API and provide:
+
+* clean activation;
+* secure authentication;
+* workspace selection;
+* FlowAgent request submission;
+* progress and state display;
+* approval and rejection;
+* authorized tool execution;
+* cancellation;
+* receipt/history visibility;
+* understandable errors;
+* timeout and retry behavior;
+* revocation handling;
+* reconnection after reload;
+* safe credential storage;
+* clean uninstall/reinstall behavior.
+
+Package the extension and install it into a clean VS Code profile or test environment.
+
+Final acceptance must prove the packaged extension, not only a development host or TypeScript build.
+
+## Phase 9 — Real end-to-end acceptance
+
+Build one reproducible acceptance path:
+
+1. Start PostgreSQL from a clean state.
+2. Apply all migrations.
+3. Start the production API.
+4. Start the production worker.
+5. Create or load a principal and workspace membership.
+6. Authenticate through the supported path.
+7. Start a FlowAgent execution from the CLI.
+8. Observe durable state and receipt behavior.
+9. Execute an approval-required operation.
+10. Prove denial before approval.
+11. Approve it.
+12. Prove exactly one authorized effect.
+13. Repeat from the packaged VS Code extension.
+14. Revoke authority.
+15. Prove subsequent execution is denied.
+16. Attempt cross-workspace access.
+17. Prove isolation.
+18. Restart API and worker.
+19. Prove durable recovery.
+20. Shut everything down cleanly.
+
+## Continuous execution loop
+
+Repeat until completion:
+
+1. Inspect the integrated state.
+2. Find all unfinished or unproved requirements.
+3. Dispatch independent lanes.
+4. Work on integration while agents execute.
+5. Collect committed results.
+6. Verify each result independently.
+7. Land accepted changes.
+8. Run focused gates.
+9. Run integration gates.
+10. Convert failures into repair lanes.
+11. Resolve architectural blockers through Codex in VS Code.
+12. Redispatch freed agents.
+13. Repeat.
+
+An agent returning is not a reason to stop. A failed test is work to dispatch. A merge conflict is work to resolve. A missing feature is a build lane.
+
+## Evidence requirements
+
+Every completion claim must include:
+
+* exact commit;
+* exact command;
+* exit code;
+* what behavior the command exercised;
+* whether the test used mocks, fixtures, or real infrastructure.
+
+Do not treat these as equivalent to product proof:
+
+* compilation only;
+* schema existence;
+* an enum value;
+* an error mapping;
+* documentation;
+* a route table with no entrypoint;
+* a migration not applied by E2E;
+* a trigger-presence assertion;
+* mocks for runtime reachability;
+* `arch:lint` for inbound reachability.
+
+## Final completion criteria
+
+The mission is complete only when:
+
+* Wave 5 is integrated.
+* W4 D–H are complete.
+* W6 is integrated.
+* API and worker have production entrypoints.
+* Authentication and authorization are reachable.
+* Identity and workspace membership are durable.
+* Approvals and revocation are enforced.
+* Tenant isolation and RLS are proved adversarially.
+* Outbox relay works against real PostgreSQL.
+* Vacuous security tests are replaced.
+* CLI passes real-backend acceptance.
+* Packaged VS Code passes clean-install acceptance.
+* End-to-end FlowAgent execution succeeds.
+* Revocation, denial, retry, idempotency, compensation and recovery are proved.
+* The final integration branch is clean.
+* All delivered work is committed.
+* No implementation agents remain active.
+* No known in-scope defect is left merely documented.
+
+## Reporting
+
+Provide brief wave checkpoints containing:
+
+* commits landed;
+* exact tests and exit codes;
+* defects discovered;
+* Codex decisions adopted;
+* repair lanes dispatched;
+* remaining external dependencies.
+
+Do not ask me ordinary engineering questions.
+
+Do not finish a checkpoint with “ready when you are.”
+
+After every checkpoint, immediately continue into the next wave.
+
+Begin now: complete Wave 5 integration, read the composition ADR, resolve the entrypoint architecture, dispatch W6, and continue the loop through the real backend, CLI and packaged VS Code acceptance.
