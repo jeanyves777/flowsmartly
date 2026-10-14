@@ -28,10 +28,9 @@ export const ROUTES = {
   flowAgent: '/flowagent',
 
   /**
-   * The two access routes. Neither is authentication: V5 auth does not exist
-   * yet, so `login` is a branded transition page that hands existing customers
-   * to the legacy host, and `earlyAccess` is the lead funnel that replaces
-   * registration until V5 accounts open.
+   * Marketing keeps these legacy URLs only as compatibility redirects.
+   * nginx serves /login and /register from the V5 portal, never the retired V4.
+   * /early-access redirects existing bookmarks to the V5 registration route.
    */
   login: '/login',
   earlyAccess: '/early-access',
