@@ -4,7 +4,7 @@ This is a read-only check for the marketing export and the V5 apex route contrac
 
 ## Local verification
 
-Use clean checkouts of both repositories. Pin the marketing checkout to the full PR source SHA and use a V5 portal export and measured `.release/RELEASE-MANIFEST.json` built from the same V5 release candidate. Do not use `docs/release/RELEASE-MANIFEST.json` as a current measurement; it is the contract, not the generated release record.
+Use a clean marketing checkout pinned to the full PR source SHA and the portal bytes from the V5 release candidate's `.release/portal`, paired with that candidate's generated `.release/RELEASE-MANIFEST.json`. Do not use `docs/release/RELEASE-MANIFEST.json` as a current measurement; it is the contract, not the generated release record. The script checks the portal directory against `artifacts.portal_artifact_digest` using the V5 `flowsmartly.release-digest/3` algorithm, and checks that the manifest's `artifacts.measured_at_sha` equals `source.sha`.
 
 ```bash
 git -C "$MARKETING_REPO" checkout --detach "$MARKETING_SHA"
@@ -21,10 +21,10 @@ node scripts/verify-v5-apex-entry.mjs \
   --portal-manifest "$V5_RELEASE_MANIFEST" \
   --nginx "$V5_REPO/deploy/nginx-apex-v5.conf" \
   --marketing-export "$MARKETING_REPO/apps/v5/dist" \
-  --portal-export "$V5_PORTAL_EXPORT" > public-entry-proof.json
+  --portal-export "$V5_RELEASE_ARTIFACT/.release/portal" > public-entry-proof.json
 ```
 
-The check resolves `/login` and `/register` through the portal auth location and its `try_files` rule, resolves `/early-access` through the marketing location, and requires each route's exported HTML. It checks the fixed source helpers and that each `Create account` CTA file references `goToRegister`, rejects V4/waitlist references in browser assets, and prints the two export-tree SHA-256 digests with both source SHAs and the nginx file digest. A pass is `PASS_LOCAL_ONLY`: it proves these supplied local bytes and config, not the bytes currently installed on a host.
+The check resolves `/login` and `/register` through the portal auth location and its `try_files` rule, resolves `/early-access` through the marketing location, and requires each route's exported HTML. It checks the fixed source helpers and that each `Create account` CTA file references `goToRegister`, rejects V4/waitlist references in browser assets, and prints both source SHAs, both export-tree SHA-256 digests, and the nginx file digest. The portal digest must equal the release manifest's portal digest. A pass is `PASS_LOCAL_ONLY`: it proves these supplied local bytes and config, not the bytes currently installed on a host.
 
 The V5 portal source currently defines `(public)/login.tsx` and `(public)/register.tsx`; Expo Router exports these as direct portal routes. The apex config's auth regex sends both to `/var/www/flowagent-portal/current`, and its `$uri`, `$uri.html`, `$uri/index.html` lookup supports those exports. `/early-access` stays a marketing compatibility route; its client effect forwards to `/register` after hydration. The V5 nginx config deliberately does not serve the marketing `/login` page.
 
