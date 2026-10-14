@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -49,7 +49,6 @@ function put(root, path, text) {
 function releaseVerifierDigest(root) {
   const hash = createHash('sha256');
   const walk = (dir, prefix = '') => {
-    const { readdirSync } = require('node:fs');
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
       a.name < b.name ? -1 : 1,
     )) {
@@ -92,8 +91,7 @@ export function goToRegister(): void { openV5Auth('/register'); }
   const portal = join(root, 'v5-release', 'apps', 'portal', '.production-artefact');
   put(portal, 'login.html', '<!doctype html>\nlogin\n');
   put(portal, 'register.html', 'register\n');
-  const manifest = put(root, 'v5-release', '.release', 'RELEASE-MANIFEST.json');
-  writeFileSync(manifest, JSON.stringify({
+  const manifest = put(root, 'v5-release/.release/RELEASE-MANIFEST.json', JSON.stringify({
     source: { sha: sourceSha },
     artifacts: {
       portal_artifact_digest: digest,
