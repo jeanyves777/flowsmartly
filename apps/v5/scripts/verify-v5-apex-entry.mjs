@@ -14,20 +14,20 @@
  * not contact a host, read credentials, mutate nginx, or deploy anything.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative, resolve, sep } from 'node:path';
 
 const opts = {};
 for (let i = 2; i < process.argv.length; i += 1) {
   const key = process.argv[i];
-  if (!['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-export'].includes(key) || !process.argv[i + 1]) {
+  if (!['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-artifact'].includes(key) || !process.argv[i + 1]) {
     console.error('usage: verify-v5-apex-entry.mjs --source-repo <repo> --source-sha <sha> --portal-manifest <manifest> --nginx <config> --marketing-export <dist> --portal-artifact <apps/portal/.production-artefact>');
     process.exit(2);
   }
   opts[key] = process.argv[++i];
 }
-for (const key of ['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-export']) {
+for (const key of ['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-artifact']) {
   if (!opts[key]) {
     console.error(`missing ${key}`);
     process.exit(2);
@@ -44,7 +44,7 @@ const expectedSourceSha = opts['--source-sha'];
 const portalManifestPath = resolve(opts['--portal-manifest']);
 const nginxPath = resolve(opts['--nginx']);
 const marketingRoot = resolve(opts['--marketing-export']);
-const portalRoot = resolve(opts['--portal-export']);
+const portalRoot = resolve(opts['--portal-artifact']);
 if (![sourceRepo, portalManifestPath, nginxPath, marketingRoot, portalRoot].every(existsSync)) {
   for (const [label, path] of [['marketing source repo', sourceRepo], ['V5 portal release manifest', portalManifestPath], ['nginx config', nginxPath], ['marketing export', marketingRoot], ['V5 portal production artefact', portalRoot]]) {
     if (!existsSync(path)) fail(`${label} is missing: ${path}`);
