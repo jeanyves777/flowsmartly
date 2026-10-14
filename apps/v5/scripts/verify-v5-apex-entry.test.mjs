@@ -56,7 +56,7 @@ function releaseVerifierDigest(root) {
       const name = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(full, name);
       else if (entry.isFile()) {
-        hash.update(name).update('\\0').update(readFileSync(full)).update('\\0');
+        hash.update(name).update('\0').update(readFileSync(full)).update('\0');
       }
     }
   };
@@ -83,9 +83,11 @@ export function goToRegister(): void { openV5Auth('/register'); }
   const sourceSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (untracked) put(source, 'apps/v5/src/untracked.tsx', 'untracked build input');
 
-  const nginx = put(root, 'nginx-apex-v5.conf', wrongHost
-    ? APEX.replace(/  location ~ \^\/(accept-invitation[\\s\\S]*?)\n  }\n  location ~ \^\/(product[\\s\\S]*?)\n  }/u, '')
-    : APEX);
+  const nginxText = wrongHost
+    ? APEX.replace('server_name flowsmartly.com;', 'server_name marketing.example;') +
+      '\nserver { server_name flowsmartly.com; }\n'
+    : APEX;
+  const nginx = put(root, 'nginx-apex-v5.conf', nginxText);
   const marketing = join(root, 'marketing-dist');
   put(marketing, 'early-access.html', '<html>register</html>');
   const portal = join(root, 'v5-release', 'apps', 'portal', '.production-artefact');
