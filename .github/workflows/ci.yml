@@ -99,8 +99,19 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
-      - name: Test the V5 apex entry verifier
+      - name: Check out the authoritative V5 apex config
+        uses: actions/checkout@v4
+        with:
+          repository: jeanyves777/flowsmartly-v5
+          ref: main
+          path: ../flowsmartly-v5-authority
+
+      - name: Test the V5 apex entry verifier and receipt
         run: npm run test:apex-entry
+        env:
+          V5_APEX_CONFIG: ${{ github.workspace }}/../flowsmartly-v5-authority/deploy/nginx-apex-v5.conf
+          V5_MARKETING_REPO: ${{ github.workspace }}
+          V5_MARKETING_EXPORT: ${{ github.workspace }}/apps/v5/dist
 
       - name: Verify the V5 marketing export against its source routes
         # This repository owns the static public marketing export ONLY.
