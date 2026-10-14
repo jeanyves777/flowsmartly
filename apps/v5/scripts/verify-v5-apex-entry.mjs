@@ -155,38 +155,122 @@ if (/\bproxy_pass\b|\bv4_app\b|legacy\.flowsmartly\.com/iu.test(activeConfig)) {
   pass('active config contains no V4 proxy/upstream or legacy host');
 }
 
-function findLocation(expression) {
-  const start = activeConfig.indexOf(expression);
-  if (start < 0) return null;
-  const open = activeConfig.indexOf('{', start);
-  if (open < 0) return null;
+function blockBody(text, open) {
   let depth = 0;
-  for (let i = open; i < activeConfig.length; i += 1) {
-    if (activeConfig[i] === '{') depth += 1;
-    if (activeConfig[i] === '}' && --depth === 0) return activeConfig.slice(open + 1, i);
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === '{') depth += 1;
+    else if (text[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(open + 1, i);
+    }
   }
   return null;
 }
 
-if (!/\broot\s+\/var\/www\/flowsmartly-v5\/current\s*;/u.test(activeConfig)) {
-  fail('V5 apex default root is not the V5 marketing export root');
-} else {
-  pass('V5 apex default root is the V5 marketing export');
+function locationRecords(config) {
+  const records = [];
+  const starts = /\blocation\s+(?:(=|~\*|~|\^~)\s+)?([^\s{]+)\s*\{/gu;
+  for (const match of config.matchAll(starts)) {
+    const open = match.index + match[0].lastIndexOf('{');
+    const body = blockBody(config, open);
+    if (body === null) continue;
+    records.push({ modifier: match[1] ?? '', pattern: match[2], start: match.index, body });
+  }
+  return records;
 }
 
-const portalBlock = findLocation('location ~ ^/(accept-invitation|activity|approvals|auth|connections|flowagent|forgot|home|listsmartly|login|onboarding|register|reset|verify)(/|$)');
-const marketingBlock = findLocation('location ~ ^/(product|pricing|early-access|flow-ai|solutions|platform|resources|company|legal|education)(/|$)');
-if (!portalBlock || !/\broot\s+\/var\/www\/flowagent-portal\/current\s*;/u.test(portalBlock)) {
-  fail('/login and /register no longer resolve to the V5 portal root in the apex config');
-} else if (!/\btry_files\s+\$uri\s+\$uri\.html\s+\$uri\/index\.html\s+=404\s*;/u.test(portalBlock)) {
-  fail('portal auth route no longer uses the expected static file lookup');
-} else {
-  pass('/login and /register resolve through the portal auth location and static lookup');
+function topLevelDirectives(block) {
+  const top = [];
+  let depth = 0;
+  for (const line of block.split('\n')) {
+    if (depth === 0) top.push(line);
+    for (const char of line) {
+      if (char === '{') depth += 1;
+      else if (char === '}') depth -= 1;
+    }
+  }
+  return top.join('\n');
 }
-if (!marketingBlock || /\broot\s+\/var\/www\/flowagent-portal\/current\s*;/u.test(marketingBlock)) {
-  fail('/early-access no longer resolves through the V5 marketing route location');
+
+function locationMatches(record, path) {
+  if (record.modifier === '=') return record.pattern === path;
+  if (record.modifier === '' || record.modifier === '^~') return path.startsWith(record.pattern);
+  if (record.modifier === '~' || record.modifier === '~*') {
+    try {
+      return new RegExp(record.pattern, record.modifier === '~*' ? 'i' : '').test(path);
+    } catch {
+      return null;
+    }
+  }
+  return false;
+}
+
+const locations = locationRecords(activeConfig);
+const AUTH_PATTERN = '^/(accept-invitation|activity|approvals|auth|connections|flowagent|forgot|home|listsmartly|login|onboarding|register|reset|verify)(/|$)';
+const MARKETING_PATTERN = '^/(product|pricing|early-access|flow-ai|solutions|platform|resources|company|legal|education)(/|$)';
+const portalMatches = locations.filter((record) => record.modifier === '~' && record.pattern === AUTH_PATTERN);
+const marketingMatches = locations.filter((record) => record.modifier === '~' && record.pattern === MARKETING_PATTERN);
+const portalRecord = portalMatches.length === 1 ? portalMatches[0] : null;
+const marketingRecord = marketingMatches.length === 1 ? marketingMatches[0] : null;
+
+function checkEffectiveRoute(path, expectedRecord, label) {
+  if (!expectedRecord) {
+    fail(label + ' has no unique expected regex location in the flowsmartly.com server');
+    return;
+  }
+  for (const record of locations) {
+    if (record === expectedRecord) continue;
+    const matches = locationMatches(record, path);
+    if (matches === null) {
+      fail(label + ' cannot safely parse competing nginx location pattern ' + record.pattern);
+      continue;
+    }
+    if (!matches) continue;
+    if (record.modifier === '=' || record.modifier === '^~' ||
+        (record.modifier === '' && record.pattern !== '/') ||
+        record.modifier === '~' || record.modifier === '~*') {
+      fail((label + ' is shadowed by competing nginx location ' + record.modifier + ' ' + record.pattern).trim());
+    }
+  }
+  if (!locationMatches(expectedRecord, path)) fail(label + ' does not match its pinned V5 location');
+}
+
+for (const route of ['/login', '/register']) checkEffectiveRoute(route, portalRecord, route);
+checkEffectiveRoute('/early-access', marketingRecord, '/early-access');
+
+function hasExpectedRoot(block, inheritedRoot, expectedRoot) {
+  const roots = [...block.matchAll(/^\s*root\s+([^;]+);/gmu)].map((match) => match[1].trim());
+  const aliases = [...block.matchAll(/^\s*alias\s+([^;]+);/gmu)];
+  if (aliases.length > 0 || roots.length > 1) return false;
+  const effective = roots.length === 1 ? roots[0] : inheritedRoot;
+  return effective === expectedRoot;
+}
+
+const serverTop = topLevelDirectives(activeConfig);
+const serverRoots = [...serverTop.matchAll(/^\s*root\s+([^;]+);/gmu)].map((match) => match[1].trim());
+const marketingRoot = serverRoots.length === 1 ? serverRoots[0] : '';
+if (marketingRoot !== '/var/www/flowsmartly-v5/current') {
+  fail('canonical HTTPS server does not have exactly one V5 marketing default root');
 } else {
-  pass('/early-access resolves through the V5 marketing route location');
+  pass('canonical HTTPS server default root is the V5 marketing export');
+}
+
+if (!portalRecord || !hasExpectedRoot(portalRecord.body, '', '/var/www/flowagent-portal/current')) {
+  fail('/login and /register no longer resolve through the V5 portal root');
+} else if (/^\s*(?:rewrite|return|alias)\b/mu.test(portalRecord.body) ||
+    !/^\s*try_files\s+\$uri\s+\$uri\.html\s+\$uri\/index\.html\s+=404\s*;/mu.test(portalRecord.body)) {
+  fail('portal auth location has a redirect, alias, rewrite, or changed static lookup');
+} else {
+  pass('/login and /register resolve through the effective V5 portal auth location');
+}
+
+if (!marketingRecord || !hasExpectedRoot(marketingRecord.body, marketingRoot, '/var/www/flowsmartly-v5/current')) {
+  fail('/early-access does not resolve through the effective V5 marketing root');
+} else if (/^\s*(?:rewrite|return|alias)\b/mu.test(marketingRecord.body) ||
+    !/^\s*try_files\s+\$uri\s+\$uri\.html\s+\$uri\/index\.html\s+=404\s*;/mu.test(marketingRecord.body)) {
+  fail('/early-access location has a redirect, alias, rewrite, or changed static lookup');
+} else {
+  pass('/early-access resolves through the effective V5 marketing root and static lookup');
 }
 
 const destinationsPath = join(sourceRepo, 'apps/v5/src/lib/destinations.ts');
