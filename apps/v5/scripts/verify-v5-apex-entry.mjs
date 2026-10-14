@@ -8,7 +8,7 @@
  *     --portal-manifest /path/to/RELEASE-MANIFEST.json \
  *     --nginx /path/to/flowsmartly-v5/deploy/nginx-apex-v5.conf \
  *     --marketing-export apps/v5/dist \
- *     --portal-export /path/to/flowsmartly-v5/apps/portal/dist
+ *     --portal-artifact /path/to/flowsmartly-v5/apps/portal/.production-artefact
  *
  * It reads only the two built exports and the reviewed V5 apex config. It does
  * not contact a host, read credentials, mutate nginx, or deploy anything.
@@ -22,7 +22,7 @@ const opts = {};
 for (let i = 2; i < process.argv.length; i += 1) {
   const key = process.argv[i];
   if (!['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-export'].includes(key) || !process.argv[i + 1]) {
-    console.error('usage: verify-v5-apex-entry.mjs --source-repo <repo> --source-sha <sha> --portal-manifest <manifest> --nginx <config> --marketing-export <dist> --portal-export <dist>');
+    console.error('usage: verify-v5-apex-entry.mjs --source-repo <repo> --source-sha <sha> --portal-manifest <manifest> --nginx <config> --marketing-export <dist> --portal-artifact <apps/portal/.production-artefact>');
     process.exit(2);
   }
   opts[key] = process.argv[++i];
@@ -46,7 +46,7 @@ const nginxPath = resolve(opts['--nginx']);
 const marketingRoot = resolve(opts['--marketing-export']);
 const portalRoot = resolve(opts['--portal-export']);
 if (![sourceRepo, portalManifestPath, nginxPath, marketingRoot, portalRoot].every(existsSync)) {
-  for (const [label, path] of [['marketing source repo', sourceRepo], ['V5 portal release manifest', portalManifestPath], ['nginx config', nginxPath], ['marketing export', marketingRoot], ['portal export', portalRoot]]) {
+  for (const [label, path] of [['marketing source repo', sourceRepo], ['V5 portal release manifest', portalManifestPath], ['nginx config', nginxPath], ['marketing export', marketingRoot], ['V5 portal production artefact', portalRoot]]) {
     if (!existsSync(path)) fail(`${label} is missing: ${path}`);
   }
   process.exit(1);
@@ -57,14 +57,14 @@ let actualSourceSha = '';
 let sourceChanges = '';
 try {
   actualSourceSha = execFileSync('git', ['-C', sourceRepo, 'rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' }).trim();
-  sourceChanges = execFileSync('git', ['-C', sourceRepo, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim();
+  sourceChanges = execFileSync('git', ['-C', sourceRepo, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }).trim();
 } catch (error) {
   fail(`cannot read marketing source git identity: ${String(error)}`);
 }
 if (actualSourceSha !== expectedSourceSha) fail(`marketing source HEAD ${actualSourceSha} differs from expected ${expectedSourceSha}`);
 else pass(`marketing source HEAD is ${actualSourceSha}`);
-if (sourceChanges) fail('marketing source checkout has tracked modifications; build provenance is ambiguous');
-else pass('marketing source checkout has no tracked modifications');
+if (sourceChanges) fail('marketing source checkout has tracked or untracked changes; build provenance is ambiguous');
+else pass('marketing source checkout is clean, including untracked files');
 
 let portalManifest;
 try {
@@ -78,6 +78,8 @@ else pass(`V5 portal manifest names source SHA ${portalSourceSha}`);
 const portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
 if (!/^sha256:[0-9a-f]{64}$/u.test(portalManifestDigest ?? '')) fail('V5 portal manifest does not name a full portal_artifact_digest');
 if (portalManifest?.artifacts?.measured_at_sha !== portalSourceSha) fail('V5 portal artifact measurement is not stamped at manifest source.sha');
+if (portalManifest?.artifacts?.measured_from_clean_worktree !== true) fail('V5 portal artifact was not measured from a clean worktree');
+if (portalRoot.split(sep).slice(-3).join('/') !== 'apps/portal/.production-artefact') fail('portal artifact path must be the V5 builder output apps/portal/.production-artefact');
 
 // Resolve a generated static route as nginx's `$uri $uri.html $uri/index.html` does.
 function staticRoute(root, pathname) {
@@ -89,8 +91,34 @@ function staticRoute(root, pathname) {
 }
 
 const rawConfig = readFileSync(nginxPath, 'utf8');
-const activeConfig = rawConfig.replace(/(^|\n)\s*#.*(?=\n|$)/gu, '$1');
-if (/\bproxy_pass\b|\bv4_app\b|legacy\.flowsmartly\.com/iu.test(activeConfig)) {
+const uncommentedConfig = rawConfig.replace(/(^|\\n)\\s*#.*(?=\\n|$)/gu, '$1');
+function serverBlocks(text) {
+  const blocks = [];
+  const starts = /\\bserver\\s*\\{/gu;
+  for (const match of text.matchAll(starts)) {
+    const open = match.index + match[0].lastIndexOf('{');
+    let depth = 0;
+    for (let i = open; i < text.length; i += 1) {
+      if (text[i] === '{') depth += 1;
+      else if (text[i] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          blocks.push(text.slice(open + 1, i));
+          break;
+        }
+      }
+    }
+  }
+  return blocks;
+}
+const apexBlocks = serverBlocks(uncommentedConfig).filter((block) =>
+  [...block.matchAll(/\\bserver_name\\s+([^;]+);/gu)].some((match) =>
+    match[1].trim().split(/\\s+/u).includes('flowsmartly.com'),
+  ),
+);
+if (apexBlocks.length !== 1) fail(`expected exactly one server block naming flowsmartly.com, found ${apexBlocks.length}`);
+const activeConfig = apexBlocks.length === 1 ? apexBlocks[0] : '';
+if (/\\bproxy_pass\\b|\\bv4_app\\b|legacy\\.flowsmartly\\.com/iu.test(activeConfig)) {
   fail('active V5 apex config contains a proxy or legacy V4 host/upstream');
 } else {
   pass('active config contains no V4 proxy/upstream or legacy host');
@@ -175,41 +203,29 @@ for (const [root, route, label] of [
 }
 
 function treeDigest(root) {
-  // Same flowsmartly.release-digest/3 format used by the V5 release manifest.
-  const u32 = (value) => { const out = Buffer.alloc(4); out.writeUInt32BE(value); return out; };
-  const u64 = (value) => { const out = Buffer.alloc(8); out.writeBigUInt64BE(BigInt(value)); return out; };
-  const field = (value) => {
-    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8');
-    return Buffer.concat([u64(bytes.length), bytes]);
-  };
-  const hash = createHash('sha256').update(field('flowsmartly.release-digest/3'));
+  // Byte-for-byte port of digestOf() in flowsmartly-v5/scripts/release-verify.mjs:
+  // sorted file paths, NUL separators, and file bytes; no modes or directory records.
+  const hash = createHash('sha256');
   let files = 0;
-  let bytesTotal = 0;
-  const record = (type, name, mode) => hash.update(Buffer.from(type, 'latin1')).update(field(name)).update(u32(mode & 0o7777));
-  const visit = (directory, prefix) => {
-    for (const entry of readdirSync(directory).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)) {
-      const path = join(directory, entry);
-      const info = lstatSync(path);
-      const name = prefix ? `${prefix}/${entry}` : entry;
-      if (info.isSymbolicLink()) throw new Error(`artifact contains a link: ${name}`);
-      if (info.isDirectory()) {
-        record('D', name, info.mode);
-        visit(path, name);
-      } else if (info.isFile()) {
+  let bytes = 0;
+  const walk = (directory, prefix) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : 1,
+    )) {
+      const path = join(directory, entry.name);
+      const name = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(path, name);
+      } else if (entry.isFile()) {
         const content = readFileSync(path);
-        record('F', name, info.mode).update(u64(content.length)).update(createHash('sha256').update(content).digest());
+        hash.update(name).update('\\0').update(content).update('\\0');
         files += 1;
-        bytesTotal += content.length;
-      } else {
-        throw new Error(`unsupported artifact entry: ${name}`);
+        bytes += statSync(path).size;
       }
     }
   };
-  const rootInfo = lstatSync(root);
-  if (!rootInfo.isDirectory()) throw new Error(`artifact is not a directory: ${root}`);
-  record('D', '.', rootInfo.mode);
-  visit(root, '');
-  return { files, bytes: bytesTotal, digest: `sha256:${hash.digest('hex')}` };
+  walk(root, '');
+  return { files, bytes, digest: `sha256:${hash.digest('hex')}` };
 }
 
 const forbidden = /join(?: v5)? early access|legacy\.flowsmartly\.com/iu;
