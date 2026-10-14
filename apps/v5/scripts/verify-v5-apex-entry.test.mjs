@@ -92,7 +92,7 @@ export function goToRegister(): void { openV5Auth('/register'); }
   if (untracked) put(source, 'apps/v5/src/untracked.tsx', 'untracked build input');
 
   const configText = nginxText ?? (wrongHost
-    ? APEX.replace('server_name flowsmartly.com;', 'server_name marketing.example;') +
+    ? APEX.replace('server_name flowsmartly.com;\n  root', 'server_name marketing.example;\n  root') +
       '\nserver { listen 443 ssl; server_name flowsmartly.com; }\n'
     : APEX);
   const nginx = put(root, 'nginx-apex-v5.conf', configText);
@@ -139,12 +139,12 @@ test('script accepts exact V5 production artefact, manifest, and apex routes', (
   assert.match(result.output, /"verdict": "PASS_LOCAL_ONLY"/u);
 });
 
-test('script rejects exact and prefix auth locations that override the portal regex', () => {
+test('script rejects exact, prefix, ^~, and competing regex auth overrides', () => {
   const overrides = [
-    '  location = /login { root /var/www/flowsmartly-v5/current; }\\n',
-    '  location /register { root /var/www/flowsmartly-v5/current; }\\n',
-    '  location ^~ /login { root /var/www/flowsmartly-v5/current; }\\n',
-    '  location ~ ^/login$ { root /var/www/flowsmartly-v5/current; }\\n',
+    '  location = /login { root /var/www/flowsmartly-v5/current; }\n',
+    '  location /register { root /var/www/flowsmartly-v5/current; }\n',
+    '  location ^~ /login { root /var/www/flowsmartly-v5/current; }\n',
+    '  location ~ ^/login$ { root /var/www/flowsmartly-v5/current; }\n',
   ];
   for (const override of overrides) {
     const config = APEX.replace('  location ~ ^/(accept-invitation', override + '  location ~ ^/(accept-invitation');
@@ -154,12 +154,20 @@ test('script rejects exact and prefix auth locations that override the portal re
   }
 });
 
-test('script rejects an early-access alias, wrong root, or rewrite', () => {
+function editMarketingBlock(edit) {
+  const start = APEX.indexOf('  location ~ ^/(product');
+  const end = APEX.indexOf('\n  }', start) + 4;
+  assert.ok(start >= 0 && end > start);
+  const block = APEX.slice(start, end);
+  return APEX.slice(0, start) + edit(block) + APEX.slice(end);
+}
+
+test('script rejects early-access exact shadowing, alias, wrong root, and rewrite', () => {
   const variants = [
-    APEX.replace('  location ~ ^/(product', '  location = /early-access { alias /tmp/not-marketing; }\\n  location ~ ^/(product'),
-    APEX.replace('  location ~ ^/(product', '  location ~ ^/(product'),
-    APEX.replace('    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}', '    root /tmp/not-marketing;\\n    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}'),
-    APEX.replace('    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}', '    rewrite ^ /register permanent;\\n    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}'),
+    APEX.replace('  location ~ ^/(product', '  location = /early-access { alias /tmp/not-marketing; }\n  location ~ ^/(product'),
+    editMarketingBlock((block) => block.replace('    try_files', '    alias /tmp/not-marketing;\n    try_files')),
+    editMarketingBlock((block) => block.replace('    try_files', '    root /tmp/not-marketing;\n    try_files')),
+    editMarketingBlock((block) => block.replace('    try_files', '    rewrite ^ /register permanent;\n    try_files')),
   ];
   for (const config of variants) {
     const result = run(fixture({ nginxText: config }));
@@ -168,6 +176,39 @@ test('script rejects an early-access alias, wrong root, or rewrite', () => {
   }
 });
 
+test('script selects the canonical HTTPS block beside the HTTP redirect block', () => {
+  const result = run(fixture());
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /canonical HTTPS server default root/u);
+});
+
+if (process.env.V5_APEX_CONFIG) {
+  test('checked-in authoritative V5 apex config selects the expected routes', () => {
+    const config = readFileSync(process.env.V5_APEX_CONFIG, 'utf8');
+    const result = run(fixture({ nginxText: config }));
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.output, /canonical HTTPS server default root/u);
+  });
+}
+
+if (process.env.V5_MARKETING_REPO && process.env.V5_MARKETING_EXPORT && process.env.V5_APEX_CONFIG) {
+  test('CI emits a source-bound digest receipt for the built marketing export', () => {
+    const source = process.env.V5_MARKETING_REPO;
+    const sourceSha = execFileSync('git', ['-C', source, 'rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' }).trim();
+    const result = spawnSync(process.execPath, [SCRIPT.pathname,
+      '--marketing-only',
+      '--source-repo', source,
+      '--source-sha', sourceSha,
+      '--nginx', process.env.V5_APEX_CONFIG,
+      '--marketing-export', process.env.V5_MARKETING_EXPORT,
+    ], { encoding: 'utf8' });
+    const output = result.stdout + result.stderr;
+    assert.equal(result.status, 0, output);
+    assert.match(output, new RegExp('"marketing_source_sha": "' + sourceSha + '"', 'u'));
+    assert.match(output, /"marketing": \{[\s\S]*"digest": "sha256:[0-9a-f]{64}"/u);
+    assert.match(output, /"verdict": "PASS_MARKETING_ONLY"/u);
+  });
+}
 test('script rejects a portal digest mismatch', () => {
   const result = run(fixture({ digest: `sha256:${'0'.repeat(64)}` }));
   assert.equal(result.status, 1, result.output);
