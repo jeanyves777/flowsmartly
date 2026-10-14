@@ -123,13 +123,32 @@ function serverBlocks(text) {
   }
   return blocks;
 }
-const apexBlocks = serverBlocks(uncommentedConfig).filter((block) =>
-  [...block.matchAll(/\bserver_name\s+([^;]+);/gu)].some((match) =>
-    match[1].trim().split(/\s+/u).includes('flowsmartly.com'),
+const namedApexBlocks = serverBlocks(uncommentedConfig).filter((block) =>
+  [...block.matchAll(/\\bserver_name\\s+([^;]+);/gu)].some((match) =>
+    match[1].trim().split(/\\s+/u).includes('flowsmartly.com'),
   ),
 );
-if (apexBlocks.length !== 1) fail(`expected exactly one server block naming flowsmartly.com, found ${apexBlocks.length}`);
-const activeConfig = apexBlocks.length === 1 ? apexBlocks[0] : '';
+const httpBlocks = namedApexBlocks.filter((block) =>
+  [...block.matchAll(/^\\s*listen\\s+([^;]+);/gmu)].some((match) =>
+    /^(?:\\[::\\]:)?80(?:\\s|$)/u.test(match[1].trim()) && !/\\bssl\\b/u.test(match[1]),
+  ),
+);
+const httpsBlocks = namedApexBlocks.filter((block) =>
+  [...block.matchAll(/^\\s*listen\\s+([^;]+);/gmu)].some((match) =>
+    /^(?:\\[::\\]:)?443(?:\\s|$)/u.test(match[1].trim()) && /\\bssl\\b/u.test(match[1]),
+  ),
+);
+if (httpBlocks.length !== 1) fail(`expected one HTTP redirect block naming flowsmartly.com, found ${httpBlocks.length}`);
+if (httpsBlocks.length !== 1) fail(`expected one canonical HTTPS block naming flowsmartly.com on port 443 with SSL, found ${httpsBlocks.length}`);
+const httpBlock = httpBlocks.length === 1 ? httpBlocks[0] : '';
+const activeConfig = httpsBlocks.length === 1 ? httpsBlocks[0] : '';
+if (httpBlock && !/location\\s+\\/\\s*\\{[\\s\\S]*?return\\s+301\\s+https:\\/\\/flowsmartly\\.com\\$request_uri\\s*;/u.test(httpBlock)) {
+  fail('the HTTP flowsmartly.com block does not redirect apex requests to canonical HTTPS');
+}
+if (activeConfig && /^\\s*return\\b/mu.test(activeConfig)) {
+  fail('the canonical HTTPS block has a server-level return that bypasses route handling');
+}
+
 if (/\bproxy_pass\b|\bv4_app\b|legacy\.flowsmartly\.com/iu.test(activeConfig)) {
   fail('active V5 apex config contains a proxy or legacy V4 host/upstream');
 } else {
