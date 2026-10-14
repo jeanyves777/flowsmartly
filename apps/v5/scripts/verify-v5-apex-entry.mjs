@@ -124,28 +124,28 @@ function serverBlocks(text) {
   return blocks;
 }
 const namedApexBlocks = serverBlocks(uncommentedConfig).filter((block) =>
-  [...block.matchAll(/\\bserver_name\\s+([^;]+);/gu)].some((match) =>
-    match[1].trim().split(/\\s+/u).includes('flowsmartly.com'),
+  [...block.matchAll(/\bserver_name\s+([^;]+);/gu)].some((match) =>
+    match[1].trim().split(/\s+/u).includes('flowsmartly.com'),
   ),
 );
 const httpBlocks = namedApexBlocks.filter((block) =>
-  [...block.matchAll(/^\\s*listen\\s+([^;]+);/gmu)].some((match) =>
-    /^(?:\\[::\\]:)?80(?:\\s|$)/u.test(match[1].trim()) && !/\\bssl\\b/u.test(match[1]),
+  [...block.matchAll(/^\s*listen\s+([^;]+);/gmu)].some((match) =>
+    /^(?:\[::\]:)?80(?:\s|$)/u.test(match[1].trim()) && !/\bssl\b/u.test(match[1]),
   ),
 );
 const httpsBlocks = namedApexBlocks.filter((block) =>
-  [...block.matchAll(/^\\s*listen\\s+([^;]+);/gmu)].some((match) =>
-    /^(?:\\[::\\]:)?443(?:\\s|$)/u.test(match[1].trim()) && /\\bssl\\b/u.test(match[1]),
+  [...block.matchAll(/^\s*listen\s+([^;]+);/gmu)].some((match) =>
+    /^(?:\[::\]:)?443(?:\s|$)/u.test(match[1].trim()) && /\bssl\b/u.test(match[1]),
   ),
 );
 if (httpBlocks.length !== 1) fail(`expected one HTTP redirect block naming flowsmartly.com, found ${httpBlocks.length}`);
 if (httpsBlocks.length !== 1) fail(`expected one canonical HTTPS block naming flowsmartly.com on port 443 with SSL, found ${httpsBlocks.length}`);
 const httpBlock = httpBlocks.length === 1 ? httpBlocks[0] : '';
 const activeConfig = httpsBlocks.length === 1 ? httpsBlocks[0] : '';
-if (httpBlock && !/location\\s+\\/\\s*\\{[\\s\\S]*?return\\s+301\\s+https:\\/\\/flowsmartly\\.com\\$request_uri\\s*;/u.test(httpBlock)) {
+if (httpBlock && !/location\s+\/\s*\{[\s\S]*?return\s+301\s+https:\/\/flowsmartly\.com\$request_uri\s*;/u.test(httpBlock)) {
   fail('the HTTP flowsmartly.com block does not redirect apex requests to canonical HTTPS');
 }
-if (activeConfig && /^\\s*return\\b/mu.test(activeConfig)) {
+if (activeConfig && /^\s*return\b/mu.test(activeConfig)) {
   fail('the canonical HTTPS block has a server-level return that bypasses route handling');
 }
 
