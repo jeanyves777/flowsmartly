@@ -10,7 +10,16 @@ const SCRIPT = new URL('./verify-v5-apex-entry.mjs', import.meta.url);
 const tempRoots = [];
 const PORTAL_DIGEST = 'sha256:2886e31c96a62f88b356f6f7d29969dc1c13f1e7fe19e252a6c0d534baeb2e80';
 const APEX = `server {
-  listen 443 ssl;
+  listen 80;
+  listen [::]:80;
+  server_name flowsmartly.com www.flowsmartly.com;
+  location / {
+    return 301 https://flowsmartly.com$request_uri;
+  }
+}
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
   server_name flowsmartly.com;
   root /var/www/flowsmartly-v5/current;
   location ~ ^/(accept-invitation|activity|approvals|auth|connections|flowagent|forgot|home|listsmartly|login|onboarding|register|reset|verify)(/|$) {
@@ -18,12 +27,11 @@ const APEX = `server {
     try_files $uri $uri.html $uri/index.html =404;
   }
   location ~ ^/(product|pricing|early-access|flow-ai|solutions|platform|resources|company|legal|education)(/|$) {
-    root /var/www/flowsmartly-v5/current;
     try_files $uri $uri.html $uri/index.html =404;
   }
 }
 server {
-  listen 80;
+  listen 443 ssl;
   server_name unrelated.example;
   proxy_pass http://historical;
 }
@@ -64,7 +72,7 @@ function releaseVerifierDigest(root) {
   return `sha256:${hash.digest('hex')}`;
 }
 
-function fixture({ digest = PORTAL_DIGEST, clean = true, wrongHost = false, untracked = false } = {}) {
+function fixture({ digest = PORTAL_DIGEST, clean = true, wrongHost = false, untracked = false, nginxText = null } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'v5-apex-entry-'));
   tempRoots.push(root);
   const source = join(root, 'marketing-source');
@@ -83,11 +91,11 @@ export function goToRegister(): void { openV5Auth('/register'); }
   const sourceSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (untracked) put(source, 'apps/v5/src/untracked.tsx', 'untracked build input');
 
-  const nginxText = wrongHost
+  const configText = nginxText ?? (wrongHost
     ? APEX.replace('server_name flowsmartly.com;', 'server_name marketing.example;') +
-      '\nserver { server_name flowsmartly.com; }\n'
-    : APEX;
-  const nginx = put(root, 'nginx-apex-v5.conf', nginxText);
+      '\nserver { listen 443 ssl; server_name flowsmartly.com; }\n'
+    : APEX);
+  const nginx = put(root, 'nginx-apex-v5.conf', configText);
   const marketing = join(root, 'marketing-dist');
   put(marketing, 'early-access.html', '<html>register</html>');
   const portal = join(root, 'v5-release', 'apps', 'portal', '.production-artefact');
@@ -129,6 +137,35 @@ test('script accepts exact V5 production artefact, manifest, and apex routes', (
   assert.match(result.output, /portal \/login resolves to login\.html/u);
   assert.match(result.output, /portal \/register resolves to register\.html/u);
   assert.match(result.output, /"verdict": "PASS_LOCAL_ONLY"/u);
+});
+
+test('script rejects exact and prefix auth locations that override the portal regex', () => {
+  const overrides = [
+    '  location = /login { root /var/www/flowsmartly-v5/current; }\\n',
+    '  location /register { root /var/www/flowsmartly-v5/current; }\\n',
+    '  location ^~ /login { root /var/www/flowsmartly-v5/current; }\\n',
+    '  location ~ ^/login$ { root /var/www/flowsmartly-v5/current; }\\n',
+  ];
+  for (const override of overrides) {
+    const config = APEX.replace('  location ~ ^/(accept-invitation', override + '  location ~ ^/(accept-invitation');
+    const result = run(fixture({ nginxText: config }));
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /shadowed by competing nginx location/u);
+  }
+});
+
+test('script rejects an early-access alias, wrong root, or rewrite', () => {
+  const variants = [
+    APEX.replace('  location ~ ^/(product', '  location = /early-access { alias /tmp/not-marketing; }\\n  location ~ ^/(product'),
+    APEX.replace('  location ~ ^/(product', '  location ~ ^/(product'),
+    APEX.replace('    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}', '    root /tmp/not-marketing;\\n    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}'),
+    APEX.replace('    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}', '    rewrite ^ /register permanent;\\n    try_files $uri $uri.html $uri/index.html =404;\\n  }\\n}'),
+  ];
+  for (const config of variants) {
+    const result = run(fixture({ nginxText: config }));
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /early-access|shadowed/u);
+  }
 });
 
 test('script rejects a portal digest mismatch', () => {
