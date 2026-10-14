@@ -91,10 +91,10 @@ function staticRoute(root, pathname) {
 }
 
 const rawConfig = readFileSync(nginxPath, 'utf8');
-const uncommentedConfig = rawConfig.replace(/(^|\\n)\\s*#.*(?=\\n|$)/gu, '$1');
+const uncommentedConfig = rawConfig.replace(/(^|\n)\s*#.*(?=\n|$)/gu, '$1');
 function serverBlocks(text) {
   const blocks = [];
-  const starts = /\\bserver\\s*\\{/gu;
+  const starts = /\bserver\s*\{/gu;
   for (const match of text.matchAll(starts)) {
     const open = match.index + match[0].lastIndexOf('{');
     let depth = 0;
@@ -112,13 +112,13 @@ function serverBlocks(text) {
   return blocks;
 }
 const apexBlocks = serverBlocks(uncommentedConfig).filter((block) =>
-  [...block.matchAll(/\\bserver_name\\s+([^;]+);/gu)].some((match) =>
-    match[1].trim().split(/\\s+/u).includes('flowsmartly.com'),
+  [...block.matchAll(/\bserver_name\s+([^;]+);/gu)].some((match) =>
+    match[1].trim().split(/\s+/u).includes('flowsmartly.com'),
   ),
 );
 if (apexBlocks.length !== 1) fail(`expected exactly one server block naming flowsmartly.com, found ${apexBlocks.length}`);
 const activeConfig = apexBlocks.length === 1 ? apexBlocks[0] : '';
-if (/\\bproxy_pass\\b|\\bv4_app\\b|legacy\\.flowsmartly\\.com/iu.test(activeConfig)) {
+if (/\bproxy_pass\b|\bv4_app\b|legacy\.flowsmartly\.com/iu.test(activeConfig)) {
   fail('active V5 apex config contains a proxy or legacy V4 host/upstream');
 } else {
   pass('active config contains no V4 proxy/upstream or legacy host');
@@ -218,7 +218,7 @@ function treeDigest(root) {
         walk(path, name);
       } else if (entry.isFile()) {
         const content = readFileSync(path);
-        hash.update(name).update('\\0').update(content).update('\\0');
+        hash.update(name).update('\0').update(content).update('\0');
         files += 1;
         bytes += statSync(path).size;
       }
