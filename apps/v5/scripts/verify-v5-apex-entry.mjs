@@ -19,15 +19,19 @@ import { execFileSync } from 'node:child_process';
 import { join, relative, resolve, sep } from 'node:path';
 
 const opts = {};
+const marketingOnly = process.argv.includes('--marketing-only');
 for (let i = 2; i < process.argv.length; i += 1) {
   const key = process.argv[i];
+  if (key === '--marketing-only') continue;
   if (!['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-artifact'].includes(key) || !process.argv[i + 1]) {
-    console.error('usage: verify-v5-apex-entry.mjs --source-repo <repo> --source-sha <sha> --portal-manifest <manifest> --nginx <config> --marketing-export <dist> --portal-artifact <apps/portal/.production-artefact>');
+    console.error('usage: verify-v5-apex-entry.mjs [--marketing-only] --source-repo <repo> --source-sha <40-hex-sha> --nginx <config> --marketing-export <dist> [--portal-manifest <manifest> --portal-artifact <apps/portal/.production-artefact>]');
     process.exit(2);
   }
   opts[key] = process.argv[++i];
 }
-for (const key of ['--source-repo', '--source-sha', '--portal-manifest', '--nginx', '--marketing-export', '--portal-artifact']) {
+const required = ['--source-repo', '--source-sha', '--nginx', '--marketing-export'];
+if (!marketingOnly) required.push('--portal-manifest', '--portal-artifact');
+for (const key of required) {
   if (!opts[key]) {
     console.error(`missing ${key}`);
     process.exit(2);
@@ -41,12 +45,18 @@ const fail = (message) => {
 const pass = (message) => console.log(`PASS ${message}`);
 const sourceRepo = resolve(opts['--source-repo']);
 const expectedSourceSha = opts['--source-sha'];
-const portalManifestPath = resolve(opts['--portal-manifest']);
+const portalManifestPath = opts['--portal-manifest'] ? resolve(opts['--portal-manifest']) : '';
 const nginxPath = resolve(opts['--nginx']);
 const marketingRoot = resolve(opts['--marketing-export']);
-const portalRoot = resolve(opts['--portal-artifact']);
-if (![sourceRepo, portalManifestPath, nginxPath, marketingRoot, portalRoot].every(existsSync)) {
-  for (const [label, path] of [['marketing source repo', sourceRepo], ['V5 portal release manifest', portalManifestPath], ['nginx config', nginxPath], ['marketing export', marketingRoot], ['V5 portal production artefact', portalRoot]]) {
+const portalRoot = opts['--portal-artifact'] ? resolve(opts['--portal-artifact']) : '';
+const requiredPaths = [sourceRepo, nginxPath, marketingRoot, ...(marketingOnly ? [] : [portalManifestPath, portalRoot])];
+if (!requiredPaths.every(existsSync)) {
+  for (const [label, path] of [
+    ['marketing source repo', sourceRepo],
+    ['nginx config', nginxPath],
+    ['marketing export', marketingRoot],
+    ...(marketingOnly ? [] : [['V5 portal release manifest', portalManifestPath], ['V5 portal production artefact', portalRoot]]),
+  ]) {
     if (!existsSync(path)) fail(`${label} is missing: ${path}`);
   }
   process.exit(1);
@@ -66,20 +76,22 @@ else pass(`marketing source HEAD is ${actualSourceSha}`);
 if (sourceChanges) fail('marketing source checkout has tracked or untracked changes; build provenance is ambiguous');
 else pass('marketing source checkout is clean, including untracked files');
 
-let portalManifest;
-try {
-  portalManifest = JSON.parse(readFileSync(portalManifestPath, 'utf8'));
-} catch (error) {
-  fail(`cannot read V5 portal release manifest: ${String(error)}`);
+if (!marketingOnly) {
+  let portalManifest;
+  try {
+    portalManifest = JSON.parse(readFileSync(portalManifestPath, 'utf8'));
+  } catch (error) {
+    fail(`cannot read V5 portal release manifest: ${String(error)}`);
+  }
+  const portalSourceSha = portalManifest?.source?.sha;
+  if (!/^[0-9a-f]{40}$/u.test(portalSourceSha ?? '')) fail('V5 portal manifest does not name a full source.sha');
+  else pass(`V5 portal manifest names source SHA ${portalSourceSha}`);
+  const portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
+  if (!/^sha256:[0-9a-f]{64}$/u.test(portalManifestDigest ?? '')) fail('V5 portal manifest does not name a full portal_artifact_digest');
+  if (portalManifest?.artifacts?.measured_at_sha !== portalSourceSha) fail('V5 portal artifact measurement is not stamped at manifest source.sha');
+  if (portalManifest?.artifacts?.measured_from_clean_worktree !== true) fail('V5 portal artifact was not measured from a clean worktree');
+  if (!marketingOnly && portalRoot.split(sep).slice(-3).join('/') !== 'apps/portal/.production-artefact') fail('portal artifact path must be the V5 builder output apps/portal/.production-artefact');
 }
-const portalSourceSha = portalManifest?.source?.sha;
-if (!/^[0-9a-f]{40}$/u.test(portalSourceSha ?? '')) fail('V5 portal manifest does not name a full source.sha');
-else pass(`V5 portal manifest names source SHA ${portalSourceSha}`);
-const portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
-if (!/^sha256:[0-9a-f]{64}$/u.test(portalManifestDigest ?? '')) fail('V5 portal manifest does not name a full portal_artifact_digest');
-if (portalManifest?.artifacts?.measured_at_sha !== portalSourceSha) fail('V5 portal artifact measurement is not stamped at manifest source.sha');
-if (portalManifest?.artifacts?.measured_from_clean_worktree !== true) fail('V5 portal artifact was not measured from a clean worktree');
-if (portalRoot.split(sep).slice(-3).join('/') !== 'apps/portal/.production-artefact') fail('portal artifact path must be the V5 builder output apps/portal/.production-artefact');
 
 // Resolve a generated static route as nginx's `$uri $uri.html $uri/index.html` does.
 function staticRoute(root, pathname) {
