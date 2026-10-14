@@ -31,7 +31,7 @@ import { FONT_SANS,
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { EXTERNAL, contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { EXTERNAL, contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -246,7 +246,7 @@ const QUICKSTARTS: Quickstart[] = [
     title: 'Authentication',
     body: 'Create a key and sign your first request.',
     tone: 'brand',
-    // Keys are issued from a V5 account, and accounts open with early access.
+    // Keys are issued from a V5 account, and accounts are created through V5 registration.
     // Internal route, so no `external: true` — it routes client-side.
     href: ROUTES.earlyAccess,
   },
@@ -626,13 +626,13 @@ function Hero() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             icon="arrow-right"
             iconRight
             full={l.isPhone}
             trackId="api.hero.start-building"
             onPress={() => {
-              goToEarlyAccess();
+              goToRegister();
             }}
           />
           {/* The SDKs are the reference that actually exists today. */}
@@ -985,14 +985,14 @@ function Closing() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             icon="arrow-right"
             iconRight
             size="lg"
             full={l.isPhone}
             trackId="api.closing.start-building"
             onPress={() => {
-              goToEarlyAccess();
+              goToRegister();
             }}
           />
           <SecondaryButton
