@@ -163,19 +163,31 @@ function editMarketingBlock(edit) {
 }
 
 test('script rejects early-access exact shadowing, alias, wrong root, and rewrite', () => {
+  function editMarketingBlock(edit) {
+    const start = APEX.indexOf('  location ~ ^/(product');
+    const end = APEX.indexOf('\n  }', start) + 4;
+    assert.ok(start >= 0 && end > start);
+    const block = APEX.slice(start, end);
+    return APEX.slice(0, start) + edit(block) + APEX.slice(end);
+  }
   const variants = [
     APEX.replace('  location ~ ^/(product', '  location = /early-access { alias /tmp/not-marketing; }\n  location ~ ^/(product'),
     editMarketingBlock((block) => block.replace('    try_files', '    alias /tmp/not-marketing;\n    try_files')),
     editMarketingBlock((block) => block.replace('    try_files', '    root /tmp/not-marketing;\n    try_files')),
     editMarketingBlock((block) => block.replace('    try_files', '    rewrite ^ /register permanent;\n    try_files')),
   ];
-  for (const config of variants) {
-    const result = run(fixture({ nginxText: config }));
+  const expected = [
+    /shadowed by competing nginx location/u,
+    /early-access does not resolve through the effective V5 marketing root/u,
+    /early-access does not resolve through the effective V5 marketing root/u,
+    /early-access location has a redirect, alias, rewrite/u,
+  ];
+  for (let i = 0; i < variants.length; i += 1) {
+    const result = run(fixture({ nginxText: variants[i] }));
     assert.equal(result.status, 1, result.output);
-    assert.match(result.output, /early-access|shadowed/u);
+    assert.match(result.output, expected[i]);
   }
 });
-
 test('script selects the canonical HTTPS block beside the HTTP redirect block', () => {
   const result = run(fixture());
   assert.equal(result.status, 0, result.output);
@@ -229,9 +241,7 @@ test('script rejects untracked marketing source files', () => {
 
 test('script rejects routes located only in another server block', () => {
   const input = fixture({ wrongHost: true });
-  const config = readFileSync(input.nginx, 'utf8');
-  writeFileSync(input.nginx, config.replace('server_name unrelated.example;', 'server_name flowsmartly.com;'));
   const result = run(input);
   assert.equal(result.status, 1, result.output);
-  assert.match(result.output, /portal root in the apex config/u);
+  assert.match(result.output, /no longer resolve through the V5 portal root/u);
 });
