@@ -8,7 +8,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..', 'src');
-const forbidden = /\bjoin(?: v5)? early access\b/i;
+const forbidden = /\bjoin(?: v5)? early access\b|legacy\.flowsmartly\.com/i;
 const suffixes = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const faults = [];
 
