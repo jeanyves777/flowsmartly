@@ -76,6 +76,8 @@ else pass(`marketing source HEAD is ${actualSourceSha}`);
 if (sourceChanges) fail('marketing source checkout has tracked or untracked changes; build provenance is ambiguous');
 else pass('marketing source checkout is clean, including untracked files');
 
+let portalSourceSha = null;
+let portalManifestDigest = null;
 if (!marketingOnly) {
   let portalManifest;
   try {
@@ -83,10 +85,10 @@ if (!marketingOnly) {
   } catch (error) {
     fail(`cannot read V5 portal release manifest: ${String(error)}`);
   }
-  const portalSourceSha = portalManifest?.source?.sha;
+  portalSourceSha = portalManifest?.source?.sha;
   if (!/^[0-9a-f]{40}$/u.test(portalSourceSha ?? '')) fail('V5 portal manifest does not name a full source.sha');
   else pass(`V5 portal manifest names source SHA ${portalSourceSha}`);
-  const portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
+  portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
   if (!/^sha256:[0-9a-f]{64}$/u.test(portalManifestDigest ?? '')) fail('V5 portal manifest does not name a full portal_artifact_digest');
   if (portalManifest?.artifacts?.measured_at_sha !== portalSourceSha) fail('V5 portal artifact measurement is not stamped at manifest source.sha');
   if (portalManifest?.artifacts?.measured_from_clean_worktree !== true) fail('V5 portal artifact was not measured from a clean worktree');
@@ -248,8 +250,8 @@ function hasExpectedRoot(block, inheritedRoot, expectedRoot) {
 
 const serverTop = topLevelDirectives(activeConfig);
 const serverRoots = [...serverTop.matchAll(/^\s*root\s+([^;]+);/gmu)].map((match) => match[1].trim());
-const marketingRoot = serverRoots.length === 1 ? serverRoots[0] : '';
-if (marketingRoot !== '/var/www/flowsmartly-v5/current') {
+const serverMarketingRoot = serverRoots.length === 1 ? serverRoots[0] : '';
+if (serverMarketingRoot !== '/var/www/flowsmartly-v5/current') {
   fail('canonical HTTPS server does not have exactly one V5 marketing default root');
 } else {
   pass('canonical HTTPS server default root is the V5 marketing export');
@@ -264,7 +266,7 @@ if (!portalRecord || !hasExpectedRoot(portalRecord.body, '', '/var/www/flowagent
   pass('/login and /register resolve through the effective V5 portal auth location');
 }
 
-if (!marketingRecord || !hasExpectedRoot(marketingRecord.body, marketingRoot, '/var/www/flowsmartly-v5/current')) {
+if (!marketingRecord || !hasExpectedRoot(marketingRecord.body, serverMarketingRoot, '/var/www/flowsmartly-v5/current')) {
   fail('/early-access does not resolve through the effective V5 marketing root');
 } else if (/^\s*(?:rewrite|return|alias)\b/mu.test(marketingRecord.body) ||
     !/^\s*try_files\s+\$uri\s+\$uri\.html\s+\$uri\/index\.html\s+=404\s*;/mu.test(marketingRecord.body)) {
@@ -307,11 +309,11 @@ checkCtaSource(sourceRoot);
 if (accountCtaFiles === 0) fail('no Create account CTA source was found');
 else pass(`${accountCtaFiles} source file(s) with Create account CTAs reference goToRegister`);
 
-for (const [root, route, label] of [
-  [portalRoot, '/login', 'portal /login'],
-  [portalRoot, '/register', 'portal /register'],
+const routeChecks = [
   [marketingRoot, '/early-access', 'marketing compatibility /early-access'],
-]) {
+  ...(!marketingOnly ? [[portalRoot, '/login', 'portal /login'], [portalRoot, '/register', 'portal /register']] : []),
+];
+for (const [root, route, label] of routeChecks) {
   const path = staticRoute(root, route);
   if (!path) fail(`${label} has no exported static file under ${root}`);
   else pass(`${label} resolves to ${relative(root, path).split(sep).join('/')}`);
@@ -345,7 +347,7 @@ function treeDigest(root) {
 
 const forbidden = /join(?: v5)? early access|legacy\.flowsmartly\.com/iu;
 const artifactSummary = {};
-for (const [root, label] of [[marketingRoot, 'marketing'], [portalRoot, 'portal']]) {
+for (const [root, label] of [[marketingRoot, 'marketing'], ...(!marketingOnly ? [[portalRoot, 'portal']] : [])]) {
   for (const file of (() => {
     const found = [];
     const walk = (dir) => {
@@ -375,7 +377,7 @@ if (process.exitCode) {
     portal_source_sha: portalSourceSha,
     nginx_config_sha256: createHash('sha256').update(readFileSync(nginxPath)).digest('hex'),
     artifacts: artifactSummary,
-    verdict: 'PASS_LOCAL_ONLY',
-    scope: 'read-only offline verification; no host was contacted and no deployment was performed',
+    verdict: marketingOnly ? 'PASS_MARKETING_ONLY' : 'PASS_LOCAL_ONLY',
+    scope: marketingOnly ? 'source-bound marketing export receipt; no portal candidate or host was proved' : 'read-only offline verification; no host was contacted and no deployment was performed',
   }, null, 2));
 }
