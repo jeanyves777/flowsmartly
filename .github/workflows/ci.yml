@@ -99,6 +99,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      - name: Test the V5 apex entry verifier
+        run: npm run test:apex-entry
+
       - name: Verify the V5 marketing export against its source routes
         # This repository owns the static public marketing export ONLY.
         # deploy/nginx-flowsmartly-v5.conf is an obsolete historical vhost
