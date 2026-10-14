@@ -27,7 +27,7 @@ import { FONT_SANS,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -399,24 +399,24 @@ export default function PricingPage() {
                       still named by the card it sits in. */}
                   {plan.featured ? (
                     <PrimaryButton
-                      label="Join early access"
+                      label="Create account"
                       full
                       trackId={`pricing.plan.${plan.id}`}
-                      onPress={() => goToEarlyAccess()}
+                      onPress={() => goToRegister()}
                     />
                   ) : (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Join early access"
+                      accessibilityLabel="Create account"
                       onPress={() => {
                         trackCta(`pricing.plan.${plan.id}`, { variant: 'plan' });
-                        goToEarlyAccess();
+                        goToRegister();
                       }}
                       style={({ pressed }) => [
                         styles.planButton,
                         pressed ? styles.planButtonPressed : null,
                       ]}>
-                      <Text style={styles.planButtonLabel}>Join early access</Text>
+                      <Text style={styles.planButtonLabel}>Create account</Text>
                     </Pressable>
                   )}
                 </View>
