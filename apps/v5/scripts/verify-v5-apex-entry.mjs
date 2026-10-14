@@ -14,7 +14,7 @@
  * not contact a host, read credentials, mutate nginx, or deploy anything.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative, resolve, sep } from 'node:path';
 
@@ -75,6 +75,9 @@ try {
 const portalSourceSha = portalManifest?.source?.sha;
 if (!/^[0-9a-f]{40}$/u.test(portalSourceSha ?? '')) fail('V5 portal manifest does not name a full source.sha');
 else pass(`V5 portal manifest names source SHA ${portalSourceSha}`);
+const portalManifestDigest = portalManifest?.artifacts?.portal_artifact_digest;
+if (!/^sha256:[0-9a-f]{64}$/u.test(portalManifestDigest ?? '')) fail('V5 portal manifest does not name a full portal_artifact_digest');
+if (portalManifest?.artifacts?.measured_at_sha !== portalSourceSha) fail('V5 portal artifact measurement is not stamped at manifest source.sha');
 
 // Resolve a generated static route as nginx's `$uri $uri.html $uri/index.html` does.
 function staticRoute(root, pathname) {
@@ -172,24 +175,41 @@ for (const [root, route, label] of [
 }
 
 function treeDigest(root) {
-  const files = [];
-  function walk(dir) {
-    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (entry.isFile()) files.push(path);
-      else throw new Error(`unsupported export entry: ${path}`);
+  // Same flowsmartly.release-digest/3 format used by the V5 release manifest.
+  const u32 = (value) => { const out = Buffer.alloc(4); out.writeUInt32BE(value); return out; };
+  const u64 = (value) => { const out = Buffer.alloc(8); out.writeBigUInt64BE(BigInt(value)); return out; };
+  const field = (value) => {
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8');
+    return Buffer.concat([u64(bytes.length), bytes]);
+  };
+  const hash = createHash('sha256').update(field('flowsmartly.release-digest/3'));
+  let files = 0;
+  let bytesTotal = 0;
+  const record = (type, name, mode) => hash.update(Buffer.from(type, 'latin1')).update(field(name)).update(u32(mode & 0o7777));
+  const visit = (directory, prefix) => {
+    for (const entry of readdirSync(directory).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)) {
+      const path = join(directory, entry);
+      const info = lstatSync(path);
+      const name = prefix ? `${prefix}/${entry}` : entry;
+      if (info.isSymbolicLink()) throw new Error(`artifact contains a link: ${name}`);
+      if (info.isDirectory()) {
+        record('D', name, info.mode);
+        visit(path, name);
+      } else if (info.isFile()) {
+        const content = readFileSync(path);
+        record('F', name, info.mode).update(u64(content.length)).update(createHash('sha256').update(content).digest());
+        files += 1;
+        bytesTotal += content.length;
+      } else {
+        throw new Error(`unsupported artifact entry: ${name}`);
+      }
     }
-  }
-  walk(root);
-  const hash = createHash('sha256');
-  for (const path of files) {
-    const name = relative(root, path).split(sep).join('/');
-    const bytes = readFileSync(path);
-    hash.update(`${Buffer.byteLength(name)}:${name}:${bytes.length}:`);
-    hash.update(bytes);
-  }
-  return { files: files.length, sha256: hash.digest('hex') };
+  };
+  const rootInfo = lstatSync(root);
+  if (!rootInfo.isDirectory()) throw new Error(`artifact is not a directory: ${root}`);
+  record('D', '.', rootInfo.mode);
+  visit(root, '');
+  return { files, bytes: bytesTotal, digest: `sha256:${hash.digest('hex')}` };
 }
 
 const forbidden = /join(?: v5)? early access|legacy\.flowsmartly\.com/iu;
@@ -211,7 +231,8 @@ for (const [root, label] of [[marketingRoot, 'marketing'], [portalRoot, 'portal'
   }
   const digest = treeDigest(root);
   artifactSummary[label] = digest;
-  pass(`${label} artifact tree: ${digest.files} files, sha256:${digest.sha256}`);
+  pass(`${label} artifact tree: ${digest.files} files, ${digest.bytes} bytes, ${digest.digest}`);
+  if (label === 'portal' && digest.digest !== portalManifestDigest) fail(`portal export digest ${digest.digest} differs from manifest ${portalManifestDigest}`);
 }
 
 if (process.exitCode) {
