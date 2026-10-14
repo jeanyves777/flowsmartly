@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import {
   ArrowLink,
@@ -756,13 +756,13 @@ export default function AdsPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
                   trackId="ads.hero.launch"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 <SecondaryButton
                   label="See Ads Manager"
