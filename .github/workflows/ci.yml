@@ -100,6 +100,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Test public control feedback selectors
+        run: npm run test:public-controls
+
       - name: Build web export
         run: npm run build:web
         env:
