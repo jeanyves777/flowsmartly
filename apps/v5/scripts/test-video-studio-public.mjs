@@ -33,21 +33,21 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   await page.goto(`http://127.0.0.1:${port}/solutions/video-studio/`, { waitUntil: 'networkidle0', timeout: 60_000 });
   await page.waitForSelector('[role="main"]');
-  await page.waitForSelector('button[aria-label="Show Product film reference"]');
-  assert.equal(await page.locator('h1').count(), 1, 'The public route must expose one primary heading');
-  assert.match(await page.locator('h1').innerText(), /Make your next story/);
+  await page.waitForSelector('[role="button"][aria-label="Show Product film reference"]');
+  assert.equal(await page.locator('[role="heading"][aria-level="1"]').count(), 1, 'The public route must expose one primary heading');
+  assert.match(await page.locator('[role="heading"][aria-level="1"]').innerText(), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
 
   // Exercise the real gallery action and make sure it stays a local reference.
-  await page.locator('button[aria-label="Show Social reference"]').click();
-  assert.equal(await page.locator('button[aria-label="Show Social reference"]').evaluate((el) => el.getAttribute('aria-pressed')), 'true');
+  await page.locator('[role="button"][aria-label="Show Social reference"]').click();
+  assert.equal(await page.locator('[role="button"][aria-label="Show Social reference"]').evaluate((el) => el.getAttribute('aria-pressed')), 'true');
   assert.match(await page.locator('img').first().getAttribute('alt'), /creator-style social video/);
-  assert.match(await page.locator('body').innerText(), /Selector changes this page only/);
+  assert.match(await page.locator('body').innerText(), /This selector changes the preview only/);
 
   // Prove natural Tab traversal reaches the custom controls, with a visible focus
   // state; then activate the next preview from the keyboard.
   await page.reload({ waitUntil: 'networkidle0' });
-  const campaign = page.locator('button[aria-label="Show Campaign reference"]');
+  const campaign = page.locator('[role="button"][aria-label="Show Campaign reference"]');
   let reached = false;
   for (let step = 0; step < 50; step += 1) {
     await page.keyboard.press('Tab');
