@@ -9,6 +9,7 @@ import { afterEach, test } from 'node:test';
 const SCRIPT = new URL('./verify-v5-apex-entry.mjs', import.meta.url);
 const tempRoots = [];
 const PORTAL_DIGEST = 'sha256:2886e31c96a62f88b356f6f7d29969dc1c13f1e7fe19e252a6c0d534baeb2e80';
+const V5_APEX_CONFIG_GIT_BLOB = '6896ea6336e692be3743396a3d21b33e4b4e51ed';
 const APEX = `server {
   listen 80;
   listen [::]:80;
@@ -190,6 +191,19 @@ test('script rejects early-access exact shadowing, alias, wrong root, and rewrit
 });
 test('script selects the canonical HTTPS block beside the HTTP redirect block', () => {
   const result = run(fixture());
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /canonical HTTPS server default root/u);
+});
+test('pinned V5 nginx fixture matches the authoritative source blob and routes', () => {
+  const path = new URL('./fixtures/nginx-apex-v5.conf', import.meta.url);
+  const bytes = readFileSync(path);
+  const blobSha = createHash('sha1')
+    .update(`blob ${bytes.length}\\0`)
+    .update(bytes)
+    .digest('hex');
+  assert.equal(blobSha, V5_APEX_CONFIG_GIT_BLOB, 'refresh requires reviewed upstream blob SHA');
+
+  const result = run(fixture({ nginxText: bytes.toString('utf8') }));
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /canonical HTTPS server default root/u);
 });
