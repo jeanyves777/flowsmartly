@@ -79,7 +79,41 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 #fs-nav-scroll { overscroll-behavior: contain; }
 #fs-nav-top { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
 #fs-nav-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
-`;
+
+/*
+  PUBLIC CONTROL FEEDBACK.
+  Shared pressable and anchor feedback keeps the site responsive to pointer,
+  keyboard and touch input without making decorative mockup chrome interactive.
+  Focus remains visible for keyboard users; motion is removed when requested.
+*/
+:where(#root, body > [role="dialog"]) :where([role="button"], a) {
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    box-shadow 160ms ease,
+    outline-offset 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  :where(#root, body > [role="dialog"]) :where([role="button"]:not([aria-disabled="true"]), a):hover {
+    transform: translateY(-2px);
+  }
+}
+:where(#root, body > [role="dialog"]) :where([role="button"]:not([aria-disabled="true"]), a):active {
+  transform: translateY(1px) scale(0.985);
+}
+:where(#root, body > [role="dialog"]) :where([role="button"], a):focus-visible {
+  outline: 3px solid #6d5efc;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(#root, body > [role="dialog"]) :where([role="button"], a) {
+    transition: none !important;
+  }
+  :where(#root, body > [role="dialog"]) :where([role="button"], a):hover,
+  :where(#root, body > [role="dialog"]) :where([role="button"], a):active {
+    transform: none !important;
+  }
+}
+
 
 export default function Root({ children }: PropsWithChildren) {
   return (
