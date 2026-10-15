@@ -17,7 +17,7 @@ const targets = [
 ];
 
 function selectorForDeclaration(declaration) {
-  const rules = [...style.matchAll(/([^{}]+)\\{\\s*([^{}]+)\\s*\\}/g)];
+  const rules = [...style.matchAll(/([^{}]+)\{\s*([^{}]+)\s*\}/g)];
   const rule = rules.find(([, , body]) => body.includes(declaration));
   assert.ok(rule, `expected a CSS declaration containing ${declaration}`);
   return rule[1].trim();
