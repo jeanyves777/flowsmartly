@@ -86,30 +86,78 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
   keyboard and touch input without making decorative mockup chrome interactive.
   Focus remains visible for keyboard users; motion is removed when requested.
 */
-:where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
+:where(#root, body > [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"]
+):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
   transition:
     transform 160ms cubic-bezier(0.2, 0.75, 0.25, 1),
-    box-shadow 160ms ease,
     outline-offset 120ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  :where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover {
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover {
     transform: translateY(-2px);
   }
 }
-:where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
+:where(#root, body > [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"]
+):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
   transform: translateY(1px) scale(0.985);
 }
-:where(#root, body > [role="dialog"]) :where([role="button"], a):focus-visible {
+:where(#root, body > [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"]
+):focus-visible {
   outline: 3px solid #6d5efc;
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
-  :where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
     transition: none !important;
   }
-  :where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover,
-  :where(#root, body > [role="dialog"]) :where([role="button"], a):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover,
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
     transform: none !important;
   }
 }
