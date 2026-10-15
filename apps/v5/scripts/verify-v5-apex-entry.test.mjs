@@ -254,6 +254,17 @@ test('script rejects a portal digest mismatch', () => {
   assert.match(result.output, /portal export digest .* differs from manifest/u);
 });
 
+test('script rejects stale V4 host references in exported CSS assets', () => {
+  const input = fixture();
+  put(input.marketing, 'assets/theme.css', 'body { background-image: url("https://legacy.flowsmartly.com/login"); }');
+  const result = run(input);
+  assert.equal(result.status, 1, result.output);
+  assert.match(
+    result.output,
+    /marketing export contains a stale waitlist or V4-host reference: assets\\/theme\\.css/u,
+  );
+});
+
 test('script rejects a manifest not measured from a clean worktree', () => {
   const result = run(fixture({ clean: false }));
   assert.equal(result.status, 1, result.output);
