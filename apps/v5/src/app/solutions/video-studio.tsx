@@ -185,7 +185,7 @@ function VideoStudioPage() {
                   <FontAwesome6 name="arrow-down-left-and-arrow-up-right-to-center" size={14} color={t.textMuted} aria-hidden={true} />
                 </View>
               </View>
-              <View accessibilityRole="toolbar" accessibilityLabel="Choose a reference preview" style={styles.previewTabs}>
+              <View accessibilityLabel="Choose a reference preview" style={styles.previewTabs}>
                 {PREVIEWS.map((item, index) => {
                   const selected = activePreview === index;
                   return (
