@@ -39,8 +39,8 @@ try {
   await page.waitForSelector('[role="main"]');
   await page.waitForSelector('[role="button"][aria-label="Show Product film reference"]');
   const headingSelector = '[role="heading"][aria-level="1"]';
-  assert.equal(await page.$eval(headingSelector, (elements) => elements.length), 1, 'The public route must expose one primary heading');
-  assert.equal(await page.$eval('[role="button"][aria-label$=" reference"] img', (elements) => elements.length), 4, 'Each direction control must show its local thumbnail');
+  assert.equal(await page['$eval'](headingSelector, (elements) => elements.length), 1, 'The public route must expose one primary heading');
+  assert.equal(await page['$eval']('[role="button"][aria-label$=" reference"] img', (elements) => elements.length), 4, 'Each direction control must show its local thumbnail');
   assert.match(await page.$eval(headingSelector, (element) => element.innerText), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
   assert.equal(await page.$eval(headingSelector, (element) => getComputedStyle(element).opacity), '1', 'Reduced motion must leave the page content visible');
@@ -73,7 +73,7 @@ try {
   assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Editorial campaign still of a car on a coastal road at sunset');
 
   // The FAQ control is an actual disclosure and reports its expanded state.
-  const faqButtons = await page.$('[aria-expanded]');
+  const faqButtons = await page['$']('[aria-expanded]');
   let faq = null;
   for (const button of faqButtons) {
     const label = await button.evaluate((element) => element.innerText || '');
