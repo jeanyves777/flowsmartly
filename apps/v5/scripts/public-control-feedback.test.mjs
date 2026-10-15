@@ -16,15 +16,16 @@ const targets = [
   'input[type="reset"]',
 ];
 
-function ruleSelectorContaining(snippet) {
-  const rule = style.split('}').find((part) => part.includes(snippet));
-  assert.ok(rule, `expected a CSS rule containing ${snippet}`);
-  return rule.slice(0, rule.indexOf('{')).trim();
+function selectorForDeclaration(declaration) {
+  const rules = [...style.matchAll(/([^{}]+)\\{\\s*([^{}]+)\\s*\\}/g)];
+  const rule = rules.find(([, , body]) => body.includes(declaration));
+  assert.ok(rule, `expected a CSS declaration containing ${declaration}`);
+  return rule[1].trim();
 }
 
 test('enabled public controls share hover and pressed feedback', () => {
   for (const state of [':hover', ':active']) {
-    const selector = ruleSelectorContaining(state);
+    const selector = selectorForDeclaration(state === ':hover' ? 'translateY(-2px)' : 'translateY(1px) scale(0.985)');
     for (const target of targets) assert.ok(selector.includes(target), `${state} should include ${target}`);
     assert.match(selector, /:not\(:disabled\)/, 'native disabled controls are excluded');
     assert.match(selector, /:not\(\[disabled\]\)/, 'explicit disabled attributes are excluded');
@@ -33,7 +34,7 @@ test('enabled public controls share hover and pressed feedback', () => {
 });
 
 test('keyboard focus remains visible and reduced motion removes movement', () => {
-  const focus = ruleSelectorContaining(':focus-visible');
+  const focus = selectorForDeclaration('outline: 3px solid #6d5efc');
   for (const target of targets) assert.ok(focus.includes(target), `focus-visible should include ${target}`);
   assert.match(style.slice(style.indexOf(':focus-visible')), /outline: 3px solid #6d5efc/);
 
