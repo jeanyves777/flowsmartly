@@ -1,0 +1,8 @@
+{
+  "head": "3037d5f04e7ec2900788c8ab827987f1a60b2e5e",
+  "utc": "2026-10-15T14:46:51.209Z",
+  "browser": {},
+  "results": [],
+  "errors": [],
+  "failure": "Natural Tab through rendered control fixture: {\"tag\":\"DIV\",\"id\":\"\",\"role\":\"link\",\"name\":\"role-link\",\"fixture\":\"role-link\",\"visible\":true,\"keyboard\":true,\"outlineWidth\":\"1px\",\"outlineStyle\":\"auto\",\"outlineColor\":\"rgb(16, 16, 16)\",\"transform\":\"none\",\"disabled\":false}\n\n'1px' !== '3px'\n"
+}

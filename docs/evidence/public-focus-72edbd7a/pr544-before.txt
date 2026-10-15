@@ -1,0 +1,28 @@
+node : node:internal/modules/run_main:107
+At line:4 char:1
++ node scripts/test-public-focus.mjs *> D:/fs-codex-inbox/pr544-before. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:internal/modules/run_main:107:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Natural Tab through rendered control fixture: {"tag":"DIV","id":"","role":"link","name"
+:"role-link","fixture":"role-link","visible":true,"keyboard":true,"outlineWidth":"1px","outlineStyle":"auto","outlineCo
+lor":"rgb(16, 16, 16)","transform":"none","disabled":false}
+
+'1px' !== '3px'
+
+    at assertRing (file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:64:10)
+    at fixtures (file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:94:7)
+    at async file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:132:3 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '1px',
+  expected: '3px',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.18.0
