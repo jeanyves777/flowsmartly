@@ -138,19 +138,28 @@ try {
     for (const theme of ['light','grey','dark']) for (const width of [390,768,1440]) for (const route of routes) {
       const page = await openPage(browser,route,width,theme);
       const stops = [];
-      for (let step=0;step<12;step++) {
+      const controlRoute = route === '/company/contact' || route === '/platform/ai-studio';
+      let captured = false;
+      for (let step=0;step<(controlRoute ? 28 : 12);step++) {
         await page.keyboard.press('Tab');
         const observation = await activeObservation(page);
         if (observation.tag !== 'BODY' && observation.visible && observation.keyboard) assertRing(observation, `${route}/${theme}/${width}`);
         stops.push(observation);
+        if (controlRoute && !captured && (['INPUT','TEXTAREA'].includes(observation.tag) || ['tab','checkbox'].includes(observation.role))) {
+          await page.screenshot({path:path.join(output,`${route.split('/').at(-1)}-${theme}-${width}.png`)});
+          captured = true;
+        }
       }
       const overflow = await page.evaluate(() => ({ document:document.documentElement.scrollWidth, viewport:innerWidth, scrollers:[...document.querySelectorAll('*')].filter(el=>el.clientWidth>0 && /auto|scroll/.test(getComputedStyle(el).overflowY)).map(el=>({width:el.scrollWidth,client:el.clientWidth})) }));
       assert(overflow.document<=width+1 && overflow.scrollers.every(el=>el.width<=el.client+1), `Overflow ${route}/${theme}/${width}: ${JSON.stringify(overflow)}`);
       results.push({kind:'route',route,theme,width,stops,overflow});
-      if (route === '/company/contact' || route === '/platform/ai-studio') await page.screenshot({path:path.join(output,`${route.split('/').at(-1)}-${theme}-${width}.png`)});
+      if (controlRoute && !captured) await page.screenshot({path:path.join(output,`${route.split('/').at(-1)}-${theme}-${width}.png`)});
       await page.close();
       console.log(`PASS ${route} ${theme}/${width}`);
     }
+    const routeStops = results.filter(result=>result.kind==='route').flatMap(result=>result.stops);
+    for (const role of ['link','tab','checkbox']) assert(routeStops.some(stop=>stop.role===role && stop.keyboard), `Natural Tab must reach a real page role=${role} control`);
+    for (const tag of ['INPUT','TEXTAREA']) assert(routeStops.some(stop=>stop.tag===tag && stop.keyboard), `Natural Tab must reach a real page ${tag}`);
     for (const width of [390,768]) {
       const page = await openPage(browser,'/',width);
       const trigger='[aria-label="Open navigation"]';
