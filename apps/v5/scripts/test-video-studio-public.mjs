@@ -52,7 +52,7 @@ try {
   assert.equal(await page.$eval(socialSelector, (element) => element.getAttribute('aria-pressed')), 'true');
   assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Creator-style social video still framed for a vertical feed');
   assert.match(await page.$eval('body', (element) => element.innerText), /This selector changes the preview only/);
-  await page.waitForTimeout(200);
+  await delay(200);
   assert.equal(capabilityRequests.length, requestsBeforeSelection, 'Selecting a thumbnail must not call a video/API provider');
 
   // Prove natural Tab traversal reaches the custom controls, with a visible focus
