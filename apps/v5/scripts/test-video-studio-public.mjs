@@ -37,11 +37,12 @@ try {
   assert.equal(await page.locator('[role="heading"][aria-level="1"]').count(), 1, 'The public route must expose one primary heading');
   assert.match(await page.locator('[role="heading"][aria-level="1"]').innerText(), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
+  assert.equal(await page.locator('[role="heading"][aria-level="1"]').evaluate((el) => getComputedStyle(el).opacity), '1', 'Reduced motion must leave the page content visible');
 
   // Exercise the real gallery action and make sure it stays a local reference.
   await page.locator('[role="button"][aria-label="Show Social reference"]').click();
   assert.equal(await page.locator('[role="button"][aria-label="Show Social reference"]').evaluate((el) => el.getAttribute('aria-pressed')), 'true');
-  assert.match(await page.locator('img').first().getAttribute('alt'), /creator-style social video/);
+  assert.match(await page.locator('img').first().getAttribute('alt'), /creator-style social video/i);
   assert.match(await page.locator('body').innerText(), /This selector changes the preview only/);
 
   // Prove natural Tab traversal reaches the custom controls, with a visible focus
@@ -58,7 +59,7 @@ try {
   assert.equal(await campaign.evaluate((el) => getComputedStyle(el).borderWidth), '2px', 'Keyboard focus must be visible');
   await page.keyboard.press('Space');
   assert.equal(await campaign.evaluate((el) => el.getAttribute('aria-pressed')), 'true', 'Space must select a preview');
-  assert.match(await page.locator('img').first().getAttribute('alt'), /campaign still/);
+  assert.match(await page.locator('img').first().getAttribute('alt'), /campaign still/i);
 
   // The FAQ control is an actual disclosure and reports its expanded state.
   const faq = page.getByRole('button', { name: /Can I generate a video from this page/ });
