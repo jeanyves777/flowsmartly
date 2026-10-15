@@ -1,1070 +1,439 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
-import { Linking, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { Connectors, ConnectorSurface, useConnectorField, type Link as Wire } from '@/components/public/connectors';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Media } from '@/components/public/media';
-import { Animated, Reveal, useCountUp, useGrowIn } from '@/components/public/motion';
-import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
-import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Band,
   ButtonRow,
   Heading,
+  OpenSection,
   PrimaryButton,
   SecondaryButton,
-  Band,
-  OpenSection,
   SectionLabel,
-  TextLink,
   useTypeScale,
-  type TypeScale,
 } from '@/components/public/ui';
 import { contactHref, goToRegister } from '@/lib/destinations';
-import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
+import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
-/* ------------------------------------------------------------------ */
-/* content                                                             */
-/* ------------------------------------------------------------------ */
-
-type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
-
-const PROOF = ['No credit card required', 'Built for small teams', 'Publishes where you already are'];
-
-/** The trust strip under the hero. Five, so it divides at 1 and 5. */
-const TRUST = [
-  { key: 'trial', icon: 'gift', label: 'Free to start' },
-  { key: 'stack', icon: 'layer-group', label: 'One growth workspace' },
-  { key: 'ai', icon: 'wand-magic-sparkles', label: 'FlowAgent automation' },
-  { key: 'card', icon: 'credit-card', label: 'No card to begin' },
-  { key: 'cancel', icon: 'circle-check', label: 'Cancel anytime' },
-];
-
-/** The performance row inside the player card. Illustrative, and labelled so. */
-const PLAYER_STATS: { key: string; label: string; value: number; suffix: string; delta: string }[] = [
-  { key: 'views', label: 'Views', value: 124.6, suffix: 'K', delta: '+32%' },
-  { key: 'engagement', label: 'Engagement', value: 8.2, suffix: 'K', delta: '+28%' },
-  { key: 'ctr', label: 'Click rate', value: 5.4, suffix: '%', delta: '+41%' },
-];
-
-/** Where one finished cut goes. Seven, laid out as a single measured column. */
-const CHANNELS: { key: string; icon: string; label: string; state: string; accent: Accent }[] = [
-  { key: 'social', icon: 'heart', label: 'Social', state: 'Published', accent: 'pink' },
-  { key: 'email', icon: 'envelope', label: 'Email', state: 'Sent', accent: 'brand' },
-  { key: 'sms', icon: 'comment-dots', label: 'SMS', state: 'Delivered', accent: 'green' },
-  { key: 'ads', icon: 'bullhorn', label: 'Ads', state: 'Active', accent: 'violet' },
-  { key: 'shop', icon: 'bag-shopping', label: 'FlowShop', state: 'Featured', accent: 'orange' },
-  { key: 'local', icon: 'map-location-dot', label: 'Local', state: 'Updated', accent: 'green' },
-  { key: 'analytics', icon: 'chart-pie', label: 'Analytics', state: 'Tracking', accent: 'brand' },
-];
-
-/**
- * The eight things the studio makes. Eight divides by 1, 2 and 4, so the grid
- * never strands a card whatever the breakpoint.
- *
- * Four carry a real photograph that already exists in the registry; the other
- * four are designed mocks, because the honest alternative — a placeholder box
- * where a stock photo should be — is not a page anyone can review.
- */
-type Craft = {
-  key: string;
-  title: string;
-  body: string;
-  cta: string;
-  href: string;
-  accent: Accent;
-  icon: string;
-  media?: string;
-  alt?: string;
-  mock?: 'timeline' | 'waveform' | 'presenter' | 'chart';
-};
-
-const CRAFT: Craft[] = [
-  {
-    key: 'films',
-    title: 'Campaign films',
-    body: 'Brand and campaign videos built from a brief, cut to the length each placement needs.',
-    cta: 'Plan a film',
-    href: ROUTES.aiStudio,
-    accent: 'brand',
-    icon: 'clapperboard',
-    media: 'video/ad-automotive',
-    alt: 'A cinematic campaign film still of a car on a coastal road at sunset',
-  },
-  {
-    key: 'ugc',
-    title: 'UGC ads',
-    body: 'Creator-style ads that look filmed on a phone, because that is what people stop for.',
-    cta: 'Make a UGC ad',
-    href: ROUTES.ads,
-    accent: 'pink',
-    icon: 'mobile-screen',
-    media: 'video/ugc-unboxing',
-    alt: 'A creator filming an unboxing on a phone mounted on a tripod',
-  },
+const PREVIEWS = [
   {
     key: 'product',
-    title: 'Product ads',
-    body: 'One product shot becomes a scroll-stopping ad, with the price and offer burned in.',
-    cta: 'Build a product ad',
-    href: ROUTES.flowshop,
-    accent: 'orange',
+    label: 'Product film',
     media: 'video/ad-fragrance',
-    alt: 'A fragrance bottle lit for a product advert, wrapped in a swirl of light',
-    icon: 'bag-shopping',
+    alt: 'Editorial product-film still featuring a fragrance bottle with warm, sculpted light',
+    note: 'A product-led visual direction',
   },
   {
-    key: 'presentations',
-    title: 'Video presentations',
-    body: 'Record once, and the deck, the captions and the chapter list come with it.',
-    cta: 'Record a presentation',
-    href: ROUTES.trainingStudio,
-    accent: 'violet',
-    icon: 'chalkboard-user',
-    mock: 'presenter',
-  },
-  {
-    key: 'voice',
-    title: 'Voice and narration',
-    body: 'Natural voiceover in the languages your customers actually speak, from the same script.',
-    cta: 'Add a voiceover',
-    href: ROUTES.aiStudio,
-    accent: 'green',
-    icon: 'microphone-lines',
-    media: 'video/voice-studio',
-    alt: 'A studio microphone in front of a waveform and a row of video scenes',
-  },
-  {
-    key: 'spokesperson',
-    title: 'AI spokesperson',
-    body: 'A presenter who never needs a second take, on brand and on script every time.',
-    cta: 'Create a presenter video',
-    href: ROUTES.aiStudio,
-    accent: 'brand',
-    icon: 'user-tie',
-    media: 'video/voice-anchor',
-    alt: 'A presenter delivering a scripted piece to camera on a broadcast set',
+    key: 'campaign',
+    label: 'Campaign',
+    media: 'video/ad-automotive',
+    alt: 'Editorial campaign still of a car on a coastal road at sunset',
+    note: 'A cinematic campaign direction',
   },
   {
     key: 'social',
-    title: 'Social video',
-    body: 'Resize, caption and reframe automatically, so one cut fits every feed it lands in.',
-    cta: 'Cut for social',
-    href: ROUTES.social,
-    accent: 'violet',
+    label: 'Social',
     media: 'video/ugc-beauty',
-    alt: 'A creator filming a vertical social video on a phone',
-    icon: 'scissors',
+    alt: 'Creator-style social video still framed for a vertical feed',
+    note: 'A creator-led social direction',
   },
   {
-    key: 'analytics',
-    title: 'Video analytics',
-    body: 'Which cut earned the revenue, which thumbnail earned the click, and what to make next.',
-    cta: 'See the reporting',
-    href: ROUTES.analytics,
-    accent: 'green',
-    icon: 'chart-column',
-    mock: 'chart',
+    key: 'voice',
+    label: 'Voiceover',
+    media: 'video/voice-studio',
+    alt: 'Voice recording studio scene with a microphone and audio workstation',
+    note: 'A voice and narration direction',
   },
-];
+] as const;
 
-/** What FlowAgent does with a video brief. Three, divides at 1 and 3. */
-const AI_STEPS = [
-  { key: 'plan', icon: 'list-check', label: 'Writes the script, the shot list and the storyboard' },
-  { key: 'edit', icon: 'scissors', label: 'Cuts, dubs and captions without a round trip' },
-  { key: 'publish', icon: 'paper-plane', label: 'Publishes everywhere and watches what worked' },
-];
-
-const QUOTES: { key: string; quote: string; name: string; role: string; media: string }[] = [
+const WORKFLOW = [
   {
-    key: 'q1',
-    quote:
-      'We were paying an agency for four videos a month. We now make more than that in a week, and they perform better because we can actually test them.',
-    name: 'Megan Roberts',
-    role: 'Founder, Bright Smile Dental',
-    media: 'people/megan-roberts',
+    number: '01',
+    title: 'Bring the brief',
+    body: 'Start with the product, audience and message you want to communicate. Keep the creative direction in one place.',
+    icon: 'file-lines',
   },
   {
-    key: 'q2',
-    quote:
-      'The presenter videos are the part I did not expect to like. Same script, six languages, and our Spanish-speaking customers finally get the same explanation.',
-    name: 'Carlos Ramirez',
-    role: 'Marketing Lead, Solara',
-    media: 'people/carlos-ramirez',
+    number: '02',
+    title: 'Shape the story',
+    body: 'Use the studio page to explore visual formats and the current product workflow. The preview gallery is illustrative.',
+    icon: 'wand-magic-sparkles',
   },
   {
-    key: 'q3',
-    quote:
-      'Everything we need to shoot, cut and publish is in one place. No exporting, no re-uploading, no wondering which version went out.',
-    name: 'Priya Shah',
-    role: 'Content Director, Harbor & Co.',
-    media: 'people/priya-shah',
+    number: '03',
+    title: 'Plan the next step',
+    body: 'Create an account to explore FlowSmartly, or request a conversation about the video workflow you need.',
+    icon: 'arrow-up-right-from-square',
   },
-];
+] as const;
 
-const FAQ: { q: string; a: string }[] = [
-  {
-    q: 'Do I need to film anything myself?',
-    a: 'Only if you want to. You can start from a product photo, a script, or your own footage — and mix all three in the same cut.',
-  },
-  {
-    q: 'Can I use my own voice?',
-    a: 'Yes. You can record narration, use a generated voice, or clone your own and keep the same delivery across every language.',
-  },
-  {
-    q: 'What formats does it export?',
-    a: 'Every placement the platform publishes to, sized and captioned automatically — square, vertical, landscape and the ad sizes each network requires.',
-  },
-  {
-    q: 'Where do the finished videos go?',
-    a: 'Straight into the same workspace as your posts, emails, ads and storefront, so publishing is a choice rather than another upload.',
-  },
-];
+const PLANNED = [
+  { title: 'Generate a finished video', body: 'Video generation is not connected to this public page yet.', icon: 'film' },
+  { title: 'Choose a model or provider', body: 'Provider selection and routing remain behind the API.', icon: 'sliders' },
+  { title: 'Send motion and shot settings', body: 'Settings need an end-to-end request path before they can affect output.', icon: 'arrows-to-circle' },
+] as const;
 
-/* ------------------------------------------------------------------ */
-/* pieces                                                              */
-/* ------------------------------------------------------------------ */
-
-/** The distribution rail: one hub, seven measured channel cards, real wires. */
-function ChannelRail({ styles, t, accentOf }: { styles: Styles; t: ThemeTokens; accentOf: (a: Accent) => string }) {
-  const field = useConnectorField();
-  const links = useMemo<Wire[]>(() => CHANNELS.map((c) => ['hub', c.key] as const), []);
-  return (
-    <ConnectorSurface field={field} style={styles.rail}>
-      <Connectors field={field} links={links} color={t.brand} circular={['hub']} strokeWidth={1.5} dash="0.5 5" flow />
-      <View {...field.node('hub')} style={styles.railHub}>
-        <FontAwesome6 name="film" size={16} color={t.textOnBrand}  aria-hidden={true}/>
-      </View>
-      <View style={styles.railColumn}>
-        {CHANNELS.map((channel) => (
-          <View key={channel.key} {...field.node(channel.key)} style={styles.railCard}>
-            <View style={[styles.railIcon, { backgroundColor: softFill(accentOf(channel.accent), t) }]}>
-              <FontAwesome6 name={channel.icon as never} size={12} color={accentOf(channel.accent)}  aria-hidden={true}/>
-            </View>
-            <View style={styles.railCopy}>
-              <Text numberOfLines={1} style={styles.railLabel}>
-                {channel.label}
-              </Text>
-              <Text numberOfLines={1} style={styles.railState}>
-                {channel.state}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </ConnectorSurface>
-  );
-}
-
-/** One counted stat under the player. */
-function PlayerStat({ stat, styles }: { stat: (typeof PLAYER_STATS)[number]; styles: Styles }) {
-  const { value, ref } = useCountUp(stat.value, { decimals: 1 });
-  return (
-    <View ref={ref as never} style={styles.statCell}>
-      {/* Two lines, not one: "Engagement" ellipsised to "Engage…" in a
-          quarter-width cell at 1280, which is a label that says nothing. */}
-      <Text numberOfLines={2} style={styles.statLabel}>
-        {stat.label}
-      </Text>
-      <Text numberOfLines={1} style={styles.statValue}>
-        {value}
-        {stat.suffix}
-      </Text>
-      <Text numberOfLines={1} style={styles.statDelta}>
-        {stat.delta}
-      </Text>
-    </View>
-  );
-}
-
-const TREND = [9, 14, 11, 19, 15, 24, 20, 27, 34];
-
-/** The sparkline beside the stats — decoration, so it is Views only. */
-function Trend({ styles, t }: { styles: Styles; t: ThemeTokens }) {
-  const { progress, ref } = useGrowIn({ duration: 700 });
-  return (
-    <View ref={ref as never} style={styles.trend}>
-      {TREND.map((height, index) => (
-        <TrendBar key={index} height={height} index={index} color={t.brand} progress={progress} styles={styles} />
-      ))}
-    </View>
-  );
-}
-
-function TrendBar({
-  height,
-  index,
-  color,
-  progress,
-  styles,
-}: {
-  height: number;
-  index: number;
-  color: string;
-  progress: SharedValue<number>;
-  styles: Styles;
-}) {
-  // `progress` is a Reanimated shared value: reading `.value` during render
-  // samples it once and never re-renders, which left every bar at its 2px floor
-  // and drew the sparkline as a dotted line. It has to be read on the UI thread.
-  const animated = useAnimatedStyle(() => {
-    const local = Math.min(1, Math.max(0, (progress.value - index * 0.05) / 0.7));
-    return { height: Math.max(2, height * local) };
-  }, [height, index]);
-  return <Animated.View style={[styles.trendBar, { backgroundColor: color }, animated]} />;
-}
-
-/** The four designed card mocks, for the crafts with no photograph. */
-function CraftMock({ kind, styles, t }: { kind: NonNullable<Craft['mock']>; styles: Styles; t: ThemeTokens }) {
-  if (kind === 'timeline') {
-    return (
-      <View style={[styles.mock, styles.mockDark]}>
-        <View style={styles.mockScrub} />
-        {[
-          { w: '58%' as const, c: t.brand },
-          { w: '78%' as const, c: t.violet },
-          { w: '40%' as const, c: t.orange },
-        ].map((row, index) => (
-          <View key={index} style={styles.mockTrack}>
-            <View style={[styles.mockClip, { width: row.w, backgroundColor: row.c }]} />
-          </View>
-        ))}
-      </View>
-    );
-  }
-  if (kind === 'waveform') {
-    return (
-      <View style={[styles.mock, styles.mockTint]}>
-        <View style={styles.waveRow}>
-          {[8, 16, 26, 14, 30, 20, 34, 18, 28, 12, 24, 30, 16, 22, 10, 26, 14, 8].map((h, i) => (
-            <View key={i} style={[styles.waveBar, { height: h }]} />
-          ))}
-        </View>
-        <Text numberOfLines={1} style={styles.mockCaption}>
-          EN · ES · FR · DE
-        </Text>
-      </View>
-    );
-  }
-  if (kind === 'presenter') {
-    return (
-      <View style={[styles.mock, styles.mockTint]}>
-        <View style={styles.slideRow}>
-          <View style={styles.slideMain}>
-            <View style={[styles.slideBar, { width: '70%' }]} />
-            <View style={[styles.slideBar, { width: '52%' }]} />
-            <View style={[styles.slideBar, { width: '61%' }]} />
-          </View>
-          <View style={styles.slideFace}>
-            <FontAwesome6 name="user" size={16} color={t.brand}  aria-hidden={true}/>
-          </View>
-        </View>
-        <Text numberOfLines={1} style={styles.mockCaption}>
-          Captions and chapters generated
-        </Text>
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.mock, styles.mockTint]}>
-      <View style={styles.chartRow}>
-        {[34, 52, 41, 66, 48, 74, 58].map((h, i) => (
-          <View key={i} style={[styles.chartBar, { height: h, backgroundColor: i === 5 ? t.brand : softFill(t.brand, t) }]} />
-        ))}
-      </View>
-      <Text numberOfLines={1} style={styles.mockCaption}>
-        Revenue per cut
-      </Text>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* page                                                                */
-/* ------------------------------------------------------------------ */
-
-export default function VideoStudioPage() {
+function VideoStudioPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
   const router = useRouter();
-  const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
-
-  const accentOf = (accent: Accent) =>
-    accent === 'violet'
-      ? t.violet
-      : accent === 'green'
-        ? t.green
-        : accent === 'orange'
-          ? t.orange
-          : accent === 'pink'
-            ? t.pink
-            : t.brand;
+  const styles = useMemo(() => createStyles(t, l), [t, l]);
+  const [activePreview, setActivePreview] = useState(0);
+  const [focusedPreview, setFocusedPreview] = useState<number | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const preview = PREVIEWS[activePreview];
+  const faqs = [
+    {
+      question: 'Can I generate a video from this page?',
+      answer: 'Not yet. The public page currently presents the workflow and lets you explore the existing visual references. Video generation is not wired to this page.',
+    },
+    {
+      question: 'Does the preview selector send my choices anywhere?',
+      answer: 'No. It changes the local reference image and caption only. It does not submit a brief or send creative settings to a provider.',
+    },
+    {
+      question: 'How can I discuss the video workflow?',
+      answer: 'Use “Talk to the team” to open the demo request form, or create an account to explore the V5 product.',
+    },
+  ];
 
   return (
     <PageShell
-      title="Video & Voice Studio"
-      description="Make campaign films, UGC and product ads, presenter videos, voiceovers and social cuts in one workspace — then publish them everywhere you already sell."
+      title="Video Studio"
+      description="Explore FlowSmartly’s video workflow, preview creative directions and see what is available today and what is planned."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
           { name: 'Solutions', path: ROUTES.solutions },
-          { name: 'Video & Voice Studio', path: ROUTES.videoStudio },
+          { name: 'Video Studio', path: ROUTES.videoStudio },
         ]),
-        faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
-      {/* ------------------------------------------------ hero */}
-      <OpenSection>
-        <View style={styles.heroRow}>
-          <Reveal style={styles.heroCopy} distance={16}>
-            <SectionLabel>VIDEO &amp; VOICE STUDIO</SectionLabel>
+      <OpenSection art="none" style={styles.heroSection}>
+        <View style={styles.heroGrid}>
+          <Reveal style={styles.heroCopy} distance={18}>
+            <View style={styles.eyebrow}>
+              <View style={styles.liveDot} />
+              <SectionLabel>VIDEO WORKFLOW · V5</SectionLabel>
+            </View>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Create videos that sell, teach, and grow your brand.
+              Make your next story feel unmistakably yours.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              Product ads, social cuts, UGC, presenter videos, voiceovers and training clips — made fast,
-              kept on brand, and published from the same workspace as everything else you run.
+              Explore the creative direction behind product films, campaigns, social video and voice. A thoughtful starting point for a video workflow that is still taking shape.
             </Text>
-            <View style={styles.heroButtons}>
+            <View style={styles.heroActions}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Create account"
+                  label="Create an account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  trackId="video-studio.hero.create-video"
-                  onPress={() => goToRegister()}
+                  trackId="video-studio.hero.create-account"
+                  onPress={goToRegister}
                 />
                 <SecondaryButton
-                  label="See it on a real brief"
+                  label="Talk to the team"
                   size="lg"
-                  icon="play"
                   full={l.isPhone}
-                  trackId="video-studio.hero.see-demo"
+                  icon="arrow-up-right-from-square"
+                  trackId="video-studio.hero.talk-to-team"
                   onPress={() => router.push(contactHref('demo') as never)}
                 />
               </ButtonRow>
             </View>
-            <View style={styles.proofRow}>
-              {PROOF.map((item) => (
-                <View key={item} style={styles.proofItem}>
-                  <View style={styles.proofTick}>
-                    <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
-                  </View>
-                  <Text numberOfLines={1} style={styles.proofText}>
-                    {item}
-                  </Text>
-                </View>
-              ))}
+            <View style={styles.heroNote}>
+              <FontAwesome6 name="circle-info" size={14} color={t.textMuted} aria-hidden={true} />
+              <Text style={[type.caption, styles.heroNoteText]}>
+                Video generation and provider controls are planned; this page does not submit a video request.
+              </Text>
             </View>
           </Reveal>
 
-          {/* Illustration only — every node is a View or a Text. */}
-          <Reveal style={styles.heroVisual} distance={16} delay={90}>
-            <View style={styles.playerCard}>
-              <View style={styles.player}>
-                <View style={styles.recBadge}>
-                  <View style={styles.recDot} />
-                  <Text numberOfLines={1} style={styles.recText}>
-                    REC
-                  </Text>
+          <Reveal style={styles.previewWrap} delay={80} distance={14}>
+            <View style={styles.previewFrame}>
+              <View style={styles.previewTopline}>
+                <View style={styles.previewBrand}>
+                  <View style={styles.previewMark}><FontAwesome6 name="clapperboard" size={12} color={t.textOnBrand} aria-hidden={true} /></View>
+                  <Text style={styles.previewBrandText}>CREATIVE REFERENCES</Text>
                 </View>
-                <View style={styles.playerBody}>
-                  <FontAwesome6 name="film" size={26} color={t.textOnScrim}  aria-hidden={true}/>
-                </View>
-                <View style={styles.playerBar}>
-                  <Text numberOfLines={1} style={styles.playerTitle}>
-                    New product launch — behind the scenes
-                  </Text>
-                  <View style={styles.playerControls}>
-                    <FontAwesome6 name="play" size={9} color={t.textOnScrim}  aria-hidden={true}/>
-                    <Text numberOfLines={1} style={styles.playerTime}>
-                      0:04 / 0:45
-                    </Text>
-                    <View style={styles.playerTrack}>
-                      <View style={styles.playerFill} />
-                    </View>
-                  </View>
+                <View style={styles.previewBadge}><View style={styles.previewBadgeDot} /><Text style={styles.previewBadgeText}>PREVIEW</Text></View>
+              </View>
+              <View style={styles.previewImageFrame}>
+                <Media name={preview.media} alt={preview.alt} style={styles.previewImage} radius={18} />
+                <View pointerEvents="none" style={styles.imageIndex}>
+                  <Text style={styles.imageIndexText}>{String(activePreview + 1).padStart(2, '0')}</Text>
+                  <View style={styles.imageIndexRule} />
+                  <Text style={styles.imageIndexTotal}>04</Text>
                 </View>
               </View>
-
-              <View style={styles.statRow}>
-                {PLAYER_STATS.map((stat) => (
-                  <PlayerStat key={stat.key} stat={stat} styles={styles} />
-                ))}
-                <View style={styles.statCellWide}>
-                  <Trend styles={styles} t={t} />
+              <View style={styles.previewCaptionRow}>
+                <View style={styles.previewCaptionCopy}>
+                  <Text style={styles.previewKicker}>DIRECTION {String(activePreview + 1).padStart(2, '0')}</Text>
+                  <Text style={styles.previewTitle}>{preview.label}</Text>
+                  <Text style={styles.previewNote}>{preview.note}</Text>
+                </View>
+                <View style={styles.previewArrow}>
+                  <FontAwesome6 name="arrow-down-left-and-arrow-up-right-to-center" size={14} color={t.textMuted} aria-hidden={true} />
                 </View>
               </View>
-              <Text numberOfLines={1} style={styles.statNote}>
-                Example figures
-              </Text>
+              <View accessibilityRole="group" accessibilityLabel="Choose a reference preview" style={styles.previewTabs}>
+                {PREVIEWS.map((item, index) => {
+                  const selected = activePreview === index;
+                  return (
+                    <Pressable
+                      key={item.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Show ${item.label} reference`}
+                      accessibilityState={{ selected }}
+                      aria-pressed={selected}
+                      onPress={() => setActivePreview(index)}
+                      onFocus={() => setFocusedPreview(index)}
+                      onBlur={() => setFocusedPreview(null)}
+                      style={({ pressed }) => [styles.previewTab, selected && styles.previewTabSelected, focusedPreview === index && styles.previewTabFocused, pressed && styles.pressed]}>
+                      <Text style={[styles.previewTabText, selected && styles.previewTabTextSelected]}>{item.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.previewDisclaimer}>Reference imagery only · Selector changes this page only</Text>
             </View>
-
-            {!l.isPhone ? <ChannelRail styles={styles} t={t} accentOf={accentOf} /> : null}
           </Reveal>
         </View>
-
-        <View style={styles.trustBar}>
-          {TRUST.map((item) => (
-            <View key={item.key} style={styles.trustItem}>
-              <FontAwesome6 name={item.icon as never} size={13} color={t.brand}  aria-hidden={true}/>
-              <Text numberOfLines={1} style={styles.trustText}>
-                {item.label}
-              </Text>
-            </View>
-          ))}
+        <View style={styles.heroFoot}>
+          <Text style={styles.heroFootLabel}>A CLEARER CREATIVE START</Text>
+          <FontAwesome6 name="arrow-down" size={13} color={t.textSubtle} aria-hidden={true} />
+          <Text style={styles.heroFootLabel}>BUILT AROUND WHAT WORKS TODAY</Text>
         </View>
       </OpenSection>
 
-      {/* ------------------------------------------------ the crafts */}
-      <Band tone="surface" art={{ variant: 'analytics', color: t.brand, side: 'right' }}>
-        <View style={styles.headCentered}>
-          <SectionLabel>WHAT YOU CAN MAKE</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
-            Everything you need to create and publish video.
-          </Heading>
-          <Text style={[type.body, styles.headBodyCentered]}>
-            Plan, produce, edit, dub and distribute — without exporting a file or opening a second tool.
+      <Band tone="violet" style={styles.band}>
+        <View style={styles.sectionHead}>
+          <View style={styles.sectionHeadCopy}>
+            <SectionLabel>FROM IDEA TO DIRECTION</SectionLabel>
+            <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+              A calmer way to shape the first cut.
+            </Heading>
+          </View>
+          <Text style={[type.bodySm, styles.sectionIntro]}>
+            A strong video starts with a clear brief. FlowSmartly brings the conversation, product context and creative decisions into a workflow designed to grow over time.
           </Text>
         </View>
-
-        <View style={styles.craftGrid}>
-          {CRAFT.map((craft, index) => (
-            <Reveal key={craft.key} style={styles.craftCell} distance={14} delay={index * 45}>
-              <View style={styles.craftCard}>
-                {craft.media ? (
-                  <Media name={craft.media} alt={craft.alt ?? craft.title} style={styles.craftMedia} radius={12} />
-                ) : (
-                  <CraftMock kind={craft.mock ?? 'chart'} styles={styles} t={t} />
-                )}
-                <View style={styles.craftHead}>
-                  <View style={[styles.craftIcon, { backgroundColor: softFill(accentOf(craft.accent), t) }]}>
-                    <FontAwesome6 name={craft.icon as never} size={13} color={accentOf(craft.accent)}  aria-hidden={true}/>
-                  </View>
-                  <Text style={styles.craftTitle}>{craft.title}</Text>
+        <View style={styles.workflowGrid}>
+          {WORKFLOW.map((item, index) => (
+            <Reveal key={item.number} style={styles.workflowCell} delay={index * 70} distance={10}>
+              <View style={styles.workflowItem}>
+                <View style={styles.workflowMeta}>
+                  <Text style={styles.workflowNumber}>{item.number}</Text>
+                  <View style={styles.workflowIcon}><FontAwesome6 name={item.icon as never} size={15} color={t.brand} aria-hidden={true} /></View>
                 </View>
-                <Text style={styles.craftBody}>{craft.body}</Text>
-                <View style={styles.craftSpacer} />
-                <TextLink
-                  label={craft.cta}
-                  trackId={`video-studio.craft.${craft.key}`}
-                  onPress={() => router.push(craft.href as never)}
-                />
+                <Heading level={3} style={[type.h3, styles.workflowTitle]}>{item.title}</Heading>
+                <Text style={[type.bodySm, styles.workflowBody]}>{item.body}</Text>
+                {index < WORKFLOW.length - 1 ? <View style={styles.workflowRule} /> : null}
               </View>
             </Reveal>
           ))}
         </View>
       </Band>
 
-      {/* ------------------------------------------------ virtual try-on */}
-      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
-        <View style={styles.tryonRow}>
-          <Reveal style={styles.tryonCopy} distance={16}>
-            <SectionLabel>VIRTUAL TRY-ON</SectionLabel>
-            <Heading level={2} style={[type.h2, styles.tryonTitle]}>
-              Put the garment on the customer before they buy it.
-            </Heading>
-            <Text style={[type.body, styles.tryonBody]}>
-              One product photo becomes a shot of someone actually wearing it — on the street, on a
-              runway, or in front of their own mirror. The same piece, styled for the audience each
-              placement is talking to, without a second shoot.
-            </Text>
-            <View style={styles.tryonPoints}>
-              {[
-                { key: 'shoot', icon: 'camera', label: 'One flat-lay becomes a full campaign' },
-                { key: 'fit', icon: 'people-group', label: 'Shown on real body shapes, not one model' },
-                { key: 'returns', icon: 'arrow-rotate-left', label: 'Fewer returns from "it did not look like that"' },
-              ].map((point) => (
-                <View key={point.key} style={styles.tryonPoint}>
-                  <View style={styles.tryonPointIcon}>
-                    <FontAwesome6 name={point.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
-                  </View>
-                  <Text style={styles.tryonPointText}>{point.label}</Text>
-                </View>
-              ))}
-            </View>
-            <TextLink
-              label="Sell it on FlowShop"
-              trackId="video-studio.tryon.flowshop"
-              onPress={() => router.push(ROUTES.flowshop as never)}
-            />
-          </Reveal>
-
-          {/* Four, so the strip divides at 1, 2 and 4 — never a stranded tile. */}
-          <Reveal style={styles.tryonArt} distance={16} delay={90}>
-            {[
-              { key: 'street', media: 'video/tryon-street', alt: 'The same coat worn on a city street' },
-              { key: 'runway', media: 'video/tryon-runway', alt: 'The same dress shown on a runway' },
-              { key: 'wardrobe', media: 'video/tryon-wardrobe', alt: 'The dress previewed in a customer bedroom' },
-              { key: 'mirror', media: 'video/tryon-mirror', alt: 'A suit tried on in front of a mirror' },
-            ].map((shot) => (
-              <View key={shot.key} style={styles.tryonCell}>
-                <Media name={shot.media} alt={shot.alt} style={styles.tryonImage} radius={12} />
-              </View>
-            ))}
-          </Reveal>
+      <OpenSection style={styles.capabilitiesSection}>
+        <View style={styles.capabilitiesHeader}>
+          <SectionLabel>PRODUCT STATUS</SectionLabel>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Clear about what is ready.
+          </Heading>
+          <Text style={[type.body, styles.statusIntro]}>
+            The public experience should make room for ambition without suggesting that unfinished controls already work.
+          </Text>
         </View>
-      </Band>
-
-      {/* ------------------------------------------------ flow.ai */}
-      <OpenSection>
-        <Reveal style={styles.aiBand} distance={14}>
-          <View style={styles.aiCopy}>
-            <SectionLabel>FLOW.AI</SectionLabel>
-            <Heading level={2} style={[type.h3, styles.aiTitle]}>
-              FlowAgent plans, generates and publishes the campaign.
-            </Heading>
-            <Text style={[type.body, styles.aiBody]}>
-              From script and storyboard through auto-editing, dubbing and distribution — it does the
-              heavy lifting and stops for your approval before anything goes out.
-            </Text>
-            <TextLink
-              label="Explore FlowAgent"
-              trackId="video-studio.ai.explore"
-              onPress={() => router.push(ROUTES.flowAgent as never)}
-            />
+        <View style={styles.statusGrid}>
+          <View style={styles.statusColumn}>
+            <View style={styles.statusColumnTitle}>
+              <View style={[styles.statusTitleIcon, { backgroundColor: softFill(t.green, t) }]}>
+                <FontAwesome6 name="circle-check" size={15} color={t.green} aria-hidden={true} />
+              </View>
+              <Heading level={3} style={[type.h3, styles.statusTitle]}>Available today</Heading>
+            </View>
+            <View style={styles.availableRow}>
+              <FontAwesome6 name="check" size={13} color={t.green} aria-hidden={true} />
+              <Text style={[type.bodySm, styles.availableText]}>Explore creative reference imagery and formats</Text>
+            </View>
+            <View style={styles.availableRow}>
+              <FontAwesome6 name="check" size={13} color={t.green} aria-hidden={true} />
+              <Text style={[type.bodySm, styles.availableText]}>Create an account through the V5 entry point</Text>
+            </View>
+            <View style={styles.availableRow}>
+              <FontAwesome6 name="check" size={13} color={t.green} aria-hidden={true} />
+              <Text style={[type.bodySm, styles.availableText]}>Request a product conversation</Text>
+            </View>
           </View>
-          <View style={styles.aiList}>
-            {AI_STEPS.map((step) => (
-              <View key={step.key} style={styles.aiRow}>
-                <View style={styles.aiRowIcon}>
-                  <FontAwesome6 name={step.icon as never} size={12} color={t.brand}  aria-hidden={true}/>
+          <View style={styles.statusColumn}>
+            <View style={styles.statusColumnTitle}>
+              <View style={[styles.statusTitleIcon, { backgroundColor: softFill(t.violet, t) }]}>
+                <FontAwesome6 name="sparkles" size={15} color={t.violet} aria-hidden={true} />
+              </View>
+              <Heading level={3} style={[type.h3, styles.statusTitle]}>In development</Heading>
+            </View>
+            {PLANNED.map((item) => (
+              <View key={item.title} style={styles.plannedRow}>
+                <View style={styles.plannedIcon}><FontAwesome6 name={item.icon as never} size={13} color={t.violet} aria-hidden={true} /></View>
+                <View style={styles.plannedCopy}>
+                  <Text style={styles.plannedTitle}>{item.title}</Text>
+                  <Text style={styles.plannedBody}>{item.body}</Text>
                 </View>
-                <Text style={styles.aiRowText}>{step.label}</Text>
+                <View style={styles.plannedPill}><Text style={styles.plannedPillText}>PLANNED</Text></View>
               </View>
             ))}
           </View>
-        </Reveal>
+        </View>
       </OpenSection>
 
-      {/* ------------------------------------------------ quotes */}
-      <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
-        <View style={styles.headCentered}>
-          <SectionLabel>IN PRACTICE</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
-            Made by teams without a studio.
-          </Heading>
-        </View>
-
-        <View style={styles.quoteGrid}>
-          {QUOTES.map((quote, index) => (
-            <Reveal key={quote.key} style={styles.quoteCell} distance={14} delay={index * 60}>
-              <View style={styles.quoteCard}>
-                <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
-                <Text style={styles.quoteText}>{quote.quote}</Text>
-                <View style={styles.quoteSpacer} />
-                <View style={styles.quoteWho}>
-                  <Media name={quote.media} alt={`${quote.name}, ${quote.role}`} style={styles.quoteAvatar} radius={20} />
-                  <View style={styles.quoteWhoCopy}>
-                    <Text numberOfLines={1} style={styles.quoteName}>
-                      {quote.name}
-                    </Text>
-                    <Text numberOfLines={1} style={styles.quoteRole}>
-                      {quote.role}
-                    </Text>
-                  </View>
+      <Band tone="surface" style={styles.band}>
+        <View style={styles.faqLayout}>
+          <View style={styles.faqIntro}>
+            <SectionLabel>GOOD TO KNOW</SectionLabel>
+            <Heading level={2} style={[type.h2, styles.sectionTitle]}>A few straight answers.</Heading>
+            <Text style={[type.bodySm, styles.sectionIntro]}>The current boundaries matter as much as the direction.</Text>
+          </View>
+          <View style={styles.faqList}>
+            {faqs.map((item, index) => {
+              const expanded = openFaq === index;
+              return (
+                <View key={item.question} style={styles.faqItem}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded }}
+                    aria-expanded={expanded}
+                    onPress={() => setOpenFaq(expanded ? null : index)}
+                    style={({ pressed }) => [styles.faqTrigger, pressed && styles.pressed]}>
+                    <Text style={styles.faqQuestion}>{item.question}</Text>
+                    <View style={[styles.faqToggle, expanded && styles.faqToggleOpen]}>
+                      <FontAwesome6 name={expanded ? 'minus' : 'plus'} size={12} color={expanded ? t.textOnBrand : t.textMuted} aria-hidden={true} />
+                    </View>
+                  </Pressable>
+                  {expanded ? <Text style={[type.bodySm, styles.faqAnswer]}>{item.answer}</Text> : null}
                 </View>
-              </View>
-            </Reveal>
-          ))}
+              );
+            })}
+          </View>
         </View>
-      </Band>
-
-      {/* ------------------------------------------------ faq */}
-      <Band tone="violet" art={{ variant: 'support', color: t.violet, side: 'left' }}>
-        <View style={styles.headCentered}>
-          <SectionLabel>QUESTIONS</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
-            Before your first cut.
-          </Heading>
-        </View>
-
-        <View style={styles.faqGrid}>
-          {FAQ.map((item, index) => (
-            <Reveal key={item.q} style={styles.faqCell} distance={12} delay={index * 40}>
-              <View style={styles.faqCard}>
-                <Text style={styles.faqQ}>{item.q}</Text>
-                <Text style={styles.faqA}>{item.a}</Text>
-              </View>
-            </Reveal>
-          ))}
+        <View style={styles.closingRow}>
+          <View style={styles.closingCopy}>
+            <Text style={styles.closingEyebrow}>MAKE YOUR NEXT STEP A CLEAR ONE</Text>
+            <Text style={[type.h3, styles.closingTitle]}>Explore the V5 experience.</Text>
+          </View>
+          <ButtonRow>
+            <PrimaryButton label="Create an account" size="md" icon="arrow-right" iconRight trackId="video-studio.closing.create-account" onPress={goToRegister} />
+            <SecondaryButton label="Talk to the team" size="md" trackId="video-studio.closing.contact" onPress={() => router.push(contactHref('demo') as never)} />
+          </ButtonRow>
         </View>
       </Band>
     </PageShell>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* styles                                                              */
-/* ------------------------------------------------------------------ */
-
-type Styles = ReturnType<typeof createStyles>;
-
-function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
-  const stacked = l.isStacked;
-  const gap = l.isPhone ? 12 : 18;
-  const half = gap / 2;
-
-  const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
-    l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
-
-  // 8 crafts: 1, 2 and 4 divide it; 3 would strand a card.
-  const craftColumns = columns(1, 2, 4, 4);
-  // 3 quotes: 1 or 3, never 2.
-  const quoteColumns = l.isCompact ? 1 : 3;
-  const faqColumns = l.isPhone ? 1 : 2;
-
-  const gridBase: ViewStyle = {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'stretch',
-    marginHorizontal: -half,
-    marginTop: l.isPhone ? 20 : 28,
-  };
-
-  const cellBase = (count: number): ViewStyle => ({
-    flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: cellBasis(count),
-    minWidth: 0,
-    padding: half,
-  });
-
-  const cardBase: ViewStyle = {
-    flexGrow: 1,
-    borderWidth: 1,
-    borderColor: t.border,
-    borderRadius: 16,
-    backgroundColor: t.surfaceRaised,
-    padding: l.isPhone ? 14 : 16,
-    gap: 9,
-    ...(elevation(t, 1) as ViewStyle),
-  };
-
-  const iconBox = (size: number): ViewStyle => ({
-    width: size,
-    height: size,
-    flexGrow: 0,
-    flexShrink: 0,
-    borderRadius: Math.round(size / 3),
-    alignItems: 'center',
-    justifyContent: 'center',
-  });
-
+function createStyles(t: ThemeTokens, l: Layout) {
+  const columns = l.gridColumns(3);
+  const previewColumns = l.gridColumns(4);
   return StyleSheet.create({
-    /* -------------------------------------------------- hero */
-    heroRow: {
-      flexDirection: stacked ? 'column' : 'row',
-      alignItems: stacked ? 'stretch' : 'center',
-      gap: stacked ? 26 : 38,
-    },
-    heroCopy: stacked
-      ? { width: '100%', minWidth: 0 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 440, minWidth: 0 },
-    heroTitle: { marginTop: 14 },
-    heroBody: { marginTop: 14, maxWidth: 560 },
-    heroButtons: { marginTop: 24 },
-    proofRow: { marginTop: 22, flexDirection: 'row', flexWrap: 'wrap', gap: l.isPhone ? 10 : 18 },
-    proofItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
-    proofTick: { ...iconBox(20), borderRadius: 10, backgroundColor: softFill(t.green, t) },
-    proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
-
-    // Stacked, the visual owns the whole row and fills it.
-    heroVisual: stacked
-      ? {
-          width: '100%',
-          minWidth: 0,
-          flexDirection: l.isPhone ? 'column' : 'row',
-          alignItems: 'stretch',
-          gap: 14,
-        }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 520, minWidth: 0, flexDirection: 'row', gap: 14 },
-
-    playerCard: {
-      flexGrow: 1,
-      flexShrink: 1,
-      // `flexBasis: 0` is a WIDTH here only while the hero visual is a row. On
-      // phone it becomes a column, where a zero basis is zero HEIGHT — the card
-      // collapsed and the trust bar drew straight through the player.
-      flexBasis: l.isPhone ? 'auto' : 0,
-      minWidth: 0,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 18,
-      backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 12 : 14,
-      gap: 10,
-      ...(elevation(t, 2) as ViewStyle),
-    },
-    // A video frame reads as dark chrome in every theme, so it is painted from
-    // the shadow colour rather than from `t.text` — which is near-white in the
-    // dark palette and would have turned the player into a white box. The alpha
-    // follows the ground, not the mode: grey's shadow colour is `#0e1522`, and
-    // on its mid page the frame needs light's near-solid 0.94 rather than the
-    // 0.82 a near-black page can get away with.
-    player: {
-      borderRadius: 14,
-      backgroundColor: hexToRgba(t.shadowColor, t.ground === 'light' ? 0.94 : 0.82),
-      overflow: 'hidden',
-      minHeight: l.isPhone ? 150 : 190,
-      justifyContent: 'space-between',
-    },
-    recBadge: {
-      alignSelf: 'flex-start',
-      flexDirection: 'row',
+    heroSection: { paddingTop: l.isPhone ? 38 : 64, paddingBottom: l.isPhone ? 26 : 34 },
+    heroGrid: {
+      flexDirection: l.isStacked ? 'column' : 'row',
       alignItems: 'center',
-      gap: 6,
-      margin: 10,
-      borderRadius: 999,
-      backgroundColor: t.brand,
-      paddingHorizontal: 9,
-      paddingVertical: 4,
+      gap: l.isPhone ? 34 : 48,
     },
-    recDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.textOnBrand },
-    recText: { ...type.micro, color: t.textOnBrand, fontWeight: '800' },
-    playerBody: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, opacity: 0.4 },
-    playerBar: { padding: 11, gap: 7 },
-    playerTitle: { ...type.caption, color: t.textOnScrim, fontWeight: '700' },
-    playerControls: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-    playerTime: { ...type.micro, color: t.textOnScrim, opacity: 0.8 },
-    playerTrack: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 0,
-      minWidth: 0,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: t.textOnScrim,
-      opacity: 0.35,
-    },
-    playerFill: { width: '18%', height: 3, borderRadius: 2, backgroundColor: t.textOnScrim },
-
-    // Four cells across a 390px card gave "Engagement" 60px and broke it
-    // mid-word. On phone it becomes a 2x2 block instead.
-    statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: 8 },
-    statCell: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: l.isPhone ? '46%' : 0,
-      minWidth: 0,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 11,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
-      gap: 2,
-    },
-    statCellWide: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: l.isPhone ? '46%' : 0,
-      minWidth: 0,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 11,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
-      justifyContent: 'center',
-    },
-    statLabel: { ...type.micro, color: t.textSubtle },
-    statValue: { ...type.caption, color: t.text, fontWeight: '800' },
-    statDelta: { ...type.micro, color: accentText(t.green, t), fontWeight: '700' },
-    statNote: { ...type.micro, color: t.textSubtle },
-
-    trend: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 36 },
-    trendBar: { width: 4, borderRadius: 2 },
-
-    /* -------------------------------------------------- rail */
-    rail: {
-      flexGrow: 0,
-      flexShrink: 0,
-      flexBasis: 'auto',
-      width: l.isTablet ? 190 : 216,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    railHub: {
-      ...iconBox(40),
-      borderRadius: 20,
-      backgroundColor: t.brand,
-      ...(elevation(t, 2) as ViewStyle),
-    },
-    railColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 6 },
-    railCard: {
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 10,
-      backgroundColor: t.surfaceRaised,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      ...(elevation(t, 1) as ViewStyle),
-    },
-    railIcon: iconBox(24),
-    railCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    railLabel: { ...type.micro, color: t.text, fontWeight: '700' },
-    railState: { ...type.micro, color: t.textSubtle },
-
-    /* -------------------------------------------------- trust */
-    trustBar: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      rowGap: 10,
-      columnGap: 16,
-      marginTop: l.isPhone ? 20 : 26,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: l.isPhone ? 14 : 20,
-      paddingVertical: 12,
-    },
-    trustItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
-    trustText: { ...type.micro, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
-
-    /* -------------------------------------------------- heads */
-    headCentered: { alignItems: 'center', gap: 12 },
-    headTitleCentered: { textAlign: 'center', maxWidth: 720 },
-    headBodyCentered: { textAlign: 'center', color: t.textMuted, maxWidth: 640 },
-
-    /* -------------------------------------------------- crafts */
-    craftGrid: gridBase,
-    craftCell: cellBase(craftColumns),
-    craftCard: cardBase,
-    craftMedia: { width: '100%', height: l.isPhone ? 150 : 128 },
-    craftHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 2 },
-    craftIcon: iconBox(28),
-    craftTitle: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    craftBody: { ...type.caption, color: t.textMuted },
-    craftSpacer: { flexGrow: 1, minHeight: 2 },
-
-    /* -------------------------------------------------- card mocks */
-    mock: {
-      width: '100%',
-      height: l.isPhone ? 150 : 128,
-      borderRadius: 12,
-      padding: 12,
-      justifyContent: 'center',
-      gap: 7,
-      overflow: 'hidden',
-    },
-    mockDark: { backgroundColor: hexToRgba(t.shadowColor, t.ground === 'light' ? 0.94 : 0.82) },
-    mockTint: { backgroundColor: t.surfaceInset },
-    mockScrub: { height: 3, borderRadius: 2, backgroundColor: t.textOnScrim, opacity: 0.3, marginBottom: 3 },
-    mockTrack: { height: 14, borderRadius: 4, backgroundColor: t.textOnScrim, opacity: 0.12, overflow: 'hidden' },
-    mockClip: { height: 14, borderRadius: 4 },
-    mockCaption: { ...type.micro, color: t.textSubtle },
-    waveRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 40 },
-    waveBar: { width: 3, borderRadius: 2, backgroundColor: t.brand },
-    slideRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    slideMain: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 0,
-      minWidth: 0,
-      gap: 6,
-      borderRadius: 8,
-      backgroundColor: t.surfaceRaised,
-      padding: 10,
-    },
-    slideBar: { height: 6, borderRadius: 3, backgroundColor: softFill(t.brand, t) },
-    slideFace: {
-      ...iconBox(40),
-      borderRadius: 12,
-      backgroundColor: t.surfaceRaised,
-      borderWidth: 1,
-      borderColor: t.border,
-    },
-    chartRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 74 },
-    chartBar: { width: 12, borderRadius: 3 },
-
-    /* -------------------------------------------------- virtual try-on */
-    tryonRow: {
-      flexDirection: stacked ? 'column' : 'row',
-      alignItems: stacked ? 'stretch' : 'center',
-      gap: stacked ? 26 : 44,
-    },
-    tryonCopy: stacked
-      ? { width: '100%', minWidth: 0 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    tryonTitle: { marginTop: 12 },
-    tryonBody: { marginTop: 12, color: t.textMuted, maxWidth: 540 },
-    tryonPoints: { marginTop: 20, marginBottom: 18, gap: 10 },
-    tryonPoint: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    tryonPointIcon: { ...iconBox(26), backgroundColor: softFill(t.brand, t) },
-    tryonPointText: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    tryonArt: {
-      ...(stacked
-        ? { width: '100%', minWidth: 0 }
-        : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 }),
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      marginHorizontal: -half,
-    },
-    tryonCell: { flexGrow: 0, flexShrink: 1, flexBasis: '50%', minWidth: 0, padding: half },
-    tryonImage: { width: '100%', height: l.isPhone ? 190 : 168 },
-
-    /* -------------------------------------------------- flow.ai band */
-    aiBand: {
-      flexDirection: l.isCompact ? 'column' : 'row',
-      alignItems: l.isCompact ? 'stretch' : 'center',
-      gap: l.isPhone ? 18 : 30,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 20,
-      backgroundColor: t.surfaceMuted,
-      padding: l.isPhone ? 18 : 26,
-    },
-    // Same trap: the band stacks into a column below 1024.
-    aiCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 10 },
-    aiTitle: { marginTop: 4 },
-    aiBody: { color: t.textMuted, maxWidth: 520 },
-    aiList: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 8 },
-    aiRow: {
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 12,
-      backgroundColor: t.surfaceRaised,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-    },
-    aiRowIcon: { ...iconBox(26), backgroundColor: softFill(t.brand, t) },
-    aiRowText: { ...type.caption, color: t.text, fontWeight: '600', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-
-    /* -------------------------------------------------- quotes */
-    quoteGrid: gridBase,
-    quoteCell: cellBase(quoteColumns),
-    quoteCard: { ...cardBase, gap: 11 },
-    quoteText: { ...type.caption, color: t.text },
-    quoteSpacer: { flexGrow: 1, minHeight: 2 },
-    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    quoteAvatar: { width: 40, height: 40, flexGrow: 0, flexShrink: 0 },
-    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
-    quoteRole: { ...type.micro, color: t.textSubtle },
-
-    /* -------------------------------------------------- faq */
-    faqGrid: gridBase,
-    faqCell: cellBase(faqColumns),
-    faqCard: { ...cardBase, gap: 8 },
-    faqQ: { ...type.caption, color: t.text, fontWeight: '800' },
-    faqA: { ...type.caption, color: t.textMuted },
+    heroCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isStacked ? 'auto' : '48%', minWidth: 0, alignSelf: 'stretch', justifyContent: 'center' },
+    eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 20 },
+    liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.violet },
+    heroTitle: { maxWidth: 660, marginBottom: 20, color: t.text },
+    heroBody: { maxWidth: 540, marginBottom: 24, color: t.textMuted },
+    heroActions: { alignItems: 'flex-start' },
+    heroNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 19, maxWidth: 510 },
+    heroNoteText: { color: t.textSubtle, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    previewWrap: { flexGrow: 1, flexShrink: 1, flexBasis: l.isStacked ? 'auto' : '52%', minWidth: 0, width: '100%', maxWidth: 680, alignSelf: l.isStacked ? 'center' : 'auto' },
+    previewFrame: { borderWidth: 1, borderColor: t.border, borderRadius: l.isPhone ? 22 : 28, backgroundColor: t.surface, padding: l.isPhone ? 12 : 18, ...elevation(t, 2) },
+    previewTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 13 },
+    previewBrand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    previewMark: { width: 27, height: 27, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: t.brand },
+    previewBrandText: { color: t.textSubtle, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' },
+    previewBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: softFill(t.violet, t) },
+    previewBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.violet },
+    previewBadgeText: { color: t.violet, fontSize: 11, letterSpacing: 0.7, fontWeight: '800' },
+    previewImageFrame: { width: '100%', aspectRatio: l.isPhone ? 1.24 : 1.4, overflow: 'hidden', borderRadius: 18, backgroundColor: t.surfaceMuted, position: 'relative' },
+    previewImage: { width: '100%', height: '100%' },
+    imageIndex: { position: 'absolute', right: 14, bottom: 14, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, backgroundColor: t.scrimGlass, borderWidth: 1, borderColor: t.scrimGlassLine },
+    imageIndexText: { color: t.textOnScrim, fontSize: 12, fontWeight: '800' },
+    imageIndexRule: { width: 20, height: 1, backgroundColor: t.scrimGlassLine },
+    imageIndexTotal: { color: t.textOnScrim, fontSize: 11, opacity: 0.72 },
+    previewCaptionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, paddingTop: 15, paddingBottom: 13 },
+    previewCaptionCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    previewKicker: { color: t.violet, fontSize: 11, letterSpacing: 1.1, fontWeight: '800', marginBottom: 4 },
+    previewTitle: { color: t.text, fontSize: 19, lineHeight: 24, fontWeight: '800' },
+    previewNote: { color: t.textMuted, fontSize: 13, marginTop: 3 },
+    previewArrow: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+    previewTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingTop: 11, borderTopWidth: 1, borderTopColor: t.divider },
+    previewTab: { flexGrow: 0, flexShrink: 1, flexBasis: `${100 / previewColumns - 2}%` as `${number}%`, minWidth: 72, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: t.border, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: t.background },
+    previewTabSelected: { backgroundColor: t.brand, borderColor: t.brand },
+    previewTabFocused: { borderColor: t.brand, borderWidth: 2 },
+    previewTabText: { color: t.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+    previewTabTextSelected: { color: t.textOnBrand },
+    previewDisclaimer: { color: t.textSubtle, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' },
+    pressed: { opacity: 0.82 },
+    heroFoot: { borderTopWidth: 1, borderTopColor: t.divider, marginTop: l.isPhone ? 32 : 50, paddingTop: 15, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    heroFootLabel: { color: t.textSubtle, fontSize: 11, letterSpacing: 1, fontWeight: '800' },
+    band: { paddingTop: l.isPhone ? 38 : 64, paddingBottom: l.isPhone ? 38 : 64 },
+    sectionHead: { flexDirection: l.isStacked ? 'column' : 'row', alignItems: l.isStacked ? 'flex-start' : 'flex-end', justifyContent: 'space-between', gap: 22, marginBottom: 30 },
+    sectionHeadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: '52%', minWidth: 0 },
+    sectionTitle: { color: t.text, marginTop: 11, maxWidth: 650 },
+    sectionIntro: { flexGrow: 1, flexShrink: 1, flexBasis: '40%', color: t.textMuted, maxWidth: 570 },
+    workflowGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: l.isPhone ? 0 : 22 },
+    workflowCell: { flexGrow: 1, flexShrink: 1, flexBasis: l.isPhone ? '100%' : cellBasis(columns), minWidth: 0 },
+    workflowItem: { position: 'relative', paddingTop: 18, paddingBottom: l.isPhone ? 19 : 5, minHeight: l.isPhone ? 0 : 190, borderTopWidth: 1, borderTopColor: t.border },
+    workflowMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+    workflowNumber: { color: t.violet, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+    workflowIcon: { width: 37, height: 37, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: softFill(t.violet, t) },
+    workflowTitle: { color: t.text, marginBottom: 9 },
+    workflowBody: { color: t.textMuted, maxWidth: 360 },
+    workflowRule: { position: 'absolute', right: -12, top: 60, height: 1, width: 22, backgroundColor: t.border, display: l.isPhone ? 'none' : 'flex' },
+    capabilitiesSection: { paddingTop: l.isPhone ? 42 : 70, paddingBottom: l.isPhone ? 42 : 70 },
+    capabilitiesHeader: { maxWidth: 720, marginBottom: 28 },
+    statusIntro: { color: t.textMuted, marginTop: 12 },
+    statusGrid: { flexDirection: l.isStacked ? 'column' : 'row', gap: l.isPhone ? 26 : 38, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border, paddingVertical: 22 },
+    statusColumn: { flexGrow: 1, flexShrink: 1, flexBasis: '50%', minWidth: 0 },
+    statusColumnTitle: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 17 },
+    statusTitleIcon: { width: 37, height: 37, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    statusTitle: { color: t.text },
+    availableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: 12, paddingRight: 10 },
+    availableText: { color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    plannedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingVertical: 11, borderTopWidth: 1, borderTopColor: t.divider },
+    plannedIcon: { width: 26, height: 26, borderRadius: 9, backgroundColor: softFill(t.violet, t), alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+    plannedCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    plannedTitle: { color: t.text, fontSize: 14, lineHeight: 20, fontWeight: '800' },
+    plannedBody: { color: t.textMuted, fontSize: 13, lineHeight: 19, marginTop: 2 },
+    plannedPill: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 4, backgroundColor: t.surfaceMuted },
+    plannedPillText: { color: t.textSubtle, fontSize: 10, letterSpacing: 0.6, fontWeight: '800' },
+    faqLayout: { flexDirection: l.isStacked ? 'column' : 'row', gap: 30, paddingBottom: 42 },
+    faqIntro: { flexGrow: 1, flexShrink: 1, flexBasis: '35%', minWidth: 0 },
+    faqList: { flexGrow: 1, flexShrink: 1, flexBasis: '60%', minWidth: 0 },
+    faqItem: { borderTopWidth: 1, borderTopColor: t.border },
+    faqTrigger: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 10 },
+    faqQuestion: { color: t.text, fontSize: 15, lineHeight: 21, fontWeight: '700', flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    faqToggle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surfaceMuted },
+    faqToggleOpen: { backgroundColor: t.brand },
+    faqAnswer: { color: t.textMuted, paddingBottom: 17, paddingRight: 20 },
+    closingRow: { flexDirection: l.isStacked ? 'column' : 'row', alignItems: l.isStacked ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 18, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 25 },
+    closingCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    closingEyebrow: { color: t.textSubtle, fontSize: 11, letterSpacing: 0.9, fontWeight: '800', marginBottom: 5 },
+    closingTitle: { color: t.text },
   });
 }
+
+export default VideoStudioPage;
