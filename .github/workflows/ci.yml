@@ -61,12 +61,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Prepare clean marketing source snapshot for receipt
-        run: |
-          source_sha="$(git rev-parse --verify HEAD)"
-          git worktree add --detach "$RUNNER_TEMP/v5-marketing-source" "$source_sha"
-          test -z "$(git -C "$RUNNER_TEMP/v5-marketing-source" status --porcelain --untracked-files=all)"
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -96,6 +90,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Prepare clean marketing source snapshot for receipt
+        run: |
+          source_sha="$(git rev-parse --verify HEAD)"
+          git worktree add --detach "$RUNNER_TEMP/v5-marketing-source" "$source_sha"
+          test -z "$(git -C "$RUNNER_TEMP/v5-marketing-source" status --porcelain --untracked-files=all)"
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
