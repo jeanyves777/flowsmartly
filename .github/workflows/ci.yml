@@ -108,6 +108,21 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      - name: Test rendered public keyboard focus
+        run: node scripts/test-public-focus.mjs
+        timeout-minutes: 10
+        env:
+          V5_FOCUS_QA_OUTPUT_DIR: ${{ runner.temp }}/v5-public-focus
+
+      - name: Upload rendered public focus evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-public-focus
+          path: ${{ runner.temp }}/v5-public-focus
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Use the reviewed, pinned V5 apex config fixture
         # The separate V5 repository is private to the deployment operator.
         # The fixture's pinned Git blob SHA is checked by the test suite.

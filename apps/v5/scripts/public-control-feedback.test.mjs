@@ -36,6 +36,9 @@ test('enabled public controls share hover and pressed feedback', () => {
 test('keyboard focus remains visible and reduced motion removes movement', () => {
   const focus = selectorForDeclaration('outline: 3px solid #6d5efc');
   for (const target of targets) assert.ok(focus.includes(target), `focus-visible should include ${target}`);
+  for (const target of ['[role="link"]', '[role="tab"]', '[role="checkbox"]', 'input:not([type="hidden"])', 'textarea', 'select', '[tabindex]:not([tabindex="-1"])']) {
+    assert.ok(focus.includes(target), `focus-visible should include RN-web/native target ${target}`);
+  }
   assert.match(style.slice(style.indexOf(':focus-visible')), /outline: 3px solid #6d5efc/);
 
   const reduced = style.slice(style.indexOf('@media (prefers-reduced-motion: reduce)'));

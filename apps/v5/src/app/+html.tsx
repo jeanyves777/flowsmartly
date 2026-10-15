@@ -126,7 +126,14 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
   button,
   input[type="button"],
   input[type="submit"],
-  input[type="reset"]
+  input[type="reset"],
+  [role="link"],
+  [role="tab"],
+  [role="checkbox"],
+  input:not([type="hidden"]),
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
 ):focus-visible {
   outline: 3px solid #6d5efc;
   outline-offset: 3px;
