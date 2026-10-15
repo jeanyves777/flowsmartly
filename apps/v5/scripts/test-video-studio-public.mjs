@@ -39,8 +39,8 @@ try {
   await page.waitForSelector('[role="main"]');
   await page.waitForSelector('[role="button"][aria-label="Show Product film reference"]');
   const headingSelector = '[role="heading"][aria-level="1"]';
-  assert.equal(await page['$eval'](headingSelector, (elements) => elements.length), 1, 'The public route must expose one primary heading');
-  assert.equal(await page['$eval']('[role="button"][aria-label$=" reference"] img', (elements) => elements.length), 4, 'Each direction control must show its local thumbnail');
+  assert.equal(await page.evaluate((selector) => document.querySelectorAll(selector).length, headingSelector), 1, 'The public route must expose one primary heading');
+  assert.equal(await page.evaluate((selector) => document.querySelectorAll(selector).length, '[role="button"][aria-label$=" reference"] img'), 4, 'Each direction control must show its local thumbnail');
   assert.match(await page.$eval(headingSelector, (element) => element.innerText), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
   assert.equal(await page.$eval(headingSelector, (element) => getComputedStyle(element).opacity), '1', 'Reduced motion must leave the page content visible');
@@ -73,20 +73,23 @@ try {
   assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Editorial campaign still of a car on a coastal road at sunset');
 
   // The FAQ control is an actual disclosure and reports its expanded state.
-  const faqButtons = await page['$']('[aria-expanded]');
-  let faq = null;
-  for (const button of faqButtons) {
-    const label = await button.evaluate((element) => element.innerText || '');
-    if (label.includes('Can I generate a video from this page')) {
-      faq = button;
-      break;
-    }
-  }
-  assert.ok(faq, 'The generation FAQ disclosure must be present');
-  await faq.click();
-  assert.equal(await faq.evaluate((element) => element.getAttribute('aria-expanded')), 'false');
-  await faq.click();
-  assert.equal(await faq.evaluate((element) => element.getAttribute('aria-expanded')), 'true');
+  const faqSelector = 'button[aria-expanded]';
+  const faqLabel = 'Can I generate a video from this page';
+  const faqCount = await page.evaluate((selector, label) => Array.from(document.querySelectorAll(selector)).filter((element) => (element.innerText || '').includes(label)).length, faqSelector, faqLabel);
+  assert.equal(faqCount, 1, 'The generation FAQ disclosure must be present exactly once');
+  const clickFaq = () => page.evaluate((selector, label) => {
+    const element = Array.from(document.querySelectorAll(selector)).find((candidate) => (candidate.innerText || '').includes(label));
+    if (!element) throw new Error('The generation FAQ disclosure was not found');
+    element.click();
+  }, faqSelector, faqLabel);
+  const faqExpanded = () => page.evaluate((selector, label) => {
+    const element = Array.from(document.querySelectorAll(selector)).find((candidate) => (candidate.innerText || '').includes(label));
+    return element?.getAttribute('aria-expanded') ?? null;
+  }, faqSelector, faqLabel);
+  await clickFaq();
+  assert.equal(await faqExpanded(), 'false');
+  await clickFaq();
+  assert.equal(await faqExpanded(), 'true');
   assert.match(await page.$eval('body', (element) => element.innerText), /Video generation is not wired to this page/);
 
   const widths = [390, 768, 1024, 1280, 1536, 1920];
