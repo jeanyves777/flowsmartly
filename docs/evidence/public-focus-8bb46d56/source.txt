@@ -1,0 +1,10 @@
+✔ enabled public controls share hover and pressed feedback (4.4345ms)
+✔ keyboard focus remains visible and reduced motion removes movement (1.6074ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120.7965

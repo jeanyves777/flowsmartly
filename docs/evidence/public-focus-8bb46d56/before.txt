@@ -1,0 +1,27 @@
+node : node:internal/modules/run_main:107
+At line:6 char:108
++ ... st-before'; node apps/v5/scripts/test-public-focus.mjs *> D:/fs-codex ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:internal/modules/run_main:107:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: /platform/ai-studio/grey/768: rendered indicator/surface contrast below 3:1: {"kind":"c
+ontrast","context":"/platform/ai-studio/grey/768","pixels":[{"x":45,"y":512,"rgb":[169,172,188]},{"x":44,"y":512,"rgb":
+[169,172,188]},{"x":42,"y":512,"rgb":[109,94,252]},{"x":41,"y":512,"rgb":[109,94,252]},{"x":39,"y":512,"rgb":[169,172,1
+88]},{"x":38,"y":512,"rgb":[169,172,188]}],"surfaceContrast":[2.000048086740514,2.000048086740514],"betweenBands":2.000
+048086740514}
+    at focusContrast (file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:93:3)
+    at async contrastCases (file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:107:23)
+    at async file:///D:/fs-codex-inbox/pr544/apps/v5/scripts/test-public-focus.mjs:184:46 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.18.0

@@ -1,0 +1,194 @@
+{
+  "head": "72edbd7a98632bc51794b2fee039fb87ef78bc28",
+  "utc": "2026-10-15T16:09:03.579Z",
+  "browser": "Chrome/147.0.7727.57",
+  "coverage": "focused contrast + synthetic feedback; no route matrix or modal rerun",
+  "results": [
+    {
+      "kind": "fixture",
+      "tag": "DIV",
+      "id": "",
+      "role": "link",
+      "name": "role-link",
+      "fixture": "role-link",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "DIV",
+      "id": "",
+      "role": "tab",
+      "name": "role-tab",
+      "fixture": "role-tab",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "DIV",
+      "id": "",
+      "role": "checkbox",
+      "name": "role-checkbox",
+      "fixture": "role-checkbox",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "INPUT",
+      "id": "",
+      "role": null,
+      "name": "input",
+      "fixture": "input",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "TEXTAREA",
+      "id": "",
+      "role": null,
+      "name": "textarea",
+      "fixture": "textarea",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "BUTTON",
+      "id": "",
+      "role": null,
+      "name": "button",
+      "fixture": "button",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "fixture",
+      "tag": "A",
+      "id": "",
+      "role": null,
+      "name": "anchor",
+      "fixture": "anchor",
+      "visible": true,
+      "keyboard": true,
+      "outlineWidth": "3px",
+      "outlineStyle": "solid",
+      "outlineColor": "rgb(109, 94, 252)",
+      "boxShadow": "none",
+      "transform": "none",
+      "disabled": false
+    },
+    {
+      "kind": "feedback",
+      "hover": true,
+      "press": true,
+      "disabled": true,
+      "reducedMotion": true
+    },
+    {
+      "kind": "contrast",
+      "context": "/platform/ai-studio/grey/768",
+      "pixels": [
+        {
+          "x": 45,
+          "y": 512,
+          "rgb": [
+            169,
+            172,
+            188
+          ]
+        },
+        {
+          "x": 44,
+          "y": 512,
+          "rgb": [
+            169,
+            172,
+            188
+          ]
+        },
+        {
+          "x": 42,
+          "y": 512,
+          "rgb": [
+            109,
+            94,
+            252
+          ]
+        },
+        {
+          "x": 41,
+          "y": 512,
+          "rgb": [
+            109,
+            94,
+            252
+          ]
+        },
+        {
+          "x": 39,
+          "y": 512,
+          "rgb": [
+            169,
+            172,
+            188
+          ]
+        },
+        {
+          "x": 38,
+          "y": 512,
+          "rgb": [
+            169,
+            172,
+            188
+          ]
+        }
+      ],
+      "surfaceContrast": [
+        2.000048086740514,
+        2.000048086740514
+      ],
+      "betweenBands": 2.000048086740514
+    }
+  ],
+  "errors": [],
+  "failure": "/platform/ai-studio/grey/768: rendered indicator/surface contrast below 3:1: {\"kind\":\"contrast\",\"context\":\"/platform/ai-studio/grey/768\",\"pixels\":[{\"x\":45,\"y\":512,\"rgb\":[169,172,188]},{\"x\":44,\"y\":512,\"rgb\":[169,172,188]},{\"x\":42,\"y\":512,\"rgb\":[109,94,252]},{\"x\":41,\"y\":512,\"rgb\":[109,94,252]},{\"x\":39,\"y\":512,\"rgb\":[169,172,188]},{\"x\":38,\"y\":512,\"rgb\":[169,172,188]}],\"surfaceContrast\":[2.000048086740514,2.000048086740514],\"betweenBands\":2.000048086740514}"
+}
