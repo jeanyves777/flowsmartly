@@ -403,7 +403,7 @@ for (const [root, label] of [[marketingRoot, 'marketing'], ...(!marketingOnly ? 
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (entry.isFile() && /\.(?:html|js|json)$/iu.test(entry.name)) found.push(path);
+        else if (entry.isFile() && /\.(?:html|js|json|css|svg)$/iu.test(entry.name)) found.push(path);
       }
     };
     walk(root);
