@@ -29,7 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -99,7 +99,7 @@ const HERO_FEATURES: { key: string; icon: string; label: string }[] = [
  * The approved mock reads *"Join thousands of businesses building with
  * FlowSmartly"* over the ticks *Trusted by businesses · Secure & reliable ·
  * All-in-one platform*. **That cannot ship.** This site is pre-launch — its
- * own primary call to action is *Join early access* — and there is no source
+ * own primary call to action is *Create account* — and there is no source
  * anywhere in this product for a customer count. An adoption number nobody
  * can check is a fabricated metric, and it fails for exactly the reason the
  * availability ruling in `DOMAIN-SEARCH-BACKEND-NOTE.md` exists: a page that
@@ -467,20 +467,20 @@ export default function DomainsPage() {
 
           {/*
            * ⚠️ **Both hero controls survive the rebuild.** The mock draws
-           * neither — it leans on the header's *Join early access* — but a
+           * neither — it leans on the header's *Create account* — but a
            * redesign is not a reason to lose the page's two standing calls to
            * action. They land after the proof, which is where a CTA belongs.
            */}
           <View style={styles.heroCtaRow}>
             <ButtonRow>
               <PrimaryButton
-                label="Join early access"
+                label="Create account"
                 size="lg"
                 full={l.isPhone}
                 icon="arrow-right"
                 iconRight
                 trackId="domains.hero.find-domain"
-                onPress={() => goToEarlyAccess()}
+                onPress={() => goToRegister()}
               />
               <SecondaryButton
                 label="Transfer one in"
@@ -1107,7 +1107,7 @@ function DomainSearch({
                     accessibilityRole="button"
                     accessibilityLabel={`Check and claim ${result.name}`}
                     onPress={() => {
-                      goToEarlyAccess();
+                      goToRegister();
                     }}
                     style={styles.claimGo}>
                     <Text numberOfLines={1} style={styles.claimGoText}>

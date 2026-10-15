@@ -91,6 +91,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Prepare clean marketing source snapshot for receipt
+        run: |
+          source_sha="$(git rev-parse --verify HEAD)"
+          git worktree add --detach "$RUNNER_TEMP/v5-marketing-source" "$source_sha"
+          test -z "$(git -C "$RUNNER_TEMP/v5-marketing-source" status --porcelain --untracked-files=all)"
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -99,17 +105,39 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
-      - name: Verify the export and the route map agree
-        # scripts/precheck-v5-routes.mjs is the single definition of "this
-        # export is complete and the Nginx config serves it". It used to be a
-        # duplicated file list here AND in scripts/deploy-v5-public.sh; two
-        # copies of a checklist drift until one of them is checking nothing.
+      - name: Use the reviewed, pinned V5 apex config fixture
+        # The separate V5 repository is private to the deployment operator.
+        # The fixture's pinned Git blob SHA is checked by the test suite.
+        run: test -f scripts/fixtures/nginx-apex-v5.conf
+
+      - name: Test the V5 apex entry verifier and receipt
+        run: npm run test:apex-entry
+        env:
+          V5_APEX_CONFIG: ${{ github.workspace }}/apps/v5/scripts/fixtures/nginx-apex-v5.conf
+          V5_MARKETING_REPO: ${{ runner.temp }}/v5-marketing-source
+          V5_MARKETING_EXPORT: ${{ github.workspace }}/apps/v5/dist
+          V5_RECEIPT_OUT: ${{ runner.temp }}/v5-marketing-export-receipt.json
+
+      - name: Upload source-bound V5 marketing export receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-marketing-export-receipt
+          path: ${{ runner.temp }}/v5-marketing-export-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Verify the V5 marketing export against its source routes
+        # This repository owns the static public marketing export ONLY.
+        # deploy/nginx-flowsmartly-v5.conf is an obsolete historical vhost
+        # which proxies to V4 and expects a waitlist/legacy sign-in. It must
+        # NEVER be used as the V5 apex or promoted by this workflow.
         #
-        # It derives the expected routes from apps/v5/src/app and the blog
-        # index — sources the export cannot influence — so a route that
-        # `expo export` silently drops fails the PR rather than the deploy. It
-        # also resolves deploy/nginx-flowsmartly-v5.conf the way Nginx resolves
-        # it, which is what catches a page that exports fine but that no
-        # `location` claims.
+        # The authoritative V5 apex is:
+        #   jeanyves777/flowsmartly-v5:deploy/nginx-apex-v5.conf
+        # Its real routing/Stripe/callback constraints are independently
+        # validated by tests/nginx-apex-cutover.test.ts in that repository.
+        # This job therefore validates *all exported pages and route assets*
+        # without treating the V4 historical nginx file as the shipping contract.
+        # A live release still requires the independent V5 nginx proof.
         working-directory: ${{ github.workspace }}
-        run: node scripts/precheck-v5-routes.mjs
+        run: node scripts/precheck-v5-routes.mjs --skip-conf

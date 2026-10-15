@@ -21,7 +21,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, goToEarlyAccess } from '@/lib/destinations';
+import { contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -431,13 +431,13 @@ export default function VideoStudioPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="lg"
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
                   trackId="video-studio.hero.create-video"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
                 <SecondaryButton
                   label="See it on a real brief"
