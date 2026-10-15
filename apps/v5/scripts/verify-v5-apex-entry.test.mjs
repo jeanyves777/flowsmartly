@@ -236,7 +236,7 @@ if (process.env.V5_MARKETING_REPO && process.env.V5_MARKETING_EXPORT && process.
     assert.match(output, /"marketing": \{[\s\S]*"digest": "sha256:[0-9a-f]{64}"/u);
     assert.match(output, /"verdict": "PASS_MARKETING_ONLY"/u);
 
-    const receiptStart = output.lastIndexOf('\\n{');
+    const receiptStart = output.lastIndexOf('\n{');
     assert.notEqual(receiptStart, -1, 'verifier emitted no JSON receipt');
     const receiptText = output.slice(receiptStart + 1).trim();
     const receipt = JSON.parse(receiptText);
@@ -244,7 +244,7 @@ if (process.env.V5_MARKETING_REPO && process.env.V5_MARKETING_EXPORT && process.
     assert.match(receipt.nginx_config_sha256, /^[0-9a-f]{64}$/u);
     assert.match(receipt.artifacts.marketing.digest, /^sha256:[0-9a-f]{64}$/u);
     if (process.env.V5_RECEIPT_OUT) {
-      writeFileSync(process.env.V5_RECEIPT_OUT, JSON.stringify(receipt, null, 2) + '\\n');
+      writeFileSync(process.env.V5_RECEIPT_OUT, JSON.stringify(receipt, null, 2) + '\n');
     }
   });
 }
