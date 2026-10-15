@@ -110,6 +110,15 @@ jobs:
           V5_APEX_CONFIG: ${{ github.workspace }}/apps/v5/scripts/fixtures/nginx-apex-v5.conf
           V5_MARKETING_REPO: ${{ github.workspace }}
           V5_MARKETING_EXPORT: ${{ github.workspace }}/apps/v5/dist
+          V5_RECEIPT_OUT: ${{ runner.temp }}/v5-marketing-export-receipt.json
+
+      - name: Upload source-bound V5 marketing export receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-marketing-export-receipt
+          path: ${{ runner.temp }}/v5-marketing-export-receipt.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify the V5 marketing export against its source routes
         # This repository owns the static public marketing export ONLY.
