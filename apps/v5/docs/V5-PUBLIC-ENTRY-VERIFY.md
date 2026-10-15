@@ -12,7 +12,7 @@ npm run test:apex-entry
 
 CI runs the same command after the marketing export. The isolated CLI fixtures cover a matching portal digest, digest mismatch, a manifest not measured from a clean worktree, an untracked marketing source file, route placement in another server block, canonical HTTP-to-HTTPS block selection, and nginx exact/prefix/`^~`/competing-regex precedence plus `/early-access` root/alias/rewrite failures. The digest fixture pins the byte sequence used by `jeanyves777/flowsmartly-v5/scripts/release-verify.mjs:digestOf` (sorted file path, NUL, file bytes, NUL).
 
-The CI job also supplies the authoritative V5 apex config and runs the verifier against it, then emits a source-bound marketing export receipt containing the marketing source SHA, config digest, and built export digest. This verifies the config selection and marketing build-to-source mapping at that CI head. CI does not build or attest the V5 portal release candidate or prove live host routing.
+The CI job runs the verifier against a pinned, byte-for-byte snapshot of `jeanyves777/flowsmartly-v5:deploy/nginx-apex-v5.conf`. Its Git blob SHA-1 is checked by the test suite before route assertions run (`apps/v5/scripts/fixtures/README.md` records the provenance). CI then emits a source-bound marketing export receipt containing the marketing source SHA, config digest, and built export digest. Because the V5 repository is private to the deployment operator, the PR token cannot fetch it; refresh the snapshot and pin through review whenever the upstream config changes. CI does not attest that this snapshot is the currently deployed config, build or attest the V5 portal release candidate, or prove live host routing.
 
 ## Candidate-local verification
 
