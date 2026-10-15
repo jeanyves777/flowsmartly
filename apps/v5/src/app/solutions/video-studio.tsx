@@ -64,7 +64,7 @@ const WORKFLOW = [
   {
     number: '02',
     title: 'Shape the story',
-    body: 'Use the studio page to explore visual formats and the current product workflow. The preview gallery is illustrative.',
+    body: 'Compare the thumbnail directions here, then choose an account or demo path into V5. Your selected reference stays on this page.',
     icon: 'wand-magic-sparkles',
   },
   {
