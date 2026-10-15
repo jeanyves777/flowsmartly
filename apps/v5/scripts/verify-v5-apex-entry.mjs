@@ -171,16 +171,61 @@ function blockBody(text, open) {
 
 function locationRecords(config) {
   const records = [];
-  const starts = /\blocation\s+(?:(=|~\*|~|\^~)\s+)?([^\s{]+)\s*\{/gu;
-  for (const match of config.matchAll(starts)) {
-    const open = match.index + match[0].lastIndexOf('{');
-    const body = blockBody(config, open);
-    if (body === null) continue;
-    records.push({ modifier: match[1] ?? '', pattern: match[2], start: match.index, body });
+  for (const match of config.matchAll(/\blocation\b/gu)) {
+    let cursor = match.index + match[0].length;
+    const skipWhitespace = () => {
+      while (/\s/u.test(config[cursor] ?? '')) cursor += 1;
+    };
+    skipWhitespace();
+    const modifierMatch = /^(=|~\*|~|\^~)\s+/u.exec(config.slice(cursor));
+    const modifier = modifierMatch?.[1] ?? '';
+    if (modifierMatch) cursor += modifierMatch[0].length;
+
+    let pattern = '';
+    const quote = config[cursor] === '"' || config[cursor] === "'" ? config[cursor] : '';
+    if (quote) {
+      cursor += 1;
+      let closed = false;
+      while (cursor < config.length) {
+        const char = config[cursor];
+        if (char === '\\' && cursor + 1 < config.length) {
+          const next = config[cursor + 1];
+          pattern += next === quote ? quote : char + next;
+          cursor += 2;
+          continue;
+        }
+        if (char === quote) {
+          cursor += 1;
+          closed = true;
+          break;
+        }
+        pattern += char;
+        cursor += 1;
+      }
+      if (!closed) {
+        records.push({ modifier: '?', pattern: '<unterminated quote>', start: match.index, body: '' });
+        continue;
+      }
+    } else {
+      const tokenStart = cursor;
+      while (cursor < config.length && !/[\s{]/u.test(config[cursor])) cursor += 1;
+      pattern = config.slice(tokenStart, cursor);
+    }
+
+    skipWhitespace();
+    if (config[cursor] !== '{') {
+      records.push({ modifier: '?', pattern: '<invalid location header>', start: match.index, body: '' });
+      continue;
+    }
+    const body = blockBody(config, cursor);
+    if (body === null) {
+      records.push({ modifier: '?', pattern: '<unbalanced location block>', start: match.index, body: '' });
+      continue;
+    }
+    records.push({ modifier, pattern, start: match.index, body });
   }
   return records;
 }
-
 function topLevelDirectives(block) {
   const top = [];
   let depth = 0;
