@@ -1,0 +1,170 @@
+{
+ "/|rm=false": {
+  "div[role=link]": {
+   "n": 5,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 22,
+   "ok": 22
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/company/contact|rm=false": {
+  "div[role=link]": {
+   "n": 8,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 13,
+   "ok": 13
+  },
+  "input[type=text]": {
+   "n": 5,
+   "ok": 0
+  },
+  "textarea": {
+   "n": 1,
+   "ok": 0
+  },
+  "div[role=checkbox]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/platform/ai-studio|rm=false": {
+  "div[role=link]": {
+   "n": 6,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 56,
+   "ok": 56
+  },
+  "button[role=button]": {
+   "n": 11,
+   "ok": 11
+  },
+  "div[role=tab]": {
+   "n": 5,
+   "ok": 0
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/pricing|rm=false": {
+  "div[role=link]": {
+   "n": 6,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 21,
+   "ok": 21
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/|rm=true": {
+  "div[role=link]": {
+   "n": 5,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 22,
+   "ok": 22
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/company/contact|rm=true": {
+  "div[role=link]": {
+   "n": 8,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 13,
+   "ok": 13
+  },
+  "input[type=text]": {
+   "n": 5,
+   "ok": 0
+  },
+  "textarea": {
+   "n": 1,
+   "ok": 0
+  },
+  "div[role=checkbox]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/platform/ai-studio|rm=true": {
+  "div[role=link]": {
+   "n": 6,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 56,
+   "ok": 56
+  },
+  "button[role=button]": {
+   "n": 11,
+   "ok": 11
+  },
+  "div[role=tab]": {
+   "n": 5,
+   "ok": 0
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ },
+ "/pricing|rm=true": {
+  "div[role=link]": {
+   "n": 6,
+   "ok": 0
+  },
+  "a[role=link]": {
+   "n": 52,
+   "ok": 52
+  },
+  "button[role=button]": {
+   "n": 21,
+   "ok": 21
+  },
+  "span[role=link]": {
+   "n": 1,
+   "ok": 0
+  }
+ }
+}
