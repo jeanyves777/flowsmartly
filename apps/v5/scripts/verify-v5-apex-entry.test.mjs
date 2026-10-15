@@ -256,12 +256,16 @@ test('script rejects a portal digest mismatch', () => {
 
 test('script rejects stale V4 host references in exported CSS assets', () => {
   const input = fixture();
-  put(input.marketing, 'assets/theme.css', 'body { background-image: url("https://legacy.flowsmartly.com/login"); }');
+  put(
+    input.marketing,
+    'assets/theme.css',
+    'body { background-image: url("https://legacy.flowsmartly.com/login"); }',
+  );
   const result = run(input);
   assert.equal(result.status, 1, result.output);
   assert.match(
     result.output,
-    /marketing export contains a stale waitlist or V4-host reference: assets\\/theme\\.css/u,
+    /marketing export contains a stale waitlist or V4-host reference: assets\/theme\.css/u,
   );
 });
 
