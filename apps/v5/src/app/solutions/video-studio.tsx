@@ -77,7 +77,7 @@ const WORKFLOW = [
 const PLANNED = [
   { title: 'Generate a finished video', body: 'Video generation is not connected to this public page yet.', icon: 'film' },
   { title: 'Choose a model or provider', body: 'Provider selection and routing remain behind the API.', icon: 'sliders' },
-  { title: 'Send motion and shot settings', body: 'Settings need an end-to-end request path before they can affect output.', icon: 'arrows-to-circle' },
+  { title: 'Send motion and shot settings', body: 'Settings need an end-to-end request path before they can affect output.', icon: 'arrows-rotate' },
 ] as const;
 
 function VideoStudioPage() {
@@ -204,7 +204,7 @@ function VideoStudioPage() {
                   );
                 })}
               </View>
-              <Text style={styles.previewDisclaimer}>Reference imagery only · Selector changes this page only</Text>
+              <Text style={styles.previewDisclaimer}>Sample reference imagery · This selector changes the preview only</Text>
             </View>
           </Reveal>
         </View>
