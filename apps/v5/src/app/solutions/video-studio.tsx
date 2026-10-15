@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
-import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
@@ -87,7 +86,6 @@ function VideoStudioPage() {
   const type = useTypeScale();
   const router = useRouter();
   const styles = useMemo(() => createStyles(t, l), [t, l]);
-  const reducedMotion = useReducedMotion();
   const [activePreview, setActivePreview] = useState(0);
   const [focusedPreview, setFocusedPreview] = useState<number | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -169,9 +167,11 @@ function VideoStudioPage() {
                 </View>
                 <View style={styles.previewBadge}><View style={styles.previewBadgeDot} /><Text style={styles.previewBadgeText}>PREVIEW</Text></View>
               </View>
-              <Animated.View
+              <Reveal
                 key={preview.key}
-                entering={reducedMotion ? undefined : FadeIn.duration(180)}
+                mode="enter"
+                distance={0}
+                duration={180}
                 style={styles.previewImageFrame}
                 testID="video-studio-reference-image">
                 <Media name={preview.media} alt={preview.alt} style={styles.previewImage} radius={18} />
@@ -180,7 +180,7 @@ function VideoStudioPage() {
                   <View style={styles.imageIndexRule} />
                   <Text style={styles.imageIndexTotal}>04</Text>
                 </View>
-              </Animated.View>
+              </Reveal>
               <View style={styles.previewCaptionRow}>
                 <View style={styles.previewCaptionCopy}>
                   <Text style={styles.previewKicker}>DIRECTION {String(activePreview + 1).padStart(2, '0')}</Text>

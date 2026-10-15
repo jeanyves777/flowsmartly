@@ -62,6 +62,7 @@ try {
   assert.match(await page.$eval(headingSelector, (element) => element.innerText), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
   assert.equal(await page.$eval(headingSelector, (element) => getComputedStyle(element).opacity), '1', 'Reduced motion must leave the page content visible');
+  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"]', (element) => getComputedStyle(element).visibility), 'visible', 'The initial reference preview must be visible with reduced motion');
 
   // Exercise the real gallery action and make sure it stays a local reference.
   const socialSelector = '[role="button"][aria-label="Show Social reference"]';
@@ -128,6 +129,11 @@ try {
         if (!previous || previous.key !== key) window.__videoQaLayout = { key, since: performance.now() };
         return performance.now() - window.__videoQaLayout.since >= 300;
       }, { polling: 'raf', timeout: 15_000 }, width);
+      await page.waitForFunction(() => {
+        const frame = document.querySelector('[data-testid="video-studio-reference-image"]');
+        const image = frame?.querySelector('img');
+        return frame && getComputedStyle(frame).visibility === 'visible' && image?.complete && image.naturalWidth > 0;
+      });
       const dimensions = await page.evaluate(horizontalDimensions);
       assert(!hasHorizontalOverflow(dimensions), `Horizontal overflow at ${theme}/${width}px: ${JSON.stringify(dimensions)}`);
       await page.evaluate(() => { for (const element of document.querySelectorAll('*')) if (/auto|scroll/.test(getComputedStyle(element).overflowY)) element.scrollTop = 0; });
@@ -146,6 +152,9 @@ try {
   });
   assert(hasHorizontalOverflow(await page.evaluate(horizontalDimensions)), 'The overflow detector must reject a real over-wide scroll child');
   await page.evaluate(() => document.getElementById('qa-overflow-probe').remove());
+  await page.setJavaScriptEnabled(false);
+  await page.goto(`${server.origin}/solutions/video-studio/`, { waitUntil: 'networkidle0' });
+  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"]', (element) => getComputedStyle(element).visibility), 'visible', 'Static HTML must not hide the preview when JavaScript is disabled');
   assert.deepEqual(runtimeErrors, [], `The route must not throw in the browser: ${runtimeErrors.join('; ')}`);
   assert.deepEqual(consoleErrors, [], `The route must not log browser errors: ${consoleErrors.join('; ')}`);
   console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, and screenshots/overflow checks at 390/768/1024/1280/1536/1920 widths.');
