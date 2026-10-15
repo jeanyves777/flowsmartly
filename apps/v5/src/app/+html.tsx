@@ -120,7 +120,7 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 ):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
   transform: translateY(1px) scale(0.985);
 }
-:where(#root, body > [role="dialog"]) :where(
+:where(#root, [role="dialog"]) :where(
   [role="button"],
   a,
   button,
