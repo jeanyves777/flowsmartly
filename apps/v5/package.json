@@ -34,6 +34,7 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "eslint-config-expo": "~57.0.1",
+    "puppeteer": "^24.42.0",
     "sharp": "^0.34.5",
     "typescript": "~6.0.3"
   },
@@ -49,10 +50,12 @@
     "build:web": "node scripts/build-content.js && node scripts/check-live-account-entry.mjs && expo export -p web && node scripts/agent-assets.js && node scripts/icons.js",
     "check:account-entry": "node scripts/check-live-account-entry.mjs",
     "test:apex-entry": "node --test scripts/verify-v5-apex-entry.test.mjs",
+    "test:public-controls": "node --test scripts/public-control-feedback.test.mjs",
     "audit:agent": "node scripts/agent-readiness.js --strict",
     "qa:web": "npm run build:web && node scripts/agent-readiness.js --strict && node scripts/mirror-routes.js",
     "content": "node scripts/build-content.js",
-    "content:check": "node scripts/build-content.js --check"
+    "content:check": "node scripts/build-content.js --check",
+    "qa:focus": "node --test scripts/public-control-feedback.test.mjs && npm run build:web && node scripts/test-public-focus.mjs"
   },
   "private": true
 }

@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
+import { FOCUS_INDICATOR } from '../theme/focus-tokens';
 
 /**
  * THE HTML SHELL.
@@ -79,6 +80,97 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 #fs-nav-scroll { overscroll-behavior: contain; }
 #fs-nav-top { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
 #fs-nav-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+
+/*
+  PUBLIC CONTROL FEEDBACK.
+  Shared pressable and anchor feedback keeps the site responsive to pointer,
+  keyboard and touch input without making decorative mockup chrome interactive.
+  Focus remains visible for keyboard users; motion is removed when requested.
+*/
+:where(#root, body > [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"]
+):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.75, 0.25, 1),
+    outline-offset 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover {
+    transform: translateY(-2px);
+  }
+}
+:where(#root, body > [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"]
+):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
+  transform: translateY(1px) scale(0.985);
+}
+:where(#root, [role="dialog"]) :where(
+  [role="button"],
+  a,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="link"],
+  [role="tab"],
+  [role="checkbox"],
+  input:not([type="hidden"]),
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  /* Two opaque bands preserve a visible boundary on every theme surface. */
+  box-shadow: 0 0 0 3px ${FOCUS_INDICATOR.inner};
+  outline: 3px solid ${FOCUS_INDICATOR.outer};
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]) {
+    transition: none !important;
+  }
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):hover,
+  :where(#root, body > [role="dialog"]) :where(
+    [role="button"],
+    a,
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):not([disabled]):not([aria-disabled="true"]):active {
+    transform: none !important;
+  }
+}
 `;
 
 export default function Root({ children }: PropsWithChildren) {
