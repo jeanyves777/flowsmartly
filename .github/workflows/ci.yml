@@ -61,6 +61,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Prepare clean marketing source snapshot for receipt
+        run: |
+          source_sha="$(git rev-parse --verify HEAD)"
+          git worktree add --detach "$RUNNER_TEMP/v5-marketing-source" "$source_sha"
+          test -z "$(git -C "$RUNNER_TEMP/v5-marketing-source" status --porcelain --untracked-files=all)"
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -108,7 +114,7 @@ jobs:
         run: npm run test:apex-entry
         env:
           V5_APEX_CONFIG: ${{ github.workspace }}/apps/v5/scripts/fixtures/nginx-apex-v5.conf
-          V5_MARKETING_REPO: ${{ github.workspace }}
+          V5_MARKETING_REPO: ${{ runner.temp }}/v5-marketing-source
           V5_MARKETING_EXPORT: ${{ github.workspace }}/apps/v5/dist
           V5_RECEIPT_OUT: ${{ runner.temp }}/v5-marketing-export-receipt.json
 
