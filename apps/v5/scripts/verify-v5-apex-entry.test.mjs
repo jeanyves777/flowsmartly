@@ -147,7 +147,7 @@ test('script rejects exact, prefix, ^~, and competing regex auth overrides', () 
     '  location ^~ /login { root /var/www/flowsmartly-v5/current; }\n',
     '  location ~ ^/login$ { root /var/www/flowsmartly-v5/current; }\n',
     '  location ~ "^/login$" { root /var/www/flowsmartly-v5/current; }\n',
-    '  location "^/register" { root /var/www/flowsmartly-v5/current; }\n',
+    '  location "/register" { root /var/www/flowsmartly-v5/current; }\n',
   ];
   for (const override of overrides) {
     const config = APEX.replace('  location ~ ^/(accept-invitation', override + '  location ~ ^/(accept-invitation');
