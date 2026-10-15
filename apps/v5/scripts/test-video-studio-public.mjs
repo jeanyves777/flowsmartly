@@ -70,7 +70,7 @@ try {
   assert.equal(await faq.getAttribute('aria-expanded'), 'true');
   assert.match(await page.locator('body').innerText(), /Video generation is not wired to this page/);
 
-  const widths = [390, 768, 1024, 1536];
+  const widths = [390, 768, 1024, 1280, 1536, 1920];
   for (const width of widths) {
     await page.setViewport({ width, height: 960 });
     await page.waitForFunction(() => document.documentElement.clientWidth > 0);
@@ -82,10 +82,10 @@ try {
     }));
     assert(dimensions.document <= dimensions.viewport, `Document overflow at ${width}px: ${JSON.stringify(dimensions)}`);
     assert(dimensions.main <= dimensions.mainClient + 1, `Main content overflow at ${width}px: ${JSON.stringify(dimensions)}`);
-    if (width === 390 || width === 1536) await page.screenshot({ path: `/tmp/video-studio-${width}.png`, fullPage: true });
+    if (width === 390 || width === 1920) await page.screenshot({ path: `/tmp/video-studio-${width}.png`, fullPage: true });
   }
   assert.deepEqual(runtimeErrors, [], `The route must not throw in the browser: ${runtimeErrors.join('; ')}`);
-  console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, 390/768/1024/1536 widths.');
+  console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, 390/768/1024/1280/1536/1920 widths.');
 } finally {
   if (browser) await browser.close();
   server.kill('SIGTERM');
