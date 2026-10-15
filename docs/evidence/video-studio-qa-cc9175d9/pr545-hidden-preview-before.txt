@@ -1,0 +1,26 @@
+node : node:internal/modules/run_main:107
+At line:2 char:1
++ node scripts/test-video-studio-public.mjs *> D:/fs-codex-inbox/pr545- ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:internal/modules/run_main:107:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The initial reference preview must be visible with reduced motion
++ actual - expected
+
++ 'hidden'
+- 'visible'
+
+    at file:///D:/fs-codex-inbox/pr545/apps/v5/scripts/test-video-studio-public.mjs:65:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'hidden',
+  expected: 'visible',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.18.0

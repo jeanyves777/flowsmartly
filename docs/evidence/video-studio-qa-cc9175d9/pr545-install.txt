@@ -1,0 +1,17 @@
+npm.cmd : npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to 
+uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+At line:2 char:1
++ npm.cmd ci --no-audit --no-fund *> D:/fs-codex-inbox/pr545-install.lo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn deprec...cated in 2028).:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+added 917 packages in 1m
+npm warn allow-scripts 3 packages have install scripts not yet covered by allowScripts:
+npm warn allow-scripts   puppeteer@24.42.0 (postinstall: node install.mjs)
+npm warn allow-scripts   sharp@0.34.5 (install: node install/check.js || npm run build)
+npm warn allow-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to 
+allow.
