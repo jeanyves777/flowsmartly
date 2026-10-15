@@ -113,7 +113,7 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
     transform: none !important;
   }
 }
-
+`;
 
 export default function Root({ children }: PropsWithChildren) {
   return (
