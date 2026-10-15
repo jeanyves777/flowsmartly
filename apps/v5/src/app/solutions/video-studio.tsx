@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd } from '@/components/public/seo';
@@ -86,6 +87,7 @@ function VideoStudioPage() {
   const type = useTypeScale();
   const router = useRouter();
   const styles = useMemo(() => createStyles(t, l), [t, l]);
+  const reducedMotion = useReducedMotion();
   const [activePreview, setActivePreview] = useState(0);
   const [focusedPreview, setFocusedPreview] = useState<number | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -167,14 +169,18 @@ function VideoStudioPage() {
                 </View>
                 <View style={styles.previewBadge}><View style={styles.previewBadgeDot} /><Text style={styles.previewBadgeText}>PREVIEW</Text></View>
               </View>
-              <View style={styles.previewImageFrame}>
+              <Animated.View
+                key={preview.key}
+                entering={reducedMotion ? undefined : FadeIn.duration(180)}
+                style={styles.previewImageFrame}
+                testID="video-studio-reference-image">
                 <Media name={preview.media} alt={preview.alt} style={styles.previewImage} radius={18} />
                 <View pointerEvents="none" style={styles.imageIndex}>
                   <Text style={styles.imageIndexText}>{String(activePreview + 1).padStart(2, '0')}</Text>
                   <View style={styles.imageIndexRule} />
                   <Text style={styles.imageIndexTotal}>04</Text>
                 </View>
-              </View>
+              </Animated.View>
               <View style={styles.previewCaptionRow}>
                 <View style={styles.previewCaptionCopy}>
                   <Text style={styles.previewKicker}>DIRECTION {String(activePreview + 1).padStart(2, '0')}</Text>
@@ -194,17 +200,23 @@ function VideoStudioPage() {
                       accessibilityRole="button"
                       accessibilityLabel={`Show ${item.label} reference`}
                       accessibilityState={{ selected }}
+                      accessibilityHint="Updates the visual reference only. It does not send a video request."
                       aria-pressed={selected}
                       onPress={() => setActivePreview(index)}
                       onFocus={() => setFocusedPreview(index)}
                       onBlur={() => setFocusedPreview(null)}
                       style={({ pressed }) => [styles.previewTab, selected && styles.previewTabSelected, focusedPreview === index && styles.previewTabFocused, pressed && styles.pressed]}>
+                      <Media name={item.media} alt="" style={styles.previewThumbImage} radius={8} />
                       <Text style={[styles.previewTabText, selected && styles.previewTabTextSelected]}>{item.label}</Text>
                     </Pressable>
                   );
                 })}
               </View>
               <Text style={styles.previewDisclaimer}>Sample reference imagery · This selector changes the preview only</Text>
+              <View style={styles.previewNextStep}>
+                <Text style={styles.previewNextStepText}>Ready to explore V5?</Text>
+                <PrimaryButton label="Create your account" size="md" icon="arrow-right" iconRight trackId="video-studio.preview.create-account" onPress={goToRegister} />
+              </View>
             </View>
           </Reveal>
         </View>
@@ -380,13 +392,16 @@ function createStyles(t: ThemeTokens, l: Layout) {
     previewNote: { color: t.textMuted, fontSize: 13, marginTop: 3 },
     previewArrow: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
     previewTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingTop: 11, borderTopWidth: 1, borderTopColor: t.divider },
-    previewTab: { flexGrow: 0, flexShrink: 1, flexBasis: `${100 / previewColumns - 2}%` as `${number}%`, minWidth: 72, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: t.border, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: t.background },
+    previewThumbImage: { width: '100%', height: 38 },
+    previewNextStep: { flexDirection: l.isPhone ? 'column' : 'row', alignItems: l.isPhone ? 'stretch' : 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: t.divider },
+    previewNextStepText: { color: t.textMuted, fontSize: 13, fontWeight: '700' },
+    previewTab: { flexGrow: 0, flexShrink: 1, flexBasis: `${100 / previewColumns - 2}%` as `${number}%`, minWidth: 72, minHeight: 78, alignItems: 'stretch', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: t.border, paddingHorizontal: 6, paddingVertical: 6, backgroundColor: t.background },
     previewTabSelected: { backgroundColor: t.brand, borderColor: t.brand },
     previewTabFocused: { borderColor: t.brand, borderWidth: 2 },
     previewTabText: { color: t.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     previewTabTextSelected: { color: t.textOnBrand },
     previewDisclaimer: { color: t.textSubtle, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' },
-    pressed: { opacity: 0.82 },
+    pressed: { opacity: 0.84, transform: [{ scale: 0.985 }] },
     heroFoot: { borderTopWidth: 1, borderTopColor: t.divider, marginTop: l.isPhone ? 32 : 50, paddingTop: 15, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     heroFootLabel: { color: t.textSubtle, fontSize: 11, letterSpacing: 1, fontWeight: '800' },
     band: { paddingTop: l.isPhone ? 38 : 64, paddingBottom: l.isPhone ? 38 : 64 },
