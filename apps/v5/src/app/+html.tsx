@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
+import { FOCUS_INDICATOR } from '../theme/focus-tokens';
 
 /**
  * THE HTML SHELL.
@@ -135,7 +136,9 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
   select,
   [tabindex]:not([tabindex="-1"])
 ):focus-visible {
-  outline: 3px solid #6d5efc;
+  /* Two opaque bands preserve a visible boundary on every theme surface. */
+  box-shadow: 0 0 0 3px ${FOCUS_INDICATOR.inner};
+  outline: 3px solid ${FOCUS_INDICATOR.outer};
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {

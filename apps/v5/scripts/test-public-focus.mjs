@@ -13,6 +13,7 @@ const output = path.resolve(process.env.V5_FOCUS_QA_OUTPUT_DIR || path.join(tmpd
 await mkdir(output, { recursive: true });
 const results = [];
 const errors = [];
+const contrastOnly = process.env.V5_FOCUS_QA_CONTRAST_ONLY === '1';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.json': 'application/json', '.ico': 'image/x-icon' };
 const server = createServer(async (request, response) => {
   try {
@@ -57,13 +58,60 @@ async function activeObservation(page) {
   return page.evaluate(() => {
     const element = document.activeElement;
     const style = getComputedStyle(element);
-    return { tag: element.tagName, id:element.id, role: element.getAttribute('role'), name: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 80), fixture: element.dataset.focusFixture, visible: element.getClientRects().length > 0, keyboard: element.matches(':focus-visible'), outlineWidth: style.outlineWidth, outlineStyle: style.outlineStyle, outlineColor: style.outlineColor, transform: style.transform, disabled: element.hasAttribute('disabled') };
+    return { tag: element.tagName, id:element.id, role: element.getAttribute('role'), name: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 80), fixture: element.dataset.focusFixture, visible: element.getClientRects().length > 0, keyboard: element.matches(':focus-visible'), outlineWidth: style.outlineWidth, outlineStyle: style.outlineStyle, outlineColor: style.outlineColor, boxShadow: style.boxShadow, transform: style.transform, disabled: element.hasAttribute('disabled') };
   });
 }
 function assertRing(observation, context) {
   assert.equal(observation.outlineWidth, '3px', `${context}: ${JSON.stringify(observation)}`);
   assert.equal(observation.outlineStyle, 'solid', context);
-  assert.equal(observation.outlineColor, 'rgb(109, 94, 252)', context);
+  assert.notEqual(observation.outlineColor, 'transparent', context);
+}
+
+
+function luminance(rgb) {
+  const channels = rgb.slice(0, 3).map(value => { const s = value / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+function contrast(a, b) { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+
+// Sample actual rasterized pixels, not computed CSS/background assumptions.
+async function focusContrast(page, context) {
+  const rect = await page.evaluate(() => { const r = document.activeElement.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+  const image = await page.screenshot({ encoding: 'base64' });
+  const pixels = await page.evaluate(async ({ image, rect }) => {
+    const bitmap = new Image(); bitmap.src = 'data:image/png;base64,' + image; await bitmap.decode();
+    const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d'); ctx.drawImage(bitmap, 0, 0);
+    const y = Math.floor(rect.y + rect.height / 2);
+    return [-1, -2, -4, -5, -7, -8].map(offset => { const x = Math.floor(rect.x + offset); if (x < 0 || y < 0 || y >= canvas.height) throw new Error('Focus sample outside viewport'); return { x, y, rgb: [...ctx.getImageData(x, y, 1, 1).data].slice(0, 3) }; });
+  }, { image, rect });
+  const bands = [pixels[0].rgb, pixels[2].rgb];
+  const ratios = pixels.slice(4).map(surface => Math.max(...bands.map(band => contrast(band, surface.rgb))));
+  const betweenBands = contrast(...bands);
+  const receipt = { kind: 'contrast', context, pixels, surfaceContrast: ratios, betweenBands };
+  results.push(receipt);
+  assert(ratios.every(value => value >= 3), `${context}: rendered indicator/surface contrast below 3:1: ${JSON.stringify(receipt)}`);
+  assert(betweenBands >= 3, `${context}: two-color indicator bands must remain distinguishable`);
+  return image;
+}
+
+async function contrastCases() {
+  for (const theme of ['grey', 'light', 'dark']) for (const route of ['/platform/ai-studio', '/company/contact']) {
+    const page = await openPage(browser, route, 768, theme);
+    let reached = false;
+    for (let step = 0; step < 45; step++) {
+      await page.keyboard.press('Tab');
+      const observation = await activeObservation(page);
+      if ((route.includes('ai-studio') && observation.role === 'tab' && observation.name === 'Show All industries templates') || (route.includes('contact') && observation.tag === 'INPUT')) {
+        assertRing(observation, `${route}/${theme}`);
+        const image = await focusContrast(page, `${route}/${theme}/768`);
+        await writeFile(path.join(output, `contrast-${route.split('/').at(-1)}-${theme}.png`), Buffer.from(image, 'base64'));
+        reached = true; break;
+      }
+    }
+    assert(reached, `Natural Tab did not reach contrast target ${route}/${theme}`);
+    await page.close();
+  }
 }
 
 async function fixtures(page) {
@@ -133,7 +181,8 @@ try {
   await feedback(fixturePage);
   await fixturePage.screenshot({ path:path.join(output,'control-fixtures.png') });
   await fixturePage.close();
-  if (!process.env.V5_FOCUS_QA_FIXTURE_ONLY) {
+  if (!process.env.V5_FOCUS_QA_FIXTURE_ONLY) await contrastCases();
+  if (!process.env.V5_FOCUS_QA_FIXTURE_ONLY && !contrastOnly) {
     const routes = ['/', '/pricing','/solutions/video-studio','/company/about','/company/contact','/platform/ai-studio','/solutions/domains','/platform/email-sms'];
     for (const theme of ['light','grey','dark']) for (const width of [390,768,1440]) for (const route of routes) {
       const page = await openPage(browser,route,width,theme);
@@ -202,7 +251,10 @@ try {
   if(failedPage && !failedPage.isClosed()) await failedPage.screenshot({path:path.join(output,'failure.png')});
   throw error;
 } finally {
-  await writeFile(path.join(output,'results.json'),JSON.stringify({head:execFileSync('git',['rev-parse','HEAD'],{cwd:app,encoding:'utf8'}).trim(),utc:new Date().toISOString(),browser:browser.version(),results,errors,failure},null,2));
+  const browserVersion = await browser.version();
+  assert.equal(typeof browserVersion, 'string');
+  assert(browserVersion.trim().length > 0, 'Browser receipt must contain a nonempty version');
+  await writeFile(path.join(output,'results.json'),JSON.stringify({head:execFileSync('git',['rev-parse','HEAD'],{cwd:app,encoding:'utf8'}).trim(),utc:new Date().toISOString(),browser:browserVersion,coverage:contrastOnly ? 'focused contrast + synthetic feedback; no route matrix or modal rerun' : 'main routes reduced motion; modal light/forward Tab/pointer open-Close/keyboard Escape only; feedback synthetic',results,errors,failure},null,2));
   await browser.close();
   if(touchBrowser) await touchBrowser.close();
   await new Promise(resolve=>server.close(resolve));

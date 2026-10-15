@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../src/app/+html.tsx', import.meta.url), 'utf8');
-const style = source.match(/const FONT_CSS = `([\s\S]*?)`;/)?.[1];
+const focusTokens = readFileSync(new URL('../src/theme/focus-tokens.ts', import.meta.url), 'utf8');
+const style = source.match(/const FONT_CSS = `([\s\S]*?)`;/)?.[1]?.replace(/\$\{FOCUS_INDICATOR\.(inner|outer)\}/g, (_, name) => {
+  const value = focusTokens.match(new RegExp(name + ": '([^']+)'"))?.[1];
+  assert.ok(value, `focus token ${name} must resolve`);
+  return value;
+});
 
 assert.ok(style, 'the public HTML shell must contain a closed FONT_CSS template');
 
@@ -34,13 +39,14 @@ test('enabled public controls share hover and pressed feedback', () => {
 });
 
 test('keyboard focus remains visible and reduced motion removes movement', () => {
-  const focus = selectorForDeclaration('outline: 3px solid #6d5efc');
+  const focus = selectorForDeclaration('outline: 3px solid');
   assert.ok(focus.startsWith(':where(#root, [role="dialog"])'), 'focus coverage reaches nested RN-web modal portals');
   for (const target of targets) assert.ok(focus.includes(target), `focus-visible should include ${target}`);
   for (const target of ['[role="link"]', '[role="tab"]', '[role="checkbox"]', 'input:not([type="hidden"])', 'textarea', 'select', '[tabindex]:not([tabindex="-1"])']) {
     assert.ok(focus.includes(target), `focus-visible should include RN-web/native target ${target}`);
   }
-  assert.match(style.slice(style.indexOf(':focus-visible')), /outline: 3px solid #6d5efc/);
+  assert.match(style.slice(style.indexOf(':focus-visible')), /outline: 3px solid/);
+  assert.match(style.slice(style.indexOf(':focus-visible')), /box-shadow: 0 0 0 3px/);
 
   const reduced = style.slice(style.indexOf('@media (prefers-reduced-motion: reduce)'));
   assert.ok(reduced.startsWith('@media (prefers-reduced-motion: reduce)'));
