@@ -104,10 +104,10 @@ try {
     }));
     assert(dimensions.document <= dimensions.viewport, `Document overflow at ${width}px: ${JSON.stringify(dimensions)}`);
     assert(dimensions.main <= dimensions.mainClient + 1, `Main content overflow at ${width}px: ${JSON.stringify(dimensions)}`);
-    if (width === 390 || width === 1920) await page.screenshot({ path: `/tmp/video-studio-${width}.png`, fullPage: true });
+    await page.screenshot({ path: `/tmp/video-studio-${width}.png`, fullPage: true });
   }
   assert.deepEqual(runtimeErrors, [], `The route must not throw in the browser: ${runtimeErrors.join('; ')}`);
-  console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, 390/768/1024/1280/1536/1920 widths.');
+  console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, and screenshots/overflow checks at 390/768/1024/1280/1536/1920 widths.');
 } finally {
   if (browser) await browser.close();
   server.kill('SIGTERM');
