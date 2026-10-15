@@ -1,26 +1,34 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import puppeteer from 'puppeteer';
+import { startPublicExportServer } from './serve-public-export.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '../dist');
-const routeFile = path.join(dist, 'solutions/video-studio/index.html');
-await fs.access(routeFile);
-const port = Number(process.env.V5_PUBLIC_QA_PORT || 8097);
-const server = spawn('python3', ['-m', 'http.server', String(port), '--bind', '127.0.0.1', '--directory', dist], { stdio: 'ignore' });
+function horizontalDimensions() {
+  return {
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    // A centred main allows full-bleed bands; only actual scroll surfaces
+    // determine whether the visitor can scroll sideways.
+    scrollers: Array.from(document.querySelectorAll('*')).filter((element) => {
+      const style = getComputedStyle(element);
+      return element.clientWidth > 0 && /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
+    }).map((element) => ({ width: element.scrollWidth, client: element.clientWidth })),
+  };
+}
+function hasHorizontalOverflow(dimensions) {
+  return dimensions.document > dimensions.viewport + 1 || dimensions.scrollers.some(({ width, client }) => width > client + 1);
+}
+const screenshotDir = path.resolve(process.env.V5_PUBLIC_QA_OUTPUT_DIR || path.join(tmpdir(), 'v5-video-studio-qa'));
+await fs.mkdir(screenshotDir, { recursive: true });
+const server = await startPublicExportServer(dist, Number(process.env.V5_PUBLIC_QA_PORT || 0));
 let browser;
 try {
-  let ready = false;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try { ready = (await fetch(`http://127.0.0.1:${port}/`)).ok; } catch {}
-    if (ready) break;
-    await delay(250);
-  }
-  assert(ready, 'Expo static export server must start');
   browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.CHROME_PATH || puppeteer.executablePath(),
@@ -28,14 +36,24 @@ try {
     defaultViewport: { width: 1440, height: 1000, deviceScaleFactor: 1 },
   });
   const page = await browser.newPage();
+  const expectPreviewAlt = (alt) => page.waitForFunction((expected) =>
+    document.querySelector('[data-testid="video-studio-reference-image"] img')?.getAttribute('alt') === expected,
+  { timeout: 15_000 }, alt);
   const runtimeErrors = [];
+  const consoleErrors = [];
   const capabilityRequests = [];
+  await page.setRequestInterception(true);
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('request', (request) => {
     if (/\/api\/|higgsfield|fal\.ai|runway|seedance/i.test(request.url())) capabilityRequests.push(request.url());
+    const url = new URL(request.url());
+    if (url.origin === server.origin || ['data:', 'blob:'].includes(url.protocol)) request.continue();
+    else request.abort();
   });
   await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-  await page.goto(`http://127.0.0.1:${port}/solutions/video-studio/`, { waitUntil: 'networkidle0', timeout: 60_000 });
+  const response = await page.goto(`${server.origin}/solutions/video-studio/`, { waitUntil: 'networkidle0', timeout: 60_000 });
+  assert.equal(response.status(), 200, 'The exported Video Studio route must exist');
   await page.waitForSelector('[role="main"]');
   await page.waitForSelector('[role="button"][aria-label="Show Product film reference"]');
   const headingSelector = '[role="heading"][aria-level="1"]';
@@ -50,7 +68,7 @@ try {
   const requestsBeforeSelection = capabilityRequests.length;
   await page.click(socialSelector);
   assert.equal(await page.$eval(socialSelector, (element) => element.getAttribute('aria-pressed')), 'true');
-  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Creator-style social video still framed for a vertical feed');
+  await expectPreviewAlt('Creator-style social video still framed for a vertical feed');
   assert.match(await page.$eval('body', (element) => element.innerText), /This selector changes the preview only/);
   await delay(200);
   assert.equal(capabilityRequests.length, requestsBeforeSelection, 'Selecting a thumbnail must not call a video/API provider');
@@ -70,7 +88,7 @@ try {
   assert.equal(await campaign.evaluate((element) => getComputedStyle(element).borderWidth), '2px', 'Keyboard focus must be visible');
   await page.keyboard.press('Space');
   assert.equal(await campaign.evaluate((element) => element.getAttribute('aria-pressed')), 'true', 'Space must select a preview');
-  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Editorial campaign still of a car on a coastal road at sunset');
+  await expectPreviewAlt('Editorial campaign still of a car on a coastal road at sunset');
 
   // The FAQ control is an actual disclosure and reports its expanded state.
   const faqSelector = 'button[aria-expanded]';
@@ -93,22 +111,46 @@ try {
   assert.match(await page.$eval('body', (element) => element.innerText), /Video generation is not wired to this page/);
 
   const widths = [390, 768, 1024, 1280, 1536, 1920];
-  for (const width of widths) {
-    await page.setViewport({ width, height: 960 });
-    await page.waitForFunction(() => document.documentElement.clientWidth > 0);
-    const dimensions = await page.evaluate(() => ({
-      viewport: window.innerWidth,
-      document: document.documentElement.scrollWidth,
-      main: document.querySelector('[role="main"]')?.scrollWidth,
-      mainClient: document.querySelector('[role="main"]')?.clientWidth,
-    }));
-    assert(dimensions.document <= dimensions.viewport, `Document overflow at ${width}px: ${JSON.stringify(dimensions)}`);
-    assert(dimensions.main <= dimensions.mainClient + 1, `Main content overflow at ${width}px: ${JSON.stringify(dimensions)}`);
-    await page.screenshot({ path: `/tmp/video-studio-${width}.png`, fullPage: true });
+  for (const theme of ['light', 'grey', 'dark']) {
+    await page.evaluate((mode) => localStorage.setItem('v5:theme', mode), theme);
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.waitForSelector(`[role="button"][aria-label="Theme: ${theme}. Change theme"]`);
+    for (const width of widths) {
+      await page.setViewport({ width, height: 960 });
+      // React Native adopts a resized viewport after the browser resize event.
+      // Wait for measured geometry to settle, not for overflow to disappear:
+      // persistent overflow must still fail the assertion below.
+      await page.waitForFunction((expectedWidth) => {
+        if (innerWidth !== expectedWidth) return false;
+        const key = JSON.stringify([innerWidth, document.documentElement.scrollWidth,
+          ...Array.from(document.querySelectorAll('[role="main"]')).map((element) => [element.clientWidth, element.scrollWidth, element.scrollHeight])]);
+        const previous = window.__videoQaLayout;
+        if (!previous || previous.key !== key) window.__videoQaLayout = { key, since: performance.now() };
+        return performance.now() - window.__videoQaLayout.since >= 300;
+      }, { polling: 'raf', timeout: 15_000 }, width);
+      const dimensions = await page.evaluate(horizontalDimensions);
+      assert(!hasHorizontalOverflow(dimensions), `Horizontal overflow at ${theme}/${width}px: ${JSON.stringify(dimensions)}`);
+      await page.evaluate(() => { for (const element of document.querySelectorAll('*')) if (/auto|scroll/.test(getComputedStyle(element).overflowY)) element.scrollTop = 0; });
+      await page.screenshot({ path: path.join(screenshotDir, `video-studio-${theme}-${width}.png`), fullPage: true });
+      console.log(`PASS ${theme}/${width}: ${JSON.stringify(dimensions)}`);
+    }
   }
+  // A real over-wide child must still fail the corrected detector, even though
+  // the legitimate 1920px full-bleed bands above pass.
+  await page.evaluate(() => {
+    const scroller = Array.from(document.querySelectorAll('*')).find((element) => /auto|scroll/.test(getComputedStyle(element).overflowY) && element.clientHeight > 0);
+    const probe = document.createElement('div');
+    probe.id = 'qa-overflow-probe';
+    probe.style.cssText = `width:${innerWidth + 200}px;min-width:${innerWidth + 200}px;height:1px;flex-shrink:0`;
+    (scroller || document.body).appendChild(probe);
+  });
+  assert(hasHorizontalOverflow(await page.evaluate(horizontalDimensions)), 'The overflow detector must reject a real over-wide scroll child');
+  await page.evaluate(() => document.getElementById('qa-overflow-probe').remove());
   assert.deepEqual(runtimeErrors, [], `The route must not throw in the browser: ${runtimeErrors.join('; ')}`);
+  assert.deepEqual(consoleErrors, [], `The route must not log browser errors: ${consoleErrors.join('; ')}`);
   console.log('Video Studio public browser QA passed: reduced motion, local preview switching, natural keyboard focus/activation, FAQ disclosure, and screenshots/overflow checks at 390/768/1024/1280/1536/1920 widths.');
+  console.log(`Screenshots: ${screenshotDir}`);
 } finally {
   if (browser) await browser.close();
-  server.kill('SIGTERM');
+  await server.close();
 }
