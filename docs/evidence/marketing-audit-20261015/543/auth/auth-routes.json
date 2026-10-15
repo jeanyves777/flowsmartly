@@ -1,0 +1,139 @@
+[
+ {
+  "w": 390,
+  "route": "/login",
+  "utc": "2026-10-15T02:57:19.126Z",
+  "firstStatus": 200,
+  "finalUrl": "/login",
+  "title": "",
+  "body": "Opening your FlowSmartly V5 sign-in… | Log in",
+  "mainFrameNavRequests": 17,
+  "navSample": [
+   "/login",
+   "/login",
+   "/login",
+   "/login"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 390,
+  "route": "/register",
+  "utc": "2026-10-15T03:00:23.822Z",
+  "firstStatus": 404,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content |  |  | PAGE NOT FOUND | 404 | This page moved, or never existed. | T",
+  "mainFrameNavRequests": 1,
+  "navSample": [
+   "/register"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 390,
+  "route": "/early-access",
+  "utc": "2026-10-15T03:00:28.914Z",
+  "firstStatus": 200,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content |  |  | PAGE NOT FOUND | 404 | This page moved, or never existed. | T",
+  "mainFrameNavRequests": 2,
+  "navSample": [
+   "/early-access",
+   "/register"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 768,
+  "route": "/login",
+  "utc": "2026-10-15T03:00:33.552Z",
+  "firstStatus": 200,
+  "finalUrl": "(page navigating) /login",
+  "body": "-",
+  "mainFrameNavRequests": 19,
+  "navSample": [
+   "/login",
+   "/login",
+   "/login",
+   "/login"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 768,
+  "route": "/register",
+  "utc": "2026-10-15T03:00:38.056Z",
+  "firstStatus": 404,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content |  |  | PAGE NOT FOUND | 404 | This page moved, or never existed. | T",
+  "mainFrameNavRequests": 1,
+  "navSample": [
+   "/register"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 768,
+  "route": "/early-access",
+  "utc": "2026-10-15T03:00:42.953Z",
+  "firstStatus": 200,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content |  |  | PAGE NOT FOUND | 404 | This page moved, or never existed. | T",
+  "mainFrameNavRequests": 2,
+  "navSample": [
+   "/early-access",
+   "/register"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 1440,
+  "route": "/login",
+  "utc": "2026-10-15T03:00:47.434Z",
+  "firstStatus": 200,
+  "finalUrl": "/login",
+  "title": "",
+  "body": "Opening your FlowSmartly V5 sign-in… | Log in",
+  "mainFrameNavRequests": 17,
+  "navSample": [
+   "/login",
+   "/login",
+   "/login",
+   "/login"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 1440,
+  "route": "/register",
+  "utc": "2026-10-15T03:00:52.053Z",
+  "firstStatus": 404,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content | Product |  | Solutions |  | FlowAgent | Resources |  | Pricing |  | Log i",
+  "mainFrameNavRequests": 1,
+  "navSample": [
+   "/register"
+  ],
+  "pageErrors": []
+ },
+ {
+  "w": 1440,
+  "route": "/early-access",
+  "utc": "2026-10-15T03:00:56.786Z",
+  "firstStatus": 200,
+  "finalUrl": "/register",
+  "title": "Page not found — FlowSmartly",
+  "body": "Skip to main content | Product |  | Solutions |  | FlowAgent | Resources |  | Pricing |  | Log i",
+  "mainFrameNavRequests": 2,
+  "navSample": [
+   "/early-access",
+   "/register"
+  ],
+  "pageErrors": []
+ }
+]

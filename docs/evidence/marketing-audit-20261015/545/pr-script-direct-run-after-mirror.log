@@ -1,0 +1,8 @@
+file:///D:/claude-wt/w545/apps/v5/scripts/test-video-studio-public.mjs:37
+  assert.equal(await page.locator('[role="heading"][aria-level="1"]').count(), 1, 'The public route must expose one primary heading');
+                                                                      ^
+
+TypeError: page.locator(...).count is not a function
+    at file:///D:/claude-wt/w545/apps/v5/scripts/test-video-studio-public.mjs:37:71
+
+Node.js v24.18.0

@@ -1,0 +1,503 @@
+{
+ "utc": "2026-10-15T02:07:48.438Z",
+ "checks": [
+  {
+   "n": "focus ring on every tabbed control /",
+   "p": false,
+   "d": "tabbed=45 ring-less=4 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on Instagram\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on LinkedIn\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /pricing",
+   "p": false,
+   "d": "tabbed=45 ring-less=5 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"How custom automation works\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":260,\"h\":48},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on Instagram\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /solutions/video-studio",
+   "p": false,
+   "d": "tabbed=45 ring-less=14 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Plan a film\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":85.828125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Make a UGC ad\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":120.953125,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /company/about",
+   "p": false,
+   "d": "tabbed=45 ring-less=5 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Meet the wider team on our car\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":201.453125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on Instagram\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /company/contact",
+   "p": false,
+   "d": "tabbed=45 ring-less=14 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Help Center\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":148.78125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Guides & resources\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":212.203125,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /platform/ai-studio",
+   "p": false,
+   "d": "tabbed=45 ring-less=9 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"tab\",\"label\":\"Show All industries templates\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":116.5625,\"h\":44},{\"t\":\"DIV\",\"role\":\"tab\",\"label\":\"Show Retail & e-commerce templ\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":175.78125,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /solutions/domains",
+   "p": false,
+   "d": "tabbed=45 ring-less=13 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"INPUT\",\"role\":null,\"label\":\"Search for a domain name\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":751.09375,\"h\":51},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Build your site\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":230.5625,\"h\":44}]"
+  },
+  {
+   "n": "focus ring on every tabbed control /platform/email-sms",
+   "p": false,
+   "d": "tabbed=45 ring-less=4 [{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"Log in\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":63.953125,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on Instagram\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44},{\"t\":\"DIV\",\"role\":\"link\",\"label\":\"FlowSmartly on LinkedIn\",\"fv\":true,\"ow\":\"1px\",\"os\":\"auto\",\"oc\":\"rgb(16, 16, 16)\",\"bs\":\"none\",\"w\":44,\"h\":44}]"
+  },
+  {
+   "n": "[fixture] b-en lifts on hover and presses",
+   "p": true,
+   "d": "hover=matrix(1, 0, 0, 1, 0, -2) press=matrix(0.985, 0, 0, 0.985, 0, 1) dy=-2"
+  },
+  {
+   "n": "[fixture] b-dis does NOT move",
+   "p": true,
+   "d": "hover=none press=none dy=0"
+  },
+  {
+   "n": "[fixture] a-en lifts on hover and presses",
+   "p": true,
+   "d": "hover=matrix(1, 0, 0, 1, 0, -2) press=matrix(0.985, 0, 0, 0.985, 0, 1) dy=-2"
+  },
+  {
+   "n": "[fixture] a-dis does NOT move",
+   "p": true,
+   "d": "hover=none press=none dy=0"
+  },
+  {
+   "n": "[fixture] r-en lifts on hover and presses",
+   "p": true,
+   "d": "hover=matrix(1, 0, 0, 1, 0, -2) press=matrix(0.985, 0, 0, 0.985, 0, 1) dy=-2"
+  },
+  {
+   "n": "[fixture] r-dis does NOT move",
+   "p": true,
+   "d": "hover=none press=none dy=0"
+  },
+  {
+   "n": "[real route rm=false] hero CTA lifts + presses",
+   "p": true,
+   "d": "{\"label\":\"real CTA Create an account\",\"base\":\"none\",\"hover\":\"matrix(1, 0, 0, 1, 0, -2)\",\"press\":\"matrix(0.985, 0, 0, 0.985, 0, 1)\",\"hoverTrans\":\"0.16s, 0.12s transform, outline-offset\",\"dyHover\":-2,\"dhHover\":0}"
+  },
+  {
+   "n": "no layout shift on hover (parent siblings rects + scroll height)",
+   "p": true,
+   "d": "{\"a\":{\"sibs\":[[36,10,168,44],[425,10,491,44],[1138,10,266,44]],\"scH\":11865},\"b\":{\"sibs\":[[36,10,168,44],[425,10,491,44],[1138,10,266,44]],\"scH\":11865}}"
+  },
+  {
+   "n": "[fixture, reduced-motion] b-en no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s none"
+  },
+  {
+   "n": "[fixture, reduced-motion] b-dis no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s all"
+  },
+  {
+   "n": "[fixture, reduced-motion] a-en no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s none"
+  },
+  {
+   "n": "[fixture, reduced-motion] a-dis no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s all"
+  },
+  {
+   "n": "[fixture, reduced-motion] r-en no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s none"
+  },
+  {
+   "n": "[fixture, reduced-motion] r-dis no transform/transition",
+   "p": true,
+   "d": "hover=none press=none trans=0s all"
+  },
+  {
+   "n": "[real route rm=true] hero CTA no transform",
+   "p": true,
+   "d": "{\"label\":\"real CTA Create an account\",\"base\":\"none\",\"hover\":\"none\",\"press\":\"none\",\"hoverTrans\":\"0s none\",\"dyHover\":0,\"dhHover\":0}"
+  },
+  {
+   "n": "[reduced-motion] focus ring still visible",
+   "p": true,
+   "d": "{\"label\":\"FlowSmartly home\",\"fv\":true,\"ow\":\"3px\",\"os\":\"solid\",\"oc\":\"rgb(109, 94, 252)\"}"
+  },
+  {
+   "n": "[nav keyboard] opens as named modal dialog",
+   "p": true,
+   "d": "{\"dialog\":true,\"label\":\"Navigation menu\",\"modal\":\"true\",\"focusInside\":true,\"active\":\"Close navigation menu\",\"activeIsTrigger\":false,\"trigExpanded\":\"true\"}"
+  },
+  {
+   "n": "[nav keyboard] focus moves inside dialog on open",
+   "p": true,
+   "d": "{\"dialog\":true,\"label\":\"Navigation menu\",\"modal\":\"true\",\"focusInside\":true,\"active\":\"Close navigation menu\",\"activeIsTrigger\":false,\"trigExpanded\":\"true\"}"
+  },
+  {
+   "n": "[nav keyboard] 30 Tabs never leave dialog (focus trap)",
+   "p": true,
+   "d": "escaped=0"
+  },
+  {
+   "n": "[nav keyboard] every focused dialog control shows ring",
+   "p": false,
+   "d": "[{\"in\":true,\"t\":\"Product\",\"os\":\"auto\",\"ow\":\"1px\",\"oc\":\"rgb(16, 16, 16)\",\"fv\":true},{\"in\":true,\"t\":\"Solutions\",\"os\":\"auto\",\"ow\":\"1px\",\"oc\":\"rgb(16, 16, 16)\",\"fv\":true},{\"in\":true,\"t\":\"FlowAgent\",\"os\":\"auto\",\"ow\":\"1px\",\"oc\":\"rgb(16, 16, 16)\",\"fv\":true}]"
+  },
+  {
+   "n": "[nav keyboard] Escape closes dialog",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[nav keyboard] focus restored to Open navigation trigger",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[nav keyboard] Close button closes + restores focus",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[nav touch] opens as named modal dialog",
+   "p": true,
+   "d": "{\"dialog\":true,\"label\":\"Navigation menu\",\"modal\":\"true\",\"focusInside\":true,\"active\":\"Close navigation menu\",\"activeIsTrigger\":false,\"trigExpanded\":\"true\"}"
+  },
+  {
+   "n": "[nav touch] focus moves inside dialog on open",
+   "p": true,
+   "d": "{\"dialog\":true,\"label\":\"Navigation menu\",\"modal\":\"true\",\"focusInside\":true,\"active\":\"Close navigation menu\",\"activeIsTrigger\":false,\"trigExpanded\":\"true\"}"
+  },
+  {
+   "n": "[nav touch] Escape closes dialog",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[nav touch] focus restored to Open navigation trigger",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[nav touch] Close button closes + restores focus",
+   "p": true,
+   "d": "{\"dialog\":false,\"label\":null,\"modal\":null,\"focusInside\":false,\"active\":\"Open navigation\",\"activeIsTrigger\":true,\"trigExpanded\":\"false\"}"
+  },
+  {
+   "n": "[touch] fine-pointer hover media not matched (no sticky lift)",
+   "p": true,
+   "d": "matches=false"
+  }
+ ],
+ "notes": [],
+ "firstTabStops /": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /pricing": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /solutions/video-studio": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /company/about": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /company/contact": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /platform/ai-studio": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /solutions/domains": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "firstTabStops /platform/email-sms": [
+  "Skip to main content | auto 1px rgb(16, 16, 16)",
+  "FlowSmartly home | solid 3px rgb(109, 94, 252)",
+  "Product  | solid 3px rgb(109, 94, 252)",
+  "Solutions  | solid 3px rgb(109, 94, 252)",
+  "FlowAgent | solid 3px rgb(109, 94, 252)",
+  "Resources  | solid 3px rgb(109, 94, 252)"
+ ],
+ "fixture_rm_false": [
+  {
+   "label": "b-en",
+   "base": "none",
+   "hover": "matrix(1, 0, 0, 1, 0, -2)",
+   "press": "matrix(0.985, 0, 0, 0.985, 0, 1)",
+   "hoverTrans": "0.16s, 0.12s transform, outline-offset",
+   "dyHover": -2,
+   "dhHover": 0
+  },
+  {
+   "label": "b-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "a-en",
+   "base": "none",
+   "hover": "matrix(1, 0, 0, 1, 0, -2)",
+   "press": "matrix(0.985, 0, 0, 0.985, 0, 1)",
+   "hoverTrans": "0.16s, 0.12s transform, outline-offset",
+   "dyHover": -2,
+   "dhHover": 0
+  },
+  {
+   "label": "a-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "r-en",
+   "base": "none",
+   "hover": "matrix(1, 0, 0, 1, 0, -2)",
+   "press": "matrix(0.985, 0, 0, 0.985, 0, 1)",
+   "hoverTrans": "0.16s, 0.12s transform, outline-offset",
+   "dyHover": -2,
+   "dhHover": 0
+  },
+  {
+   "label": "r-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  }
+ ],
+ "realCTA_rm_false": {
+  "label": "real CTA Create an account",
+  "base": "none",
+  "hover": "matrix(1, 0, 0, 1, 0, -2)",
+  "press": "matrix(0.985, 0, 0, 0.985, 0, 1)",
+  "hoverTrans": "0.16s, 0.12s transform, outline-offset",
+  "dyHover": -2,
+  "dhHover": 0
+ },
+ "fixture_rm_true": [
+  {
+   "label": "b-en",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s none",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "b-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "a-en",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s none",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "a-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "r-en",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s none",
+   "dyHover": 0,
+   "dhHover": 0
+  },
+  {
+   "label": "r-dis",
+   "base": "none",
+   "hover": "none",
+   "press": "none",
+   "hoverTrans": "0s all",
+   "dyHover": 0,
+   "dhHover": 0
+  }
+ ],
+ "realCTA_rm_true": {
+  "label": "real CTA Create an account",
+  "base": "none",
+  "hover": "none",
+  "press": "none",
+  "hoverTrans": "0s none",
+  "dyHover": 0,
+  "dhHover": 0
+ },
+ "navTab": [
+  {
+   "in": true,
+   "t": "Product",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Solutions",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "FlowAgent",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Resources",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Pricing",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Log in",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Create account",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "FlowSmartly home",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Theme: light. Change them",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Close navigation menu",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Product",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Solutions",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "FlowAgent",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  },
+  {
+   "in": true,
+   "t": "Resources",
+   "os": "auto",
+   "ow": "1px",
+   "oc": "rgb(16, 16, 16)",
+   "fv": true
+  }
+ ],
+ "pageErrors_nav_keyboard": [],
+ "externalBlocked_nav_keyboard": [],
+ "pageErrors_nav_touch": [],
+ "externalBlocked_nav_touch": []
+}

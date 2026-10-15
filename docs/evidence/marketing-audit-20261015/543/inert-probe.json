@@ -1,0 +1,226 @@
+[
+ {
+  "r": "/company/security",
+  "label": "Contact security",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 7484,
+   "hash": "",
+   "href": "/company/security",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 7484,
+   "hash": "",
+   "href": "/company/security",
+   "disabled": null
+  },
+  "navs": [
+   "/company/security"
+  ]
+ },
+ {
+  "r": "/legal/cookies",
+  "label": "Open cookie settings",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 9397,
+   "hash": "",
+   "href": "/legal/cookies",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": true,
+   "txt": 9995,
+   "hash": "",
+   "href": "/legal/cookies",
+   "disabled": null
+  },
+  "navs": [
+   "/legal/cookies"
+  ]
+ },
+ {
+  "r": "/legal/gdpr",
+  "label": "Open cookie settings",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 8576,
+   "hash": "",
+   "href": "/legal/gdpr",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 8576,
+   "hash": "",
+   "href": "/legal/gdpr",
+   "disabled": null
+  },
+  "navs": [
+   "/legal/gdpr"
+  ]
+ },
+ {
+  "r": "/resources/api-docs",
+  "label": "Request SDK access",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 4474,
+   "hash": "",
+   "href": "/resources/api-docs",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 4474,
+   "hash": "",
+   "href": "/resources/api-docs",
+   "disabled": null
+  },
+  "navs": [
+   "/resources/api-docs"
+  ]
+ },
+ {
+  "r": "/company/contact",
+  "label": "Send message",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 3639,
+   "hash": "",
+   "href": "/company/contact",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": null,
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 3639,
+   "hash": "",
+   "href": "/company/contact",
+   "disabled": null
+  },
+  "navs": [
+   "/company/contact"
+  ]
+ },
+ {
+  "r": "/pricing",
+  "label": "Monthly billing",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": "true",
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 5502,
+   "hash": "",
+   "href": "/pricing",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": "true",
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 5502,
+   "hash": "",
+   "href": "/pricing",
+   "disabled": null
+  },
+  "navs": [
+   "/pricing"
+  ]
+ },
+ {
+  "r": "/resources/api-docs",
+  "label": "cURL",
+  "a": {
+   "found": false
+  }
+ },
+ {
+  "r": "/solutions/domains",
+  "label": ".com extension",
+  "before": {
+   "found": true,
+   "exp": null,
+   "pr": "true",
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 6476,
+   "hash": "",
+   "href": "/solutions/domains",
+   "disabled": null
+  },
+  "after": {
+   "found": true,
+   "exp": null,
+   "pr": "true",
+   "sel": null,
+   "chk": null,
+   "dialog": false,
+   "txt": 6476,
+   "hash": "",
+   "href": "/solutions/domains",
+   "disabled": null
+  },
+  "navs": [
+   "/solutions/domains"
+  ]
+ }
+]

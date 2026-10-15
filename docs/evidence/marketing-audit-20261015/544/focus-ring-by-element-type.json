@@ -1,0 +1,61 @@
+{
+ "DIV[role=link] => auto 1px rgb(16, 16, 16)": {
+  "n": 63,
+  "routes": 8,
+  "ex": [
+   "Skip to main content",
+   "Log in",
+   "FlowSmartly on Instagram"
+  ]
+ },
+ "A[role=link] => solid 3px rgb(109, 94, 252)": {
+  "n": 307,
+  "routes": 8,
+  "ex": [
+   "FlowSmartly home",
+   "Product ",
+   "Solutions "
+  ]
+ },
+ "BUTTON[role=button] => solid 3px rgb(109, 94, 252)": {
+  "n": 97,
+  "routes": 8,
+  "ex": [
+   "Theme: light. Change them",
+   "Create account",
+   "Create account"
+  ]
+ },
+ "INPUT[role=null] => auto 1px rgb(16, 16, 16)": {
+  "n": 6,
+  "routes": 2,
+  "ex": [
+   "Full name",
+   "Work email",
+   "Company name"
+  ]
+ },
+ "TEXTAREA[role=null] => auto 1px rgb(16, 16, 16)": {
+  "n": 1,
+  "routes": 1,
+  "ex": [
+   "Your message"
+  ]
+ },
+ "DIV[role=checkbox] => auto 1px rgb(16, 16, 16)": {
+  "n": 1,
+  "routes": 1,
+  "ex": [
+   "I agree to be contacted a"
+  ]
+ },
+ "DIV[role=tab] => auto 1px rgb(16, 16, 16)": {
+  "n": 5,
+  "routes": 1,
+  "ex": [
+   "Show All industries templ",
+   "Show Retail & e-commerce ",
+   "Show Salon & spa template"
+  ]
+ }
+}

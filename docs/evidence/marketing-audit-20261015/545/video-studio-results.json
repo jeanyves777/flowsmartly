@@ -1,0 +1,422 @@
+{
+ "utc": "2026-10-15T01:49:06.197Z",
+ "checks": [
+  {
+   "n": "one primary heading",
+   "p": true,
+   "d": "[\"Make your next story feel unmistakably yours.\"]"
+  },
+  {
+   "n": "h1 matches /Make your next story/",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "reduced motion matches",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "h1 opacity 1 under reduced motion",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "Social aria-pressed true after click",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "first img alt mentions creator-style social video",
+   "p": true,
+   "d": "[\"FlowSmartly\",\"Editorial product-film still featuring a fragrance bottle with warm, sculpted light\",\"Creator-style social video still framed for a vertical feed\",\"FlowSmartly\"]"
+  },
+  {
+   "n": "disclaimer text present",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "natural Tab reaches Campaign control",
+   "p": true,
+   "d": "steps=14"
+  },
+  {
+   "n": "focus visible style (borderWidth 2px per PR script)",
+   "p": true,
+   "d": "{\"borderWidth\":\"2px\",\"outline\":\"rgb(16, 16, 16) auto 1px\",\"boxShadow\":\"none\",\"outlineOffset\":\"0px\"}"
+  },
+  {
+   "n": "Space selects Campaign (aria-pressed)",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "img alt matches /campaign still/",
+   "p": true,
+   "d": "[\"FlowSmartly\",\"Editorial product-film still featuring a fragrance bottle with warm, sculpted light\",\"Editorial campaign still of a car on a coastal road at sunset\",\"FlowSmartly\"]"
+  },
+  {
+   "n": "FAQ toggles aria-expanded (real behaviour recorded)",
+   "p": true,
+   "d": "{\"before\":\"true\",\"afterClick1\":\"false\",\"afterClick2\":\"true\"}"
+  },
+  {
+   "n": "FAQ answer text visible when expanded",
+   "p": true,
+   "d": ""
+  },
+  {
+   "n": "no overflow @390",
+   "p": true,
+   "d": "{\"vp\":390,\"doc\":390,\"main\":390,\"mc\":390}"
+  },
+  {
+   "n": "scroller/offscreen overflow @390",
+   "p": true,
+   "d": "{\"vw\":390,\"docW\":390,\"scW\":390,\"scCW\":390,\"scH\":5032,\"scCH\":895,\"hOverflow\":false,\"offscreen\":[]}"
+  },
+  {
+   "n": "no overflow @768",
+   "p": true,
+   "d": "{\"vp\":768,\"doc\":768,\"main\":768,\"mc\":768}"
+  },
+  {
+   "n": "scroller/offscreen overflow @768",
+   "p": true,
+   "d": "{\"vw\":768,\"docW\":768,\"scW\":768,\"scCW\":768,\"scH\":5653,\"scCH\":895,\"hOverflow\":false,\"offscreen\":[]}"
+  },
+  {
+   "n": "no overflow @1024",
+   "p": true,
+   "d": "{\"vp\":1024,\"doc\":1024,\"main\":1024,\"mc\":1024}"
+  },
+  {
+   "n": "scroller/offscreen overflow @1024",
+   "p": true,
+   "d": "{\"vw\":1024,\"docW\":1024,\"scW\":1024,\"scCW\":1024,\"scH\":5598,\"scCH\":895,\"hOverflow\":false,\"offscreen\":[]}"
+  },
+  {
+   "n": "no overflow @1536",
+   "p": true,
+   "d": "{\"vp\":1536,\"doc\":1536,\"main\":1536,\"mc\":1536}"
+  },
+  {
+   "n": "scroller/offscreen overflow @1536",
+   "p": true,
+   "d": "{\"vw\":1536,\"docW\":1536,\"scW\":1536,\"scCW\":1536,\"scH\":3811,\"scCH\":895,\"hOverflow\":false,\"offscreen\":[]}"
+  },
+  {
+   "n": "Space scrolls with no prior click (informational)",
+   "p": true,
+   "d": "before=0 afterBlankClick=818"
+  }
+ ],
+ "matrix": [
+  {
+   "theme": "light",
+   "w": 390,
+   "vp": 390,
+   "doc": 390,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [
+    "DIV.  L270 R420",
+    "svg.  L270 R420",
+    "path.  L335 R420",
+    "path.  L340 R420"
+   ],
+   "scH": 5032
+  },
+  {
+   "theme": "light",
+   "w": 768,
+   "vp": 768,
+   "doc": 768,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5653
+  },
+  {
+   "theme": "light",
+   "w": 1024,
+   "vp": 1024,
+   "doc": 1024,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5598
+  },
+  {
+   "theme": "light",
+   "w": 1280,
+   "vp": 1280,
+   "doc": 1280,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3674
+  },
+  {
+   "theme": "light",
+   "w": 1536,
+   "vp": 1536,
+   "doc": 1536,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  },
+  {
+   "theme": "light",
+   "w": 1920,
+   "vp": 1920,
+   "doc": 1920,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "light",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  },
+  {
+   "theme": "grey",
+   "w": 390,
+   "vp": 390,
+   "doc": 390,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [
+    "DIV.  L270 R420",
+    "svg.  L270 R420",
+    "path.  L335 R420",
+    "path.  L340 R420"
+   ],
+   "scH": 5032
+  },
+  {
+   "theme": "grey",
+   "w": 768,
+   "vp": 768,
+   "doc": 768,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5653
+  },
+  {
+   "theme": "grey",
+   "w": 1024,
+   "vp": 1024,
+   "doc": 1024,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5598
+  },
+  {
+   "theme": "grey",
+   "w": 1280,
+   "vp": 1280,
+   "doc": 1280,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3674
+  },
+  {
+   "theme": "grey",
+   "w": 1536,
+   "vp": 1536,
+   "doc": 1536,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  },
+  {
+   "theme": "grey",
+   "w": 1920,
+   "vp": 1920,
+   "doc": 1920,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "grey",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  },
+  {
+   "theme": "dark",
+   "w": 390,
+   "vp": 390,
+   "doc": 390,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [
+    "DIV.  L270 R420",
+    "svg.  L270 R420",
+    "path.  L335 R420",
+    "path.  L340 R420"
+   ],
+   "scH": 5032
+  },
+  {
+   "theme": "dark",
+   "w": 768,
+   "vp": 768,
+   "doc": 768,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5653
+  },
+  {
+   "theme": "dark",
+   "w": 1024,
+   "vp": 1024,
+   "doc": 1024,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 5598
+  },
+  {
+   "theme": "dark",
+   "w": 1280,
+   "vp": 1280,
+   "doc": 1280,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3674
+  },
+  {
+   "theme": "dark",
+   "w": 1536,
+   "vp": 1536,
+   "doc": 1536,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  },
+  {
+   "theme": "dark",
+   "w": 1920,
+   "vp": 1920,
+   "doc": 1920,
+   "bg": "rgba(0, 0, 0, 0)",
+   "broken": [],
+   "imgs": 3,
+   "stored": "dark",
+   "overflow": false,
+   "offscreen": [],
+   "scH": 3811
+  }
+ ],
+ "console": [],
+ "focusStyle": {
+  "borderWidth": "2px",
+  "outline": "rgb(16, 16, 16) auto 1px",
+  "boxShadow": "none",
+  "outlineOffset": "0px"
+ },
+ "faq": {
+  "before": "true",
+  "afterClick1": "false",
+  "afterClick2": "true"
+ },
+ "spaceBeforeClick": 0,
+ "spaceAfterBlankClick": 818,
+ "tabOrder": [
+  "Create an account",
+  "Talk to the team",
+  "Show Product film reference",
+  "Show Campaign reference",
+  "Show Social reference",
+  "Show Voiceover reference",
+  "Can I generate a video from this page? ",
+  "Does the preview selector send my choice",
+  "How can I discuss the video workflow? +",
+  "Create an account",
+  "Talk to the team",
+  "Create account",
+  "See FlowAgent in action",
+  "FlowSmartly on Instagram",
+  "FlowSmartly on LinkedIn",
+  "FlowSmartly on YouTube",
+  "Get product updates",
+  "All systems operational — open the statu",
+  "AI Studio",
+  "Social",
+  "Email + SMS",
+  "Ads",
+  "Analytics",
+  "Integrations",
+  "Security",
+  "Status",
+  "FlowShop",
+  "ListSmartly",
+  "FlowAgent",
+  "Agent Marketplace",
+  "Call Agent",
+  "Website Builder",
+  "Domains",
+  "Video & Voice Studio",
+  "Custom AI Automation",
+  "FlowLearner",
+  "Training Studio",
+  "Live Room",
+  "Learning Center",
+  "Training Analytics"
+ ]
+}

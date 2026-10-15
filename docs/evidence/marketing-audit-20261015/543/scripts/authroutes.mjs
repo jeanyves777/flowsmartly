@@ -1,0 +1,7 @@
+import { serve, launch, sleep, utc } from './lib.mjs'; import fs from 'node:fs';
+const srv=await serve(process.argv[2],8114); const b=await launch(); const out=[]; const B='http://127.0.0.1:8114';
+for(const w of [390,768,1440]) for(const r of ['/login','/register','/early-access']){ const p=await b.newPage(); await p.setViewport({width:w,height:900}); await p.setRequestInterception(true); const navs=[]; const errs=[]; p.on('request',q=>{const u=q.url(); if(u.startsWith(B)){ if(q.isNavigationRequest()&&q.frame()===p.mainFrame())navs.push(u.replace(B,'')); q.continue();} else {navs.push('EXT-BLOCKED '+u.slice(0,80)); q.abort();}}); p.on('pageerror',e=>errs.push(e.message.slice(0,120)));
+ const t=utc(); let status=null; try{ const resp=await p.goto(B+r,{waitUntil:'domcontentloaded',timeout:15000}); status=resp.status(); }catch(e){status='ERR '+e.message.slice(0,60)}
+ await sleep(4000); let fin,title,body; try{ fin=p.url().replace(B,''); title=await p.title(); body=(await p.evaluate(()=>document.body.innerText)).slice(0,80).replace(/\n/g,' | ');}catch(e){fin='(page navigating) '+p.url().replace(B,''); body='-';}
+ const row={w,route:r,utc:t,firstStatus:status,finalUrl:fin,title,body,mainFrameNavRequests:navs.length,navSample:navs.slice(0,4),pageErrors:errs}; out.push(row); console.log(JSON.stringify(row)); if(w!==768) await p.screenshot({path:`${process.argv[3]}/auth-${r.slice(1)}-${w}.png`}).catch(()=>{}); await p.close(); }
+fs.writeFileSync(process.argv[3]+'/auth-routes.json',JSON.stringify(out,null,1)); await b.close(); srv.close();

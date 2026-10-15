@@ -1,0 +1,99 @@
+
+> v5@1.0.0 qa:video-studio
+> npm run build:web && node scripts/test-video-studio-public.mjs
+
+
+> v5@1.0.0 build:web
+> node scripts/build-content.js && node scripts/check-live-account-entry.mjs && expo export -p web && node scripts/agent-assets.js && node scripts/icons.js
+
+content: 4 posts, 6 changelog entries
+V5 account-entry gate passed: no early-access signup promises
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Starting Metro Bundler
+
+Static rendering is enabled. Learn more: https://docs.expo.dev/router/web/static-rendering/
+λ Bundled 244696ms node_modules\@expo\router-server\node\render.js (1400 modules)
+Web Bundled 250164ms node_modules\expo-router\entry.js (1369 modules)
+
+› web bundles (1):
+_expo/static/js/web/entry-825af57338794f4e6814e42ad0f81895.js (10MB)
+
+› Static routes (54):
+/ (index) (320KB)
+/login (38KB)
+/pricing (142KB)
+/product (214KB)
+/_sitemap (39KB)
+/flowagent (157KB)
+/+not-found (78KB)
+/legal/gdpr (111KB)
+/legal/terms (103KB)
+/early-access (31KB)
+/platform/ads (192KB)
+/company/about (113KB)
+/company/press (115KB)
+/legal/cookies (112KB)
+/legal/privacy (131KB)
+/company/status (238KB)
+/company/careers (143KB)
+/company/contact (106KB)
+/legal/sms-terms (105KB)
+/platform/social (204KB)
+/resources (159KB)
+/solutions (154KB)
+/company/partners (136KB)
+/company/security (142KB)
+/resources/guides (128KB)
+/company/customers (125KB)
+/solutions/domains (159KB)
+/platform/ai-studio (173KB)
+/platform/analytics (227KB)
+/platform/email-sms (193KB)
+/resources/api-docs (145KB)
+/solutions/flowshop (219KB)
+/resources/changelog (110KB)
+/resources/templates (142KB)
+/education/ai-fluency (150KB)
+/resources/blog (109KB)
+/solutions/call-agent (220KB)
+/platform/integrations (164KB)
+/resources/help-center (121KB)
+/resources/blog/[slug] (82KB)
+/solutions/flowlearner (183KB)
+/solutions/listsmartly (219KB)
+/solutions/video-studio (124KB)
+/solutions/website-builder (159KB)
+/solutions/agent-marketplace (214KB)
+/solutions/custom-automation (126KB)
+/solutions/flowlearner/live-room (217KB)
+/resources/blog/rebuilt-not-redesigned (106KB)
+/solutions/flowlearner/learning-center (205KB)
+/solutions/flowlearner/training-studio (223KB)
+/resources/blog/we-let-the-ai-crawlers-in (108KB)
+/solutions/flowlearner/training-analytics (225KB)
+/resources/blog/we-deleted-our-own-numbers (107KB)
+/resources/blog/three-themes-and-unreadable-white (104KB)
+
+Exported: dist
+pruned: _sitemap.html, /resources/blog/[slug].html
+redirects: 1
+sitemap.xml: 51 urls
+llms.txt: 9 sections
+feed.xml: 4 posts
+json-ld: 51 pages
+icons: 7 images + site.webmanifest
+node:internal/fs/promises:607
+  return await PromisePrototypeThen(
+         ^
+
+Error: ENOENT: no such file or directory, access 'D:\claude-wt\w545\apps\v5\dist\solutions\video-studio\index.html'
+    at async Object.access (node:internal/fs/promises:607:10)
+    at async file:///D:/claude-wt/w545/apps/v5/scripts/test-video-studio-public.mjs:12:1 {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'access',
+  path: 'D:\\claude-wt\\w545\\apps\\v5\\dist\\solutions\\video-studio\\index.html'
+}
+
+Node.js v24.18.0

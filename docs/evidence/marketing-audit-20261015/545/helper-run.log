@@ -1,0 +1,41 @@
+PASS one primary heading ["Make your next story feel unmistakably yours."]
+PASS h1 matches /Make your next story/ 
+PASS reduced motion matches 
+PASS h1 opacity 1 under reduced motion 
+PASS Social aria-pressed true after click 
+PASS first img alt mentions creator-style social video ["FlowSmartly","Editorial product-film still featuring a fragrance bottle with warm, sculpted light","Creator-style social video still framed for a vertical feed","FlowSmartly"]
+PASS disclaimer text present 
+PASS natural Tab reaches Campaign control steps=14
+PASS focus visible style (borderWidth 2px per PR script) {"borderWidth":"2px","outline":"rgb(16, 16, 16) auto 1px","boxShadow":"none","outlineOffset":"0px"}
+PASS Space selects Campaign (aria-pressed) 
+PASS img alt matches /campaign still/ ["FlowSmartly","Editorial product-film still featuring a fragrance bottle with warm, sculpted light","Editorial campaign still of a car on a coastal road at sunset","FlowSmartly"]
+PASS FAQ toggles aria-expanded (real behaviour recorded) {"before":"true","afterClick1":"false","afterClick2":"true"}
+PASS FAQ answer text visible when expanded 
+PASS no overflow @390 {"vp":390,"doc":390,"main":390,"mc":390}
+PASS scroller/offscreen overflow @390 {"vw":390,"docW":390,"scW":390,"scCW":390,"scH":5032,"scCH":895,"hOverflow":false,"offscreen":[]}
+PASS no overflow @768 {"vp":768,"doc":768,"main":768,"mc":768}
+PASS scroller/offscreen overflow @768 {"vw":768,"docW":768,"scW":768,"scCW":768,"scH":5653,"scCH":895,"hOverflow":false,"offscreen":[]}
+PASS no overflow @1024 {"vp":1024,"doc":1024,"main":1024,"mc":1024}
+PASS scroller/offscreen overflow @1024 {"vw":1024,"docW":1024,"scW":1024,"scCW":1024,"scH":5598,"scCH":895,"hOverflow":false,"offscreen":[]}
+PASS no overflow @1536 {"vp":1536,"doc":1536,"main":1536,"mc":1536}
+PASS scroller/offscreen overflow @1536 {"vw":1536,"docW":1536,"scW":1536,"scCW":1536,"scH":3811,"scCH":895,"hOverflow":false,"offscreen":[]}
+PASS Space scrolls with no prior click (informational) before=0 afterBlankClick=818
+{"theme":"light","w":390,"vp":390,"doc":390,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":["DIV.  L270 R420","svg.  L270 R420","path.  L335 R420","path.  L340 R420"],"scH":5032}
+{"theme":"light","w":768,"vp":768,"doc":768,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":[],"scH":5653}
+{"theme":"light","w":1024,"vp":1024,"doc":1024,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":[],"scH":5598}
+{"theme":"light","w":1280,"vp":1280,"doc":1280,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":[],"scH":3674}
+{"theme":"light","w":1536,"vp":1536,"doc":1536,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":[],"scH":3811}
+{"theme":"light","w":1920,"vp":1920,"doc":1920,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"light","overflow":false,"offscreen":[],"scH":3811}
+{"theme":"grey","w":390,"vp":390,"doc":390,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":["DIV.  L270 R420","svg.  L270 R420","path.  L335 R420","path.  L340 R420"],"scH":5032}
+{"theme":"grey","w":768,"vp":768,"doc":768,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":[],"scH":5653}
+{"theme":"grey","w":1024,"vp":1024,"doc":1024,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":[],"scH":5598}
+{"theme":"grey","w":1280,"vp":1280,"doc":1280,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":[],"scH":3674}
+{"theme":"grey","w":1536,"vp":1536,"doc":1536,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":[],"scH":3811}
+{"theme":"grey","w":1920,"vp":1920,"doc":1920,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"grey","overflow":false,"offscreen":[],"scH":3811}
+{"theme":"dark","w":390,"vp":390,"doc":390,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":["DIV.  L270 R420","svg.  L270 R420","path.  L335 R420","path.  L340 R420"],"scH":5032}
+{"theme":"dark","w":768,"vp":768,"doc":768,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":[],"scH":5653}
+{"theme":"dark","w":1024,"vp":1024,"doc":1024,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":[],"scH":5598}
+{"theme":"dark","w":1280,"vp":1280,"doc":1280,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":[],"scH":3674}
+{"theme":"dark","w":1536,"vp":1536,"doc":1536,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":[],"scH":3811}
+{"theme":"dark","w":1920,"vp":1920,"doc":1920,"bg":"rgba(0, 0, 0, 0)","broken":[],"imgs":3,"stored":"dark","overflow":false,"offscreen":[],"scH":3811}
+FAILS: 0 console entries: 0
