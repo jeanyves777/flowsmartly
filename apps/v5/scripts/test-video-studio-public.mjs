@@ -29,46 +29,65 @@ try {
   });
   const page = await browser.newPage();
   const runtimeErrors = [];
+  const capabilityRequests = [];
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
+  page.on('request', (request) => {
+    if (/\/api\/|higgsfield|fal\.ai|runway|seedance/i.test(request.url())) capabilityRequests.push(request.url());
+  });
   await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   await page.goto(`http://127.0.0.1:${port}/solutions/video-studio/`, { waitUntil: 'networkidle0', timeout: 60_000 });
   await page.waitForSelector('[role="main"]');
   await page.waitForSelector('[role="button"][aria-label="Show Product film reference"]');
-  assert.equal(await page.locator('[role="heading"][aria-level="1"]').count(), 1, 'The public route must expose one primary heading');
-  assert.equal(await page.locator('[role="button"][aria-label$=" reference"] img').count(), 4, 'Each direction control must show its local thumbnail');
-  assert.match(await page.locator('[role="heading"][aria-level="1"]').innerText(), /Make your next story/);
+  const headingSelector = '[role="heading"][aria-level="1"]';
+  assert.equal(await page.$eval(headingSelector, (elements) => elements.length), 1, 'The public route must expose one primary heading');
+  assert.equal(await page.$eval('[role="button"][aria-label$=" reference"] img', (elements) => elements.length), 4, 'Each direction control must show its local thumbnail');
+  assert.match(await page.$eval(headingSelector, (element) => element.innerText), /Make your next story/);
   assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
-  assert.equal(await page.locator('[role="heading"][aria-level="1"]').evaluate((el) => getComputedStyle(el).opacity), '1', 'Reduced motion must leave the page content visible');
+  assert.equal(await page.$eval(headingSelector, (element) => getComputedStyle(element).opacity), '1', 'Reduced motion must leave the page content visible');
 
   // Exercise the real gallery action and make sure it stays a local reference.
-  await page.locator('[role="button"][aria-label="Show Social reference"]').click();
-  assert.equal(await page.locator('[role="button"][aria-label="Show Social reference"]').evaluate((el) => el.getAttribute('aria-pressed')), 'true');
-  assert.equal(await page.locator('[data-testid="video-studio-reference-image"] img').getAttribute('alt'), 'Creator-style social video still framed for a vertical feed');
-  assert.match(await page.locator('body').innerText(), /This selector changes the preview only/);
+  const socialSelector = '[role="button"][aria-label="Show Social reference"]';
+  const requestsBeforeSelection = capabilityRequests.length;
+  await page.click(socialSelector);
+  assert.equal(await page.$eval(socialSelector, (element) => element.getAttribute('aria-pressed')), 'true');
+  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Creator-style social video still framed for a vertical feed');
+  assert.match(await page.$eval('body', (element) => element.innerText), /This selector changes the preview only/);
+  await page.waitForTimeout(200);
+  assert.equal(capabilityRequests.length, requestsBeforeSelection, 'Selecting a thumbnail must not call a video/API provider');
 
   // Prove natural Tab traversal reaches the custom controls, with a visible focus
   // state; then activate the next preview from the keyboard.
   await page.reload({ waitUntil: 'networkidle0' });
-  const campaign = page.locator('[role="button"][aria-label="Show Campaign reference"]');
+  const campaignSelector = '[role="button"][aria-label="Show Campaign reference"]';
+  const campaign = await page.waitForSelector(campaignSelector);
   let reached = false;
   for (let step = 0; step < 50; step += 1) {
     await page.keyboard.press('Tab');
-    reached = await campaign.evaluate((el) => document.activeElement === el);
+    reached = await campaign.evaluate((element) => document.activeElement === element);
     if (reached) break;
   }
   assert(reached, 'Natural Tab order must reach the campaign preview control');
-  assert.equal(await campaign.evaluate((el) => getComputedStyle(el).borderWidth), '2px', 'Keyboard focus must be visible');
+  assert.equal(await campaign.evaluate((element) => getComputedStyle(element).borderWidth), '2px', 'Keyboard focus must be visible');
   await page.keyboard.press('Space');
-  assert.equal(await campaign.evaluate((el) => el.getAttribute('aria-pressed')), 'true', 'Space must select a preview');
-  assert.equal(await page.locator('[data-testid="video-studio-reference-image"] img').getAttribute('alt'), 'Editorial campaign still of a car on a coastal road at sunset');
+  assert.equal(await campaign.evaluate((element) => element.getAttribute('aria-pressed')), 'true', 'Space must select a preview');
+  assert.equal(await page.$eval('[data-testid="video-studio-reference-image"] img', (element) => element.getAttribute('alt')), 'Editorial campaign still of a car on a coastal road at sunset');
 
   // The FAQ control is an actual disclosure and reports its expanded state.
-  const faq = page.getByRole('button', { name: /Can I generate a video from this page/ });
+  const faqButtons = await page.$('[aria-expanded]');
+  let faq = null;
+  for (const button of faqButtons) {
+    const label = await button.evaluate((element) => element.innerText || '');
+    if (label.includes('Can I generate a video from this page')) {
+      faq = button;
+      break;
+    }
+  }
+  assert.ok(faq, 'The generation FAQ disclosure must be present');
   await faq.click();
-  assert.equal(await faq.getAttribute('aria-expanded'), 'false');
+  assert.equal(await faq.evaluate((element) => element.getAttribute('aria-expanded')), 'false');
   await faq.click();
-  assert.equal(await faq.getAttribute('aria-expanded'), 'true');
-  assert.match(await page.locator('body').innerText(), /Video generation is not wired to this page/);
+  assert.equal(await faq.evaluate((element) => element.getAttribute('aria-expanded')), 'true');
+  assert.match(await page.$eval('body', (element) => element.innerText), /Video generation is not wired to this page/);
 
   const widths = [390, 768, 1024, 1280, 1536, 1920];
   for (const width of widths) {
