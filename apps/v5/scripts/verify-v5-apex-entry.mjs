@@ -267,6 +267,10 @@ function checkEffectiveRoute(path, expectedRecord, label) {
   }
   for (const record of locations) {
     if (record === expectedRecord) continue;
+    if (record.modifier === '?') {
+      fail(label + ' cannot safely parse competing nginx location ' + record.pattern);
+      continue;
+    }
     const matches = locationMatches(record, path);
     if (matches === null) {
       fail(label + ' cannot safely parse competing nginx location pattern ' + record.pattern);
