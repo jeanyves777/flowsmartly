@@ -198,7 +198,7 @@ test('pinned V5 nginx fixture matches the authoritative source blob and routes',
   const path = new URL('./fixtures/nginx-apex-v5.conf', import.meta.url);
   const bytes = readFileSync(path);
   const blobSha = createHash('sha1')
-    .update(`blob ${bytes.length}\\0`)
+    .update(`blob ${bytes.length}\0`)
     .update(bytes)
     .digest('hex');
   assert.equal(blobSha, V5_APEX_CONFIG_GIT_BLOB, 'refresh requires reviewed upstream blob SHA');
