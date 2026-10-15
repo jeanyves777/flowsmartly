@@ -1,0 +1,105 @@
+
+> v5@1.0.0 qa:video-studio
+> npm run build:web && node scripts/test-video-studio-public.mjs
+
+
+> v5@1.0.0 build:web
+> node scripts/build-content.js && node scripts/check-live-account-entry.mjs && expo export -p web && node scripts/agent-assets.js && node scripts/icons.js
+
+content: 4 posts, 6 changelog entries
+V5 account-entry gate passed: no early-access signup promises
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Starting Metro Bundler
+
+Static rendering is enabled. Learn more: https://docs.expo.dev/router/web/static-rendering/
+λ Bundled 16675ms node_modules\@expo\router-server\node\render.js (1400 modules)
+Web Bundled 19674ms node_modules\expo-router\entry.js (1360 modules)
+
+› web bundles (1):
+_expo/static/js/web/entry-762bdf57a48bb5c70f1239f0d83387b6.js (10MB)
+
+› Static routes (54):
+/ (index) (320KB)
+/login (38KB)
+/pricing (142KB)
+/product (214KB)
+/_sitemap (39KB)
+/flowagent (157KB)
+/+not-found (78KB)
+/legal/gdpr (111KB)
+/legal/terms (103KB)
+/early-access (31KB)
+/platform/ads (192KB)
+/company/about (113KB)
+/company/press (115KB)
+/legal/cookies (112KB)
+/legal/privacy (131KB)
+/company/status (238KB)
+/company/careers (143KB)
+/company/contact (106KB)
+/legal/sms-terms (105KB)
+/platform/social (204KB)
+/resources (159KB)
+/solutions (154KB)
+/company/partners (136KB)
+/company/security (142KB)
+/resources/guides (128KB)
+/company/customers (125KB)
+/solutions/domains (159KB)
+/platform/ai-studio (173KB)
+/platform/analytics (227KB)
+/platform/email-sms (193KB)
+/resources/api-docs (145KB)
+/solutions/flowshop (219KB)
+/resources/changelog (110KB)
+/resources/templates (142KB)
+/education/ai-fluency (150KB)
+/resources/blog (109KB)
+/solutions/call-agent (220KB)
+/platform/integrations (164KB)
+/resources/help-center (121KB)
+/resources/blog/[slug] (82KB)
+/solutions/flowlearner (183KB)
+/solutions/listsmartly (219KB)
+/solutions/video-studio (127KB)
+/solutions/website-builder (159KB)
+/solutions/agent-marketplace (214KB)
+/solutions/custom-automation (126KB)
+/solutions/flowlearner/live-room (218KB)
+/resources/blog/rebuilt-not-redesigned (106KB)
+/solutions/flowlearner/learning-center (205KB)
+/solutions/flowlearner/training-studio (223KB)
+/resources/blog/we-let-the-ai-crawlers-in (108KB)
+/solutions/flowlearner/training-analytics (225KB)
+/resources/blog/we-deleted-our-own-numbers (107KB)
+/resources/blog/three-themes-and-unreadable-white (104KB)
+
+Exported: dist
+pruned: _sitemap.html, /resources/blog/[slug].html
+redirects: 1
+sitemap.xml: 51 urls
+llms.txt: 9 sections
+feed.xml: 4 posts
+json-ld: 51 pages
+icons: 7 images + site.webmanifest
+node:internal/modules/package_json_reader:301
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'puppeteer' imported from D:\claude-wt\marketing-1\apps\v5\scripts\test-video-studio-public.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+    at #resolve (node:internal/modules/esm/loader:683:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.18.0
+exit=1

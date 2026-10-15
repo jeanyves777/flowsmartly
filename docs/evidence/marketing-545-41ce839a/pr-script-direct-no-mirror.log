@@ -1,0 +1,14 @@
+node:internal/fs/promises:607
+  return await PromisePrototypeThen(
+         ^
+
+Error: ENOENT: no such file or directory, access 'D:\claude-wt\marketing-1\apps\v5\dist\solutions\video-studio\index.html'
+    at async Object.access (node:internal/fs/promises:607:10)
+    at async file:///D:/claude-wt/marketing-1/apps/v5/scripts/test-video-studio-public.mjs:12:1 {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'access',
+  path: 'D:\\claude-wt\\marketing-1\\apps\\v5\\dist\\solutions\\video-studio\\index.html'
+}
+
+Node.js v24.18.0

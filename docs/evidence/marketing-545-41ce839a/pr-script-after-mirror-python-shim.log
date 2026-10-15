@@ -1,0 +1,15 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Main content overflow at 1920px: {"viewport":1920,"document":1920,"main":1728,"mainClient":1536}
+    at file:///D:/claude-wt/marketing-1/apps/v5/scripts/test-video-studio-public.mjs:106:5 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.18.0
