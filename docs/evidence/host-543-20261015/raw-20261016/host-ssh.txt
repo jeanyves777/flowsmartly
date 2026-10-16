@@ -1,0 +1,101 @@
+host_utc=2026-10-16T14:28:02Z
+== symlinks
+/var/www/flowagent-portal/current -> /var/www/flowagent-portal/releases/9b01014b
+/var/www/flowsmartly-v5/current -> /var/www/flowsmartly-v5/releases/20260829T015240Z-dc7b9093
+/opt/flowagent-v5/current -> /opt/flowagent-v5/releases/9b01014b
+== portal disk sha256
+3dc767bc7aafb2d85266bab7bbcdf84b9d0956084462986d6207162737320f73  login.html
+9c2c4e81653c51f83f3620128e514d47d2d737520d8c7ee486312f6437ca56c8  register.html
+f1e955b9d0bc8bac8d7768a3b7d8e7e3ea95d476be167c224767282018522c02  verify.html
+d9f5bcdc21ae7869f7c36d8be33d87a05eede4f3b7d3db9e2b14822a2372a41c  forgot.html
+801444abaa9f45edd69e649a94ffa2abd593320d5b2a1f5c91dba29aa3cab41a  reset.html
+3d04a29cb7bfd1da9dd0e8c1a466bb3efb69d46433610aa606f8e506cf2b7996  auth/callback.html
+7f57ec1f7f5210a8831f65e91c20266ea357efea195f50c51396301e0966e652  home.html
+6e9fac409f4979f145522675b7de849385da1f7a67a6ca80e074bcfb08373529  onboarding.html
+7ca856a0a3975f6e20a5020ceae369d59adf8292493cbcb6c584121177bbbcfd  _expo/static/js/web/entry-456261150b909289c2fb694972efefdf.js
+== marketing disk sha256
+2a86146233f513dd6302fe70eae3da6c256b4df98d6903126c2ddcda225f6c5c  index.html
+d095f4259302eb5b18c63692fb6980721460f8b62445b1234c8a6c8cbe9de2d9  early-access.html
+780582f5ed8288bad08c7d2b4dcd2c0494628a491180b26aa26c5cacd7d7c6cc  login.html
+a6aca98c07ae5158f1d6a1d68c30223e51d4746162278b562039c25000c17b60  _expo/static/js/web/entry-92820097b614cc29b758b949024e170b.js
+== nginx -t
+2026/10/16 14:28:02 [warn] 1220453#1220453: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/flowsmartly-reserved:72
+2026/10/16 14:28:02 [warn] 1220453#1220453: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/store-domains:39
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+nginx_t_rc=0
+== apex vhost file(s)
+/etc/nginx/sites-enabled/flowsmartly-v5 -> /etc/nginx/sites-available/flowsmartly-v5
+1fdaebb96d9475d385ac96255f341ced4dfeb964482350a3091c185d24fcabf9  /etc/nginx/sites-available/flowsmartly-v5
+== apex routing lines (server_name/listen/root/location/try_files/proxy_pass/return/alias only; no ssl_*, no keys)
+45:    listen 80;
+46:    listen [::]:80;
+47:    server_name flowsmartly.com www.flowsmartly.com;
+49:    location ^~ /.well-known/acme-challenge/ {
+50:        root /var/www/letsencrypt;
+54:    location / {
+55:        return 301 https://flowsmartly.com$request_uri;
+60:    listen 443 ssl http2;
+61:    listen [::]:443 ssl http2;
+62:    server_name www.flowsmartly.com;
+67:    return 301 https://flowsmartly.com$request_uri;
+71:    listen 443 ssl http2;
+72:    listen [::]:443 ssl http2;
+73:    server_name flowsmartly.com;
+80:    root /var/www/flowsmartly-v5/current;
+110:    location @public_not_found {
+111:        root /var/www/flowsmartly-v5/current;
+112:        try_files /+not-found.html =404;
+127:    location @v5_not_found {
+128:        root /var/www/flowsmartly-v5/current;
+129:        try_files /+not-found.html =404;
+148:    location ~ ^/(accept-invitation|activity|approvals|auth|connections|flowagent|forgot|home|listsmartly|login|onboarding|register|reset|verify)(/|$) {
+149:        root /var/www/flowagent-portal/current;
+155:        try_files $uri $uri.html $uri/index.html =404;
+158:    location ~ ^/(admin|ads|agents|ai-studio|analytics|email-sms|flowlearner|flowshop|leads|playground|proposals|settings|sites|social)(/|$) {
+159:        root /var/www/flowagent-portal/current;
+165:        try_files $uri $uri.html $uri/index.html =404;
+175:    location ^~ /_expo/ {
+176:        root /var/www/flowagent-portal/current;
+179:        try_files $uri @marketing_assets;
+182:    location ^~ /assets/ {
+183:        root /var/www/flowagent-portal/current;
+186:        try_files $uri @marketing_assets;
+189:    location @marketing_assets {
+190:        root /var/www/flowsmartly-v5/current;
+193:        try_files $uri =404;
+196:    location ^~ /fonts/ {
+199:        try_files $uri =404;
+205:    location = / {
+206:        try_files /index.html =404;
+209:    location ~ ^/(product|pricing|early-access|flow-ai|solutions|platform|resources|company|legal|education)(/|$) {
+210:        try_files $uri $uri.html $uri/index.html =404;
+214:    location = /privacy   { return 301 /legal/privacy$is_args$args; }
+215:    location = /terms     { return 301 /legal/terms$is_args$args; }
+216:    location = /sms-terms { return 301 /legal/sms-terms$is_args$args; }
+217:    location = /gdpr      { return 301 /legal/gdpr$is_args$args; }
+220:    location = /robots.txt  { try_files $uri =404; }
+221:    location = /sitemap.xml { try_files $uri =404; }
+222:    location = /llms.txt    { try_files $uri =404; }
+223:    location = /ai.txt      { try_files $uri =404; }
+224:    location = /feed.xml    { try_files $uri =404; }
+225:    location = /favicon.ico { try_files $uri =404; access_log off; }
+227:    location ~* ^/[^/]+\.(webmanifest|json|png|ico|svg|jpg|jpeg|webp|gif|txt|xml|woff2?|map)$ {
+230:        try_files $uri =404;
+239:    location / {
+240:        try_files $uri $uri.html $uri/index.html =404;
+== api vhost
+/etc/nginx/sites-enabled/api-flowsmartly -> /etc/nginx/sites-available/api-flowsmartly
+7053db69b302f8e20ece276ab5ed2c1e444292471cd8268de5234662dbeaa746  /etc/nginx/sites-available/api-flowsmartly
+44:    listen 80;
+45:    listen [::]:80;
+46:    server_name api.flowsmartly.com;
+50:    location ^~ /.well-known/acme-challenge/ {
+55:    location / {
+61:    listen 443 ssl http2;
+62:    listen [::]:443 ssl http2;
+63:    server_name api.flowsmartly.com;
+82:    location / {
+88:        proxy_pass http://127.0.0.1:3210;
+host_utc_end=2026-10-16T14:28:02Z
+ssh_exit=0
