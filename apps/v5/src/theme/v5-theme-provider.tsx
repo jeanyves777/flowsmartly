@@ -19,7 +19,12 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const NEXT: Record<V5ThemeMode, V5ThemeMode> = { light: 'grey', grey: 'dark', dark: 'light' };
+/**
+ * Light / Dark only (owner, 2026-10-17: "two, dark and light"), as the product
+ * already is. Grey's palette stays in `tokens.ts`, so restoring it is putting it
+ * back in this cycle and in `MODES`; nothing offers it until then.
+ */
+const NEXT: Record<V5ThemeMode, V5ThemeMode> = { light: 'dark', grey: 'dark', dark: 'light' };
 
 /**
  * Where a visitor's choice is kept.
@@ -31,7 +36,7 @@ const NEXT: Record<V5ThemeMode, V5ThemeMode> = { light: 'grey', grey: 'dark', da
  * layout effect, before the browser paints.
  */
 const STORAGE_KEY = 'v5:theme';
-const MODES: V5ThemeMode[] = ['light', 'grey', 'dark'];
+const MODES: V5ThemeMode[] = ['light', 'dark'];
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -39,6 +44,12 @@ function readStored(): V5ThemeMode | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY) as V5ThemeMode | null;
+    // A visitor who chose grey before it was hidden gets dark, the product's rule
+    // too, and the stored choice is rewritten so it does not come back.
+    if (raw === 'grey') {
+      window.localStorage.setItem(STORAGE_KEY, 'dark');
+      return 'dark';
+    }
     return raw && MODES.includes(raw) ? raw : null;
   } catch {
     // Safari in private mode throws on localStorage rather than returning null
