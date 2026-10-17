@@ -32,7 +32,8 @@ export function DocumentForward({ to, label }: { to: '/login' | '/register'; lab
     }
     // Held: the visible "Continue" link below is the way on, and no reload loop starts.
     if (documentPath.replace(/\/+$/, '') === to) return;
-    window.location.replace(to);
+    // Keep the query and fragment, so campaign parameters and anchors survive the hand-off.
+    window.location.replace(`${to}${window.location.search}${window.location.hash}`);
   }, [to]);
 
   return (

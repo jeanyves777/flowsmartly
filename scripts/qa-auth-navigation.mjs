@@ -7,7 +7,8 @@
  * in a real browser:
  *   1. home → click "Log in"        → a DOCUMENT request for /login reaches the server
  *   2. home → click "Create account" → a DOCUMENT request for /register reaches the server
- *   3. a direct visit to /early-access → forwarded to /register, never a waiting-list form
+ *   3. a direct visit to /early-access → forwarded to /register, never a waiting-list form,
+ *      keeping its query string and fragment
  *   4. loop guard: if /login were misrouted to this export, the forwarder must not reload forever
  *   5. no "Join early access" text is rendered on the home page
  *
@@ -48,7 +49,7 @@ const fileFor = async (path) => {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = decodeURIComponent(url.pathname);
-  requests.push({ path, document: (req.headers['sec-fetch-dest'] ?? '') === 'document' });
+  requests.push({ path, search: url.search, document: (req.headers['sec-fetch-dest'] ?? '') === 'document' });
   // The other application's routes, as the apex sends them there.
   if (path === '/register' || (path === '/login' && !misrouteLogin)) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -118,6 +119,16 @@ try {
   check('direct /early-access is forwarded to /register (no waiting list)',
     docRequests('/register') === beforeForward + 1 && forwardMarker === 'PORTAL-REGISTER',
     `page "${forwardMarker || (await page.title())}"`);
+
+  // The forward keeps campaign parameters and the fragment.
+  await page.goto(`${ORIGIN}/early-access?utm_source=newsletter&ref=a1#plans`, { waitUntil: 'load' });
+  await page.waitForURL('**/register?*', { timeout: 15000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
+  const last = requests.filter((r) => r.path === '/register' && r.document).at(-1);
+  const landed = new URL(page.url());
+  check('the forward keeps the query and the fragment',
+    last?.search === '?utm_source=newsletter&ref=a1' && landed.search === '?utm_source=newsletter&ref=a1' && landed.hash === '#plans',
+    `server saw "${last?.search ?? ''}", page at "${landed.pathname}${landed.search}${landed.hash}"`);
 
   misrouteLogin = true;
   const beforeLoop = docRequests('/login');
