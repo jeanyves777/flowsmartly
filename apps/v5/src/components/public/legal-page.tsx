@@ -100,17 +100,20 @@ export function LegalLayout({
 export function LegalSection({
   number,
   title,
+  id,
   children,
 }: {
   number: number;
   title: string;
+  /** An anchor (`/legal/sms-terms#program`), so a section can be linked to — carriers ask for exact URLs. */
+  id?: string;
   children: React.ReactNode;
 }) {
   const styles = useDocStyles();
   const type = useTypeScale();
   return (
     <Reveal style={styles.section} distance={14}>
-      <View style={styles.sectionHead}>
+      <View style={styles.sectionHead} {...(id ? { nativeID: id } : {})}>
         <View style={styles.sectionNumber}>
           <Text style={styles.sectionNumberText}>{number}</Text>
         </View>
@@ -127,6 +130,20 @@ export function LegalText({ children }: { children: React.ReactNode }) {
   const styles = useDocStyles();
   const type = useTypeScale();
   return <Text style={[type.bodySm, styles.paragraph]}>{children}</Text>;
+}
+
+/**
+ * A link inside a `LegalText` paragraph. Carriers read the SMS terms and the
+ * privacy policy as one disclosure, so each must link to the other in its body,
+ * not only from the footer. react-native-web renders `href` as a real `<a>`.
+ */
+export function LegalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const t = useTokens();
+  return (
+    <Text accessibilityRole="link" style={{ color: t.brand, textDecorationLine: 'underline' }} {...({ href } as object)}>
+      {children}
+    </Text>
+  );
 }
 
 export function LegalBullets({ items }: { items: readonly (string | [string, string])[] }) {

@@ -5,6 +5,7 @@ import {
   LegalBullets,
   LegalCallout,
   LegalContactCard,
+  LegalLink,
   LegalLayout,
   LegalSection,
   LegalText,
@@ -19,6 +20,7 @@ const SECTIONS: DocSection[] = [
   { id: 'how-we-use', title: 'How We Use Information' },
   { id: 'legal-bases', title: 'Legal Bases for Processing' },
   { id: 'how-we-share', title: 'How We Share Information' },
+  { id: 'sms', title: 'Text Messaging (SMS)' },
   { id: 'retention', title: 'Data Retention' },
   { id: 'rights', title: 'Your Privacy Rights' },
   { id: 'california', title: 'California Privacy Rights' },
@@ -83,7 +85,7 @@ const LEGAL_BASES: readonly [string, string][] = [
 
 const SHARING = [
   'Service providers who help us operate our business, under confidentiality obligations and our documented instructions.',
-  'Partners and integrations that enable features you use.',
+  'Partners and integrations that enable features you use — never including SMS opt-in data or consent.',
   'Legal requirements, to protect rights, safety, and security, or in connection with a business transfer.',
   'With your consent or at your direction.',
 ];
@@ -173,7 +175,7 @@ export default function PrivacyPolicyPage() {
       cta={false}>
       <LegalLayout
         title="Privacy Policy"
-        updated="August 4, 2026"
+        updated="October 17, 2026"
         intro="At FlowSmartly, your privacy is important to us. This Privacy Policy explains how we collect, use, share, and protect your information when you use our website, platform, and services."
         sections={SECTIONS}
         aside={
@@ -240,11 +242,38 @@ export default function PrivacyPolicyPage() {
             One case deserves naming plainly: if you allow the Marketing category on this website,
             limited online identifiers reach advertising partners so that we can tell which campaign
             earned a signup. California law calls that &ldquo;sharing&rdquo;. It is off until you turn
-            it on, and section 8 explains how to turn it back off.
+            it on, and section 9 explains how to turn it back off. None of this ever includes text
+            messaging opt-in data or consent — see section 6.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={6} title="Data Retention">
+        {/*
+          Carriers require these sentences in substance (Telnyx 10DLC opt-in and
+          privacy guidance). They must stay true of what the opt-in page records
+          (apps/api optin.ts: the disclosure, its hash, page URL, time, IP, user agent).
+        */}
+        <LegalSection number={6} title="Text Messaging (SMS)" id="sms">
+          <LegalText>
+            When you sign up for FlowSmartly text messages, we collect your mobile number and, as a
+            record of your consent, the consent wording you were shown, the page address, the time,
+            your IP address and your browser&rsquo;s user agent. We use them only to send the
+            FlowSmartly messages you asked for and to honor your opt-outs.
+          </LegalText>
+          <LegalText>
+            No mobile information will be shared with third parties or affiliates for marketing or
+            promotional purposes. Information sharing with subcontractors that support the service,
+            such as the messaging carrier that delivers the texts, is permitted. All the categories
+            of sharing described in this policy exclude text messaging originator opt-in data and
+            consent; this information will not be shared with any third parties.
+          </LegalText>
+          <LegalText>
+            Reply STOP to opt out at any time, or HELP for help. Our{' '}
+            <LegalLink href="/legal/sms-terms#program">SMS Messaging Terms</LegalLink> describe the
+            program in full.
+          </LegalText>
+        </LegalSection>
+
+        <LegalSection number={7} title="Data Retention">
           <LegalText>
             We keep personal information only as long as it is needed for the purpose it was collected
             for. In practice that means:
@@ -257,11 +286,11 @@ export default function PrivacyPolicyPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={7} title="Your Privacy Rights">
+        <LegalSection number={8} title="Your Privacy Rights">
           <LegalText>
             Depending on where you live, you may have the right to access, correct, delete, restrict,
             object to, or port your personal information, and to withdraw consent where we rely on it.
-            California residents have the additional rights set out in section 8.
+            California residents have the additional rights set out in section 9.
           </LegalText>
           <LegalText>
             To exercise a right, email privacy@flowsmartly.com or use the contact form on this site.
@@ -286,7 +315,7 @@ export default function PrivacyPolicyPage() {
           </LegalCallout>
         </LegalSection>
 
-        <LegalSection number={8} title="California Privacy Rights">
+        <LegalSection number={9} title="California Privacy Rights">
           <LegalText>
             This section is for California residents and describes our practices under the CCPA as
             amended by the CPRA. In the preceding twelve months we collected the following categories
@@ -296,7 +325,7 @@ export default function PrivacyPolicyPage() {
           <LegalBullets items={CCPA_CATEGORIES} />
           <LegalText>
             We disclose these categories to service providers and contractors for the business
-            purposes described in section 5, and we retain them for the periods in section 6.
+            purposes described in section 5, and we retain them for the periods in section 7.
           </LegalText>
           <LegalCallout icon="ban">
             Do Not Sell or Share. We do not sell personal information for money and have not in the
@@ -305,13 +334,14 @@ export default function PrivacyPolicyPage() {
             off by default. &ldquo;Cookie settings&rdquo;, in the footer of every page, is our
             &ldquo;Do Not Sell or Share My Personal Information&rdquo; control, and we honor the
             Global Privacy Control browser signal automatically as an opt-out. We do not sell or share
-            the personal information of anyone we know to be under 16.
+            the personal information of anyone we know to be under 16, and we never sell or share text
+            messaging opt-in data or consent.
           </LegalCallout>
           <LegalText>Your rights, and what each one means here:</LegalText>
           <LegalBullets items={CCPA_RIGHTS} />
         </LegalSection>
 
-        <LegalSection number={9} title="Security">
+        <LegalSection number={10} title="Security">
           <LegalText>
             We use administrative, technical, and physical safeguards to protect your information. While
             we strive to use commercially reasonable measures, no method of transmission or storage is
@@ -319,7 +349,7 @@ export default function PrivacyPolicyPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={10} title="Children's Privacy">
+        <LegalSection number={11} title="Children's Privacy">
           <LegalText>
             Our services are not directed to children under 16, and we do not knowingly collect personal
             information from children under 16. If we learn that we have collected such information, we
@@ -327,7 +357,7 @@ export default function PrivacyPolicyPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={11} title="International Transfers">
+        <LegalSection number={12} title="International Transfers">
           <LegalText>
             FlowSmartly is based in the United States, and some of the subprocessors that deliver parts
             of the service operate elsewhere. Personal data originating in the EEA, the United Kingdom
@@ -347,7 +377,7 @@ export default function PrivacyPolicyPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={12} title="Changes">
+        <LegalSection number={13} title="Changes">
           <LegalText>
             We may update this policy from time to time. We will post the updated policy and update the
             &ldquo;Last updated&rdquo; date above. Material changes will be communicated where required
@@ -355,7 +385,7 @@ export default function PrivacyPolicyPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={13} title="Contact Us">
+        <LegalSection number={14} title="Contact Us">
           <LegalText>
             For questions about this Privacy Policy or our privacy practices, reach out to us:
           </LegalText>
