@@ -8,8 +8,9 @@
  * The ALLOW fixture has the shape the gate must accept: several apex-named server blocks, one of which
  * listens on 443, no include inside it, /login and /register in a regex location rooted at the
  * portal (with /flowagent, the portal's FlowAgent app), /early-access in a regex location of the
- * marketing export, and /_expo/ served from the marketing root with misses handed to a static named
- * location of the portal. It also carries a quoted
+ * marketing export, and /_expo/ as measured (#184 6240257505): `^~ /_expo/` under the portal root,
+ * `try_files $uri @marketing_assets`, that named location under the marketing root as `$uri =404`.
+ * It also carries a quoted
  * brace and a commented brace, so the parser has to tell structure from text.
  *
  * Usage: node scripts/qa-precheck-public-static.mjs --dist apps/v5/dist
@@ -63,9 +64,9 @@ server {
     location ~ ^/early-access/?$ {
         ${TF}
     }
-    location ^~ /_expo/ { try_files $uri @portal_assets; }
-    location @portal_assets {
-        root ${PORTAL};
+    location ^~ /_expo/ { root ${PORTAL}; try_files $uri @marketing_assets; }
+    location @marketing_assets {
+        root ${MKT};
         try_files $uri =404;
     }
     location = /flow-ai { return 301 /flowagent; }
@@ -82,7 +83,8 @@ server {
 `;
 
 const PORTAL_LOC = /location ~ \^\/\(login\|register\|flowagent\)\/\?\$ \{[\s\S]*?\n {4}\}/;
-const NAMED_LOC = /location @portal_assets \{[\s\S]*?\n {4}\}/;
+const NAMED_LOC = /location @marketing_assets \{[\s\S]*?\n {4}\}/;
+const EXPO_LOC = `location ^~ /_expo/ { root ${PORTAL}; try_files $uri @marketing_assets; }`;
 const EARLY_LOC = /location ~ \^\/early-access\/\?\$ \{[\s\S]*?\n {4}\}/;
 const MAIN_SERVER = /server \{\n {4}listen 443[\s\S]*?#SERVER_EXTRA\n\}/;
 
@@ -94,13 +96,13 @@ const gate = (dump, extra = {}) => {
   const args = [GATE, '--public-static', '--json', '--dist', extra.dist ?? DIST, '--conf', conf,
     '--marketing-root', MKT, '--portal-root', PORTAL, ...(extra.args ?? [])].filter((a) => a !== null);
   const r = spawnSync(process.execPath, args, { encoding: 'utf8' });
-  let failed = [];
+  let details = [];
   try {
-    failed = JSON.parse(r.stdout).results.filter((x) => !x.ok).map((x) => x.name);
+    details = JSON.parse(r.stdout).results.filter((x) => !x.ok);
   } catch {
     /* refusals print no JSON */
   }
-  return { status: r.status, failed, stderr: r.stderr };
+  return { status: r.status, failed: details.map((x) => x.name), details, stderr: r.stderr };
 };
 
 const results = [];
@@ -108,11 +110,14 @@ const arm = (name, ok, detail) => {
   results.push(ok);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
 };
-const denies = (name, dump, mustFail) => {
+// `why`, when given, must match that check's detail: the reason, not only the check that failed.
+const denies = (name, dump, mustFail, why) => {
   const r = gate(dump);
-  const hit = r.failed.some((f) => mustFail.test(f));
-  arm(`DENY ${name}`, r.status === 1 && hit, `exit ${r.status}; failed: ${r.failed.join(' | ') || r.stderr.trim()}`);
+  const hit = r.details.find((f) => mustFail.test(f.name) && (!why || why.test(f.detail)));
+  arm(`DENY ${name}`, r.status === 1 && Boolean(hit),
+    `exit ${r.status}; ${hit && why ? `${hit.name} — ${hit.detail}` : `failed: ${r.failed.join(' | ') || r.stderr.trim()}`}`);
 };
+const CHAIN = /^\/_expo\/\* is looked up under the portal root, then the marketing root/;
 
 try {
   const ok = gate(ALLOW);
@@ -132,13 +137,28 @@ try {
     /^\/solutions\/\* is served from the marketing root/);
   denies('/flowagent served by this export', ALLOW.replace('(login|register|flowagent)/?$ {', '(login|register)/?$ {'),
     /^\/flowagent is served by the V5 portal/);
-  denies('/_expo/ misses handed to a proxy', ALLOW.replace(NAMED_LOC, 'location @portal_assets { proxy_pass http://127.0.0.1:9999; }'),
-    /^\/_expo\/\* is served from the marketing root/);
-  denies('/_expo/ misses handed to a named location that does not exist', ALLOW.replace(NAMED_LOC, ''),
-    /^\/_expo\/\* is served from the marketing root/);
-  denies('/_expo/ served from the portal root first',
-    ALLOW.replace('location ^~ /_expo/ { try_files $uri @portal_assets; }', `location ^~ /_expo/ { root ${PORTAL}; try_files $uri @portal_assets; }`),
-    /^\/_expo\/\* is served from the marketing root/);
+  // The measured asset chain (#184 6240257505 / 6240292328): portal first, then this export.
+  // Wrong root at either step, the marketing lookup lost, an unexpected chain, a hidden proxy.
+  denies('/_expo/ first lookup under the marketing root (order reversed)',
+    ALLOW.replace(EXPO_LOC, `location ^~ /_expo/ { root ${MKT}; try_files $uri @marketing_assets; }`),
+    CHAIN, /starts at marketing root, not the portal root/);
+  denies('/_expo/ fallback rooted at the portal, not the marketing export',
+    ALLOW.replace(NAMED_LOC, `location @marketing_assets {\n        root ${PORTAL};\n        try_files $uri =404;\n    }`),
+    CHAIN, /@marketing_assets is rooted at portal root, not the marketing root/);
+  denies('/_expo/ marketing lookup replaced by return 404', ALLOW.replace(NAMED_LOC, 'location @marketing_assets { return 404; }'),
+    CHAIN, /marketing lookup is lost: @marketing_assets is return 404/);
+  denies('/_expo/ with no marketing lookup at all',
+    ALLOW.replace(EXPO_LOC, `location ^~ /_expo/ { root ${PORTAL}; try_files $uri =404; }`),
+    CHAIN, /marketing lookup is lost: portal root with no named fallback/);
+  denies('/_expo/ falls back to another named location',
+    ALLOW.replace(EXPO_LOC, `location ^~ /_expo/ { root ${PORTAL}; try_files $uri @elsewhere; }\n    location @elsewhere { root ${MKT}; try_files $uri =404; }`),
+    CHAIN, /try_files is not "\$uri @marketing_assets"/);
+  denies('/_expo/ fallback hides a proxy', ALLOW.replace(NAMED_LOC, 'location @marketing_assets { proxy_pass http://127.0.0.1:9999; }'),
+    CHAIN, /@marketing_assets is proxy/);
+  denies('/_expo/ fallback named but missing', ALLOW.replace(NAMED_LOC, ''), CHAIN, /does not exist/);
+  denies('a marketing route may not use the asset fallback',
+    ALLOW.replace('location ~ ^/early-access/?$ {\n        try_files $uri $uri.html $uri/index.html =404;', 'location ~ ^/early-access/?$ {\n        try_files $uri $uri.html @marketing_assets;'),
+    /^\/early-access is served from the marketing root/, /^named fallback$/);
   denies('two apex servers on 443', ALLOW.replace(MAIN_SERVER, (m) => `${m}\n${m}`), /^exactly one apex server block listens on 443/);
   denies('an include inside the apex 443 server', ALLOW.replace('#SERVER_EXTRA', 'include /etc/nginx/snippets/more.conf;'),
     /^the apex 443 server has no include/);

@@ -49,9 +49,11 @@
  *     would not see — otherwise the view would be a guess, so it fails;
  *   - every route of this export resolves, in that server, to a static location
  *     whose root is the marketing root, i.e. the link the publish flips; a
- *     try_files that ends in a named location (/_expo/, shared with the portal)
- *     counts when its own root is the marketing root and the named location is
- *     itself static or a 4xx — a fallback that proxies does not;
+ *     try_files that ends in a named location is refused for every route;
+ *   - the one exception is the asset prefix both apps share, /_expo/, which must
+ *     be exactly `^~ /_expo/` under the portal root, `try_files $uri
+ *     @marketing_assets`, and that named location under the marketing root as
+ *     `$uri =404`: portal first, this export second (see `assetChain`);
  *   - /login, /register and /flowagent resolve to a static location whose root
  *     is the portal root — not this export, not a proxy, not a redirect.
  * The roots are operator values, passed at run time and never printed, so no
@@ -778,13 +780,11 @@ function serverLocations(view, server) {
  * as static: a nested block (if, location), an alias, a rewrite, a return or any
  * *_pass make it something else, and the checks below fail rather than guess.
  *
- * A try_files whose last argument names a location (`try_files $uri @other`)
- * serves from this location's root first and hands only the misses on. It is
- * static, with `fallback` describing the named location, only when that named
- * location exists and is itself static or a 4xx — one level deep, never a
- * proxy. Anything else is reported as what it is.
+ * A try_files that ends in a named location is `named fallback`, never static:
+ * an ordinary route check refuses it. The one chain this gate accepts is the
+ * shared asset prefix, checked by `assetChain` below and nowhere else.
  */
-function servingOf(view, loc, serverRoot, locations, depth = 0) {
+function servingOf(view, loc, serverRoot) {
   if (!loc) return { kind: 'none' };
   const kids = children(view, loc.start, loc.end);
   const d = (n) => kids.find((k) => !k.block && k.name === n);
@@ -796,21 +796,56 @@ function servingOf(view, loc, serverRoot, locations, depth = 0) {
   if (kids.some((k) => /_pass$/.test(k.name))) return { kind: 'proxy' };
   if (d('alias')) return { kind: 'alias' };
   if (d('rewrite')) return { kind: 'rewrite' };
-  let fallback;
-  const tf = d('try_files');
-  const last = tf?.args.at(-1) ?? '';
-  if (last.startsWith('@')) {
-    if (depth > 0) return { kind: 'named fallback chain' };
-    if (tf.args.length < 2) return { kind: 'named fallback only' };
-    const named = locations.find((l) => l.modifier === '' && l.pattern === last);
-    if (!named) return { kind: 'named fallback missing' };
-    fallback = servingOf(view, named, serverRoot, locations, depth + 1);
-    const usable = fallback.kind === 'static' || (fallback.status >= 400 && fallback.status < 500);
-    if (!usable) return { kind: `named fallback to ${fallback.kind}` };
-  }
   const root = d('root')?.args[0] ?? serverRoot;
   if (!root) return { kind: 'no root' };
-  return { kind: 'static', root: root.replace(/\/+$/, ''), ...(fallback ? { fallback } : {}) };
+  const tryFiles = d('try_files')?.args ?? null;
+  const kind = tryFiles?.at(-1)?.startsWith('@') ? 'named fallback' : 'static';
+  return { kind, root: root.replace(/\/+$/, ''), tryFiles };
+}
+
+/**
+ * The shared asset prefix: the one fallback chain this gate accepts, and only
+ * in exactly the shape measured on the loaded config (#184 6240257505):
+ *
+ *   location ^~ /_expo/        root = the PORTAL root,     try_files $uri @marketing_assets;
+ *   location @marketing_assets root = the MARKETING root,  try_files $uri =404;
+ *
+ * Both apps' exports put their bundles under /_expo/. The portal's are looked
+ * up first and a miss goes on to this export's, so the portal keeps priority
+ * and this export's bundles are still found. Losing the second lookup (no
+ * fallback, a 404 or another location in its place) breaks every marketing
+ * page; either lookup rooted at the wrong root serves the wrong files.
+ *
+ * Every other shape is refused and the reason is named: another prefix or
+ * modifier, another try_files, another named target, a fallback that proxies,
+ * rewrites, nests or falls back again. The exception is this one prefix: an
+ * ordinary route that ends in a named fallback is refused by `servingOf`.
+ */
+const ASSET_CHAIN = { modifier: '^~', prefix: '/_expo/', name: '@marketing_assets' };
+
+function assetChain(view, locations, serverRoot, path, roots) {
+  const loc = selectLocation(locations, path);
+  if (!loc || loc.modifier !== ASSET_CHAIN.modifier || loc.pattern !== ASSET_CHAIN.prefix) {
+    return `the asset prefix is not claimed by "location ${ASSET_CHAIN.modifier} ${ASSET_CHAIN.prefix}"`;
+  }
+  const first = servingOf(view, loc, serverRoot);
+  if (first.kind === 'static') return `the marketing lookup is lost: ${roots(first)} with no named fallback`;
+  if (first.kind !== 'named fallback') return `not the asset chain: ${first.kind}`;
+  if (first.root !== roots.portal) return `the asset lookup starts at ${roots(first)}, not the portal root`;
+  const tf1 = first.tryFiles;
+  if (!(tf1.length === 2 && tf1[0] === '$uri' && tf1[1] === ASSET_CHAIN.name)) {
+    return `try_files is not "$uri ${ASSET_CHAIN.name}" (${tf1.length} arguments, ends in ${tf1.at(-1)})`;
+  }
+  const named = locations.find((l) => l.modifier === '' && l.pattern === ASSET_CHAIN.name);
+  if (!named) return `the named location ${ASSET_CHAIN.name} does not exist`;
+  const second = servingOf(view, named, serverRoot);
+  if (second.kind !== 'static') return `the marketing lookup is lost: ${ASSET_CHAIN.name} is ${second.kind}`;
+  if (second.root !== roots.marketing) return `${ASSET_CHAIN.name} is rooted at ${roots(second)}, not the marketing root`;
+  const tf2 = second.tryFiles;
+  if (!(tf2?.length === 2 && tf2[0] === '$uri' && tf2[1] === '=404')) {
+    return `${ASSET_CHAIN.name}'s try_files is not "$uri =404"`;
+  }
+  return null;
 }
 
 function checkConfPublicStatic() {
@@ -847,7 +882,7 @@ function checkConfPublicStatic() {
   const locations = serverLocations(view, server);
   check('nginx', 'the apex 443 server has location blocks', locations.length > 0, `${locations.length} location(s)`);
   const serverRoot = directives(server, 'root')[0]?.args[0];
-  const at = (path) => servingOf(view, selectLocation(locations, path), serverRoot, locations);
+  const at = (path) => servingOf(view, selectLocation(locations, path), serverRoot);
 
   const norm = (p) => p.replace(/\/+$/, '');
   const marketing = norm(MARKETING_ROOT);
@@ -855,9 +890,9 @@ function checkConfPublicStatic() {
   check('nginx', 'the marketing root and the portal root are two different roots', marketing !== portal, '');
 
   // Root values are operator-side: a detail says which root, never prints it.
-  const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'static, another root');
-  const whose = (b) =>
-    b.kind !== 'static' ? b.kind : `${rootName(b)}${b.fallback ? `, misses fall to ${whose(b.fallback)}` : ''}`;
+  const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'another root');
+  const whose = (b) => (b.kind !== 'static' ? b.kind : rootName(b));
+  const roots = Object.assign(rootName, { marketing, portal });
   const fromMarketing = (path) => {
     const b = at(path);
     return { ok: b.kind === 'static' && b.root === marketing, detail: whose(b) };
@@ -891,8 +926,9 @@ function checkConfPublicStatic() {
     const r = fromMarketing(`/${file}`);
     check('nginx', `/${file} is served from the marketing root`, r.ok, r.detail);
   }
-  const expo = fromMarketing('/_expo/static/js/web/entry-abc123.js');
-  check('nginx', '/_expo/* is served from the marketing root', expo.ok, expo.detail);
+  const chain = assetChain(view, locations, serverRoot, '/_expo/static/js/web/entry-abc123.js', roots);
+  check('nginx', '/_expo/* is looked up under the portal root, then the marketing root', chain === null,
+    chain ?? 'portal root, then the marketing root, then 404');
 
   /* -- b. sign-in and account creation are the V5 portal's -------------- */
   for (const route of PORTAL_ROUTES) {
