@@ -16,15 +16,20 @@
 #     touching the V4 app, and a V4 rollback never reverts the public site.
 #
 #   /var/www/flowsmartly-v5/
-#     releases/<sha>-<utc-stamp>/   an immutable export, never written twice
-#     current -> releases/<sha>-<utc-stamp>
+#     releases/<utc-stamp>-<sha8>/  an immutable export, never written twice
+#     current -> releases/<utc-stamp>-<sha8>
 #
 # Usage:
-#   deploy-v5-public.sh deploy [<ref>]   build <ref> (default origin/main) + publish + activate
+#   deploy-v5-public.sh deploy <commit>  build the full 40-hex <commit> + publish + activate
 #   deploy-v5-public.sh rollback         flip back to the PREVIOUS release
 #   deploy-v5-public.sh rollback <sha>   flip to a specific existing release
 #   deploy-v5-public.sh status           active release, available releases, health
 #   deploy-v5-public.sh list             releases, newest first
+#
+# What is built is exactly <commit>: a fresh clone in its own directory, checked
+# out detached at <commit>, proven clean before the build and proven unchanged
+# after it. It never builds the files of whatever checkout happens to sit in
+# APP_DIR — that tree belongs to another deploy and holds other bytes.
 #
 # Safe to re-run. A release directory is NEVER overwritten: publishing a sha
 # that is already published creates a fresh directory and swaps atomically, so
@@ -34,21 +39,29 @@ set -Eeuo pipefail
 
 # --- config ------------------------------------------------------------------
 APP_DIR="${APP_DIR:-/opt/flowsmartly}"
-V5_DIR="${V5_DIR:-${APP_DIR}/apps/v5}"
+# The repository the requested commit is fetched into and cloned from. Only its
+# object store is used; its working tree is never built and never touched.
+SOURCE_REPO="${SOURCE_REPO:-${APP_DIR}}"
+# Each deploy builds in a fresh directory of its own under here, removed after.
+BUILD_ROOT="${BUILD_ROOT:-/var/tmp/flowsmartly-v5-build}"
 WEB_ROOT="${WEB_ROOT:-/var/www/flowsmartly-v5}"
 RELEASES_DIR="${RELEASES_DIR:-${WEB_ROOT}/releases}"
 CURRENT_LINK="${CURRENT_LINK:-${WEB_ROOT}/current}"
-DEPLOY_REF="${DEPLOY_REF:-origin/main}"
+# Tracked files the build itself regenerates (apps/v5/scripts/build-content.js).
+# After the build these, and only these, may differ from <commit>.
+BUILD_GENERATED="apps/v5/src/content/changelog.generated.ts apps/v5/src/content/posts.generated.ts apps/v5/src/content/posts.index.json"
 # An export is tens of MB and the box has ~157 GB free, so retention is not a
 # disk question — it is a "how far back can we flip without a rebuild" question.
 # Five is several days of deploys.
 KEEP_RELEASES="${KEEP_RELEASES:-5}"
 HEALTH_URL="${HEALTH_URL:-https://flowsmartly.com/}"
-# The route gate. Checked against the LIVE vhost when one is installed, so this
-# also catches drift between the config in the repo and the one Nginx serves.
-PRECHECK="${PRECHECK:-${APP_DIR}/scripts/precheck-v5-routes.mjs}"
-NGINX_CONF="${NGINX_CONF:-/etc/nginx/sites-available/flowsmartly-v5}"
-NGINX_CONF_FALLBACK="${NGINX_CONF_FALLBACK:-${APP_DIR}/deploy/nginx-flowsmartly-v5.conf}"
+# The route gate. A deploy runs the gate of the commit it builds, so the expected
+# route set comes from that commit's sources. A rollback runs this one: the gate
+# that sits next to this script.
+PRECHECK="${PRECHECK:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/precheck-v5-routes.mjs}"
+# It is checked against `nginx -T`, the configuration Nginx actually loaded.
+# There is no fallback to the repo copy in deploy/: that is the config someone
+# once intended, not the one serving.
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -60,22 +73,57 @@ warn() { printf '\033[1;33mWARN: %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mFATAL: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # --- release ordering ---------------------------------------------------------
-# A release is named <sha>-<UTC stamp>. The sha is hex, so a plain lexical sort
-# orders by COMMIT HASH, not by time — which prunes the wrong release and rolls
-# back to the wrong one. Sort on the stamp field explicitly.
-releases_newest_first() {
+# A release is named <UTC stamp>-<sha8> (20260101T000000Z-1a2b3c4d), the naming
+# the live releases already use. Earlier runs of this script wrote
+# <sha>-<14-digit stamp>, and both may sit side by side, so neither a plain
+# lexical sort nor a sort on one dash-separated field orders a mixed set: the
+# sha is hex, and sorting on it orders by COMMIT HASH, not by time — which
+# prunes the wrong release and rolls back to the wrong one. Each name is keyed
+# by the stamp it carries, in whichever form.
+#
+# A name in neither form has no time, so it is left out: it is never pruned and
+# never chosen by a no-argument rollback. `rollback <name>` can still select it.
+releases_keyed() {
+  local name
   find "${RELEASES_DIR}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null \
-    | sort -t- -k2,2 -r
+    | while read -r name; do
+        if [[ "${name}" =~ ^([0-9]{8})T([0-9]{6})Z-[0-9a-f]{7,40}$ ]]; then
+          printf '%s%s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${name}"
+        elif [[ "${name}" =~ ^[0-9a-f]{7,40}-([0-9]{14})$ ]]; then
+          printf '%s %s\n' "${BASH_REMATCH[1]}" "${name}"
+        fi
+      done
 }
 
-releases_oldest_first() {
-  find "${RELEASES_DIR}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null \
-    | sort -t- -k2,2
+releases_newest_first() { releases_keyed | sort -k1,1r -k2,2r | cut -d' ' -f2; }
+releases_oldest_first() { releases_keyed | sort -k1,1 -k2,2 | cut -d' ' -f2; }
+
+# The commit a release was built from, as its name records it (8+ hex).
+release_sha() {
+  local name="$1"
+  if [[ "${name}" =~ ^[0-9]{8}T[0-9]{6}Z-([0-9a-f]{7,40})$ ]]; then echo "${BASH_REMATCH[1]}"
+  elif [[ "${name}" =~ ^([0-9a-f]{7,40})-[0-9]{14}$ ]]; then echo "${BASH_REMATCH[1]}"
+  fi
 }
 
 active_release_name() {
   [ -L "${CURRENT_LINK}" ] || return 0
   basename "$(readlink -f "${CURRENT_LINK}")"
+}
+
+# --- scratch space --------------------------------------------------------------
+# One private directory per run: the clean checkout and the captured Nginx view
+# live here, and it is removed on exit whatever the outcome.
+WORK_DIR=""
+cleanup_work_dir() {
+  if [ -n "${WORK_DIR}" ] && [ -d "${WORK_DIR}" ]; then rm -rf "${WORK_DIR}"; fi
+}
+make_work_dir() {
+  [ -z "${WORK_DIR}" ] || return 0
+  mkdir -p "${BUILD_ROOT}" || die "could not create ${BUILD_ROOT}"
+  WORK_DIR="$(umask 077 && mktemp -d "${BUILD_ROOT}/run.XXXXXX")" || die "could not create a work directory under ${BUILD_ROOT}"
+  [ -d "${WORK_DIR}" ] || die "could not create a work directory under ${BUILD_ROOT}"
+  trap cleanup_work_dir EXIT
 }
 
 # --- verification -------------------------------------------------------------
@@ -86,59 +134,101 @@ active_release_name() {
 # A missing gate is FATAL, never a skip. An export that cannot be verified is not
 # published: `expo export` exits 0 having silently dropped a route, and that is
 # precisely the failure this exists to catch.
+#
+# The gate runs in its --public-static mode against `nginx -T`: the effective
+# configuration Nginx itself loaded, all files, rather than one file path that
+# may not be the one enabled. It proves the export is complete, that the apex
+# serves the marketing routes from the `current` link this script flips, and
+# that /login and /register are served by the V5 portal and not by this export.
+#
+# The portal's root is an operator value and is never written into this
+# repository: export V5_PORTAL_ROOT, as the installed vhost names it, before
+# running. The marketing root has no setting of its own: it is CURRENT_LINK,
+# because the link `activate` flips is the one Nginx must be serving.
 verify_export() {
-  local dir="$1"
-  [ -f "${PRECHECK}" ] || die "route gate missing: ${PRECHECK} — refusing to publish an unverified export"
+  local dir="$1" gate="$2"
+  [ -f "${gate}" ] || die "route gate missing: ${gate} — refusing to publish an unverified export"
+  [ -n "${V5_PORTAL_ROOT:-}" ] \
+    || die "V5_PORTAL_ROOT is not set — the gate must know the V5 portal's root to prove /login and /register are served from it"
 
-  local conf="${NGINX_CONF}"
-  if [ ! -f "${conf}" ]; then
-    conf="${NGINX_CONF_FALLBACK}"
-    warn "no installed vhost at ${NGINX_CONF} — checking the repo copy ${conf} instead."
-    warn "That verifies the config we INTEND to serve, not the one Nginx is serving."
-    [ -f "${conf}" ] || die "no Nginx config to verify against"
+  make_work_dir
+  local view="${WORK_DIR}/nginx-T.conf"
+  if ! nginx -T >"${view}" 2>"${view}.err"; then
+    cat "${view}.err" >&2 || true
+    die "nginx -T failed — no loaded configuration to verify against; nothing was published"
   fi
+  [ -s "${view}" ] || die "nginx -T printed no configuration — nothing to verify against"
 
-  log "Route gate: ${dir} against ${conf}"
-  node "${PRECHECK}" --dist "${dir}" --conf "${conf}" \
+  log "Route gate: ${dir} against the loaded Nginx configuration"
+  node "${gate}" --public-static --dist "${dir}" --conf "${view}" \
+      --marketing-root "${CURRENT_LINK}" --portal-root "${V5_PORTAL_ROOT}" \
     || die "route gate failed — nothing was published and 'current' was not touched"
 }
 
+# The checkout must be exactly <commit>: HEAD equal to it, and no file differing
+# from it except, after the build, the files the build is known to regenerate.
+# Every observation is captured and checked; a git command that fails is a
+# refusal, never an empty answer read as "clean".
+source_identity() {
+  local src="$1" want="$2" when="$3" allowed="$4"
+  local head status line path extra=""
+  head="$(git -C "${src}" rev-parse --verify --quiet HEAD)" || die "cannot read HEAD of the build checkout ${when}"
+  [ "${head}" = "${want}" ] || die "build checkout HEAD is ${head}, not ${want} (${when}) — nothing was published"
+  status="$(git -C "${src}" status --porcelain=v1 --untracked-files=all --ignore-submodules=none)" \
+    || die "cannot read the status of the build checkout ${when}"
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    path="${line:3}"
+    if [ "${line:0:3}" = " M " ] && [[ " ${allowed} " == *" ${path} "* ]]; then continue; fi
+    extra="${extra} ${line}"
+  done <<<"${status}"
+  [ -z "${extra}" ] || die "build checkout differs from ${want} ${when}:${extra} — nothing was published"
+}
+
 cmd_deploy() {
-  local ref="${1:-$DEPLOY_REF}"
+  local want="${1:-}"
+  [[ "${want}" =~ ^[0-9a-f]{40}$ ]] \
+    || die "deploy needs the full 40-character commit to publish, e.g. $0 deploy \$(git rev-parse origin/main) — a branch or a short sha names no fixed bytes"
+  git -C "${SOURCE_REPO}" rev-parse --git-dir >/dev/null 2>&1 || die "no git repository at ${SOURCE_REPO}"
 
-  [ -d "${V5_DIR}" ] || die "V5 app not found at ${V5_DIR}"
+  log "Fetching origin into ${SOURCE_REPO}"
+  git -C "${SOURCE_REPO}" fetch --prune --quiet origin || die "git fetch failed in ${SOURCE_REPO}"
+  git -C "${SOURCE_REPO}" cat-file -e "${want}^{commit}" 2>/dev/null \
+    || die "commit ${want} is not in ${SOURCE_REPO} after fetching origin"
 
-  log "Fetching ${ref}"
-  git -C "${APP_DIR}" fetch --prune origin
-  git -C "${APP_DIR}" rev-parse --verify "${ref}" >/dev/null 2>&1 || die "unknown ref: ${ref}"
+  make_work_dir
+  local src="${WORK_DIR}/src"
+  log "Clean checkout of ${want}"
+  git clone --quiet --no-checkout "${SOURCE_REPO}" "${src}" || die "could not clone ${SOURCE_REPO}"
+  git -C "${src}" -c advice.detachedHead=false checkout --quiet --detach "${want}" \
+    || die "could not check out ${want}"
+  source_identity "${src}" "${want}" "before the build" ""
+  log "Building V5 at ${want} — $(git -C "${src}" log -1 --pretty=%s "${want}")"
 
-  local sha
-  sha="$(git -C "${APP_DIR}" rev-parse --short "${ref}")"
-  log "Building V5 at ${sha} — $(git -C "${APP_DIR}" log -1 --pretty=%s "${ref}")"
+  # `npm ci`, not `npm install`: it installs exactly the committed lockfile and
+  # never rewrites it, so the dependencies are part of <commit> too.
+  ( cd "${src}/apps/v5" && npm ci --legacy-peer-deps --no-audit --no-fund ) || die "npm ci failed"
+  ( cd "${src}/apps/v5" && npm run build:web ) || die "build failed"
+  [ -d "${src}/apps/v5/dist" ] || die "build produced no dist/"
 
-  # The V4 deploy hard-resets the tree; do not fight it here. This script builds
-  # whatever the working tree currently holds, so run it AFTER deploy-vps.sh has
-  # synced, or point APP_DIR at a checkout of its own.
-  ( cd "${V5_DIR}" && npm install --legacy-peer-deps --no-audit --no-fund )
-  ( cd "${V5_DIR}" && npm run build:web )
-
-  [ -d "${V5_DIR}/dist" ] || die "build produced no dist/"
-  verify_export "${V5_DIR}/dist"
+  # Re-proven after the build and before anything is published.
+  source_identity "${src}" "${want}" "after the build" "${BUILD_GENERATED}"
+  verify_export "${src}/apps/v5/dist" "${src}/scripts/precheck-v5-routes.mjs"
 
   # A distinct directory per publish. `mkdir` without -p on purpose: if the name
   # somehow already exists we must fail rather than write into a release that
   # may be the one currently being served.
   local stamp release
-  stamp="$(date -u +%Y%m%d%H%M%S)"
-  release="${RELEASES_DIR}/${sha}-${stamp}"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  release="${RELEASES_DIR}/${stamp}-${want:0:8}"
   [ -e "${release}" ] && die "release directory already exists: ${release}"
 
   log "Publishing to ${release}"
   mkdir "${release}" || die "could not create ${release}"
-  cp -a "${V5_DIR}/dist/." "${release}/"
+  cp -a "${src}/apps/v5/dist/." "${release}/" || die "copy into ${release} failed — 'current' was not touched"
   # Verify the COPY, not only the source: a truncated copy (full disk, killed
   # process) is exactly the state that must never be activated.
-  verify_export "${release}"
+  verify_export "${release}" "${src}/scripts/precheck-v5-routes.mjs"
 
   activate "${release}"
   prune_releases
@@ -190,18 +280,25 @@ cmd_rollback() {
 
     [ -n "${release}" ] || die "no previous release to roll back to — run: $0 list"
     log "Rolling back from '${active:-none}' to '$(basename "${release}")'"
-  elif [ -d "${RELEASES_DIR}/${target}" ]; then
+  elif [[ "${target}" != */* && "${target}" != .* ]] && [ -d "${RELEASES_DIR}/${target}" ]; then
     release="${RELEASES_DIR}/${target}"
   else
-    # A bare sha resolves to the most recent release built from it.
-    name="$(releases_newest_first | grep -m1 -E "^${target}-" || true)"
-    [ -n "${name}" ] || die "no release found for '${target}' — run: $0 list"
-    release="${RELEASES_DIR}/${name}"
+    # A bare sha resolves to the most recent release built from it, in either
+    # naming. The release name may carry 8 hex and the argument 40, or the
+    # reverse: they match when one is a prefix of the other.
+    [[ "${target}" =~ ^[0-9a-f]{7,40}$ ]] || die "no release named '${target}', and it is not a sha — run: $0 list"
+    local rsha
+    while read -r name; do
+      [ -n "${name}" ] || continue
+      rsha="$(release_sha "${name}")"
+      if [[ "${rsha}" == "${target}"* || "${target}" == "${rsha}"* ]]; then release="${RELEASES_DIR}/${name}"; break; fi
+    done < <(releases_newest_first)
+    [ -n "${release}" ] || die "no release found for '${target}' — run: $0 list"
   fi
 
   [ -d "${release}" ] || die "no release found for '${target}' — run: $0 list"
 
-  verify_export "${release}"
+  verify_export "${release}" "${PRECHECK}"
   activate "${release}"
   health_check
 }
@@ -282,7 +379,7 @@ case "${1:-}" in
     cat <<USAGE
 usage: $(basename "$0") <command>
 
-  deploy [<ref>]    build <ref> (default ${DEPLOY_REF}), verify, publish, activate
+  deploy <commit>   build the full 40-hex <commit> in a clean checkout, verify, publish, activate
   rollback          flip back to the previous release and reload
   rollback <sha>    flip to a specific existing release and reload
   status            active release, available releases, health
