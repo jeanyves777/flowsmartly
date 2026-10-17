@@ -7,7 +7,9 @@
  * feeds the gate the real `nginx -T` output on the host, and no host value belongs in this repo.
  * The ALLOW fixture has the shape the gate must accept: several apex-named server blocks, one of which
  * listens on 443, no include inside it, /login and /register in a regex location rooted at the
- * portal, /early-access in a regex location of the marketing export. It also carries a quoted
+ * portal (with /flowagent, the portal's FlowAgent app), /early-access in a regex location of the
+ * marketing export, and /_expo/ served from the marketing root with misses handed to a static named
+ * location of the portal. It also carries a quoted
  * brace and a commented brace, so the parser has to tell structure from text.
  *
  * Usage: node scripts/qa-precheck-public-static.mjs --dist apps/v5/dist
@@ -53,7 +55,7 @@ server {
     ssl_certificate /etc/ssl/example.pem; # a brace in a comment: {
     root ${MKT};
     #PORTAL_LOCATION
-    location ~ ^/(login|register)/?$ {
+    location ~ ^/(login|register|flowagent)/?$ {
         root ${PORTAL};
         ${TF}
     }
@@ -61,7 +63,11 @@ server {
     location ~ ^/early-access/?$ {
         ${TF}
     }
-    location ^~ /_expo/ { try_files $uri =404; }
+    location ^~ /_expo/ { try_files $uri @portal_assets; }
+    location @portal_assets {
+        root ${PORTAL};
+        try_files $uri =404;
+    }
     location = /flow-ai { return 301 /flowagent; }
     location / {
         ${TF}
@@ -75,7 +81,8 @@ server {
 }
 `;
 
-const PORTAL_LOC = /location ~ \^\/\(login\|register\)\/\?\$ \{[\s\S]*?\n {4}\}/;
+const PORTAL_LOC = /location ~ \^\/\(login\|register\|flowagent\)\/\?\$ \{[\s\S]*?\n {4}\}/;
+const NAMED_LOC = /location @portal_assets \{[\s\S]*?\n {4}\}/;
 const EARLY_LOC = /location ~ \^\/early-access\/\?\$ \{[\s\S]*?\n {4}\}/;
 const MAIN_SERVER = /server \{\n {4}listen 443[\s\S]*?#SERVER_EXTRA\n\}/;
 
@@ -112,7 +119,7 @@ try {
   arm('ALLOW the current apex shape passes', ok.status === 0 && ok.failed.length === 0,
     `exit ${ok.status}${ok.failed.length ? `; failed: ${ok.failed.join(' | ')}` : ''}`);
 
-  denies('/login proxied somewhere', ALLOW.replace(PORTAL_LOC, 'location ~ ^/(login|register)/?$ { proxy_pass http://127.0.0.1:9999; }'),
+  denies('/login proxied somewhere', ALLOW.replace(PORTAL_LOC, 'location ~ ^/(login|register|flowagent)/?$ { proxy_pass http://127.0.0.1:9999; }'),
     /^\/login is served by the V5 portal/);
   denies('/register funnelled to /early-access (the cutover-era rule)',
     ALLOW.replace('#PORTAL_LOCATION', 'location = /register { return 302 /early-access; }'), /^\/register is served by the V5 portal/);
@@ -123,6 +130,15 @@ try {
     ALLOW.replace(`root ${MKT};`, 'root /srv/example/marketing/releases/20260101T000000Z-1a2b3c4d;'), /^\/ is served from the marketing root/);
   denies('a section claimed by nothing static', ALLOW.replace('#SERVER_EXTRA', 'location ^~ /solutions/ { return 404; }'),
     /^\/solutions\/\* is served from the marketing root/);
+  denies('/flowagent served by this export', ALLOW.replace('(login|register|flowagent)/?$ {', '(login|register)/?$ {'),
+    /^\/flowagent is served by the V5 portal/);
+  denies('/_expo/ misses handed to a proxy', ALLOW.replace(NAMED_LOC, 'location @portal_assets { proxy_pass http://127.0.0.1:9999; }'),
+    /^\/_expo\/\* is served from the marketing root/);
+  denies('/_expo/ misses handed to a named location that does not exist', ALLOW.replace(NAMED_LOC, ''),
+    /^\/_expo\/\* is served from the marketing root/);
+  denies('/_expo/ served from the portal root first',
+    ALLOW.replace('location ^~ /_expo/ { try_files $uri @portal_assets; }', `location ^~ /_expo/ { root ${PORTAL}; try_files $uri @portal_assets; }`),
+    /^\/_expo\/\* is served from the marketing root/);
   denies('two apex servers on 443', ALLOW.replace(MAIN_SERVER, (m) => `${m}\n${m}`), /^exactly one apex server block listens on 443/);
   denies('an include inside the apex 443 server', ALLOW.replace('#SERVER_EXTRA', 'include /etc/nginx/snippets/more.conf;'),
     /^the apex 443 server has no include/);

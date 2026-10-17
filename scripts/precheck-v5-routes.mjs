@@ -37,8 +37,10 @@
  * The default mode checks deploy/nginx-flowsmartly-v5.conf, the cutover-era
  * config: /register funnelled to /early-access, a V4 upstream behind the apex.
  * That is no longer what serves flowsmartly.com. Today the apex serves this
- * export as static files from the `current` link, and /login and /register as
- * static files of the V5 portal, from the portal's own root. This mode checks
+ * export as static files from the `current` link, and /login, /register and
+ * /flowagent (the FlowAgent app, behind sign-in) as static files of the V5
+ * portal, from the portal's own root. The export still has a /flowagent page,
+ * reached only by in-app navigation. This mode checks
  * exactly that, against the configuration Nginx loaded, and is what the publish
  * script runs for deploy and rollback alike:
  *   - the export half is unchanged and always runs;
@@ -46,9 +48,12 @@
  *     and nothing at server level (return, rewrite, if) that this emulation
  *     would not see — otherwise the view would be a guess, so it fails;
  *   - every route of this export resolves, in that server, to a static location
- *     whose root is the marketing root, i.e. the link the publish flips;
- *   - /login and /register resolve to a static location whose root is the
- *     portal root — not this export, not a proxy, not a redirect.
+ *     whose root is the marketing root, i.e. the link the publish flips; a
+ *     try_files that ends in a named location (/_expo/, shared with the portal)
+ *     counts when its own root is the marketing root and the named location is
+ *     itself static or a 4xx — a fallback that proxies does not;
+ *   - /login, /register and /flowagent resolve to a static location whose root
+ *     is the portal root — not this export, not a proxy, not a redirect.
  * The roots are operator values, passed at run time and never printed, so no
  * host path of the portal is written into this repository. No skip flag is
  * accepted in this mode, and there is no fallback to the repo config.
@@ -636,8 +641,12 @@ function checkConf() {
 /* --public-static: the loaded config, parsed by its structure          */
 /* ------------------------------------------------------------------ */
 
-/** Routes the V5 portal serves on the apex; this export must not own them. */
-const PORTAL_ROUTES = ['/login', '/register'];
+/**
+ * Routes the V5 portal serves on the apex; this export must not own them.
+ * /flowagent is the portal's FlowAgent app (a signed-out visitor is sent to sign
+ * in): measured on the loaded config and on the public site, 2026-10-17.
+ */
+const PORTAL_ROUTES = ['/login', '/register', '/flowagent'];
 
 /**
  * Two same-length views of the config: `clean` has comments blanked, `masked`
@@ -766,11 +775,16 @@ function serverLocations(view, server) {
 
 /**
  * How a location answers. Only the shapes this emulation can see through count
- * as static: a nested block (if, location), a named try_files fallback, an
- * alias, a rewrite, a return or any *_pass make it something else, and the
- * checks below fail rather than guess.
+ * as static: a nested block (if, location), an alias, a rewrite, a return or any
+ * *_pass make it something else, and the checks below fail rather than guess.
+ *
+ * A try_files whose last argument names a location (`try_files $uri @other`)
+ * serves from this location's root first and hands only the misses on. It is
+ * static, with `fallback` describing the named location, only when that named
+ * location exists and is itself static or a 4xx — one level deep, never a
+ * proxy. Anything else is reported as what it is.
  */
-function servingOf(view, loc, serverRoot) {
+function servingOf(view, loc, serverRoot, locations, depth = 0) {
   if (!loc) return { kind: 'none' };
   const kids = children(view, loc.start, loc.end);
   const d = (n) => kids.find((k) => !k.block && k.name === n);
@@ -782,10 +796,21 @@ function servingOf(view, loc, serverRoot) {
   if (kids.some((k) => /_pass$/.test(k.name))) return { kind: 'proxy' };
   if (d('alias')) return { kind: 'alias' };
   if (d('rewrite')) return { kind: 'rewrite' };
-  if (/^@/.test(d('try_files')?.args.at(-1) ?? '')) return { kind: 'named fallback' };
+  let fallback;
+  const tf = d('try_files');
+  const last = tf?.args.at(-1) ?? '';
+  if (last.startsWith('@')) {
+    if (depth > 0) return { kind: 'named fallback chain' };
+    if (tf.args.length < 2) return { kind: 'named fallback only' };
+    const named = locations.find((l) => l.modifier === '' && l.pattern === last);
+    if (!named) return { kind: 'named fallback missing' };
+    fallback = servingOf(view, named, serverRoot, locations, depth + 1);
+    const usable = fallback.kind === 'static' || (fallback.status >= 400 && fallback.status < 500);
+    if (!usable) return { kind: `named fallback to ${fallback.kind}` };
+  }
   const root = d('root')?.args[0] ?? serverRoot;
   if (!root) return { kind: 'no root' };
-  return { kind: 'static', root: root.replace(/\/+$/, '') };
+  return { kind: 'static', root: root.replace(/\/+$/, ''), ...(fallback ? { fallback } : {}) };
 }
 
 function checkConfPublicStatic() {
@@ -822,7 +847,7 @@ function checkConfPublicStatic() {
   const locations = serverLocations(view, server);
   check('nginx', 'the apex 443 server has location blocks', locations.length > 0, `${locations.length} location(s)`);
   const serverRoot = directives(server, 'root')[0]?.args[0];
-  const at = (path) => servingOf(view, selectLocation(locations, path), serverRoot);
+  const at = (path) => servingOf(view, selectLocation(locations, path), serverRoot, locations);
 
   const norm = (p) => p.replace(/\/+$/, '');
   const marketing = norm(MARKETING_ROOT);
@@ -830,7 +855,9 @@ function checkConfPublicStatic() {
   check('nginx', 'the marketing root and the portal root are two different roots', marketing !== portal, '');
 
   // Root values are operator-side: a detail says which root, never prints it.
-  const whose = (b) => (b.kind !== 'static' ? b.kind : b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'static, another root');
+  const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'static, another root');
+  const whose = (b) =>
+    b.kind !== 'static' ? b.kind : `${rootName(b)}${b.fallback ? `, misses fall to ${whose(b.fallback)}` : ''}`;
   const fromMarketing = (path) => {
     const b = at(path);
     return { ok: b.kind === 'static' && b.root === marketing, detail: whose(b) };
