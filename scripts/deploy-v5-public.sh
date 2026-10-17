@@ -226,6 +226,10 @@ cmd_deploy() {
   log "Publishing to ${release}"
   mkdir "${release}" || die "could not create ${release}"
   cp -a "${src}/apps/v5/dist/." "${release}/" || die "copy into ${release} failed — 'current' was not touched"
+  # Public files, whoever runs this: `cp -a` keeps the build's modes, which come
+  # from the caller's umask, and a 077 caller made the first publish of
+  # 11b2a88f a 404 (#184 6240557858). Directories 755, files 644.
+  chmod -R u=rwX,go=rX "${release}" || die "could not make ${release} readable — 'current' was not touched"
   # Verify the COPY, not only the source: a truncated copy (full disk, killed
   # process) is exactly the state that must never be activated.
   verify_export "${release}" "${src}/scripts/precheck-v5-routes.mjs"
