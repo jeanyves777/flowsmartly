@@ -676,7 +676,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
             onPress={bookDemo}
           />
           <Text style={[type.caption, styles.ctaProof]}>
-            No credit card • Governed authority • Leave the list anytime
+            No credit card • Governed authority
           </Text>
         </View>
       </LinearGradient>
@@ -1081,6 +1081,10 @@ export function V5PageEnd({
 export function V5SiteFooter() {
   const type = useTypeScale();
   const styles = useFooterStyles();
+  // On a phone the legal row wraps, and a divider is its own flex item, so it
+  // was left hanging at the end of a line ("GDPR |"). There the links' own
+  // padding separates them; the dividers are for one unwrapped row.
+  const divided = !useLayout().isPhone;
   return (
     <View role="contentinfo" style={styles.siteFooter}>
       <FooterNavigation />
@@ -1089,7 +1093,7 @@ export function V5SiteFooter() {
         <View style={styles.legalRow}>
           {LEGAL_LINKS.map((link, index) => (
             <Fragment key={link.href}>
-              {index > 0 ? <View style={styles.legalDivider} /> : null}
+              {index > 0 && divided ? <View style={styles.legalDivider} /> : null}
               <Link href={link.href as never} asChild>
                 <Pressable accessibilityRole="link" style={styles.legalLink}>
                   <Text style={[type.caption, styles.legalLinkText]} numberOfLines={1}>
@@ -1101,7 +1105,7 @@ export function V5SiteFooter() {
           ))}
           {/* Withdrawing consent has to be as reachable as giving it, so the
               entry point sits in the legal bar on every page. */}
-          <View style={styles.legalDivider} />
+          {divided ? <View style={styles.legalDivider} /> : null}
           <ConsentFooterLink />
         </View>
       </View>

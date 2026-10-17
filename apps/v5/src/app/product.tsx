@@ -34,7 +34,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 /* content                                                             */
 /* ------------------------------------------------------------------ */
 
-const PROOF = ['No credit card', 'Human-approved AI', 'Leave the list anytime'];
+const PROOF = ['No credit card', 'Human-approved AI'];
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
