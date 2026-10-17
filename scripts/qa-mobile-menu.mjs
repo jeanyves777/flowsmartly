@@ -194,8 +194,11 @@ if (await t2.evaluate((e) => !!e)) {
     if (!overlay) return null;
     const r = overlay.getBoundingClientRect();
     // are the bottom actions reachable (either visible or scrollable to)?
+    // These are the two CTA LABELS in the mobile sheet; sweep this pattern
+    // whenever they change, or it silently matches nothing and reports
+    // "0 bottom action(s) present" as though the sheet were empty.
     const actions = [...overlay.querySelectorAll('[role="button"], button, a[href]')]
-      .filter((e) => /join early access|log in/i.test(e.textContent || ''));
+      .filter((e) => /create account|log in/i.test(e.textContent || ''));
     return { h: Math.round(r.height), vh: window.innerHeight, actions: actions.length };
   });
   if (!short) note('FAIL  no overlay at 390x640');

@@ -8,7 +8,7 @@ import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/toke
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
-import { goToEarlyAccess, goToLogin } from '@/lib/destinations';
+import { goToRegister, goToLogin } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
 import {
@@ -678,13 +678,13 @@ function MobileNavOverlay({
             }}
           />
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             size="lg"
             full
             trackId="header.mobile.start-free"
             onPress={() => {
               onClose();
-              goToEarlyAccess();
+              goToRegister();
             }}
           />
         </View>
@@ -796,10 +796,10 @@ export function SiteHeader() {
                   <Text style={styles.signIn}>Log in</Text>
                 </Pressable>
                 <PrimaryButton
-                  label="Join early access"
+                  label="Create account"
                   size="sm"
                   trackId="header.start-free"
-                  onPress={() => goToEarlyAccess()}
+                  onPress={() => goToRegister()}
                 />
               </View>
             </>

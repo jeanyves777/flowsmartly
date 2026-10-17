@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Linking, Platform } from 'react-native';
 import { ROUTES } from '@/components/public/nav';
 
 /**
@@ -34,10 +35,6 @@ export const LEGACY = {
  * `github.com/flowsmartly` is a 404 — there is no public organisation — so the
  * SDK links route to Contact instead of a dead page. Verify before changing
  * one of these; do not invent a path.
- *
- * Account creation and sign-in used to live here as absolute V4 URLs. They are
- * now V5 routes (`ROUTES.earlyAccess`, `ROUTES.login`) reached through the
- * helpers below, because they are pages in this app rather than somewhere else.
  */
 export const EXTERNAL = {
   /** No public repo exists yet, so this is the honest fallback. */
@@ -45,38 +42,106 @@ export const EXTERNAL = {
 } as const;
 
 /* ------------------------------------------------------------------ */
+/* Real authentication                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The apex, which is also where this site is served. Mirrors `SITE.origin` in
+ * `components/public/seo.tsx`; duplicated as a plain string rather than
+ * imported so a navigation helper does not pull a React component module into
+ * its dependency graph.
+ */
+const APEX = 'https://flowsmartly.com';
+
+/**
+ * **Sign-in and registration are real pages, served by the application.**
+ *
+ * They are *not* part of this Expo export. The apex is the application host:
+ * `deploy/nginx-flowsmartly-v5.conf` proxies both paths to the Next.js app on
+ * `v4_app`, and the pages behind them are
+ * `src/app/(auth)/login/page.tsx` and `src/app/(auth)/register/page.tsx` —
+ * real forms with OAuth, Turnstile and a password flow.
+ *
+ * Same origin as this site on purpose. Every fixed point in the OAuth chain
+ * names the apex (the registered Google/Meta `redirect_uri`, the host-only
+ * session cookie, `NEXT_PUBLIC_APP_URL`), so the signed-in app has to live
+ * here. That is why these are root-relative rather than absolute to another
+ * host — see the long comment above section 3 of the Nginx config, which
+ * records the login loop that a redirect to the legacy host caused.
+ */
+export const AUTH = {
+  login: '/login',
+  register: '/register',
+} as const;
+
+/**
+ * A full document navigation, not an in-app route change.
+ *
+ * **This has to leave the SPA.** `/login` and `/register` are owned by Nginx
+ * and served by another application; expo-router knows nothing about them. A
+ * `router.push` would be resolved entirely client-side — it would render this
+ * export's static `/login` transition page, and for `/register`, which has no
+ * route file at all, expo-router's not-found page. Neither request would ever
+ * reach the server, so neither would ever reach the real form.
+ *
+ * Nothing is lost by unloading the page: the analytics module buffers in
+ * memory and has no network sink, so there is no in-flight beacon to drop.
+ */
+function hardNavigate(path: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.location.assign(path);
+    return;
+  }
+  // Native has no notion of "this origin", so the apex has to be named.
+  Linking.openURL(`${APEX}${path}`).catch(() => undefined);
+}
+
+/* ------------------------------------------------------------------ */
 /* CTA navigation                                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * Every conversion CTA on the site.
+ * Every conversion CTA on the site. **Registration is open** — this goes to
+ * the real account form, so the label at every call site reads
+ * "Create account".
  *
- * Registration is closed until V5 accounts open, so these lead to early
- * access. When V5 auth ships, this one function points at the real signup and
- * all ~40 call sites follow without being edited.
+ * That is the sweep this function has now been through twice, and the reason
+ * it is centralised. It used to read "Start free" / "Open AI Studio" / "Build
+ * a call agent" while pointing at nothing, was swept to "Join early access"
+ * while it pointed at a waiting-list form, and is now swept to "Create
+ * account" because it points at `(auth)/register`. **The label has to match
+ * the destination** — that invariant is the whole point, and it is why a
+ * change of destination here is never complete without a change of label.
+ */
+export function goToRegister() {
+  hardNavigate(AUTH.register);
+}
+
+/**
+ * Every "Log in" affordance. Goes to the application's real sign-in form.
  *
- * **The label has to match the destination, and for now the destination is a
- * waiting list.** Every call site therefore reads "Join early access" — not
- * "Start free", not "Open AI Studio", not "Build a call agent". Those were the
- * labels here until the sweep, and all thirty-nine of them promised an action
- * that does not happen: the click opens a form. When this function starts
- * pointing at a real signup, the labels become wrong in the other direction
- * and have to be swept back — which is the trade for having them honest today.
+ * Not `ROUTES.login`: that is this export's static transition page, which
+ * carries no form. Nginx already proxies `/login` on the apex to the
+ * application — but only for a real request, which is exactly why this is a
+ * document navigation rather than a `router.push`.
+ */
+export function goToLogin() {
+  hardNavigate(AUTH.login);
+}
+
+/**
+ * The early-access lead funnel at `/early-access`.
  *
- * Uses expo-router's importable `router` rather than the `useRouter` hook so a
- * plain `onPress={goToEarlyAccess}` works from any call site — including the
- * handful that are not inside a component body. It is a client-side push, not
- * `Linking.openURL`: these are pages in this app now, and a full page reload
- * would throw away the visitor's scroll position and the attribution captured
- * for this session.
+ * **No CTA points here any more** — the owner retired that call to action once
+ * registration opened, and every button that used to call this now calls
+ * `goToRegister`. The page, its form, the `/api/v1/leads` contract and the
+ * `DemoRequest` rows behind it are all untouched and still working; the route
+ * is still claimed in `deploy/ROUTE-OWNERSHIP.md`, so links already in the
+ * wild keep resolving. Kept exported for that page's own use and for any
+ * campaign that still needs to reach it deliberately.
  */
 export function goToEarlyAccess() {
   router.push(ROUTES.earlyAccess);
-}
-
-/** Every "Sign in" affordance. Goes to the V5 transition page, never to V4. */
-export function goToLogin() {
-  router.push(ROUTES.login);
 }
 
 /**

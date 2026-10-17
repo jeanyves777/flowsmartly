@@ -2,7 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { goToEarlyAccess } from '@/lib/destinations';
+import { goToRegister } from '@/lib/destinations';
 import { basisFor, CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
@@ -744,11 +744,11 @@ export function FlowAgentAlongsideSection() {
             onPress={() => router.push(ROUTES.flowAgent as never)}
           />
           <SecondaryButton
-            label="Join early access"
+            label="Create account"
             size="lg"
             full={l.isPhone}
             trackId="home.flowagent.start-workspace"
-            onPress={() => goToEarlyAccess()}
+            onPress={() => goToRegister()}
           />
         </ButtonRow>
       </View>

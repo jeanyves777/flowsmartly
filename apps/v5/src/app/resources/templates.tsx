@@ -28,7 +28,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { trackCta } from '@/lib/analytics';
-import { goToEarlyAccess } from '@/lib/destinations';
+import { goToRegister } from '@/lib/destinations';
 import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -309,7 +309,7 @@ function useOpenApp(): (trackId?: string) => void {
     // PrimaryButton/SecondaryButton emit their own cta_click; only bare rows
     // need one raised here.
     if (trackId) trackCta(trackId, { variant: 'link', destination: 'signup' });
-    goToEarlyAccess();
+    goToRegister();
   }, []);
 }
 
@@ -340,7 +340,7 @@ function Hero() {
         <View style={styles.heroButtons}>
           <ButtonRow>
             <PrimaryButton
-              label="Join early access"
+              label="Create account"
               size="lg"
               full={l.isPhone}
               trackId="templates.hero.start-free"
@@ -441,11 +441,11 @@ function Library() {
                   <View style={styles.cardSpacer} />
                   <Pressable
                     accessibilityRole="link"
-                    accessibilityLabel={`Join early access to use the template: ${item.title}`}
+                    accessibilityLabel={`Create an account to use the template: ${item.title}`}
                     onPress={() => openApp(`templates.use.${item.type.toLowerCase()}`)}
                     style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
                     <Text style={[styles.linkText, { color: accentText(accent(t, TYPE_TONE[item.type]), t) }]}>
-                      Join early access
+                      Create account
                     </Text>
                     <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])}  aria-hidden={true}/>
                   </Pressable>
@@ -503,7 +503,7 @@ function Bundles() {
 
                 <View style={styles.cardSpacer} />
                 <SecondaryButton
-                  label="Join early access"
+                  label="Create account"
                   full
                   trackId={`templates.bundle.${bundle.title.toLowerCase().replace(/\s+/g, '-')}`}
                   onPress={() => openApp()}
@@ -589,7 +589,7 @@ function Closing() {
         </Text>
         <ButtonRow>
           <PrimaryButton
-            label="Join early access"
+            label="Create account"
             size="lg"
             full={l.isPhone}
             trackId="templates.closing.start-free"

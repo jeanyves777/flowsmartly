@@ -495,7 +495,7 @@ export default function CustomAutomationPage() {
     <PageShell
       title="Custom AI Automation"
       description="Tell us how your business works and where your team loses time. We design custom FlowAgent skills and workflows one-to-one, around your operation not a plan tier."
-      /* The site-wide growth CTA is the self-serve "Join early access".
+      /* The site-wide growth CTA is the self-serve "Create account".
          This page's whole point is the one-to-one path, so it closes with
          its own. */
       cta={false}
