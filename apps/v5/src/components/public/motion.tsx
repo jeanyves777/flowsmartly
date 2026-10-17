@@ -69,6 +69,9 @@ export type RevealProps = {
   style?: ViewStyle | ViewStyle[];
   /** ms before this element starts, for staggering a group */
   delay?: number;
+  /** Animation duration; defaults to the shared entrance timing. */
+  duration?: number;
+  testID?: string;
   /** how far it travels, in px */
   distance?: number;
   /** 'scroll' waits for the element to enter the viewport; 'enter' runs on mount */
@@ -81,6 +84,8 @@ export function Reveal({
   children,
   style,
   delay = 0,
+  duration = ENTER_DURATION,
+  testID,
   distance = 20,
   mode = 'scroll',
   scale = false,
@@ -90,8 +95,8 @@ export function Reveal({
   const host = useRef<unknown>(null);
 
   const play = useCallback(() => {
-    progress.value = withDelay(delay, withTiming(1, { duration: ENTER_DURATION, easing: EASE }));
-  }, [delay, progress]);
+    progress.value = withDelay(delay, withTiming(1, { duration, easing: EASE }));
+  }, [delay, duration, progress]);
 
   useLayoutEffect(() => {
     if (reduced || !canObserve()) return;
@@ -137,7 +142,7 @@ export function Reveal({
   }, [distance, scale]);
 
   return (
-    <Animated.View ref={host as never} style={[style, animated]}>
+    <Animated.View ref={host as never} testID={testID} style={[style, animated]}>
       {children}
     </Animated.View>
   );
