@@ -1,3 +1,4 @@
+import { PUBLIC_BILLING_PLANS, PUBLIC_ANNUAL_SUMMARY } from '@/content/public-billing-plans';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
@@ -95,42 +96,11 @@ const comparisons = [
   ['database', 'Scattered data', 'One customer view'],
 ] as const;
 
-const plans: Plan[] = [
-  {
-    name: 'Starter',
-    price: 'Free',
-    credits: '500 credits monthly',
-    features: [
-      'AI Studio & basic templates',
-      'Social, Email & SMS',
-      'Basic analytics',
-      'Community support',
-    ],
-  },
-  {
-    name: 'Pro',
-    price: '$20',
-    credits: '1,500 credits monthly',
-    featured: true,
-    features: [
-      'Everything in Starter',
-      'AI recommendations',
-      'Audience & journey builder',
-      'Priority email support',
-    ],
-  },
-  {
-    name: 'Business',
-    price: '$50',
-    credits: '4,000 credits monthly',
-    features: [
-      'Everything in Pro',
-      'Advanced analytics',
-      'Team permissions',
-      'Phone & priority support',
-    ],
-  },
-];
+const plans: Plan[] = PUBLIC_BILLING_PLANS.map((plan) => ({
+  name: plan.name, price: plan.price === 0 ? 'Free' : `$${plan.price}`,
+  credits: plan.credits, features: [...plan.features],
+  ...(plan.featured === undefined ? {} : { featured: plan.featured }),
+}));
 
 
 /**
@@ -533,7 +503,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
               </Text>
               {plan.featured ? (
                 <Text style={[type.caption, styles.popular]} numberOfLines={1}>
-                  Most popular
+                  Included credits
                 </Text>
               ) : null}
             </View>
@@ -563,7 +533,7 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
         ))}
       </View>
       <Text style={[type.caption, styles.planNote]}>
-        All plans include human-approved AI and can be canceled anytime.
+        {PUBLIC_ANNUAL_SUMMARY}. Included credits reset monthly; purchased credits carry over. Manage your subscription in Billing.
       </Text>
     </Band>
   );
