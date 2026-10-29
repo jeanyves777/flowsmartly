@@ -21,3 +21,18 @@ This copies public V5 facts only, with no cross-repo runtime import, credential/
 ## Still required
 
 Actual public source/delivery ref confirmation, full app typecheck/static export in REAL cloud, and inspection of served artifacts at390/768/1024/1280/1536/1920 in light/grey/dark per AGENTS.md. Check long Free/Personal labels, yearly charge wrapping, equal card baselines, FAQ JSON-LD agreement, overflow and existing CTA destinations. No visual acceptance, installed/deployed/served proof or signed-in/payment claim is made. Claude alone owns serialized deployment; this is a draft source packet. Owner signed-in post-deploy acceptance is separate from available agent source/visual checks.
+
+## Confirmed public delivery venue and build handoff
+
+Claude confirmed coordination6484775773: public ship/public-site-20261017 at3e158d0d8edbcbc2f494cc4ad1e03dccfc77d94e is the actual serving lineage. This branch now incorporates that source, preserving its account destinations, focus/icon/branding and public pages. Relative to that serving SHA, the final tree changes only the seven Billing public source/evidence files above; no root legacy or deploy-file delta. The earlier feature-ref ancestry is retained without importing its unrelated legacy tree differences into the delivery candidate.
+
+From the isolated exact-SHA checkout in real cloud:
+
+    cd apps/v5
+    npm ci
+    npx tsc --noEmit
+    npm run qa:web
+
+Use the committed apps/v5/package-lock.json. qa:web runs build:web (content compilation, expo export -p web, agent-assets and icons), strict agent-readiness and mirror-routes. Output is apps/v5/dist. Do not run the root legacy build. No build or deployment has been performed by this handoff.
+
+Claude alone may publish the verified dist into a new timestamped /var/www/flowsmartly-v5/releases directory and cut over /var/www/flowsmartly-v5/current after exact-source cloud export/render acceptance. Portal delivery remains separate. Before cutover inspect homepage and pricing at all six approved widths across light/grey/dark, plus annual toggle, FAQ JSON-LD, CTA destinations and overflow. Record actual public artifact SHA and serving proof; no unrun checks are green.
