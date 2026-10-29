@@ -1,0 +1,458 @@
+{
+ "base-390": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 320,
+    "h": 95,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 1
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "base-768": {
+  "cards": [
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 2
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "base-1024": {
+  "cards": [
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 1
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "base-1280": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ },
+ "base-1536": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 2
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ },
+ "base-1920": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Starter | Free | No card required"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Pro | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Business | $50 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 2
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ },
+ "cand-390": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 116,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 320,
+    "h": 95,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 1
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "cand-768": {
+  "cards": [
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 161,
+    "h": 117,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 2
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "cand-1024": {
+  "cards": [
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 221,
+    "h": 96,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 1
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 1
+   }
+  ]
+ },
+ "cand-1280": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 101,
+    "h": 159,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 1
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ },
+ "cand-1536": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 2
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ },
+ "cand-1920": {
+  "cards": [
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Free | Free | Pay as you go"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Personal | $20 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Business | $120 | per month"
+   },
+   {
+    "w": 101,
+    "h": 183,
+    "t": "Custom AI Automation | Custom | Scoped per project"
+   }
+  ],
+  "words": [
+   {
+    "t": "Custom AI Automation",
+    "lines": 3
+   },
+   {
+    "t": "Custom",
+    "lines": 2
+   },
+   {
+    "t": "Scoped per project",
+    "lines": 2
+   }
+  ]
+ }
+}
