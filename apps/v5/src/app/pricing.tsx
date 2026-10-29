@@ -1,3 +1,5 @@
+import { PUBLIC_BILLING_PLANS } from '@/content/public-billing-plans';
+import { BILLING_OFFERS } from '@/content/billing-offers';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -17,7 +19,8 @@ import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
-import { FONT_SANS,
+import {
+  FONT_SANS,
   Heading,
   PrimaryButton,
   Band,
@@ -39,119 +42,63 @@ import PRICING_FAQ from '@/content/pricing-faq.json';
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green';
 
-type Plan = {
-  id: string;
-  name: string;
-  icon: string;
-  accent: Accent;
-  /** monthly list price in whole dollars; 0 = free */
-  price: number;
-  credits: string;
-  blurb: string;
-  features: string[];
-  badge?: string;
-  featured?: boolean;
-};
-
-const PLANS: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    icon: 'rocket',
-    accent: 'brand',
-    price: 0,
-    credits: '500 credits monthly',
-    blurb: 'Everything you need to publish consistently and see what is working.',
-    features: [
-      'AI Studio essentials',
-      '2 social channels',
-      '500 emails a month',
-      'Essential analytics',
-      'Community support',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    icon: 'bolt',
-    accent: 'violet',
-    price: 20,
-    credits: '1,500 credits monthly',
-    blurb: 'For teams running real campaigns across more than one channel.',
-    features: [
-      'Everything in Starter',
-      'Advanced AI Studio',
-      '8 social channels with scheduling',
-      '10,000 emails a month',
-      'Ads, FlowShop and SMS unlocked',
-      'Email support',
-    ],
-    badge: 'Most popular',
-    featured: true,
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    icon: 'building',
-    accent: 'orange',
-    price: 50,
-    credits: '4,000 credits monthly',
-    blurb: 'For multi-location businesses that need seats, scale and priority help.',
-    features: [
-      'Everything in Pro',
-      'Unlimited social channels',
-      '50,000 emails a month',
-      'ListSmartly for 25 locations',
-      '10 seats with team permissions',
-      'Priority support',
-    ],
-  },
-];
+const PLANS = PUBLIC_BILLING_PLANS;
 
 type CellValue = string | boolean;
 
 const COMPARE: { label: string; values: [CellValue, CellValue, CellValue] }[] = [
-  { label: 'AI Studio', values: ['Essentials', 'Advanced', 'Advanced'] },
-  { label: 'Social', values: ['2 channels', '8 channels', 'Unlimited'] },
-  { label: 'Email', values: ['500 / mo', '10,000 / mo', '50,000 / mo'] },
-  { label: 'SMS/MMS', values: [false, true, true] },
-  { label: 'Ads', values: [false, true, true] },
-  { label: 'Analytics', values: ['Essential', 'Full', 'Full + exports'] },
-  { label: 'FlowShop', values: [false, true, true] },
-  { label: 'ListSmartly', values: [false, '5 locations', '25 locations'] },
-  { label: 'Call Agent', values: [false, 'Usage-based', 'Usage-based'] },
-  { label: 'Team permissions', values: ['1 seat', '3 seats', '10 seats'] },
-  { label: 'Support', values: ['Community', 'Email', 'Priority'] },
-  { label: 'Credits monthly', values: ['500', '1,500', '4,000'] },
+  ...[
+    'AI Studio',
+    'Social',
+    'Email',
+    'SMS/MMS',
+    'Ads',
+    'Analytics',
+    'FlowShop',
+    'ListSmartly',
+    'Call Agent',
+    'Team permissions',
+  ].map((label) => ({
+    label,
+    values: ['Same access', 'Same access', 'Same access'] as [CellValue, CellValue, CellValue],
+  })),
+  { label: 'Purchased credits', values: ['Carry over', 'Carry over', 'Carry over'] },
+  {
+    label: 'Included credits each month',
+    values: [
+      String(BILLING_OFFERS[0].monthlyIncludedCredits),
+      BILLING_OFFERS[1].monthlyIncludedCredits.toLocaleString('en-US'),
+      BILLING_OFFERS[2].monthlyIncludedCredits.toLocaleString('en-US'),
+    ],
+  },
 ];
-
 const USAGE: { icon: string; title: string; rate: string; note: string; accent: Accent }[] = [
   {
     icon: 'phone-volume',
     title: 'Call Agent',
-    rate: '15¢/min',
-    note: 'Charged per connected minute — never for a call that does not answer.',
+    rate: 'Credits',
+    note: 'Review the governed credit quote before starting a call.',
     accent: 'brand',
   },
   {
     icon: 'image',
     title: 'Image generation',
-    rate: '2¢/image',
-    note: 'Every render counts once, including the variations you keep.',
+    rate: 'Credits',
+    note: 'Model and settings determine the quoted credits.',
     accent: 'violet',
   },
   {
     icon: 'film',
     title: 'Video generation',
-    rate: '8¢/sec',
-    note: 'Billed on the finished duration, not on drafts you discard.',
+    rate: 'Credits',
+    note: 'Duration and settings determine the quoted credits.',
     accent: 'orange',
   },
   {
     icon: 'comment-dots',
     title: 'SMS/MMS delivery',
-    rate: '1.0¢/msg',
-    note: 'Carrier pass-through per segment, shown before you send.',
+    rate: 'Credits',
+    note: 'Review the credit quote and delivery details before sending.',
     accent: 'green',
   },
 ];
@@ -176,7 +123,7 @@ const FAQ: { q: string; a: string }[] = PRICING_FAQ;
 
 const REASSURANCE: { icon: string; label: string }[] = [
   { icon: 'circle-xmark', label: 'Cancel anytime' },
-  { icon: 'arrow-up-right-dots', label: 'Upgrade anytime' },
+  { icon: 'arrow-up-right-dots', label: 'Manage in Billing' },
   { icon: 'tag', label: 'No hidden platform fee' },
   { icon: 'lock', label: 'Secure payments' },
 ];
@@ -308,9 +255,7 @@ export default function PricingPage() {
             Start lean. Scale when growth demands it.
           </Heading>
           <Text style={[type.body, styles.heroBody]}>
-            One plan covers the whole system — every capability group, the agents that operate them,
-            and the governance around both. You pay for the work that gets done and for the usage it
-            consumes, never for the platform thinking about it.
+            All plans share platform access. Personal and Business add a monthly included-credit allowance. Available actions show a governed credit quote before they run, using one shared balance.
           </Text>
 
           <View style={styles.toggleWrap}>
@@ -344,8 +289,7 @@ export default function PricingPage() {
         <View style={styles.planGrid}>
           {PLANS.map((plan, index) => {
             const accent = accentOf(plan.accent);
-            const monthly = annual ? Math.round(plan.price * 0.8) : plan.price;
-            const saving = plan.price === 0 ? 0 : plan.price * 12 - Math.round(plan.price * 0.8) * 12;
+            const monthly = annual ? plan.yearlyPrice / 12 : plan.price;
             return (
               <Reveal key={plan.id} style={styles.planCell} distance={16} delay={index * 80}>
                 <View style={[styles.planCard, plan.featured ? styles.planCardFeatured : null]}>
@@ -370,9 +314,9 @@ export default function PricingPage() {
                   </View>
                   <Text style={styles.priceNote}>
                     {plan.price === 0
-                      ? 'Free forever — no card required'
+                      ? 'Pay as you go — no monthly allocation'
                       : annual
-                        ? `Billed annually — you keep $${saving} a year`
+                        ? `$${plan.yearlyPrice.toLocaleString('en-US')} billed yearly · $${monthly}/mo equivalent`
                         : 'Billed monthly — cancel anytime'}
                   </Text>
 
@@ -481,8 +425,8 @@ export default function PricingPage() {
           <Reveal style={styles.creditsPanel} distance={16}>
             <View style={styles.balanceCard}>
               <View style={styles.balanceHead}>
-                <Text style={styles.balanceTitle}>This month</Text>
-                <Text style={styles.balanceSub}>Credits used by surface</Text>
+                <Text style={styles.balanceTitle}>Example month</Text>
+                <Text style={styles.balanceSub}>Illustrative credit use</Text>
               </View>
               <View style={styles.balanceList}>
                 {BALANCE.map((row) => {
@@ -509,7 +453,7 @@ export default function PricingPage() {
                 })}
               </View>
               <View style={styles.balanceTotal}>
-                <Text style={styles.balanceTotalLabel}>Your balance</Text>
+                <Text style={styles.balanceTotalLabel}>Example balance</Text>
                 <Text style={styles.balanceTotalValue}>1,500 credits</Text>
               </View>
             </View>
@@ -522,12 +466,12 @@ export default function PricingPage() {
             </Heading>
             <Text style={[type.body, styles.creditsBody]}>
               There is no separate wallet for images, another for video and a third for messaging.
-              Your plan tops up one balance each month, every surface draws from it, and each action
+              Personal and Business include credits each month. Available work draws from one balance, and each action
               shows what it will cost before it runs.
             </Text>
             <Text style={[type.body, styles.creditsBody]}>
-              Run out mid-month? Top up in seconds and keep the same balance. Bought credits never
-              expire, and they are only spent once your monthly allowance is gone.
+              Need more credits? Buy additional credits through secure Billing checkout. Purchased credits
+              carry over and do not reset with the included allowance.
             </Text>
 
             {/* The part of the model that is easy to get wrong and expensive to
@@ -537,12 +481,9 @@ export default function PricingPage() {
                 <FontAwesome6 name="circle-check" size={14} color={t.green}  aria-hidden={true}/>
               </View>
               <View style={styles.notBilledCopy}>
-                <Text style={styles.notBilledTitle}>What you are not billed for</Text>
+                <Text style={styles.notBilledTitle}>Your credit controls</Text>
                 <Text style={styles.notBilledBody}>
-                  FlowAgent thinking. Reading your data, planning the work, checking whether it
-                  actually succeeded and retrying when it did not are part of the platform. You pay
-                  for the work that ships and the usage it genuinely consumes — not for every step
-                  the agent took to get there.
+                  Review the quoted credits before an action runs. Your permissions and spending limits still apply. Agent-initiated work follows the required approval and review process.
                 </Text>
               </View>
             </View>
@@ -558,7 +499,7 @@ export default function PricingPage() {
             What each plan includes.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            Every capability of the platform, and exactly where each plan draws the line.
+            All plans share platform access. Available actions depend on your permissions, connections and credit balance.
           </Text>
         </Reveal>
 
@@ -583,7 +524,7 @@ export default function PricingPage() {
                     <Text numberOfLines={1} style={styles.tableHeadPrice}>
                       {plan.price === 0
                         ? 'Free'
-                        : `$${annual ? Math.round(plan.price * 0.8) : plan.price}/mo`}
+                        : `$${annual ? plan.yearlyPrice / 12 : plan.price}/mo`}
                     </Text>
                   </View>
                 ))}
@@ -615,7 +556,7 @@ export default function PricingPage() {
                   <View key={plan.id} style={styles.compareCell}>
                     <Text style={styles.tableHeadPlan}>{plan.name}</Text>
                     <Text style={styles.tableHeadPrice}>
-                      {plan.price === 0 ? 'Free' : `$${annual ? Math.round(plan.price * 0.8) : plan.price}/mo`}
+                      {plan.price === 0 ? 'Free' : `$${annual ? plan.yearlyPrice / 12 : plan.price}/mo`}
                     </Text>
                   </View>
                 ))}
