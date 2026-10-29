@@ -37,7 +37,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
-const PROOF = ['Human-approved by default', 'No credit card', 'Leave the list anytime'];
+const PROOF = ['Human-approved by default', 'No credit card'];
 
 /**
  * The queue FlowAgent has prepared, across six different organizations.

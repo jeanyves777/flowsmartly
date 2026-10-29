@@ -29,6 +29,37 @@
  * deploy/ROUTE-OWNERSHIP.md. dist/ is the thing under test, never the source of
  * the expectation.
  *
+ * THE CURRENT PUBLIC-STATIC OWNERSHIP (--public-static)
+ * -----------------------------------------------------
+ *   node scripts/precheck-v5-routes.mjs --public-static --dist <dir>
+ *        --conf <`nginx -T` output> --marketing-root <dir> --portal-root <dir>
+ *
+ * The default mode checks deploy/nginx-flowsmartly-v5.conf, the cutover-era
+ * config: /register funnelled to /early-access, a V4 upstream behind the apex.
+ * That is no longer what serves flowsmartly.com. Today the apex serves this
+ * export as static files from the `current` link, and /login, /register and
+ * /flowagent (the FlowAgent app, behind sign-in) as static files of the V5
+ * portal, from the portal's own root. The export still has a /flowagent page,
+ * reached only by in-app navigation. This mode checks
+ * exactly that, against the configuration Nginx loaded, and is what the publish
+ * script runs for deploy and rollback alike:
+ *   - the export half is unchanged and always runs;
+ *   - exactly one apex server block listens on 443, with no include inside it
+ *     and nothing at server level (return, rewrite, if) that this emulation
+ *     would not see — otherwise the view would be a guess, so it fails;
+ *   - every route of this export resolves, in that server, to a static location
+ *     whose root is the marketing root, i.e. the link the publish flips; a
+ *     try_files that ends in a named location is refused for every route;
+ *   - the one exception is the asset prefix both apps share, /_expo/, which must
+ *     be exactly `^~ /_expo/` under the portal root, `try_files $uri
+ *     @marketing_assets`, and that named location under the marketing root as
+ *     `$uri =404`: portal first, this export second (see `assetChain`);
+ *   - /login, /register and /flowagent resolve to a static location whose root
+ *     is the portal root — not this export, not a proxy, not a redirect.
+ * The roots are operator values, passed at run time and never printed, so no
+ * host path of the portal is written into this repository. No skip flag is
+ * accepted in this mode, and there is no fallback to the repo config.
+ *
  * Exit code is 0 only if every check passes.
  */
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
@@ -59,10 +90,22 @@ const DEPLOY_DIR = join(REPO, 'deploy');
 const SKIP_EXPORT = flag('--skip-export');
 const SKIP_CONF = flag('--skip-conf');
 const AS_JSON = flag('--json');
+const PUBLIC_STATIC = flag('--public-static');
+const MARKETING_ROOT = opt('--marketing-root', '');
+const PORTAL_ROOT = opt('--portal-root', '');
 
 if (SKIP_EXPORT && SKIP_CONF) {
   console.error('precheck: --skip-export and --skip-conf together check nothing');
   process.exit(2);
+}
+if (PUBLIC_STATIC) {
+  const refuse = (why) => {
+    console.error(`precheck: --public-static ${why}`);
+    process.exit(2);
+  };
+  if (SKIP_EXPORT || SKIP_CONF) refuse('checks the export and the served config together; it skips neither');
+  if (!opt('--conf', '')) refuse('needs --conf <the `nginx -T` output>; it never falls back to the repo config');
+  if (!MARKETING_ROOT || !PORTAL_ROOT) refuse('needs --marketing-root and --portal-root, the roots the apex serves');
 }
 
 /* ------------------------------------------------------------------ */
@@ -178,6 +221,12 @@ function resolveInDist(route) {
   return null;
 }
 
+function expectedRoutes() {
+  const source = routesFromSource();
+  const blog = routesFromBlogIndex();
+  return { source, blog, expected: new Set([...CONTRACT_ROUTES, ...(source ?? []), ...blog]) };
+}
+
 function checkExport() {
   if (!existsSync(DIST)) {
     check('export', 'dist exists', false, `${DIST} not found — run \`npm run build:web\` in apps/v5`);
@@ -185,9 +234,7 @@ function checkExport() {
   }
   check('export', 'dist exists', true, DIST);
 
-  const source = routesFromSource();
-  const blog = routesFromBlogIndex();
-  const expected = new Set([...CONTRACT_ROUTES, ...(source ?? []), ...blog]);
+  const { source, blog, expected } = expectedRoutes();
 
   const missing = [];
   for (const route of [...expected].sort()) {
@@ -627,11 +674,310 @@ function checkConf() {
 }
 
 /* ------------------------------------------------------------------ */
+/* --public-static: the loaded config, parsed by its structure          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Routes the V5 portal serves on the apex; this export must not own them.
+ * /flowagent is the portal's FlowAgent app (a signed-out visitor is sent to sign
+ * in): measured on the loaded config and on the public site, 2026-10-17.
+ */
+const PORTAL_ROUTES = ['/login', '/register', '/flowagent'];
+
+/**
+ * Two same-length views of the config: `clean` has comments blanked, `masked`
+ * also blanks the inside of quoted strings, so braces and semicolons in either
+ * cannot be mistaken for structure. As in nginx's own tokenizer, `#` starts a
+ * comment and a quote starts a string only at the start of a token.
+ */
+function maskConfig(text) {
+  const clean = text.split('');
+  const masked = text.split('');
+  let quote = null;
+  let comment = false;
+  let tokenStart = true;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    if (comment) {
+      if (c === '\n') {
+        comment = false;
+        tokenStart = true;
+      } else {
+        clean[i] = ' ';
+        masked[i] = ' ';
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\' && i + 1 < text.length) {
+        masked[i] = ' ';
+        masked[i + 1] = ' ';
+        i += 1;
+      } else if (c === quote) {
+        quote = null;
+        tokenStart = false;
+      } else if (c !== '\n') {
+        masked[i] = ' ';
+      }
+      continue;
+    }
+    if (tokenStart && c === '#') {
+      comment = true;
+      clean[i] = ' ';
+      masked[i] = ' ';
+      continue;
+    }
+    if (tokenStart && (c === '"' || c === "'")) {
+      quote = c;
+      continue;
+    }
+    tokenStart = /\s/.test(c) || c === ';' || c === '{' || c === '}';
+  }
+  return { clean: clean.join(''), masked: masked.join('') };
+}
+
+function tokens(s) {
+  return [...s.matchAll(/"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]);
+}
+
+/** Directives and blocks directly inside [start, end): { name, args, block, start, end }. */
+function children(view, start, end) {
+  const { clean, masked } = view;
+  const out = [];
+  let s = start;
+  let i = start;
+  while (i < end) {
+    const c = masked[i];
+    if (c === ';') {
+      const t = tokens(clean.slice(s, i));
+      if (t.length) out.push({ name: t[0], args: t.slice(1), block: false });
+      s = i + 1;
+    } else if (c === '{') {
+      const t = tokens(clean.slice(s, i));
+      let depth = 1;
+      let j = i + 1;
+      while (j < end && depth > 0) {
+        if (masked[j] === '{') depth += 1;
+        else if (masked[j] === '}') depth -= 1;
+        j += 1;
+      }
+      if (depth !== 0) throw new Error(`unbalanced braces after "${t[0] ?? ''}"`);
+      out.push({ name: t[0] ?? '', args: t.slice(1), block: true, start: i + 1, end: j - 1 });
+      i = j;
+      s = j;
+      continue;
+    } else if (c === '}') {
+      throw new Error('a closing brace with no block open');
+    }
+    i += 1;
+  }
+  return out;
+}
+
+/** Every http `server { }` block: at the top of a file (an included site) or inside http { }. */
+function serverBlocks(view) {
+  const out = [];
+  const walk = (start, end, parent) => {
+    for (const k of children(view, start, end)) {
+      if (!k.block) continue;
+      if (k.name === 'server' && (parent === '' || parent === 'http')) out.push(k);
+      else if (k.name === 'http') walk(k.start, k.end, 'http');
+    }
+  };
+  walk(0, view.masked.length, '');
+  return out;
+}
+
+function containsDirective(view, block, name) {
+  return children(view, block.start, block.end).some(
+    (k) => k.name === name || (k.block && containsDirective(view, k, name)),
+  );
+}
+
+/** The location blocks directly inside a server, in the shape selectLocation reads. */
+function serverLocations(view, server) {
+  return children(view, server.start, server.end)
+    .filter((k) => k.block && k.name === 'location')
+    .map((k, order) => {
+      let [modifier, pattern] = ['', k.args[0] ?? ''];
+      if (['=', '~', '~*', '^~'].includes(k.args[0])) [modifier, pattern] = [k.args[0], k.args[1] ?? ''];
+      else {
+        const glued = /^(\^~|~\*|~|=)(.+)$/.exec(pattern);
+        if (glued) [modifier, pattern] = [glued[1], glued[2]];
+      }
+      return { modifier, pattern, order, start: k.start, end: k.end };
+    });
+}
+
+/**
+ * How a location answers. Only the shapes this emulation can see through count
+ * as static: a nested block (if, location), an alias, a rewrite, a return or any
+ * *_pass make it something else, and the checks below fail rather than guess.
+ *
+ * A try_files that ends in a named location is `named fallback`, never static:
+ * an ordinary route check refuses it. The one chain this gate accepts is the
+ * shared asset prefix, checked by `assetChain` below and nowhere else.
+ */
+function servingOf(view, loc, serverRoot) {
+  if (!loc) return { kind: 'none' };
+  const kids = children(view, loc.start, loc.end);
+  const d = (n) => kids.find((k) => !k.block && k.name === n);
+  if (kids.some((k) => k.block)) return { kind: 'nested block' };
+  if (d('return')) {
+    const [status, target = ''] = d('return').args;
+    return { kind: `return ${status ?? ''}`.trim(), status: Number(status), target };
+  }
+  if (kids.some((k) => /_pass$/.test(k.name))) return { kind: 'proxy' };
+  if (d('alias')) return { kind: 'alias' };
+  if (d('rewrite')) return { kind: 'rewrite' };
+  const root = d('root')?.args[0] ?? serverRoot;
+  if (!root) return { kind: 'no root' };
+  const tryFiles = d('try_files')?.args ?? null;
+  const kind = tryFiles?.at(-1)?.startsWith('@') ? 'named fallback' : 'static';
+  return { kind, root: root.replace(/\/+$/, ''), tryFiles };
+}
+
+/**
+ * The shared asset prefix: the one fallback chain this gate accepts, and only
+ * in exactly the shape measured on the loaded config (#184 6240257505):
+ *
+ *   location ^~ /_expo/        root = the PORTAL root,     try_files $uri @marketing_assets;
+ *   location @marketing_assets root = the MARKETING root,  try_files $uri =404;
+ *
+ * Both apps' exports put their bundles under /_expo/. The portal's are looked
+ * up first and a miss goes on to this export's, so the portal keeps priority
+ * and this export's bundles are still found. Losing the second lookup (no
+ * fallback, a 404 or another location in its place) breaks every marketing
+ * page; either lookup rooted at the wrong root serves the wrong files.
+ *
+ * Every other shape is refused and the reason is named: another prefix or
+ * modifier, another try_files, another named target, a fallback that proxies,
+ * rewrites, nests or falls back again. The exception is this one prefix: an
+ * ordinary route that ends in a named fallback is refused by `servingOf`.
+ */
+const ASSET_CHAIN = { modifier: '^~', prefix: '/_expo/', name: '@marketing_assets' };
+
+function assetChain(view, locations, serverRoot, path, roots) {
+  const loc = selectLocation(locations, path);
+  if (!loc || loc.modifier !== ASSET_CHAIN.modifier || loc.pattern !== ASSET_CHAIN.prefix) {
+    return `the asset prefix is not claimed by "location ${ASSET_CHAIN.modifier} ${ASSET_CHAIN.prefix}"`;
+  }
+  const first = servingOf(view, loc, serverRoot);
+  if (first.kind === 'static') return `the marketing lookup is lost: ${roots(first)} with no named fallback`;
+  if (first.kind !== 'named fallback') return `not the asset chain: ${first.kind}`;
+  if (first.root !== roots.portal) return `the asset lookup starts at ${roots(first)}, not the portal root`;
+  const tf1 = first.tryFiles;
+  if (!(tf1.length === 2 && tf1[0] === '$uri' && tf1[1] === ASSET_CHAIN.name)) {
+    return `try_files is not "$uri ${ASSET_CHAIN.name}" (${tf1.length} arguments, ends in ${tf1.at(-1)})`;
+  }
+  const named = locations.find((l) => l.modifier === '' && l.pattern === ASSET_CHAIN.name);
+  if (!named) return `the named location ${ASSET_CHAIN.name} does not exist`;
+  const second = servingOf(view, named, serverRoot);
+  if (second.kind !== 'static') return `the marketing lookup is lost: ${ASSET_CHAIN.name} is ${second.kind}`;
+  if (second.root !== roots.marketing) return `${ASSET_CHAIN.name} is rooted at ${roots(second)}, not the marketing root`;
+  const tf2 = second.tryFiles;
+  if (!(tf2?.length === 2 && tf2[0] === '$uri' && tf2[1] === '=404')) {
+    return `${ASSET_CHAIN.name}'s try_files is not "$uri =404"`;
+  }
+  return null;
+}
+
+function checkConfPublicStatic() {
+  if (!existsSync(CONF)) {
+    check('nginx', 'loaded config exists', false, `${CONF} not found`);
+    return;
+  }
+  let view;
+  let servers;
+  try {
+    view = maskConfig(readFileSync(CONF, 'utf8'));
+    servers = serverBlocks(view);
+  } catch (e) {
+    check('nginx', 'loaded config parses', false, e.message);
+    return;
+  }
+  check('nginx', 'loaded config parses', servers.length > 0, `${servers.length} server block(s)`);
+
+  const directives = (s, n) => children(view, s.start, s.end).filter((k) => !k.block && k.name === n);
+  const apex = servers.filter((s) => directives(s, 'server_name').some((d) => d.args.includes('flowsmartly.com')));
+  const apex443 = apex.filter((s) => directives(s, 'listen').some((d) => /(^|:)443$/.test(d.args[0] ?? '')));
+  check('nginx', 'exactly one apex server block listens on 443', apex443.length === 1,
+    `${apex443.length} of ${apex.length} apex-named server block(s)`);
+  if (apex443.length !== 1) return;
+  const server = apex443[0];
+
+  check('nginx', 'the apex 443 server has no include inside it', !containsDirective(view, server, 'include'),
+    'an included file could hold a location this view would not see');
+  const top = children(view, server.start, server.end);
+  const serverLevel = top.filter((k) => ['return', 'rewrite', 'if'].includes(k.name)).map((k) => k.name);
+  check('nginx', 'nothing at server level runs before location matching', serverLevel.length === 0,
+    serverLevel.length ? `server-level ${[...new Set(serverLevel)].join(', ')}` : '');
+
+  const locations = serverLocations(view, server);
+  check('nginx', 'the apex 443 server has location blocks', locations.length > 0, `${locations.length} location(s)`);
+  const serverRoot = directives(server, 'root')[0]?.args[0];
+  const at = (path) => servingOf(view, selectLocation(locations, path), serverRoot);
+
+  const norm = (p) => p.replace(/\/+$/, '');
+  const marketing = norm(MARKETING_ROOT);
+  const portal = norm(PORTAL_ROOT);
+  check('nginx', 'the marketing root and the portal root are two different roots', marketing !== portal, '');
+
+  // Root values are operator-side: a detail says which root, never prints it.
+  const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'another root');
+  const whose = (b) => (b.kind !== 'static' ? b.kind : rootName(b));
+  const roots = Object.assign(rootName, { marketing, portal });
+  const fromMarketing = (path) => {
+    const b = at(path);
+    return { ok: b.kind === 'static' && b.root === marketing, detail: whose(b) };
+  };
+
+  /* -- a. the marketing routes are this export, from the flipped link --- */
+  for (const route of ['/', '/early-access']) {
+    const r = fromMarketing(route);
+    check('nginx', `${route} is served from the marketing root`, r.ok, r.detail);
+  }
+  // /flow-ai is a redirect stub in the export; the apex may serve it, or answer
+  // with the same redirect itself. Either is a claim; anything else is not.
+  {
+    const b = at('/flow-ai');
+    const ok =
+      (b.kind === 'static' && b.root === marketing) ||
+      (b.status >= 300 && b.status < 400 && /\/flowagent\b/.test(b.target ?? ''));
+    check('nginx', "/flow-ai is the export's stub or a redirect to /flowagent", ok, whose(b));
+  }
+  const { expected } = expectedRoutes();
+  const exportRoutes = [...expected].filter((r) => !PORTAL_ROUTES.includes(r) && r !== '/flow-ai').sort();
+  const wrong = exportRoutes.map((r) => [r, fromMarketing(r)]).filter(([, r]) => !r.ok);
+  check('nginx', `every route of this export is served from the marketing root (${exportRoutes.length} routes)`,
+    exportRoutes.length > 0 && wrong.length === 0,
+    wrong.length ? wrong.map(([route, r]) => `${route}: ${r.detail}`).join('; ') : '');
+  for (const section of CONTRACT_SECTIONS) {
+    const r = fromMarketing(`${section}/anything`);
+    check('nginx', `${section}/* is served from the marketing root`, r.ok, r.detail);
+  }
+  for (const file of CONTRACT_FILES) {
+    const r = fromMarketing(`/${file}`);
+    check('nginx', `/${file} is served from the marketing root`, r.ok, r.detail);
+  }
+  const chain = assetChain(view, locations, serverRoot, '/_expo/static/js/web/entry-abc123.js', roots);
+  check('nginx', '/_expo/* is looked up under the portal root, then the marketing root', chain === null,
+    chain ?? 'portal root, then the marketing root, then 404');
+
+  /* -- b. sign-in and account creation are the V5 portal's -------------- */
+  for (const route of PORTAL_ROUTES) {
+    const b = at(route);
+    check('nginx', `${route} is served by the V5 portal, not by this export`,
+      b.kind === 'static' && b.root === portal, whose(b));
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* run                                                                 */
 /* ------------------------------------------------------------------ */
 
 if (!SKIP_EXPORT) checkExport();
-if (!SKIP_CONF) checkConf();
+if (!SKIP_CONF) (PUBLIC_STATIC ? checkConfPublicStatic : checkConf)();
 
 if (AS_JSON) {
   console.log(JSON.stringify({ dist: DIST, conf: CONF, failures, results }, null, 2));
