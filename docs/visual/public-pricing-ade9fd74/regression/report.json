@@ -1,0 +1,332 @@
+[
+ {
+  "tag": "home-1024-light",
+  "theme": "light",
+  "w": 1024,
+  "route": "/",
+  "themeLabel": "Theme: light. Change theme",
+  "overflow": {
+   "doc": 0,
+   "sc": 0
+  },
+  "errors": [],
+  "cards": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 394,
+    "cardBottom": 770,
+    "cardH": 376,
+    "btnBottom": 749,
+    "btnTop": 705,
+    "left": 28,
+    "text": "Free Free No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": [
+     "Free"
+    ]
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 394,
+    "cardBottom": 770,
+    "cardH": 376,
+    "btnBottom": 748,
+    "btnTop": 704,
+    "left": 354,
+    "text": "Personal Included credits $20 /mo 500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": [
+     "$20 /mo"
+    ]
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 394,
+    "cardBottom": 770,
+    "cardH": 376,
+    "btnBottom": 749,
+    "btnTop": 705,
+    "left": 680,
+    "text": "Business $120 /mo 1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": [
+     "$120 /mo"
+    ]
+   }
+  ],
+  "shelfNote": "Personal $192/year · Business $1,152/year. Included credits reset monthly; purchased credits carry over. Manage your subscription in Billing."
+ },
+ {
+  "tag": "pricing-1024-light",
+  "theme": "light",
+  "w": 1024,
+  "route": "/pricing/",
+  "themeLabel": "Theme: light. Change theme",
+  "overflow": {
+   "doc": 0,
+   "sc": 0
+  },
+  "errors": [],
+  "faq": [
+   [
+    [
+     "What is a credit, exactly?",
+     "Credits are the shared unit used to quote governed work across FlowSmartly. Available actions show their credit cost before execution. Free (Pay as you go) has no monthly credit allocation; paid plans include the monthly allowance shown above, and additional credits can be purchased."
+    ],
+    [
+     "Can I change plans later?",
+     "Billing shows the supported subscription actions for your workspace. You can cancel a recurring subscription at the end of its paid period. Plan changes are available only when Billing explicitly offers them; no immediate upgrade or proration is assumed."
+    ],
+    [
+     "Do unused credits roll over?",
+     "Included plan credits reset each month, including on annual billing. Separately purchased credits carry over in the same balance and are not erased by the monthly reset."
+    ],
+    [
+     "Is there a setup fee?",
+     "There is no setup fee listed in these plans. You pay the selected subscription charge and the quoted credit usage for work you choose to run."
+    ],
+    [
+     "Which payment methods do you accept?",
+     "Use the secure provider-hosted payment-method management and tokenized checkout shown in Billing. Billing shows the supported payment methods for your workspace. Raw card details are not collected by our servers."
+    ],
+    [
+     "How does annual billing work?",
+     "The annual charge shown above is billed once per year and saves 20% against twelve monthly charges. Each paid plan still releases its stated included-credit allowance each month, rather than issuing a full year of credits upfront. Available subscription options are shown in Billing."
+    ]
+   ]
+  ],
+  "cards": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1063,
+    "btnTop": 1015,
+    "left": 28,
+    "text": " Free Use the platform with credits purchased as you need them. Free Pay as you go — no monthly allocation  No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": []
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1062,
+    "btnTop": 1014,
+    "left": 354,
+    "text": "Included credits  Personal A monthly credit allowance for your business work. $20 /mo Billed monthly — cancel anytime  500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1063,
+    "btnTop": 1015,
+    "left": 680,
+    "text": " Business A larger monthly credit allowance for ongoing business work. $120 /mo Billed monthly — cancel anytime  1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   }
+  ],
+  "cardsYearly": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1063,
+    "btnTop": 1015,
+    "left": 28,
+    "text": " Free Use the platform with credits purchased as you need them. Free Pay as you go — no monthly allocation  No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": []
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1062,
+    "btnTop": 1014,
+    "left": 354,
+    "text": "Included credits  Personal A monthly credit allowance for your business work. $16 /mo $192 billed yearly · $16/mo equivalent  500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1088,
+    "cardH": 691,
+    "btnBottom": 1063,
+    "btnTop": 1015,
+    "left": 680,
+    "text": " Business A larger monthly credit allowance for ongoing business work. $96 /mo $1,152 billed yearly · $96/mo equivalent  1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   }
+  ],
+  "ctaUrl": "http://localhost:8092/register"
+ },
+ {
+  "tag": "home-1280-light",
+  "theme": "light",
+  "w": 1280,
+  "route": "/",
+  "themeLabel": "Theme: light. Change theme",
+  "overflow": {
+   "doc": 0,
+   "sc": 0
+  },
+  "errors": [],
+  "cards": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 394,
+    "cardBottom": 751,
+    "cardH": 357,
+    "btnBottom": 730,
+    "btnTop": 686,
+    "left": 28,
+    "text": "Free Free No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": [
+     "Free"
+    ]
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 394,
+    "cardBottom": 751,
+    "cardH": 357,
+    "btnBottom": 729,
+    "btnTop": 685,
+    "left": 439,
+    "text": "Personal Included credits $20 /mo 500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": [
+     "$20 /mo"
+    ]
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 394,
+    "cardBottom": 751,
+    "cardH": 357,
+    "btnBottom": 730,
+    "btnTop": 686,
+    "left": 851,
+    "text": "Business $120 /mo 1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": [
+     "$120 /mo"
+    ]
+   }
+  ],
+  "shelfNote": "Personal $192/year · Business $1,152/year. Included credits reset monthly; purchased credits carry over. Manage your subscription in Billing."
+ },
+ {
+  "tag": "pricing-1280-light",
+  "theme": "light",
+  "w": 1280,
+  "route": "/pricing/",
+  "themeLabel": "Theme: light. Change theme",
+  "overflow": {
+   "doc": 0,
+   "sc": 0
+  },
+  "errors": [],
+  "faq": [
+   [
+    [
+     "What is a credit, exactly?",
+     "Credits are the shared unit used to quote governed work across FlowSmartly. Available actions show their credit cost before execution. Free (Pay as you go) has no monthly credit allocation; paid plans include the monthly allowance shown above, and additional credits can be purchased."
+    ],
+    [
+     "Can I change plans later?",
+     "Billing shows the supported subscription actions for your workspace. You can cancel a recurring subscription at the end of its paid period. Plan changes are available only when Billing explicitly offers them; no immediate upgrade or proration is assumed."
+    ],
+    [
+     "Do unused credits roll over?",
+     "Included plan credits reset each month, including on annual billing. Separately purchased credits carry over in the same balance and are not erased by the monthly reset."
+    ],
+    [
+     "Is there a setup fee?",
+     "There is no setup fee listed in these plans. You pay the selected subscription charge and the quoted credit usage for work you choose to run."
+    ],
+    [
+     "Which payment methods do you accept?",
+     "Use the secure provider-hosted payment-method management and tokenized checkout shown in Billing. Billing shows the supported payment methods for your workspace. Raw card details are not collected by our servers."
+    ],
+    [
+     "How does annual billing work?",
+     "The annual charge shown above is billed once per year and saves 20% against twelve monthly charges. Each paid plan still releases its stated included-credit allowance each month, rather than issuing a full year of credits upfront. Available subscription options are shown in Billing."
+    ]
+   ]
+  ],
+  "cards": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1011,
+    "btnTop": 963,
+    "left": 28,
+    "text": " Free Use the platform with credits purchased as you need them. Free Pay as you go — no monthly allocation  No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": []
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1010,
+    "btnTop": 962,
+    "left": 439,
+    "text": "Included credits  Personal A monthly credit allowance for your business work. $20 /mo Billed monthly — cancel anytime  500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1011,
+    "btnTop": 963,
+    "left": 851,
+    "text": " Business A larger monthly credit allowance for ongoing business work. $120 /mo Billed monthly — cancel anytime  1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   }
+  ],
+  "cardsYearly": [
+   {
+    "caption": "No monthly credit allocation",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1011,
+    "btnTop": 963,
+    "left": 28,
+    "text": " Free Use the platform with credits purchased as you need them. Free Pay as you go — no monthly allocation  No monthly credit allocation  Same platform access  Usage quoted in credits  Purchased credits carry over  No monthly subscription charge Create account",
+    "clipped": []
+   },
+   {
+    "caption": "500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1010,
+    "btnTop": 962,
+    "left": 439,
+    "text": "Included credits  Personal A monthly credit allowance for your business work. $16 /mo $192 billed yearly · $16/mo equivalent  500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   },
+   {
+    "caption": "1,500 credits each month",
+    "cardTop": 397,
+    "cardBottom": 1036,
+    "cardH": 639,
+    "btnBottom": 1011,
+    "btnTop": 963,
+    "left": 851,
+    "text": " Business A larger monthly credit allowance for ongoing business work. $96 /mo $1,152 billed yearly · $96/mo equivalent  1,500 credits each month  Same platform access  Usage quoted in credits  Purchased credits carry over  Included credits reset monthly Create account",
+    "clipped": []
+   }
+  ],
+  "ctaUrl": "http://localhost:8092/register"
+ }
+]

@@ -1,0 +1,40 @@
+AGENT READINESS — 51 pages
+
+  score  100/100
+
+  100%  ####################  Unique titles  (weight 10)
+   96%  ###################.  Descriptions (50-165 chars)  (weight 10)
+  100%  ####################  Canonical URL  (weight 10)
+  100%  ####################  Open Graph  (weight 8)
+  100%  ####################  Twitter card  (weight 4)
+  100%  ####################  JSON-LD present  (weight 16)
+  100%  ####################  Exactly one H1  (weight 8)
+  100%  ####################  Server-rendered text (>1200 chars)  (weight 14)
+  100%  ####################  html lang  (weight 4)
+  100%  ####################  robots.txt  (weight 4)
+  100%  ####################  sitemap.xml  (weight 5)
+  100%  ####################  llms.txt  (weight 4)
+  100%  ####################  ai.txt policy  (weight 3)
+
+SAFETY GUARDS
+
+  PASS  Redirect stubs are noindex and canonical to their target
+  PASS  404 is noindex
+  FAIL  No page is accidentally noindex
+        /early-access, /login
+  PASS  Canonical points at the production origin
+  PASS  robots.txt declares an AI policy
+  PASS  robots.txt references the sitemap
+  PASS  security.txt present and not expired
+  PASS  No personal data in structured data
+  PASS  Illustrative figures are disclosed to agents
+  PASS  Sitemap has no non-production URLs
+
+BIGGEST WINS
+
+  Descriptions (50-165 chars) — 96%
+    /early-access, /login
+
+1 GUARD FAILURE(S)
+
+qa exit=1

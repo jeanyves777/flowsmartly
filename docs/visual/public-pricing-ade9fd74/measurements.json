@@ -1,0 +1,4946 @@
+{
+ "cand-light-390": {
+  "strip": {
+   "x": 35,
+   "y": 344,
+   "w": 320,
+   "h": 220,
+   "rightOfParent": -21
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 35,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 145,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 254,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 35,
+    "y": 469,
+    "w": 320,
+    "h": 95,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-light-768": {
+  "strip": {
+   "x": 49,
+   "y": 496,
+   "w": 670,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 49,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 203,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 357,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 510,
+    "y": 496,
+    "w": 209,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-light-1024": {
+  "strip": {
+   "x": 57,
+   "y": 484,
+   "w": 910,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 57,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 271,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 485,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 698,
+    "y": 484,
+    "w": 269,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-light-1280": {
+  "strip": {
+   "x": 793,
+   "y": 432,
+   "w": 430,
+   "h": 201,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 793,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 939,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1086,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 793,
+    "y": 537,
+    "w": 430,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-light-1536": {
+  "strip": {
+   "x": 1041,
+   "y": 431,
+   "w": 430,
+   "h": 203,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1041,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1187,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1334,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1041,
+    "y": 537,
+    "w": 430,
+    "h": 97,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-light-1920": {
+  "strip": {
+   "x": 1233,
+   "y": 431,
+   "w": 430,
+   "h": 203,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1233,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1379,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1526,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1233,
+    "y": 537,
+    "w": 430,
+    "h": 97,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "cand-dark-390": {
+  "strip": {
+   "x": 35,
+   "y": 344,
+   "w": 320,
+   "h": 220,
+   "rightOfParent": -21
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 35,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 145,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 254,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 35,
+    "y": 469,
+    "w": 320,
+    "h": 95,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "cand-dark-768": {
+  "strip": {
+   "x": 49,
+   "y": 496,
+   "w": 670,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 49,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 203,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 357,
+    "y": 496,
+    "w": 145,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 510,
+    "y": 496,
+    "w": 209,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "cand-dark-1024": {
+  "strip": {
+   "x": 57,
+   "y": 484,
+   "w": 910,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 57,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 271,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 485,
+    "y": 484,
+    "w": 205,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 698,
+    "y": 484,
+    "w": 269,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "cand-dark-1280": {
+  "strip": {
+   "x": 793,
+   "y": 432,
+   "w": 430,
+   "h": 201,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 793,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 939,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1086,
+    "y": 432,
+    "w": 137,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 793,
+    "y": 537,
+    "w": 430,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "cand-dark-1536": {
+  "strip": {
+   "x": 1041,
+   "y": 431,
+   "w": 430,
+   "h": 203,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1041,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1187,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1334,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1041,
+    "y": 537,
+    "w": 430,
+    "h": 97,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "cand-dark-1920": {
+  "strip": {
+   "x": 1233,
+   "y": 431,
+   "w": 430,
+   "h": 203,
+   "rightOfParent": -29
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1233,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1379,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1526,
+    "y": 431,
+    "w": 137,
+    "h": 97,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1233,
+    "y": 537,
+    "w": 430,
+    "h": 97,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-light-390": {
+  "strip": {
+   "x": 35,
+   "y": 344,
+   "w": 320,
+   "h": 220,
+   "rightOfParent": -21
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 35,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 145,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 254,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 35,
+    "y": 469,
+    "w": 320,
+    "h": 95,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-light-768": {
+  "strip": {
+   "x": 49,
+   "y": 486,
+   "w": 670,
+   "h": 117,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 49,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 219,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 389,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 558,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-light-1024": {
+  "strip": {
+   "x": 57,
+   "y": 484,
+   "w": 910,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 57,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 287,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 517,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 746,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-light-1280": {
+  "strip": {
+   "x": 793,
+   "y": 453,
+   "w": 430,
+   "h": 159,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 793,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 903,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1013,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1122,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-light-1536": {
+  "strip": {
+   "x": 1041,
+   "y": 441,
+   "w": 430,
+   "h": 183,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1041,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1151,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1261,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1370,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-light-1920": {
+  "strip": {
+   "x": 1233,
+   "y": 441,
+   "w": 430,
+   "h": 183,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1233,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1343,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1453,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1562,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: light. Change theme",
+  "errors": []
+ },
+ "live-dark-390": {
+  "strip": {
+   "x": 35,
+   "y": 344,
+   "w": 320,
+   "h": 220,
+   "rightOfParent": -21
+  },
+  "rows": 2,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 35,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 145,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 254,
+    "y": 344,
+    "w": 101,
+    "h": 116,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 35,
+    "y": 469,
+    "w": 320,
+    "h": 95,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-dark-768": {
+  "strip": {
+   "x": 49,
+   "y": 486,
+   "w": 670,
+   "h": 117,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 49,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 219,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 389,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 558,
+    "y": 486,
+    "w": 161,
+    "h": 117,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-dark-1024": {
+  "strip": {
+   "x": 57,
+   "y": 484,
+   "w": 910,
+   "h": 96,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 57,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 287,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 517,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 746,
+    "y": 484,
+    "w": 221,
+    "h": 96,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-dark-1280": {
+  "strip": {
+   "x": 793,
+   "y": 453,
+   "w": 430,
+   "h": 159,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 793,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 903,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1013,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1122,
+    "y": 453,
+    "w": 101,
+    "h": 159,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-dark-1536": {
+  "strip": {
+   "x": 1041,
+   "y": 441,
+   "w": 430,
+   "h": 183,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1041,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1151,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1261,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1370,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ },
+ "live-dark-1920": {
+  "strip": {
+   "x": 1233,
+   "y": 441,
+   "w": 430,
+   "h": 183,
+   "rightOfParent": -29
+  },
+  "rows": 1,
+  "tiles": [
+   {
+    "text": "Free | Free | Pay as you go",
+    "x": 1233,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Free",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Pay",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "as",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "you",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "go",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Personal | $20 | per month",
+    "x": 1343,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Personal",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$20",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Business | $120 | per month",
+    "x": 1453,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Business",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "$120",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "month",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   },
+   {
+    "text": "Custom AI Automation | Custom | Scoped per project",
+    "x": 1562,
+    "y": 441,
+    "w": 101,
+    "h": 183,
+    "words": [
+     {
+      "word": "Custom",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "AI",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "Automation",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Custom",
+      "rects": 2,
+      "lines": 2,
+      "split": true,
+      "outsideTile": false
+     },
+     {
+      "word": "Scoped",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "per",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     },
+     {
+      "word": "project",
+      "rects": 1,
+      "lines": 1,
+      "split": false,
+      "outsideTile": false
+     }
+    ],
+    "clipped": []
+   }
+  ],
+  "overflow": {
+   "doc": 0,
+   "scroller": 0
+  },
+  "tileOutsideStrip": false,
+  "themeLabel": "Theme: dark. Change theme",
+  "errors": []
+ }
+}
