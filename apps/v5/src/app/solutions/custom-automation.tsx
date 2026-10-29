@@ -663,7 +663,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderColor: t.border,
       backgroundColor: t.surfaceRaised,
     },
-    planTileCustom: { borderColor: t.violet, backgroundColor: softFill(t.violet, t) },
+    // Keep the long custom-service label on word boundaries; wrap the tile as a whole.
+    planTileCustom: { flexBasis: 156, minWidth: 156, borderColor: t.violet, backgroundColor: softFill(t.violet, t) },
     planName: { ...type.micro, color: t.textMuted, fontWeight: '800' },
     planNameCustom: { color: accentText(t.violet, t) },
     planPrice: { ...type.h4, color: t.text },
