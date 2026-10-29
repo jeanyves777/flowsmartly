@@ -1,3 +1,4 @@
+import { PUBLIC_BILLING_PLANS } from '@/content/public-billing-plans';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
@@ -95,11 +96,9 @@ const DISCIPLINES = ['AI and automation', 'Integrations', 'Workflow design', 'On
 
 /** Mirrors `/pricing` exactly — a second copy of a price is a second thing to
  *  keep true, so this is the shortest possible restatement and links there. */
-const PLAN_STRIP: { name: string; price: string; note: string }[] = [
-  { name: 'Starter', price: 'Free', note: 'No card required' },
-  { name: 'Pro', price: '$20', note: 'per month' },
-  { name: 'Business', price: '$50', note: 'per month' },
-];
+const PLAN_STRIP = PUBLIC_BILLING_PLANS.map((plan) => ({
+  name: plan.name, price: plan.price === 0 ? 'Free' : `$${plan.price}`, note: plan.price === 0 ? 'Pay as you go' : 'per month',
+}));
 
 const CONTRAST: { kind: 'not' | 'is'; title: string; lines: string[] }[] = [
   {

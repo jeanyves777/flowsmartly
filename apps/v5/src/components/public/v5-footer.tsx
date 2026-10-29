@@ -1143,9 +1143,8 @@ function createStyles(t: ThemeTokens, l: Layout) {
   const metricColumns = phone ? 1 : stacked ? 2 : 4;
   const metricBasis = metricColumns === 1 ? '100%' : metricColumns === 2 ? '48%' : '23%';
 
-  // 3 plans: 1-up on phone, 2-up on tablet, 3-up from 1024. In the 2-up band
-  // the third card holds its column width instead of stretching to the full row.
-  const planColumns = l.gridColumns(3);
+  // Three plans stack until all three fit; no orphan third card at tablet widths.
+  const planColumns = l.gridColumns(3) === 3 ? 3 : 1;
   const planBasis = cellPct(planColumns, gridGap);
 
   // 4 nav groups: 2-up on phone, 4-up above it — both divide evenly, so no row
@@ -1364,7 +1363,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     planPrice: { marginTop: 4 },
     perMonth: { ...type.caption, fontWeight: '600', color: t.textSubtle },
     credits: { color: t.textSubtle },
-    features: { gap: 9, marginTop: 16, marginBottom: 18 },
+    features: { flexGrow: 1, gap: 9, marginTop: 16, marginBottom: 18 },
     featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, minWidth: 0 },
     feature: { flexGrow: 1, flexShrink: 1, minWidth: 0, color: t.textMuted },
     planNote: { marginTop: 14, color: t.textSubtle },

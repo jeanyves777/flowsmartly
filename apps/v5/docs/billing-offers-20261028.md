@@ -36,3 +36,11 @@ From the isolated exact-SHA checkout in real cloud:
 Use the committed apps/v5/package-lock.json. qa:web runs build:web (content compilation, expo export -p web, agent-assets and icons), strict agent-readiness and mirror-routes. Output is apps/v5/dist. Do not run the root legacy build. No build or deployment has been performed by this handoff.
 
 Claude alone may publish the verified dist into a new timestamped /var/www/flowsmartly-v5/releases directory and cut over /var/www/flowsmartly-v5/current after exact-source cloud export/render acceptance. Portal delivery remains separate. Before cutover inspect homepage and pricing at all six approved widths across light/grey/dark, plus annual toggle, FAQ JSON-LD, CTA destinations and overflow. Record actual public artifact SHA and serving proof; no unrun checks are green.
+
+## Cloud-proof corrections
+
+Proof9161bbae for3fa336bc found stale SoftwareApplication/llms/custom-automation catalogue and homepage shelf baselines. agent-assets now reads the same generated public billing-offers.ts (Node22.18+ built-in type stripping; no private/env input), derives AggregateOffer maximum and descriptions, and generates llms plan text. Custom-automation derives its strip from PUBLIC_BILLING_PLANS. Homepage features grow to align CTA baselines; plans stack until three columns fit, preventing tablet2+1 orphan layout. New painted proof is still required.
+
+Baseline attribution: serving3e158d0d contains the exact same early-access.tsx/login.tsx/agent-readiness.js bytes as this candidate. Both forward-only pages deliberately declare noIndex: retired early-access forwards to/register; login forwards to the portal sign-in document. No SEO behavior or guard changed. Cloud should reproduce qa:web at3e158d0d to confirm the same inherited noindex failure rather than assume the new Billing source caused it. Normal export/mirror/readiness evidence must retain that limitation explicitly.
+
+Available delta checks: agent-assets syntax PASS; Node public TypeScript catalogue require PASS with correct Business12000minor value; whitespace PASS. Full exact-source export/metadata scan/render rerun remains Claude cloud work. No deploy/visual pass asserted.
