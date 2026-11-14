@@ -5,7 +5,7 @@
 Site: https://flowsmartly.com
 Owner: General Computing Solutions
 Product: FlowSmartly, a product of General Computing Solutions
-Address: 132 Lincoln St, Pittsfield, MA 01201, USA
+Address: 9 Pearl St, Adams, MA 01220, USA
 Contact: privacy@flowsmartly.com
 Security-Contact: security@flowsmartly.com
 
