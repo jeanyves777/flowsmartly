@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { Linking, Platform } from 'react-native';
 import { ROUTES } from '@/components/public/nav';
 
@@ -10,24 +9,6 @@ import { ROUTES } from '@/components/public/nav';
  * CTAs must resolve to something honest and be retargetable in one edit rather
  * than being scattered as literals across forty pages.
  */
-
-/**
- * The legacy V4 application, which existing customers keep using while the V5
- * portal is enabled progressively.
- *
- * **Only `/login` may link to these.** No marketing CTA anywhere else on the
- * site sends a visitor to the legacy host: the main domain is V5's brand, and
- * a "Start free" button that drops someone into the old product would undo
- * that in one click. The transition page is the single, deliberate bridge.
- *
- * Sessions here are host-only cookies scoped to legacy.flowsmartly.com, so a
- * customer arriving from the apex signs in once more. That is intended
- * isolation, not a bug — see deploy/nginx-legacy-v4.conf.
- */
-export const LEGACY = {
-  login: 'https://legacy.flowsmartly.com/login',
-  forgotPassword: 'https://legacy.flowsmartly.com/forgot-password',
-} as const;
 
 /**
  * Genuinely external destinations.
@@ -54,20 +35,15 @@ export const EXTERNAL = {
 const APEX = 'https://flowsmartly.com';
 
 /**
- * **Sign-in and registration are real pages, served by the application.**
+ * **Sign-in and registration are real pages, served by the V5 portal.**
  *
- * They are *not* part of this Expo export. The apex is the application host:
- * `deploy/nginx-flowsmartly-v5.conf` proxies both paths to the Next.js app on
- * `v4_app`, and the pages behind them are
- * `src/app/(auth)/login/page.tsx` and `src/app/(auth)/register/page.tsx` —
- * real forms with OAuth, Turnstile and a password flow.
+ * They are *not* part of this Expo export. On the apex, Nginx sends every real
+ * request for `/login` and `/register` to the V5 portal (its "Sign in" and
+ * "Create your account" forms).
+ * V4 is retired: nothing here may link to the legacy host.
  *
- * Same origin as this site on purpose. Every fixed point in the OAuth chain
- * names the apex (the registered Google/Meta `redirect_uri`, the host-only
- * session cookie, `NEXT_PUBLIC_APP_URL`), so the signed-in app has to live
- * here. That is why these are root-relative rather than absolute to another
- * host — see the long comment above section 3 of the Nginx config, which
- * records the login loop that a redirect to the legacy host caused.
+ * Root-relative on purpose: the portal is served on this same origin, so the
+ * session cookie and the OAuth redirect stay on the apex.
  */
 export const AUTH = {
   login: '/login',
@@ -118,30 +94,19 @@ export function goToRegister() {
 }
 
 /**
- * Every "Log in" affordance. Goes to the application's real sign-in form.
+ * Every "Log in" affordance. Goes to the V5 portal's real sign-in form.
  *
- * Not `ROUTES.login`: that is this export's static transition page, which
- * carries no form. Nginx already proxies `/login` on the apex to the
- * application — but only for a real request, which is exactly why this is a
- * document navigation rather than a `router.push`.
+ * Not `ROUTES.login`: that route in this export is only a forwarder. Nginx sends
+ * `/login` on the apex to the portal — but only for a real request, which is
+ * exactly why this is a document navigation rather than a `router.push` (an
+ * in-app push once rendered the stale "V5 is rolling out" page).
+ *
+ * The early-access waiting list is retired (owner, 2026-10-17: "No more Join
+ * early access"): `/early-access` now forwards to `/register`, and there is no
+ * helper that routes to it.
  */
 export function goToLogin() {
   hardNavigate(AUTH.login);
-}
-
-/**
- * The early-access lead funnel at `/early-access`.
- *
- * **No CTA points here any more** — the owner retired that call to action once
- * registration opened, and every button that used to call this now calls
- * `goToRegister`. The page, its form, the `/api/v1/leads` contract and the
- * `DemoRequest` rows behind it are all untouched and still working; the route
- * is still claimed in `deploy/ROUTE-OWNERSHIP.md`, so links already in the
- * wild keep resolving. Kept exported for that page's own use and for any
- * campaign that still needs to reach it deliberately.
- */
-export function goToEarlyAccess() {
-  router.push(ROUTES.earlyAccess);
 }
 
 /**

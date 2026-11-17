@@ -31,13 +31,11 @@ export const ROUTES = {
    * Neither of these is the real authentication any more, and **no CTA should
    * use them** — see `AUTH` in `lib/destinations.ts` for the routes that are.
    *
-   * `login` is this export's static transition page. Nginx proxies `/login` on
-   * the apex to the application's real sign-in form, so this file is
-   * unreachable in production and survives only for the export manifest.
+   * `login` in this export is only a forwarder to the V5 portal's sign-in form,
+   * which Nginx serves for every real `/login` request.
    *
-   * `earlyAccess` is the lead funnel. It still works and is still claimed in
-   * `deploy/ROUTE-OWNERSHIP.md` so existing links resolve, but registration is
-   * open now, so no button points at it.
+   * `earlyAccess` is retired (owner, 2026-10-17). The route stays so links in the
+   * wild resolve, and it forwards straight to the portal's `/register`.
    */
   login: '/login',
   earlyAccess: '/early-access',
