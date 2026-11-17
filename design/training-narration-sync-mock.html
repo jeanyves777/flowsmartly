@@ -1,0 +1,257 @@
+<title>Training — narration sync preview</title>
+<style>
+  :root{
+    --ink:#e9e7f3; --muted:#a8a4be; --stage1:#14121f; --stage2:#0f0d18;
+    --acc:#8b7bf0; --acc2:#b7aef7; --accSoft:rgba(139,123,240,.14);
+    --amber:#eab35a; --card:#171525; --line:rgba(255,255,255,.09);
+    --note:#2a2440; --noteEdge:rgba(255,255,255,.10);
+    --bg:#0b0a12; --panel:#100e1a;
+    font-synthesis-weight:none;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:
+      radial-gradient(1100px 620px at 78% -8%, rgba(139,123,240,.16), transparent 60%),
+      radial-gradient(900px 560px at 10% 108%, rgba(80,180,190,.10), transparent 62%),
+      var(--bg);
+    color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;min-height:100vh}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 70px}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--acc2);opacity:.9}
+  h1{font-size:clamp(24px,3.4vw,38px);font-weight:850;letter-spacing:-.02em;margin:.28em 0 .1em;text-wrap:balance}
+  .sub{color:var(--muted);max-width:66ch;font-size:15px}
+  .grid{display:grid;grid-template-columns:1.35fr .9fr;gap:20px;margin-top:26px}
+  @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  .panel{background:linear-gradient(180deg,var(--panel),#0c0b14);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 24px 60px -30px rgba(0,0,0,.8)}
+  .plabel{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--muted);margin:2px 2px 12px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 4px var(--accSoft)}
+  /* ---- slide stage ---- */
+  .stage{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;
+    background:linear-gradient(150deg,var(--stage1),var(--stage2));
+    border:1px solid rgba(255,255,255,.06);
+    background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:22px 22px}
+  .stage .accentbar{position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,var(--acc),var(--acc2))}
+  .stage h2{position:absolute;left:6.5%;top:7%;margin:0;font-size:clamp(15px,3.3cqw,30px);font-weight:850;letter-spacing:-.01em}
+  .stage{container-type:inline-size}
+  ul.bul{position:absolute;left:6.5%;right:7%;top:30%;margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2.4cqw}
+  ul.bul li{position:relative;display:flex;gap:1.6cqw;align-items:flex-start;font-size:clamp(9px,2.05cqw,19px);line-height:1.32;color:rgba(233,231,243,.55);
+    opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease,color .4s ease}
+  ul.bul li.shown{opacity:1;transform:none}
+  ul.bul li.done{color:rgba(233,231,243,.72)}
+  ul.bul li.active{color:#fff}
+  ul.bul li .dotb{margin-top:.95cqw;width:1.05cqw;height:1.05cqw;border-radius:50%;background:var(--acc2);flex:0 0 auto}
+  /* active marker overlay */
+  .mark{position:absolute;pointer-events:none;border-radius:12px;
+    background:var(--accSoft);border:1px solid rgba(183,174,247,.34);
+    opacity:0;transition:opacity .28s ease, top .34s cubic-bezier(.4,0,.2,1), height .34s ease, left .34s ease, width .34s ease}
+  .mark.on{opacity:1}
+  .mark .uline{position:absolute;left:10px;right:10px;bottom:-3px;height:0;border-bottom:3px solid var(--acc2);border-radius:3px;
+    transform-origin:left;transform:scaleX(0)}
+  .mark.sweep .uline{animation:sweep .5s ease-out .08s forwards}
+  @keyframes sweep{to{transform:scaleX(1)}}
+  /* ---- narration timeline ---- */
+  .timeline{margin-top:14px}
+  .track{position:relative;height:12px;border-radius:8px;background:rgba(255,255,255,.07);overflow:hidden}
+  .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:8px}
+  .ticks{position:relative;height:20px;margin-top:5px}
+  .tick{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tick i{width:2px;height:8px;background:rgba(183,174,247,.55);border-radius:2px;display:block}
+  .tick span{font-size:9.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .row{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+  button{font:inherit;font-weight:750;font-size:13px;color:var(--ink);background:#1b1930;border:1px solid var(--line);
+    padding:8px 15px;border-radius:11px;cursor:pointer;transition:border-color .15s,background .15s}
+  button:hover{border-color:var(--acc)}
+  button.primary{background:linear-gradient(90deg,var(--acc),#6f5df0);border-color:transparent;color:#fff}
+  .seg{display:inline-flex;background:#141223;border:1px solid var(--line);border-radius:11px;padding:3px}
+  .seg button{border:none;background:transparent;padding:6px 13px;border-radius:8px;font-size:12.5px}
+  .seg button.sel{background:var(--acc);color:#fff}
+  .cap{color:var(--muted);font-size:13px;margin-top:12px}
+  .cap b{color:var(--acc2);font-weight:750}
+  /* ---- note write panel ---- */
+  .note{position:relative;margin:6px auto 0;width:82%;max-width:300px;background:linear-gradient(180deg,#302a4c,#28223f);
+    border:1px solid var(--noteEdge);border-radius:12px;padding:16px 16px 18px;box-shadow:0 18px 40px -22px #000}
+  .note .ln{height:11px;border-radius:6px;background:rgba(255,255,255,.13);margin:11px 0;transform-origin:left;transform:scaleX(0)}
+  .note .ln.short{width:62%}
+  .pen{position:absolute;width:26px;height:26px;left:0;top:0;opacity:0;transform:translate(-50%,-90%);
+    font-size:22px;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4));transition:opacity .2s}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:16px;height:9px;border-radius:3px}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Training Room · presenter sync</div>
+  <h1>Reveals &amp; hand-writing now follow the narration</h1>
+  <p class="sub">Before, bullets flipped on an even 1-of-N timer and the pen wrote every note in a fraction of a second — both drifting away from what the presenter was actually saying. Now the reveal, a live “you-are-here” marker, and the pen all pace to the voice. Press play.</p>
+
+  <div class="grid">
+    <!-- LEFT: bullet reveal + active marker + timeline -->
+    <div class="panel">
+      <div class="plabel"><span class="dot"></span> Slide reveal — spaced by how long the narrator spends on each point</div>
+      <div class="stage" id="stage">
+        <span class="accentbar"></span>
+        <h2>The Standard LLM Architecture</h2>
+        <ul class="bul" id="bullets">
+          <li><span class="dotb"></span><span class="txt">User prompt in, tokens out</span></li>
+          <li><span class="dotb"></span><span class="txt">No feedback loop — the output is final, there is no revision pass once it’s generated</span></li>
+          <li><span class="dotb"></span><span class="txt">Context window is the only memory</span></li>
+          <li><span class="dotb"></span><span class="txt">Nothing is learned from the outcome, so every session starts cold with no recall of the last</span></li>
+        </ul>
+        <div class="mark" id="mark"><span class="uline"></span></div>
+      </div>
+
+      <div class="timeline">
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="ticks" id="ticks"></div>
+      </div>
+
+      <div class="row">
+        <button class="primary" id="play">▶ Play narration</button>
+        <div class="seg" id="mode">
+          <button data-m="aware" class="sel">Content-aware (new)</button>
+          <button data-m="even">Even split (old)</button>
+        </div>
+      </div>
+      <p class="cap" id="cap">Ticks mark where each bullet reveals. In <b>content-aware</b> mode a long point earns a longer slice, so the reveal lands as the narrator reaches it. The <b>marker</b> pill + underline ride the current point.</p>
+    </div>
+
+    <!-- RIGHT: note written at speaking pace -->
+    <div class="panel">
+      <div class="plabel"><span class="dot"></span> Hand-writing — paced to the voice, not the speed of light</div>
+      <div class="note" id="note">
+        <div class="ln" data-t="0"></div>
+        <div class="ln" data-t="1"></div>
+        <div class="ln short" data-t="2"></div>
+        <div class="pen" id="pen">✍️</div>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:linear-gradient(90deg,var(--acc),var(--acc2))"></i> written this step</span>
+        <span><i class="sw" style="background:rgba(255,255,255,.13)"></i> not yet</span>
+      </div>
+      <p class="cap">The pen takes the step’s share of the narration to draw the note — so it’s still writing while the co-host explains it, then rests. Old behavior finished all three lines in ~0.4s and waited.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const bullets = [...document.querySelectorAll('#bullets li')];
+  const texts = bullets.map(li => li.querySelector('.txt').textContent.trim());
+  const mark = document.getElementById('mark');
+  const uline = mark.querySelector('.uline');
+  const fill = document.getElementById('fill');
+  const ticksEl = document.getElementById('ticks');
+  const stage = document.getElementById('stage');
+  const playBtn = document.getElementById('play');
+  const capEl = document.getElementById('cap');
+  const DUR = 12000;            // simulated narration length (ms)
+  const OUTRO = 0.10;
+  let mode = 'aware';
+
+  // marks = fraction of the narration at which each bullet reveals
+  function marks(){
+    const n = bullets.length;
+    if(mode==='even'){ return bullets.map((_,i)=> i/n * (1-OUTRO)); }
+    const w = texts.map(t=> Math.max(10, t.length));
+    const total = w.reduce((a,b)=>a+b,0);
+    const out=[]; let cum=0;
+    for(let i=0;i<n;i++){ out.push(cum/total*(1-OUTRO)); cum+=w[i]; }
+    return out;
+  }
+
+  function drawTicks(){
+    const m = marks();
+    ticksEl.innerHTML='';
+    m.forEach((f,i)=>{
+      const t=document.createElement('div'); t.className='tick'; t.style.left=(f*100)+'%';
+      t.innerHTML='<i></i><span>'+(i+1)+'</span>';
+      ticksEl.appendChild(t);
+    });
+  }
+
+  function placeMark(idx){
+    if(idx<0){ mark.classList.remove('on'); return; }
+    const li = bullets[idx];
+    const s = stage.getBoundingClientRect(), r = li.getBoundingClientRect();
+    const padX=10, padY=7;
+    mark.style.left = (r.left - s.left - padX)+'px';
+    mark.style.top  = (r.top  - s.top  - padY)+'px';
+    mark.style.width= (r.width + padX*2)+'px';
+    mark.style.height=(r.height+ padY*2)+'px';
+    mark.classList.add('on');
+    // re-trigger the underline sweep
+    mark.classList.remove('sweep'); void mark.offsetWidth; mark.classList.add('sweep');
+  }
+
+  let raf=0, t0=null, playing=false, lastIdx=-2;
+  function reset(){
+    cancelAnimationFrame(raf); playing=false; t0=null; lastIdx=-2;
+    bullets.forEach(li=>li.classList.remove('shown','done','active'));
+    mark.classList.remove('on','sweep'); fill.style.width='0%';
+    playBtn.textContent='▶ Play narration';
+  }
+  function step(ts){
+    if(t0===null) t0=ts;
+    const frac = Math.min(1,(ts-t0)/DUR);
+    fill.style.width=(frac*100)+'%';
+    const m = marks();
+    let cur=-1;
+    for(let i=0;i<m.length;i++){ if(frac>=m[i]) cur=i; else break; }
+    bullets.forEach((li,i)=>{
+      li.classList.toggle('shown', i<=cur);
+      li.classList.toggle('done', i<cur);
+      li.classList.toggle('active', i===cur);
+    });
+    if(cur!==lastIdx){ lastIdx=cur; if(cur>=0) placeMark(cur); }
+    if(frac<1 && playing){ raf=requestAnimationFrame(step); }
+    else if(frac>=1){ playing=false; playBtn.textContent='↻ Replay'; }
+  }
+  playBtn.addEventListener('click', ()=>{
+    if(playing){ return; }
+    reset(); playing=true; playBtn.textContent='● Narrating…';
+    raf=requestAnimationFrame(step);
+    penRun();
+  });
+
+  document.getElementById('mode').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    mode=b.dataset.m;
+    [...e.currentTarget.children].forEach(c=>c.classList.toggle('sel',c===b));
+    drawTicks(); reset();
+  });
+  window.addEventListener('resize', ()=>{ if(lastIdx>=0) placeMark(lastIdx); });
+
+  // ---- note write-along (right panel) ----
+  const note=document.getElementById('note'), pen=document.getElementById('pen');
+  const lines=[...note.querySelectorAll('.ln')];
+  let praf=0;
+  function penRun(){
+    cancelAnimationFrame(praf);
+    lines.forEach(l=>l.style.transform='scaleX(0)');
+    pen.style.opacity='0';
+    const stepShare = DUR/ bullets.length;         // this note owns ~one step of narration
+    const budget = stepShare*0.82;                 // finish a touch before the voice moves on
+    const per = budget/lines.length;
+    let start=null;
+    function fr(ts){
+      if(start===null) start=ts;
+      const el=ts-start;
+      pen.style.opacity = el < budget-120 ? '1':'0';
+      lines.forEach((l,i)=>{
+        const k=Math.max(0,Math.min(1,(el - i*per)/per));
+        l.style.transform='scaleX('+k+')';
+        if(k>0 && k<1){
+          const r=l.getBoundingClientRect(), nr=note.getBoundingClientRect();
+          pen.style.left=(r.left-nr.left + r.width*k)+'px';
+          pen.style.top =(r.top -nr.top + r.height/2)+'px';
+        }
+      });
+      if(el<budget) praf=requestAnimationFrame(fr);
+    }
+    praf=requestAnimationFrame(fr);
+  }
+
+  drawTicks();
+  // auto-play once on load so the behavior is visible immediately
+  setTimeout(()=>playBtn.click(), 500);
+})();
+</script>
