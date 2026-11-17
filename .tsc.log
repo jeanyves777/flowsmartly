@@ -1,0 +1,2 @@
+src/lib/flowbuild/reserve.ts(207,11): error TS2353: Object literal may only specify known properties, and 'idempotencyKey' does not exist in type 'Without<CreditReservationCreateInput, CreditReservationUncheckedCreateInput> & CreditReservationUncheckedCreateInput'.
+src/lib/flowbuild/reserve.ts(269,14): error TS2353: Object literal may only specify known properties, and 'idempotencyKey' does not exist in type 'CreditReservationWhereUniqueInput'.
