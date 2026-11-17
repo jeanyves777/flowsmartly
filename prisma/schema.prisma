@@ -146,6 +146,10 @@ model User {
   whatsappTemplates     WhatsAppTemplate[]
   whatsappAutomations   WhatsAppAutomation[]
   pitches               Pitch[]
+  pitchBoards           PitchBoard[]
+  serviceOfferings      ServiceOffering[]
+  proofItems            ProofItem[]
+  proposalTemplates     ProposalTemplate[]
   leadSearches          LeadSearch[]
   savedLeadLists        SavedLeadList[]
   savedLeads            SavedLead[]
@@ -758,14 +762,14 @@ model CampaignSend {
   campaignId String
   contactId  String
 
-  messageId     String? // Twilio message SID (SM...) for delivery tracking
-  status        String    @default("PENDING") // PENDING, SENT, DELIVERED, FAILED, UNDELIVERED
-  failureReason String? // Twilio error code/message if failed/undelivered
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  openedAt      DateTime?
-  clickedAt     DateTime?
-  bouncedAt     DateTime?
+  messageId         String? // Twilio message SID (SM...) for delivery tracking
+  status            String    @default("PENDING") // PENDING, SENT, DELIVERED, FAILED, UNDELIVERED
+  failureReason     String? // Twilio error code/message if failed/undelivered
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  bouncedAt         DateTime?
   branchProcessedAt DateTime? // SMS flow: if/else branch action already fired for this send
 
   opens  Int @default(0)
@@ -836,11 +840,11 @@ model Contact {
   lists ContactListMember[]
   sends CampaignSend[]
 
-  coupons            Coupon[]
-  referralsGiven     Referral[]          @relation("ReferrerContact")
-  referralsUsed      Referral[]          @relation("ReferredContact")
-  followUpEntries    FollowUpEntry[]
-  deviceFingerprints DeviceFingerprint[]
+  coupons             Coupon[]
+  referralsGiven      Referral[]           @relation("ReferrerContact")
+  referralsUsed       Referral[]           @relation("ReferredContact")
+  followUpEntries     FollowUpEntry[]
+  deviceFingerprints  DeviceFingerprint[]
   sequenceEnrollments SequenceEnrollment[]
 
   @@unique([userId, email])
@@ -1279,14 +1283,14 @@ model BrandKit {
   // "Acme Plumbing" as a human called Acme Plumbing.
   ownerFirstName String? // Owner's first name (domain registrant identity)
   ownerLastName  String? // Owner's last name (domain registrant identity)
-  email   String? // Business email
-  phone   String? // Business phone number, in full international format (+CC…)
-  website String? // Website URL
-  address String? // Street address
-  city    String? // City
-  state   String? // State/Province
-  zip     String? // ZIP/Postal code
-  country String? // Country code (US, CA, etc.)
+  email          String? // Business email
+  phone          String? // Business phone number, in full international format (+CC…)
+  website        String? // Website URL
+  address        String? // Street address
+  city           String? // City
+  state          String? // State/Province
+  zip            String? // ZIP/Postal code
+  country        String? // Country code (US, CA, etc.)
 
   // Industry & Audience
   industry         String? // e.g., "SaaS", "Fashion", "Health & Fitness"
@@ -4151,14 +4155,14 @@ model Order {
 
   // Totals (cents)
   subtotalCents         Int
-  shippingCents         Int    @default(0)
-  taxCents              Int    @default(0)
-  discountCents         Int    @default(0) // coupon/promo discount applied at checkout
+  shippingCents         Int     @default(0)
+  taxCents              Int     @default(0)
+  discountCents         Int     @default(0) // coupon/promo discount applied at checkout
   couponCode            String? // the promo code that was applied (if any)
   totalCents            Int
-  platformFeeCents      Int    @default(0) // FlowSmartly's cut
-  storeOwnerAmountCents Int    @default(0) // Amount transferred to store owner
-  currency              String @default("USD")
+  platformFeeCents      Int     @default(0) // FlowSmartly's cut
+  storeOwnerAmountCents Int     @default(0) // Amount transferred to store owner
+  currency              String  @default("USD")
 
   // Status
   status String @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
@@ -4504,7 +4508,6 @@ model StoreDomain {
   registrarOrderId                   String? // OpenSRS order ID
   /**
    * The Stripe PaymentIntent that paid for this domain.
-   *
    * Durable, not a log line. When a payment succeeds and the registration does
    * not, the two facts have to stay tied together or nobody can decide between
    * a refund and a recovery later — and "check the server logs" is not an
@@ -4633,32 +4636,32 @@ model VoiceProfile {
 /// owner's cloned voice + likeness. Built in "Build with AI"; consent is captured
 /// on creation and the profile can be deleted at any time. [[training-studio]]
 model PresenterProfile {
-  id              String  @id @default(cuid())
-  userId          String
-  name            String
-  portraitUrl     String?
+  id                String    @id @default(cuid())
+  userId            String
+  name              String
+  portraitUrl       String?
   /// HeyGen talking-photo id for the portrait + a reusable ~10s looping presenter clip
   /// (the "moving avatar"), generated once and looped in the co-host tile
-  talkingPhotoId  String?
-  loopVideoUrl    String?
+  talkingPhotoId    String?
+  loopVideoUrl      String?
   /// full-body, gesture-rich INTRO / OUTRO films (generated by the film pipeline from the
   /// presenter's photo, audio-free so the narration plays over them). Distinct from the
   /// talking-photo loop used in the small co-host tile during slides.
-  introVideoUrl   String?
-  outroVideoUrl   String?
+  introVideoUrl     String?
+  outroVideoUrl     String?
   /// the cloned VoiceProfile this presenter speaks with (reuses Voice Studio cloning)
-  voiceProfileId  String?
-  deliveryStyle   String  @default("conversational") // professional | conversational | energetic | teacher
-  pace            Float   @default(1.0)
-  expressiveness  Int     @default(65)
-  pauseMs         Int     @default(1200)
-  role            String  @default("cohost") // cohost | host | assistant
-  followNotes     Boolean @default(true)
-  describeVisuals Boolean @default(true)
-  advanceReveals  Boolean @default(true)
-  useLiveDraw     Boolean @default(true)
+  voiceProfileId    String?
+  deliveryStyle     String    @default("conversational") // professional | conversational | energetic | teacher
+  pace              Float     @default(1.0)
+  expressiveness    Int       @default(65)
+  pauseMs           Int       @default(1200)
+  role              String    @default("cohost") // cohost | host | assistant
+  followNotes       Boolean   @default(true)
+  describeVisuals   Boolean   @default(true)
+  advanceReveals    Boolean   @default(true)
+  useLiveDraw       Boolean   @default(true)
   /// question behaviour, JSON: { stopOnHand, afterEachSection, hostApproves, answerMode }
-  questionBehavior String?
+  questionBehavior  String?
   // consent — cloning a real person requires explicit owner consent
   consentAcceptedAt DateTime?
   consentOwnerName  String?
@@ -4680,13 +4683,13 @@ model PresenterClip {
   id             String   @id @default(cuid())
   userId         String
   presenterId    String?
-  kind           String   // "intro" | "outro"
+  kind           String // "intro" | "outro"
   videoUrl       String
   thumbnailUrl   String?
-  voiceProfileId String?  // the voice baked into the audio — reuse only when it matches
-  voiceLabel     String?  // for display in the picker
-  presenterName  String?  // for display in the picker
-  script         String?  // the spoken line (for display)
+  voiceProfileId String? // the voice baked into the audio — reuse only when it matches
+  voiceLabel     String? // for display in the picker
+  presenterName  String? // for display in the picker
+  script         String? // the spoken line (for display)
   durationMs     Int?
   createdAt      DateTime @default(now())
 
@@ -4857,16 +4860,56 @@ model Pitch {
   recipientName  String?
   sentAt         DateTime?
   errorMessage   String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savedLead SavedLead? @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
+  // ── commercial lifecycle ───────────────────────────────────────────────────
+  // `status` above is the DOCUMENT GENERATION state (has the artefact been written
+  // yet). `lifecycle` is the COMMERCIAL state of that artefact with the buyer.
+  // They are genuinely different concerns: a READY document can sit at DRAFT,
+  // IN_REVIEW or ACCEPTED. Nothing reads one to infer the other.
+  lifecycle         String    @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SENT | VIEWED | ACCEPTED | DECLINED | EXPIRED | SUPERSEDED
+  reviewRequestedAt DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String? // the user who approved / sent it back
+  reviewNote        String?
+  // Frozen copy of pitchContent taken at send time. Once set, the recipient has
+  // seen THIS. Later edits must supersede into a new Pitch, never rewrite what
+  // was already delivered.
+  sentSnapshot      String? // JSON: PitchContent exactly as delivered
+  snapshotAt        DateTime?
+  // Public read-only link: /proposal/[publicToken] — same pattern as BusinessPlan.
+  publicToken       String?   @unique
+  firstViewedAt     DateTime?
+  lastViewedAt      DateTime?
+  viewCount         Int       @default(0)
+  respondedAt       DateTime?
+  responderName     String? // who accepted / declined on the buyer side
+  responseNote      String?
+  expiresAt         DateTime?
+  supersededById    String? // the newer Pitch that replaced this one
+
+  // ── composition ────────────────────────────────────────────────────────────
+  pitchBoardId String? // the lead workspace this document was generated from
+  templateId   String?
+  serviceIds   String  @default("[]") // JSON: ServiceOffering ids priced into this doc
+  proofIds     String  @default("[]") // JSON: ProofItem ids used as evidence
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead    SavedLead?        @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
+  board        PitchBoard?       @relation(fields: [pitchBoardId], references: [id], onDelete: SetNull)
+  template     ProposalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  supersededBy Pitch?            @relation("PitchSupersede", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   Pitch[]           @relation("PitchSupersede")
+  views        ProposalView[]
 
   @@index([userId])
   @@index([status])
+  @@index([lifecycle])
   @@index([documentType])
   @@index([savedLeadId])
+  @@index([pitchBoardId])
   @@index([createdAt])
 }
 
@@ -4942,6 +4985,7 @@ model SavedLead {
   list          SavedLeadList?       @relation(fields: [listId], references: [id], onDelete: SetNull)
   company       Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
   pitches       Pitch[]
+  board         PitchBoard?
   opportunities Opportunity[]
   activities    Activity[]
   enrollments   SequenceEnrollment[]
@@ -5064,19 +5108,19 @@ model Activity {
 // The ordered steps live as JSON; each enrolled lead advances through them on a
 // schedule via SequenceEnrollment. [[lead-studio-redesign-approved]]
 model OutreachSequence {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  goal      String   @default("") // the campaign's purpose (from the brief) — steers call/message copy
-  listId    String? // the SavedLeadList this runs on (Lead Studio audience)
-  audienceKind String @default("lead") // "lead" (SavedLead) | "contact" (Contact/ContactList — Follow-ups)
-  contactListId String? // when audienceKind=contact and a whole ContactList is targeted
-  recurring     Boolean @default(false) // loop the sequence instead of completing
-  recurrenceDays Int    @default(0) // days to wait before re-running the loop (0 = immediately)
-  status    String   @default("draft") // draft | active | paused | archived
-  steps     String   @default("[]") // JSON: ordered step configs { id, kind(email|sms|whatsapp|call|cond|task|book), title, delayDays?, subject?, body?, purpose?, requires?, status? }
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  goal           String   @default("") // the campaign's purpose (from the brief) — steers call/message copy
+  listId         String? // the SavedLeadList this runs on (Lead Studio audience)
+  audienceKind   String   @default("lead") // "lead" (SavedLead) | "contact" (Contact/ContactList — Follow-ups)
+  contactListId  String? // when audienceKind=contact and a whole ContactList is targeted
+  recurring      Boolean  @default(false) // loop the sequence instead of completing
+  recurrenceDays Int      @default(0) // days to wait before re-running the loop (0 = immediately)
+  status         String   @default("draft") // draft | active | paused | archived
+  steps          String   @default("[]") // JSON: ordered step configs { id, kind(email|sms|whatsapp|call|cond|task|book), title, delayDays?, subject?, body?, purpose?, requires?, status? }
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   enrollments SequenceEnrollment[]
@@ -6089,22 +6133,22 @@ model PhoneNumber {
   fulfilledBy       String?
 
   // The provider's handles.
-  xaiPhoneNumberId String? @unique
-  xaiAgentId       String?
+  xaiPhoneNumberId    String? @unique
+  xaiAgentId          String?
   // ElevenLabs' handle for this number once imported into Conv AI (phnum_…).
   elevenPhoneNumberId String? @unique
-  sipHost          String?
-  webhookId        String?
+  sipHost             String?
+  webhookId           String?
   // Returned exactly ONCE at registration. Without it an inbound call can never
   // be verified, and the only fix is to delete and re-register the number.
-  signingSecret    String?
+  signingSecret       String?
   // BYO Direct-SIP credentials the client points their carrier/PBX at. Generated
   // by us at registration and shown once; persisted so the connection steps can be
   // re-shown and a call's Authorization header verified (xAI may present either the
   // dispatch signingSecret or this webhook auth token).
-  sipUsername      String?
-  sipPassword      String?
-  webhookAuthToken String?
+  sipUsername         String?
+  sipPassword         String?
+  webhookAuthToken    String?
 
   // --- Retained from the Twilio-era model (deliberately NOT dropped) --------
   // These columns still back the SMS / number-rental system: a line can be
@@ -6123,12 +6167,12 @@ model PhoneNumber {
   cancelAtPeriodEnd   Boolean   @default(false)
   emergencyAddressSid String?
 
-  releasedAt DateTime?
+  releasedAt      DateTime?
   // Monthly rental billing — set each time the rental credits are charged; the
   // rentals cron charges any active number whose last charge is ≥ a month old.
   rentalChargedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   agent VoiceAgent? // the agent answering this line, if any
@@ -6152,13 +6196,13 @@ model VoiceAgent {
   phoneNumberId String? @unique
 
   // The brief.
-  business  String @default("") // what the agent is told about the business
-  greeting  String @default("") // inbound opener — the first line when someone calls IN
+  business         String @default("") // what the agent is told about the business
+  greeting         String @default("") // inbound opener — the first line when someone calls IN
   outboundGreeting String @default("") // opener when the AGENT calls OUT (overrides `greeting` per outbound call)
-  knowledge String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
+  knowledge        String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
   // Cache of the ElevenLabs knowledge-base docs created from the knowledge URLs,
   // so the agent answers from real content (RAG). JSON: [{url, id, name}].
-  knowledgeDocs String @default("[]")
+  knowledgeDocs    String @default("[]")
 
   // Legacy voice config blob (deliberately NOT dropped). The xAI model reads the
   // granular fields below; this JSON is kept so the migration stays additive and
@@ -6227,7 +6271,7 @@ model VoiceAgent {
   bookingAuth        String? // JSON creds/token for the connected scheduler (mode=provider)
   bookingNotifyEmail String? // where requests + messages are emailed; falls back to the owner's account email
   bookingConsentAt   DateTime? // when the owner authorized the agent to book on their behalf (provider/auto)
-  bookingConsentBy   String?   // the typed authorization signature (full name)
+  bookingConsentBy   String? // the typed authorization signature (full name)
 
   // Spend. A hard cap — the agent stops answering when it's hit.
   spendCapCredits Int      @default(5000)
@@ -6294,15 +6338,15 @@ model VoiceCall {
   agentId       String?
   phoneNumberId String?
 
-  twilioCallSid String? @unique // CA…
+  twilioCallSid        String? @unique // CA…
   // The ElevenLabs conversation this row was pulled from (phone / WhatsApp / chat),
   // so a resync updates rather than duplicates. `channel` records which surface.
   elevenConversationId String? @unique // conv_…
   channel              String  @default("phone") // phone | whatsapp | chat | web
-  direction     String  @default("inbound") // inbound | outbound
-  fromE164      String
-  toE164        String
-  callerName    String?
+  direction            String  @default("inbound") // inbound | outbound
+  fromE164             String
+  toE164               String
+  callerName           String?
 
   status String @default("in-progress") // in-progress | completed | failed | no-answer | busy
 
@@ -6373,34 +6417,34 @@ model TrainingSession {
   joinCollectEmail Boolean @default(false)
 
   // room policy — "open*" = anyone may; otherwise hosts + whoever is granted
-  waitingRoom Boolean @default(true)
+  waitingRoom        Boolean   @default(true)
   // Off by default: nobody is recorded until the host explicitly starts it
   // (which plays a 3-2-1 consent countdown for the room).
-  recording   Boolean @default(false)
+  recording          Boolean   @default(false)
   recordingStartedAt DateTime? // when recording last began — so EVERY client's REC timer counts from the same instant (not each client's own join time)
   recordingPausedAt  DateTime? // set while PAUSED (synced) — the timer freezes for everyone; on resume the host shifts recordingStartedAt forward by the paused span
-  transcript  Boolean @default(true)
-  openDraw    Boolean @default(false)
-  openShare   Boolean @default(false)
-  openMic     Boolean @default(true)
-  locked      Boolean @default(false)
-  hideBoard   Boolean @default(false) // host hid all marks for the WHOLE room (synced to attendees)
-  rosterLayout String @default("side") // where the attendee tiles sit: side | top | bottom
-  spotlightId  String? // a participant the host has spotlighted large for everyone
+  transcript         Boolean   @default(true)
+  openDraw           Boolean   @default(false)
+  openShare          Boolean   @default(false)
+  openMic            Boolean   @default(true)
+  locked             Boolean   @default(false)
+  hideBoard          Boolean   @default(false) // host hid all marks for the WHOLE room (synced to attendees)
+  rosterLayout       String    @default("side") // where the attendee tiles sit: side | top | bottom
+  spotlightId        String? // a participant the host has spotlighted large for everyone
 
   // live stage state
-  penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)
+  penHolderId     String? // TrainingParticipant.id holding the pen (presenter-authoritative)
   activeSegmentId String? // TrainingSegment.id the room is currently on (the "lesson" pointer)
-  stageSource   String  @default("board") // board | slides | doc | video | screen | cam
-  stageKey      String? // material id, or the participant id who is screen-sharing
-  stagePage     Int     @default(1)
-  stageStep     Int     @default(0) // progressive-reveal step within the current deck slide
-  aiPlaying     Boolean @default(false) // the AI presenter is delivering (synced to everyone)
-  boardDoc      String  @default("{}") // JSON whiteboard document (the room's own board)
-  recordingUrl  String?
-  transcriptUrl String?
-  creditsSpent  Int     @default(0)
-  metadata      String  @default("{}")
+  stageSource     String  @default("board") // board | slides | doc | video | screen | cam
+  stageKey        String? // material id, or the participant id who is screen-sharing
+  stagePage       Int     @default(1)
+  stageStep       Int     @default(0) // progressive-reveal step within the current deck slide
+  aiPlaying       Boolean @default(false) // the AI presenter is delivering (synced to everyone)
+  boardDoc        String  @default("{}") // JSON whiteboard document (the room's own board)
+  recordingUrl    String?
+  transcriptUrl   String?
+  creditsSpent    Int     @default(0)
+  metadata        String  @default("{}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6445,25 +6489,25 @@ model TrainingSegment {
 /// Somebody in (or knocking at) the room. userId is null for a link guest.
 /// canShare is the per-person screen-share GRANT — hosts/co-hosts always may.
 model TrainingParticipant {
-  id         String  @id @default(cuid())
-  sessionId  String
-  userId     String? // null = guest joined by link
-  name       String
-  email      String?
-  avatarUrl  String?
-  role       String  @default("TRAINEE") // HOST | COHOST | TRAINEE | GUEST
-  state      String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
+  id                 String  @id @default(cuid())
+  sessionId          String
+  userId             String? // null = guest joined by link
+  name               String
+  email              String?
+  avatarUrl          String?
+  role               String  @default("TRAINEE") // HOST | COHOST | TRAINEE | GUEST
+  state              String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
   /// a synthetic AI Presenter co-host (disclosed) — not a real connection
-  isAI              Boolean @default(false)
-  isRecorder        Boolean @default(false) // the headless recording bot — hidden from the roster + never billed
+  isAI               Boolean @default(false)
+  isRecorder         Boolean @default(false) // the headless recording bot — hidden from the roster + never billed
   presenterProfileId String?
-  photoUrl   String? // a still photo the attendee uses as their tile instead of the live camera
-  canShare   Boolean @default(false)
-  canDraw    Boolean @default(false)
-  micOn      Boolean @default(false)
-  camOn      Boolean @default(false)
-  handRaised Boolean @default(false)
-  sharing    Boolean @default(false)
+  photoUrl           String? // a still photo the attendee uses as their tile instead of the live camera
+  canShare           Boolean @default(false)
+  canDraw            Boolean @default(false)
+  micOn              Boolean @default(false)
+  camOn              Boolean @default(false)
+  handRaised         Boolean @default(false)
+  sharing            Boolean @default(false)
 
   joinedAt   DateTime?
   leftAt     DateTime?
@@ -6539,4 +6583,174 @@ model TrainingMessage {
   session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
+}
+
+// ============================================
+// SALES WORKSPACE — pitch boards, service catalog, proof, templates
+// ============================================
+
+// The per-lead workspace where the approach is prepared BEFORE any document is
+// generated. One board per SavedLead. It holds only what a human (or the agent)
+// decided about this lead — the lead's own identity, contact details, score and
+// timeline are NOT copied here, they are read from SavedLead / Activity. [[A7]]
+model PitchBoard {
+  id          String @id @default(cuid())
+  userId      String
+  savedLeadId String @unique // one board per lead
+
+  status     String  @default("DRAFT") // DRAFT | READY | ARCHIVED
+  assignedTo String? // userId of the team member working it
+
+  // ── needs & opportunities (section 2) ──
+  // Every entry is something a human or the agent asserted. Blank means UNKNOWN
+  // and must render as unknown — never as an assumption.
+  needs         String @default("[]") // JSON: string[] — business problems
+  interests     String @default("[]") // JSON: string[] — what the lead engaged with
+  opportunities String @default("[]") // JSON: string[] — openings identified
+
+  // ── recommended services (section 3) ──
+  // JSON: [{ serviceId, reason, outcome, priceCents?, priceNote? }]
+  recommendations String @default("[]")
+
+  // ── pitch strategy (section 4) ──
+  valueProposition String?
+  talkingPoints    String  @default("[]") // JSON: string[]
+  questionsToAsk   String  @default("[]") // JSON: string[]
+  objections       String  @default("[]") // JSON: [{ risk, response }]
+  competitive      String?
+
+  // ── evidence (section 5) ──
+  proofIds String @default("[]") // JSON: ProofItem ids attached to this board
+
+  // Provenance: which fields the agent drafted, so the UI can mark them for review.
+  // JSON: { <field>: { source: "agent" | "human", at: ISO } }
+  provenance String @default("{}")
+
+  readyAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead SavedLead @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+  pitches   Pitch[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+// A service the user sells. Before this existed the only list of services was
+// BrandKit.products (a bare string[]) with no price and no description — this is
+// that list grown up, seeded from it on first use. BrandKit.products is never
+// written back to; this is the authority for "what I sell" from here on. [[A7]]
+// Distinct from Product, which belongs to a Store and carries inventory/variants.
+model ServiceOffering {
+  id          String  @id @default(cuid())
+  userId      String
+  name        String
+  summary     String? // one line, used in proposal line items
+  description String?
+  outcome     String? // the business result the buyer gets
+
+  deliverables String @default("[]") // JSON: string[]
+
+  pricingModel  String  @default("custom") // fixed | hourly | monthly | custom
+  priceCents    Int? // null when pricingModel = custom → "custom quote"
+  minPriceCents Int? // optional "from" price for custom work
+  currency      String  @default("USD")
+  unit          String? // e.g. "per month", "per hour", "per project"
+
+  tags     String  @default("[]") // JSON: string[]
+  active   Boolean @default(true)
+  position Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, active])
+}
+
+// A reusable piece of proof attachable to a board or a proposal: a case study,
+// a testimonial, a portfolio piece, a hard metric, or a file. Portfolio holds a
+// whole published site; this holds the individual artefacts a salesperson cites.
+model ProofItem {
+  id     String @id @default(cuid())
+  userId String
+  kind   String @default("case_study") // case_study | testimonial | portfolio_item | metric | file
+
+  title  String
+  client String? // who it was for
+  quote  String? // testimonial text
+  author String? // who said it, and their role
+  body   String? // case-study narrative
+
+  metricLabel String? // e.g. "Booked calls"
+  metricValue String? // e.g. "+212% in 90 days"
+
+  mediaUrl String? // image / logo (S3)
+  fileUrl  String? // downloadable attachment (S3)
+  linkUrl  String? // live work / press link
+
+  tags     String  @default("[]") // JSON: string[] — matched against service tags
+  active   Boolean @default(true)
+  position Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
+}
+
+// A saved starting point for a proposal: which builder, which sections, and the
+// reusable boilerplate (terms, exclusions, intro) that does not change per deal.
+model ProposalTemplate {
+  id           String  @id @default(cuid())
+  userId       String
+  name         String
+  description  String?
+  documentType String  @default("service_proposal") // "pitch" | "service_proposal"
+  builderType  String  @default("professional-services") // visual-sales-deck | professional-services | process-framework
+
+  // JSON: [{ id, title, enabled, body? }] — the section spine of the document
+  sections String @default("[]")
+
+  intro      String? // boilerplate opening
+  terms      String? // payment terms
+  exclusions String? // what is explicitly not included
+
+  serviceIds String  @default("[]") // JSON: default ServiceOffering ids
+  proofIds   String  @default("[]") // JSON: default ProofItem ids
+  isDefault  Boolean @default(false)
+  usageCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pitches Pitch[]
+
+  @@index([userId])
+}
+
+// One view of a sent proposal through its public link. Rows are the evidence
+// behind Pitch.viewCount / firstViewedAt — the counters are a denormalisation,
+// this is the log. No raw IP is stored, only a salted hash, so repeat views can
+// be recognised without holding the address.
+model ProposalView {
+  id      String   @id @default(cuid())
+  pitchId String
+  at      DateTime @default(now())
+
+  ipHash    String? // sha256(ip + APP_SECRET), truncated
+  userAgent String?
+  referer   String?
+
+  pitch Pitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+
+  @@index([pitchId, at])
 }
