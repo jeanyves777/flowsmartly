@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { PageShell } from '../page-shell';
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocalSearchParams } from "expo-router";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { PageShell } from "../page-shell";
 import {
   Heading,
   OpenSection as Section,
   SectionLabel,
   useTypeScale,
-} from '../ui';
-import { useTokens } from '@/theme/v5-theme-provider';
-import { useLayout } from '@/theme/use-responsive';
-import { softFill } from '@/theme/tokens';
+} from "../ui";
+import { useTokens } from "@/theme/v5-theme-provider";
+import { useLayout } from "@/theme/use-responsive";
+import { softFill } from "@/theme/tokens";
 import {
   articleHref,
   decodeNews,
@@ -18,40 +18,40 @@ import {
   selectNews,
   TOPIC_LABELS,
   type NewsArticle,
-} from '@/lib/news';
+} from "@/lib/news";
 
 function useNews() {
   const [state, setState] = useState<{
-    kind: 'loading' | 'ready' | 'failed';
+    kind: "loading" | "ready" | "failed";
     articles: NewsArticle[];
-  }>({ kind: 'loading', articles: [] });
+  }>({ kind: "loading", articles: [] });
   const [attempt, retry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     const embedded =
-      attempt === 0 && typeof document !== 'undefined'
-        ? document.getElementById('flowagent-public-news')?.textContent
+      attempt === 0 && typeof document !== "undefined"
+        ? document.getElementById("flowagent-public-news")?.textContent
         : null;
     const load = embedded
       ? Promise.resolve().then(() => decodeNews(JSON.parse(embedded)))
-      : fetch('/_news/feed.json', { signal: controller.signal }).then(
+      : fetch("/_news/feed.json", { signal: controller.signal }).then(
           async (response) => {
             if (!response.ok) throw new Error();
             return decodeNews(await response.json());
           },
         );
     load
-      .then((articles) => setState({ kind: 'ready', articles }))
+      .then((articles) => setState({ kind: "ready", articles }))
       .catch(() => {
         if (!controller.signal.aborted)
-          setState({ kind: 'failed', articles: [] });
+          setState({ kind: "failed", articles: [] });
       });
     return () => controller.abort();
   }, [attempt]);
   return {
     ...state,
     retry: () => {
-      setState({ kind: 'loading', articles: [] });
+      setState({ kind: "loading", articles: [] });
       retry((x) => x + 1);
     },
   };
@@ -74,15 +74,15 @@ export function NewsHub({
       StyleSheet.create({
         intro: { gap: 18 },
         row: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
+          flexDirection: "row",
+          flexWrap: "wrap",
           gap: 12,
-          alignItems: 'center',
+          alignItems: "center",
         },
         chip: {
-          display: 'flex',
+          display: "flex",
           minHeight: 44,
-          justifyContent: 'center',
+          justifyContent: "center",
           paddingHorizontal: 16,
           paddingVertical: 10,
           borderRadius: 24,
@@ -103,11 +103,11 @@ export function NewsHub({
           minHeight: 52,
           paddingHorizontal: 18,
           fontSize: 16,
-          width: '100%',
+          width: "100%",
         },
         grid: {
-          flexDirection: l.isPhone ? 'column' : 'row',
-          flexWrap: 'wrap',
+          flexDirection: l.isPhone ? "column" : "row",
+          flexWrap: "wrap",
           gap: 20,
         },
         card: {
@@ -119,17 +119,17 @@ export function NewsHub({
           backgroundColor: t.surfaceRaised,
           flexGrow: 0,
           flexShrink: 1,
-          flexBasis: l.isPhone ? 'auto' : l.isTablet ? '48%' : '31%',
+          flexBasis: l.isPhone ? "auto" : l.isTablet ? "48%" : "31%",
           minWidth: 0,
         },
         link: {
-          display: 'flex',
+          display: "flex",
           ...type.bodySm,
           color: t.brand,
           minHeight: 44,
           paddingVertical: 12,
         },
-        reader: { maxWidth: 760, width: '100%', alignSelf: 'center', gap: 24 },
+        reader: { maxWidth: 760, width: "100%", alignSelf: "center", gap: 24 },
         paragraph: { ...type.body, color: t.text, lineHeight: 30 },
         divider: {
           borderTopWidth: 1,
@@ -151,26 +151,30 @@ export function NewsHub({
   );
   const params = useLocalSearchParams<{ slug?: string; date?: string }>();
   const news = useNews();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const chosen = article
     ? news.articles.find((a) => a.slug === params.slug)
     : undefined;
   const date =
-    briefing && typeof params.date === 'string' ? params.date : undefined;
+    briefing && typeof params.date === "string" ? params.date : undefined;
   const title = article
-    ? (chosen?.title ?? 'Read FlowAgent News')
+    ? (chosen?.title ?? "Read FlowAgent News")
     : briefing
-      ? 'The daily briefing'
+      ? "The daily briefing · UTC"
       : topic
-        ? (TOPIC_LABELS[topic] ?? 'News')
-        : 'A clearer view of what’s next.';
+        ? (TOPIC_LABELS[topic] ?? "News")
+        : "A clearer view of what’s next.";
   const filtered = selectNews(news.articles, query, topic, date);
   const dates = [
-    ...new Set(news.articles.map((a) => a.publishedAt.slice(0, 10))),
+    ...new Set(
+      news.articles.map((a) =>
+        new Date(a.publishedAt).toISOString().slice(0, 10),
+      ),
+    ),
   ];
   const canonical =
     article &&
-    typeof params.slug === 'string' &&
+    typeof params.slug === "string" &&
     /^[a-z0-9-]+$/.test(params.slug)
       ? articleHref(params.slug)
       : briefing && date
@@ -179,24 +183,24 @@ export function NewsHub({
   const jsonLd = chosen
     ? [
         {
-          '@context': 'https://schema.org',
-          '@type': 'NewsArticle',
+          "@context": "https://schema.org",
+          "@type": "NewsArticle",
           headline: chosen.title,
           datePublished: chosen.publishedAt,
           dateModified:
             chosen.editorial.corrections.at(-1)?.at ?? chosen.publishedAt,
           url: `https://flowsmartly.com${articleHref(chosen.slug)}`,
           articleSection: TOPIC_LABELS[chosen.editorial.category],
-          author: { '@type': 'Organization', name: 'FlowAgent · FlowSmartly' },
+          author: { "@type": "Organization", name: "FlowAgent · FlowSmartly" },
           citation: chosen.editorial.sources.map((s) => s.url),
         },
       ]
     : [
         {
-          '@context': 'https://schema.org',
-          '@type': 'CollectionPage',
-          name: 'FlowAgent News',
-          url: 'https://flowsmartly.com/news',
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: "FlowAgent News",
+          url: "https://flowsmartly.com/news",
         },
       ];
   return (
@@ -204,13 +208,13 @@ export function NewsHub({
       title={title}
       description={
         chosen?.excerpt ??
-        'Source-grounded reporting and analysis on science, the AI race, banking and the business of technology.'
+        "Source-grounded reporting and analysis on science, the AI race, banking and the business of technology."
       }
       cta={false}
       canonicalPath={canonical}
-      type={chosen ? 'article' : 'website'}
+      type={chosen ? "article" : "website"}
       jsonLd={jsonLd}
-      noIndex={news.kind === 'ready' && article && !chosen}
+      noIndex={news.kind === "ready" && article && !chosen}
     >
       <Section>
         <View style={styles.intro}>
@@ -254,14 +258,14 @@ export function NewsHub({
           )}
         </View>
       </Section>
-      {news.kind === 'loading' && (
+      {news.kind === "loading" && (
         <Section>
           <Text accessibilityLiveRegion="polite" style={type.body}>
             Loading published reporting…
           </Text>
         </Section>
       )}
-      {news.kind === 'failed' && (
+      {news.kind === "failed" && (
         <Section>
           <Heading level={2} style={type.h3}>
             The newsroom is temporarily unavailable.
@@ -278,27 +282,27 @@ export function NewsHub({
           </Pressable>
         </Section>
       )}
-      {news.kind === 'ready' &&
+      {news.kind === "ready" &&
         article &&
         (chosen ? (
           <Section>
             <View style={styles.reader}>
               <Text style={styles.meta}>
-                {TOPIC_LABELS[chosen.editorial.category]} ·{' '}
-                {chosen.editorial.mode === 'analysis'
-                  ? 'Analysis'
-                  : 'Reporting'}{' '}
+                {TOPIC_LABELS[chosen.editorial.category]} ·{" "}
+                {chosen.editorial.mode === "analysis"
+                  ? "Analysis"
+                  : "Reporting"}{" "}
                 · FlowAgent
               </Text>
               <Text style={styles.meta}>
                 Published {new Date(chosen.publishedAt).toUTCString()} ·
-                Researched{' '}
+                Researched{" "}
                 {new Date(chosen.editorial.researchedAt).toUTCString()}
               </Text>
               {chosen.excerpt && <Text style={type.h3}>{chosen.excerpt}</Text>}
               {chosen.blocks?.length
                 ? chosen.blocks.map((block, index) =>
-                    block.type === 'heading' ? (
+                    block.type === "heading" ? (
                       <Heading
                         key={index}
                         level={block.level === 3 ? 3 : 2}
@@ -317,8 +321,8 @@ export function NewsHub({
                             <Text
                               key={r}
                               style={{
-                                fontWeight: run.bold ? '700' : '400',
-                                fontStyle: run.italic ? 'italic' : 'normal',
+                                fontWeight: run.bold ? "700" : "400",
+                                fontStyle: run.italic ? "italic" : "normal",
                               }}
                             >
                               {run.text}
@@ -347,10 +351,10 @@ export function NewsHub({
                       {source.title} ↗
                     </Link>
                     <Text style={styles.meta}>
-                      {source.publisher} ·{' '}
+                      {source.publisher} ·{" "}
                       {source.publishedAt
                         ? `Published ${new Date(source.publishedAt).toUTCString()}`
-                        : 'Publication time not provided'}{' '}
+                        : "Publication time not provided"}{" "}
                       · Retrieved {new Date(source.retrievedAt).toUTCString()}
                     </Text>
                   </View>
@@ -395,7 +399,7 @@ export function NewsHub({
             </Text>
           </Section>
         ))}
-      {news.kind === 'ready' && !article && (
+      {news.kind === "ready" && !article && (
         <Section>
           <View style={{ gap: 24 }}>
             {briefing && (
@@ -414,12 +418,12 @@ export function NewsHub({
                       href={`/news/briefing?date=${day}` as never}
                       style={[styles.chip, styles.link]}
                     >
-                      {day} ·{' '}
+                      {day} ·{" "}
                       {
                         news.articles.filter((a) =>
-                          a.publishedAt.startsWith(day),
+                          new Date(a.publishedAt).toISOString().startsWith(day),
                         ).length
-                      }{' '}
+                      }{" "}
                       articles
                     </Link>
                   ))}
@@ -435,21 +439,21 @@ export function NewsHub({
               style={styles.search}
             />
             <Text accessibilityLiveRegion="polite" style={styles.meta}>
-              {date ? `${date} · ` : ''}
-              {filtered.length} published{' '}
-              {filtered.length === 1 ? 'article' : 'articles'}
+              {date ? `${date} · ` : ""}
+              {filtered.length} published{" "}
+              {filtered.length === 1 ? "article" : "articles"}
             </Text>
             {!filtered.length ? (
               <View style={styles.featured}>
                 <Heading level={2} style={type.h3}>
                   {news.articles.length
-                    ? 'No matching stories.'
-                    : 'The next story starts with a source.'}
+                    ? "No matching stories."
+                    : "The next story starts with a source."}
                 </Heading>
                 <Text style={type.body}>
                   {news.articles.length
-                    ? 'Try another topic, date or search.'
-                    : 'No articles have been published yet. Our editorial target is 20 original articles a day; only verified publications appear here.'}
+                    ? "Try another topic, date or search."
+                    : "No articles have been published yet. Our editorial target is 20 original articles a day; only verified publications appear here."}
                 </Text>
               </View>
             ) : (
@@ -457,10 +461,10 @@ export function NewsHub({
                 {filtered.map((a) => (
                   <View key={a.id} style={styles.card}>
                     <Text style={styles.meta}>
-                      {TOPIC_LABELS[a.editorial.category]} ·{' '}
-                      {a.editorial.mode === 'analysis'
-                        ? 'Analysis'
-                        : 'Reporting'}
+                      {TOPIC_LABELS[a.editorial.category]} ·{" "}
+                      {a.editorial.mode === "analysis"
+                        ? "Analysis"
+                        : "Reporting"}
                     </Text>
                     <Heading level={2} style={type.h3}>
                       {a.title}
@@ -468,7 +472,7 @@ export function NewsHub({
                     <Text style={type.bodySm}>{a.excerpt}</Text>
                     <View style={{ flexGrow: 1 }} />
                     <Text style={styles.meta}>
-                      {new Date(a.publishedAt).toUTCString()} ·{' '}
+                      {new Date(a.publishedAt).toUTCString()} ·{" "}
                       {a.editorial.sources.length} sources
                     </Text>
                     <Link
