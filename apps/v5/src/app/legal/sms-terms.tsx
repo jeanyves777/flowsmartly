@@ -4,6 +4,7 @@ import {
   REGISTERED_ADDRESS,
   AsideCard,
   AsideChecklist,
+  LegalBullets,
   LegalContactCard,
   LegalLayout,
   LegalSection,
@@ -16,6 +17,7 @@ import { contactHref } from '@/lib/destinations';
 
 
 const SECTIONS: DocSection[] = [
+  { id: 'program', title: 'FlowSmartly Text Messages' },
   { id: 'consent', title: 'Consent and Enrollment' },
   { id: 'frequency', title: 'Message Frequency' },
   { id: 'fees', title: 'Carrier Fees' },
@@ -27,6 +29,27 @@ const SECTIONS: DocSection[] = [
   { id: 'records', title: 'Records and Auditability' },
   { id: 'updates', title: 'Updates' },
   { id: 'contact', title: 'Contact' },
+];
+
+/** FlowSmartly's own SMS program, as the FlowSmartly 10DLC registration describes it. */
+const PROGRAM: readonly (string | [string, string])[] = [
+  ['Program name:', 'FlowSmartly.'],
+  [
+    'What we send:',
+    'account and billing notices, account activity alerts, replies to support requests, and occasional FlowSmartly product announcements and promotional messages.',
+  ],
+  [
+    'How to join:',
+    'check the consent box at https://flowsmartly.com/optin/flowsmartly. Consent is not a condition of purchase.',
+  ],
+  ['Frequency and cost:', 'message frequency varies. Msg & data rates may apply.'],
+  ['Stop or get help:', 'reply STOP to cancel at any time, or HELP for help.'],
+  ['Support:', 'compliance@flowsmartly.com.'],
+  ['Delivery:', 'carriers are not liable for delayed or undelivered messages.'],
+  [
+    'Your information:',
+    'how we handle your number and consent is described in our Privacy Policy at https://flowsmartly.com/legal/privacy.',
+  ],
 ];
 
 const CHECKLIST = [
@@ -57,7 +80,7 @@ export default function SmsTermsPage() {
       cta={false}>
       <LegalLayout
         title="SMS Messaging Terms"
-        updated="August 3, 2026"
+        updated="November 15, 2026"
         intro="These SMS Messaging Terms (“Terms”) govern the use of FlowSmartly's SMS messaging services. By using SMS through FlowSmartly, you agree to these Terms and all applicable laws and regulations."
         sections={SECTIONS}
         sidebarCard={
@@ -88,7 +111,16 @@ export default function SmsTermsPage() {
             </AsideCard>
           </>
         }>
-        <LegalSection number={1} title="Consent and Enrollment">
+        <LegalSection number={1} title="FlowSmartly Text Messages">
+          <LegalText>
+            FlowSmartly sends its own text messages to people who use the FlowSmartly platform and
+            opted in to receive them. This program is separate from the messages businesses send to
+            their own customers through FlowSmartly, which the sections below govern.
+          </LegalText>
+          <LegalBullets items={PROGRAM} />
+        </LegalSection>
+
+        <LegalSection number={2} title="Consent and Enrollment">
           <LegalText>
             You must obtain clear, express, and informed consent from recipients before sending SMS
             messages. Consent must not be a condition of purchase. Recipients must know what they are
@@ -96,21 +128,21 @@ export default function SmsTermsPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={2} title="Message Frequency">
+        <LegalSection number={3} title="Message Frequency">
           <LegalText>
             Message frequency may vary. We recommend setting clear expectations during opt-in. You are
             responsible for honoring the frequency you disclose.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={3} title="Carrier Fees">
+        <LegalSection number={4} title="Carrier Fees">
           <LegalText>
             Message and data rates may apply. Recipients are responsible for any charges imposed by
             their mobile carrier.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={4} title="Opting Out with STOP">
+        <LegalSection number={5} title="Opting Out with STOP">
           <LegalText>
             Recipients can opt out at any time by replying STOP. You agree to honor opt-out requests
             promptly and not send further messages, except as required by law (e.g., transactional
@@ -118,28 +150,28 @@ export default function SmsTermsPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={5} title="Getting Help with HELP">
+        <LegalSection number={6} title="Getting Help with HELP">
           <LegalText>
             Recipients can reply HELP for assistance. You agree to respond with information on how to
             get help, including your business name and contact information.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={6} title="Quiet Hours">
+        <LegalSection number={7} title="Quiet Hours">
           <LegalText>
             You agree to respect quiet hours between 8:00 PM and 8:00 AM recipient local time.
             Transactional or critical messages may be sent outside these hours when necessary.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={7} title="Prohibited Content">
+        <LegalSection number={8} title="Prohibited Content">
           <LegalText>
             You will not send unlawful, deceptive, harassing, or abusive content. You will not send
             messages that violate any law, regulation, or carrier policy.
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={8} title="Compliance Responsibilities">
+        <LegalSection number={9} title="Compliance Responsibilities">
           <LegalText>
             You are solely responsible for your messaging content, obtaining and managing consent,
             honoring opt-outs, and complying with all applicable laws, including the TCPA and CTIA
@@ -147,7 +179,7 @@ export default function SmsTermsPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={9} title="Records and Auditability">
+        <LegalSection number={10} title="Records and Auditability">
           <LegalText>
             You agree to maintain accurate records of consent, message content, opt-outs, and related
             data for at least 24 months and make them available to FlowSmartly or regulators upon
@@ -155,7 +187,7 @@ export default function SmsTermsPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={10} title="Updates">
+        <LegalSection number={11} title="Updates">
           <LegalText>
             We may update these Terms from time to time. Material changes will be communicated via
             email or through the platform. Continued use of SMS services after updates constitutes
@@ -163,7 +195,7 @@ export default function SmsTermsPage() {
           </LegalText>
         </LegalSection>
 
-        <LegalSection number={11} title="Contact">
+        <LegalSection number={12} title="Contact">
           <LegalText>
             If you received a message and want it to stop, reply STOP to that message. Reply HELP to
             it for the sender&apos;s name and contact details — the business that messaged you is

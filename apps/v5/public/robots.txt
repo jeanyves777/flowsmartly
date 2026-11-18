@@ -63,3 +63,5 @@ User-agent: Omgilibot
 Disallow: /
 
 Sitemap: https://flowsmartly.com/sitemap.xml
+
+Sitemap: https://flowsmartly.com/_news/sitemap.xml
