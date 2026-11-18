@@ -21,7 +21,7 @@ import { Heading, SectionLabel, useOpenSection, useTypeScale, type TypeScale } f
  * drift apart from each other — and did.
  */
 export const LEGAL_ENTITY = 'General Computing Solutions';
-export const REGISTERED_ADDRESS = '132 Lincoln St, Pittsfield, MA 01201, USA';
+export const REGISTERED_ADDRESS = '9 Pearl St, Adams, MA 01220, USA';
 
 export type DocSection = { id: string; title: string };
 
