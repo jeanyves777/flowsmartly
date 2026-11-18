@@ -1,3 +1,4 @@
+/* global __dirname */
 /* Post-export step: writes the generated agent-facing artefacts into dist/.
  *
  *   node scripts/agent-assets.js
@@ -566,7 +567,10 @@ const pruned = prune();
 // Redirect stubs are written first, then excluded from every generated index —
 // a moved URL must not be advertised in the sitemap it redirects away from.
 const redirects = writeRedirects();
-const list = routes().sort().filter((route) => !isMoved(route));
+// /news/article is a rendering template, not a canonical article. The backend
+// requires ?slug= and advertises only published URLs via /_news/sitemap.xml.
+// Retain its HTML for the backend renderer; omit it from public discovery.
+const list = routes().sort().filter((route) => !isMoved(route) && route !== '/news/article');
 const urls = writeSitemap(list);
 const groups = writeLlms(list);
 const feed = writeFeed();
