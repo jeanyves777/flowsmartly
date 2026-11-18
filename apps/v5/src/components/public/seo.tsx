@@ -22,6 +22,7 @@ export const SITE = {
 export type SeoProps = {
   /** page title without the site suffix */
   title: string;
+  canonicalPath?: string;
   description?: string;
   /** absolute or root-relative image for the social unfurl */
   image?: string;
@@ -41,9 +42,9 @@ export type SeoProps = {
   };
 };
 
-export function Seo({ title, description, image, imageAlt, type = 'website', noIndex, jsonLd, article }: SeoProps) {
+export function Seo({ title, description, image, imageAlt, type = 'website', noIndex, jsonLd, article, canonicalPath }: SeoProps) {
   const pathname = usePathname();
-  const canonical = `${SITE.origin}${pathname === '/' ? '' : pathname}`;
+  const canonical = `${SITE.origin}${canonicalPath ?? (pathname === '/' ? '' : pathname)}`;
   const fullTitle = `${title} — ${SITE.name}`;
   const ogImage = image
     ? image.startsWith('http')
@@ -115,7 +116,7 @@ export function Seo({ title, description, image, imageAlt, type = 'website', noI
         <script
           key={index}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(block).replace(/</g, '\\u003c') }}
         />
       ))}
     </Head>

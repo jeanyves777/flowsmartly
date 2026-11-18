@@ -176,7 +176,7 @@ const SECTIONS = [
   ['Solutions', /^\/(solutions|flowagent)/],
   ['Learning', /^\/(education\/|solutions\/flowlearner)/],
   ['Pricing', /^\/pricing$/],
-  ['Resources', /^\/resources/],
+  ['Resources', /^\/(resources|news)/],
   ['Company', /^\/company/],
   ['Legal', /^\/legal/],
 ];

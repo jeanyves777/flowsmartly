@@ -1,0 +1,11 @@
+# FlowAgent News public pages
+
+The public news hub lives in this marketing application, not in the authenticated portal. This branch is based on `completion/billing-public-offers@ade9fd745ec4f1793ab60eac2fa48a4b4c1dc6ec`, the source named by the latest serving receipt found in public-site PR #547. Do not deploy an older legal address or overwrite the separate public-auth CTA work when integrating this feature.
+
+Routes: `/news`, `/news/science`, `/news/ai-race`, `/news/banking`, `/news/business`, `/news/technology`, `/news/briefing?date=YYYY-MM-DD`, and `/news/article?slug=...`. The existing shared navigation exposes FlowAgent News under Resources and in the footer. Pages reuse PageShell, OpenSection, shared typography, tokens, responsive breakpoints, SEO and the current light/dark themes. No new image assets or design system are added.
+
+Data comes only from the governed published-post projection at `/_news/feed.json`. The backend owns research evidence, durable Automations, permissions, credits, retries, publication and source attribution. This frontend does not call a model or schedule work. No example articles are production data. Counts reflect actual publications; twenty is the editorial daily target, not a claim of delivery.
+
+The paired `jeanyves777/flowsmartly-v5` branch `codex/public-news-20261118` serves these exported HTML templates with live published snapshots, canonical/schema metadata, CSP hashes and a readable no-JavaScript fallback. Client hydration starts from the normal static export and then adopts the public snapshot. The JSON feed remains directly usable by agents, and `robots.txt` also names its dynamic sitemap. The marketing export alone is not a live news deployment: nginx, a published news site/hostname binding and the storefront's `PUBLIC_NEWS_MARKETING_ROOT` must be configured as documented in the backend's `docs/ops/public-news.md`.
+
+Validation: `npx tsc --noEmit`, focused ESLint, and `npm run build:web`. The backend's `scripts/prove-public-news.mjs` uses this real export and its actual server wrapper in Chromium at 390/768/1024/1280/1536/1920, light/dark, and verifies search, articles, briefing discovery, empty/failure/retry states, canonical identity, CSP and a no-JavaScript reading path. Its explicit synthetic fixtures are never installed into production.
