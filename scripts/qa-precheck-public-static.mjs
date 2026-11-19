@@ -17,7 +17,7 @@
  * Exit 0 only when every arm behaves as stated.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,6 +82,19 @@ server {
 }
 `;
 
+// The reviewed news reader, deliberately assembled as independent test data.
+const NEWS = [['=', '/news'], ['^~', '/news/'], ['=', '/_news/feed.json'], ['=', '/_news/sitemap.xml']]
+  .map(([modifier, route]) => `location ${modifier} ${route} {
+    limit_except GET HEAD { deny all; }
+    proxy_pass http://127.0.0.1:3230;
+    proxy_set_header Host $host;
+    proxy_set_header Authorization "";
+    proxy_set_header Cookie "";
+    proxy_hide_header Set-Cookie;
+    proxy_read_timeout 30s;
+  }`).join('\n');
+const COMBINED = ALLOW.replace('#SERVER_EXTRA', NEWS);
+
 const PORTAL_LOC = /location ~ \^\/\(login\|register\|flowagent\)\/\?\$ \{[\s\S]*?\n {4}\}/;
 const NAMED_LOC = /location @marketing_assets \{[\s\S]*?\n {4}\}/;
 const EXPO_LOC = `location ^~ /_expo/ { root ${PORTAL}; try_files $uri @marketing_assets; }`;
@@ -123,6 +136,38 @@ try {
   const ok = gate(ALLOW);
   arm('ALLOW the current apex shape passes', ok.status === 0 && ok.failed.length === 0,
     `exit ${ok.status}${ok.failed.length ? `; failed: ${ok.failed.join(' | ')}` : ''}`);
+
+  const combined = gate(COMBINED);
+  arm('ALLOW final combined static + governed news routing', combined.status === 0 && combined.failed.length === 0,
+    `exit ${combined.status}; failed: ${combined.failed.join(' | ')}`);
+  const NEWS_CHECK = /uses the governed read-only news proxy/;
+  denies('news proxy points at another service', COMBINED.replaceAll(':3230;', ':3210;'), NEWS_CHECK, /proxy target/);
+  denies('news proxy rewrites the request path', COMBINED.replaceAll(':3230;', ':3230/news/;'), NEWS_CHECK, /proxy target/);
+  denies('news allows POST', COMBINED.replaceAll('limit_except GET HEAD', 'limit_except GET HEAD POST'), NEWS_CHECK, /method guard/);
+  denies('news method guard missing', COMBINED.replaceAll('limit_except GET HEAD { deny all; }', ''), NEWS_CHECK, /method guard/);
+  denies('news methods allow instead of deny', COMBINED.replaceAll('deny all;', 'allow all;'), NEWS_CHECK, /must deny all/);
+  denies('news guard hides another nested directive', COMBINED.replaceAll('deny all;', 'deny all; if ($probe) { return 200; }'), NEWS_CHECK, /must deny all/);
+  denies('news leaks owner authorization', COMBINED.replaceAll('Authorization "";', 'Authorization $http_authorization;'), NEWS_CHECK, /public headers/);
+  denies('news passes owner cookies', COMBINED.replaceAll('Cookie "";', 'Cookie $http_cookie;'), NEWS_CHECK, /public headers/);
+  denies('news no longer strips response cookies', COMBINED.replaceAll('proxy_hide_header Set-Cookie;', ''), NEWS_CHECK, /public headers/);
+  denies('news nested rewrite outside the guard', COMBINED.replaceAll('proxy_read_timeout 30s;', 'if ($probe) { return 200; }'), NEWS_CHECK, /method guard/);
+  denies('partial news rollout missing the feed proxy', COMBINED.replace('location = /_news/feed.json', 'location = /_else/feed.json'), NEWS_CHECK);
+  denies('news wildcard has weaker precedence', COMBINED.replace('location ^~ /news/', 'location /news/'), NEWS_CHECK);
+  denies('an exact override inside news', COMBINED.replace('location / {', 'location = /news/private { proxy_pass http://127.0.0.1:9999; }\n location / {'),
+    /news namespace has no additional location overrides/);
+  denies('news exception cannot permit proxies on an ordinary marketing route',
+    COMBINED.replace('location ~ ^/early-access/?$ {', 'location ~ ^/early-access/?$ { proxy_pass http://127.0.0.1:3230;'),
+    /^\/early-access is served from the marketing root/);
+  const missing = join(work, 'missing-news-template');
+  cpSync(DIST, missing, { recursive: true });
+  rmSync(join(missing, 'news/article.html'), { force: true });
+  rmSync(join(missing, 'news/article'), { recursive: true, force: true });
+  const noTemplate = gate(COMBINED, { dist: missing });
+  arm('DENY news proxy with a missing exported rendering template', noTemplate.status === 1 &&
+    noTemplate.details.some((d) => /every expected route resolves/.test(d.name) && /news\/article/.test(d.detail)),
+    `exit ${noTemplate.status}`);
+  const rollback = gate(ALLOW);
+  arm('ALLOW static routing on rollback after combined check', rollback.status === 0, `exit ${rollback.status}`);
 
   denies('/login proxied somewhere', ALLOW.replace(PORTAL_LOC, 'location ~ ^/(login|register|flowagent)/?$ { proxy_pass http://127.0.0.1:9999; }'),
     /^\/login is served by the V5 portal/);

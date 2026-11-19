@@ -113,3 +113,7 @@ jobs:
         # `location` claims.
         working-directory: ${{ github.workspace }}
         run: node scripts/precheck-v5-routes.mjs
+
+      - name: Verify public routing, governed news and rollback controls
+        working-directory: ${{ github.workspace }}
+        run: node scripts/qa-precheck-public-static.mjs
