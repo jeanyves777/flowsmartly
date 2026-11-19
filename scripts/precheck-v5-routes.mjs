@@ -47,10 +47,14 @@
  *   - exactly one apex server block listens on 443, with no include inside it
  *     and nothing at server level (return, rewrite, if) that this emulation
  *     would not see — otherwise the view would be a guess, so it fails;
- *   - every route of this export resolves, in that server, to a static location
- *     whose root is the marketing root, i.e. the link the publish flips; a
- *     try_files that ends in a named location is refused for every route;
- *   - the one exception is the asset prefix both apps share, /_expo/, which must
+ *   - every route of this export resolves to the marketing root, i.e. the link
+ *     the publish flips, except the explicit governed news routes below; a
+ *     try_files that ends in a named location is refused for ordinary routes;
+ *   - news may remain static (including rollback), or all four reviewed news
+ *     locations must use the read-only storefront proxy with exact Host and
+ *     credential stripping. Only the known news templates get that exception;
+ *     their exported HTML must still exist, and arbitrary nested blocks fail;
+ *   - the shared asset prefix, /_expo/, must
  *     be exactly `^~ /_expo/` under the portal root, `try_files $uri
  *     @marketing_assets`, and that named location under the marketing root as
  *     `$uri =404`: portal first, this export second (see `assetChain`);
@@ -803,6 +807,44 @@ function servingOf(view, loc, serverRoot) {
   return { kind, root: root.replace(/\/+$/, ''), tryFiles };
 }
 
+/** The only dynamic marketing namespace: governed, read-only storefront news.
+ * Static routing remains valid before rollout and on rollback. Once any of the
+ * four proxy locations exists, all four must have this exact reviewed shape.
+ * Never teach servingOf to accept nested blocks or arbitrary proxies.
+ */
+const NEWS_LOCATIONS = [
+  ['=', '/news'], ['^~', '/news/'],
+  ['=', '/_news/feed.json'], ['=', '/_news/sitemap.xml'],
+];
+const NEWS_EXPORT_ROUTES = new Set([
+  '/news', '/news/article', '/news/briefing', '/news/science', '/news/ai-race',
+  '/news/banking', '/news/business', '/news/technology',
+]);
+function governedNewsLocation(view, loc) {
+  if (!loc || !NEWS_LOCATIONS.some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern))
+    return 'not an explicit governed news location';
+  const kids = children(view, loc.start, loc.end);
+  const blocks = kids.filter((k) => k.block);
+  const guard = blocks[0];
+  if (blocks.length !== 1 || guard.name !== 'limit_except' || guard.args.join(' ') !== 'GET HEAD')
+    return 'method guard must allow only GET HEAD';
+  const denied = children(view, guard.start, guard.end);
+  if (denied.length !== 1 || denied[0].block || denied[0].name !== 'deny' || denied[0].args.join(' ') !== 'all')
+    return 'other methods must deny all';
+  const expected = [
+    ['proxy_pass', 'http://127.0.0.1:3230'],
+    ['proxy_set_header', 'Host', '$host'],
+    ['proxy_set_header', 'Authorization', ''],
+    ['proxy_set_header', 'Cookie', ''],
+    ['proxy_hide_header', 'Set-Cookie'],
+    ['proxy_read_timeout', '30s'],
+  ].map((args) => JSON.stringify(args)).sort();
+  const actual = kids.filter((k) => !k.block).map((k) => JSON.stringify([k.name, ...k.args])).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected))
+    return 'proxy target, public headers or directives drift from the governed reader';
+  return null;
+}
+
 /**
  * The shared asset prefix: the one fallback chain this gate accepts, and only
  * in exactly the shape measured on the loaded config (#184 6240257505):
@@ -893,7 +935,25 @@ function checkConfPublicStatic() {
   const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'another root');
   const whose = (b) => (b.kind !== 'static' ? b.kind : rootName(b));
   const roots = Object.assign(rootName, { marketing, portal });
+  const newsProxyMode = locations.some((loc) =>
+    NEWS_LOCATIONS.some(([, pattern]) => loc.pattern === pattern) &&
+    children(view, loc.start, loc.end).some((k) => !k.block && /_pass$/.test(k.name)));
+  if (newsProxyMode) {
+    for (const [modifier, pattern] of NEWS_LOCATIONS) {
+      const loc = selectLocation(locations, pattern);
+      const why = governedNewsLocation(view, loc);
+      check('nginx', `${pattern} uses the governed read-only news proxy`,
+        loc?.modifier === modifier && loc?.pattern === pattern && why === null, why ?? '');
+    }
+    const extra = locations.filter((loc) => /^\/(?:news(?:\/|$)|_news(?:\/|$))/.test(loc.pattern) &&
+      !NEWS_LOCATIONS.some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern));
+    check('nginx', 'news namespace has no additional location overrides', extra.length === 0, '');
+  }
   const fromMarketing = (path) => {
+    if (newsProxyMode && NEWS_EXPORT_ROUTES.has(path)) {
+      const why = governedNewsLocation(view, selectLocation(locations, path));
+      return { ok: why === null, detail: why ?? 'governed news proxy with exported template' };
+    }
     const b = at(path);
     return { ok: b.kind === 'static' && b.root === marketing, detail: whose(b) };
   };
@@ -915,7 +975,7 @@ function checkConfPublicStatic() {
   const { expected } = expectedRoutes();
   const exportRoutes = [...expected].filter((r) => !PORTAL_ROUTES.includes(r) && r !== '/flow-ai').sort();
   const wrong = exportRoutes.map((r) => [r, fromMarketing(r)]).filter(([, r]) => !r.ok);
-  check('nginx', `every route of this export is served from the marketing root (${exportRoutes.length} routes)`,
+  check('nginx', `every route of this export is served from the marketing root (${exportRoutes.length} routes) or its explicit governed news proxy`,
     exportRoutes.length > 0 && wrong.length === 0,
     wrong.length ? wrong.map(([route, r]) => `${route}: ${r.detail}`).join('; ') : '');
   for (const section of CONTRACT_SECTIONS) {
