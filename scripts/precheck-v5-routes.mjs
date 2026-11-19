@@ -820,8 +820,9 @@ const NEWS_EXPORT_ROUTES = new Set([
   '/news', '/news/article', '/news/briefing', '/news/science', '/news/ai-race',
   '/news/banking', '/news/business', '/news/technology',
 ]);
-function governedNewsLocation(view, loc) {
-  if (!loc || !NEWS_LOCATIONS.some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern))
+const FIRST_PARTY_NEWS_LOCATIONS = [['=', '/news/article'], ['=', '/_news/feed.json'], ['=', '/_news/sitemap.xml']];
+function governedNewsLocation(view, loc, firstParty = false) {
+  if (!loc || !(firstParty ? FIRST_PARTY_NEWS_LOCATIONS : NEWS_LOCATIONS).some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern))
     return 'not an explicit governed news location';
   const kids = children(view, loc.start, loc.end);
   const blocks = kids.filter((k) => k.block);
@@ -832,7 +833,7 @@ function governedNewsLocation(view, loc) {
   if (denied.length !== 1 || denied[0].block || denied[0].name !== 'deny' || denied[0].args.join(' ') !== 'all')
     return 'other methods must deny all';
   const expected = [
-    ['proxy_pass', 'http://127.0.0.1:3230'],
+    ['proxy_pass', firstParty ? 'http://127.0.0.1:3210' : 'http://127.0.0.1:3230'],
     ['proxy_set_header', 'Host', '$host'],
     ['proxy_set_header', 'Authorization', ''],
     ['proxy_set_header', 'Cookie', ''],
@@ -935,23 +936,24 @@ function checkConfPublicStatic() {
   const rootName = (b) => (b.root === marketing ? 'marketing root' : b.root === portal ? 'portal root' : 'another root');
   const whose = (b) => (b.kind !== 'static' ? b.kind : rootName(b));
   const roots = Object.assign(rootName, { marketing, portal });
+  const firstPartyNewsMode = locations.some(loc => loc.modifier === '=' && loc.pattern === '/news/article');
   const newsProxyMode = locations.some((loc) =>
     NEWS_LOCATIONS.some(([, pattern]) => loc.pattern === pattern) &&
     children(view, loc.start, loc.end).some((k) => !k.block && /_pass$/.test(k.name)));
-  if (newsProxyMode) {
-    for (const [modifier, pattern] of NEWS_LOCATIONS) {
+  if (newsProxyMode || firstPartyNewsMode) {
+    for (const [modifier, pattern] of (firstPartyNewsMode ? FIRST_PARTY_NEWS_LOCATIONS : NEWS_LOCATIONS)) {
       const loc = selectLocation(locations, pattern);
-      const why = governedNewsLocation(view, loc);
+      const why = governedNewsLocation(view, loc, firstPartyNewsMode);
       check('nginx', `${pattern} uses the governed read-only news proxy`,
         loc?.modifier === modifier && loc?.pattern === pattern && why === null, why ?? '');
     }
     const extra = locations.filter((loc) => /^\/(?:news(?:\/|$)|_news(?:\/|$))/.test(loc.pattern) &&
-      !NEWS_LOCATIONS.some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern));
+      ![...NEWS_LOCATIONS, ...(firstPartyNewsMode ? FIRST_PARTY_NEWS_LOCATIONS : [])].some(([modifier, pattern]) => loc.modifier === modifier && loc.pattern === pattern));
     check('nginx', 'news namespace has no additional location overrides', extra.length === 0, '');
   }
   const fromMarketing = (path) => {
-    if (newsProxyMode && NEWS_EXPORT_ROUTES.has(path)) {
-      const why = governedNewsLocation(view, selectLocation(locations, path));
+    if ((firstPartyNewsMode && path === '/news/article') || (!firstPartyNewsMode && newsProxyMode && NEWS_EXPORT_ROUTES.has(path))) {
+      const why = governedNewsLocation(view, selectLocation(locations, path), firstPartyNewsMode);
       return { ok: why === null, detail: why ?? 'governed news proxy with exported template' };
     }
     const b = at(path);

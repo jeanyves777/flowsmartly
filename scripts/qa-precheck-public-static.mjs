@@ -94,6 +94,11 @@ const NEWS = [['=', '/news'], ['^~', '/news/'], ['=', '/_news/feed.json'], ['=',
     proxy_read_timeout 30s;
   }`).join('\n');
 const COMBINED = ALLOW.replace('#SERVER_EXTRA', NEWS);
+const FIRST_PARTY = ALLOW.replace('#SERVER_EXTRA', NEWS.replaceAll(':3230;', ':3210;')
+  .replace(/location = \/news \{[\s\S]*?\n {2}\}/, `location = /news { ${TF} }`)
+  .replace(/location \^~ \/news\/ \{[\s\S]*?\n {2}\}/, `location ^~ /news/ { ${TF} }`)
+  + `\n location = /news/article { limit_except GET HEAD { deny all; } proxy_pass http://127.0.0.1:3210; proxy_set_header Host $host; proxy_set_header Authorization ""; proxy_set_header Cookie ""; proxy_hide_header Set-Cookie; proxy_read_timeout 30s; }`);
+
 
 const PORTAL_LOC = /location ~ \^\/\(login\|register\|flowagent\)\/\?\$ \{[\s\S]*?\n {4}\}/;
 const NAMED_LOC = /location @marketing_assets \{[\s\S]*?\n {4}\}/;
@@ -141,6 +146,13 @@ try {
   arm('ALLOW final combined static + governed news routing', combined.status === 0 && combined.failed.length === 0,
     `exit ${combined.status}; failed: ${combined.failed.join(' | ')}`);
   const NEWS_CHECK = /uses the governed read-only news proxy/;
+  const firstParty = gate(FIRST_PARTY);
+  arm('ALLOW first-party marketing hub + core API article/feeds', firstParty.status === 0, `exit ${firstParty.status}; ${firstParty.failed.join(' | ')}`);
+  denies('first-party projection points back to storefront', FIRST_PARTY.replaceAll(':3210;', ':3230;'), NEWS_CHECK);
+  denies('first-party projection allows POST', FIRST_PARTY.replaceAll('limit_except GET HEAD', 'limit_except GET HEAD POST'), NEWS_CHECK);
+  denies('first-party projection passes credentials', FIRST_PARTY.replaceAll('Authorization "";', 'Authorization $http_authorization;'), NEWS_CHECK);
+  denies('first-party hub silently proxies to a customer runtime', FIRST_PARTY.replace(`location = /news { ${TF} }`, 'location = /news { proxy_pass http://127.0.0.1:3230; }'), /every route of this export/);
+
   denies('news proxy points at another service', COMBINED.replaceAll(':3230;', ':3210;'), NEWS_CHECK, /proxy target/);
   denies('news proxy rewrites the request path', COMBINED.replaceAll(':3230;', ':3230/news/;'), NEWS_CHECK, /proxy target/);
   denies('news allows POST', COMBINED.replaceAll('limit_except GET HEAD', 'limit_except GET HEAD POST'), NEWS_CHECK, /method guard/);
