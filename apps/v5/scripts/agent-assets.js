@@ -1,3 +1,4 @@
+/* global __dirname */
 /* Post-export step: writes the generated agent-facing artefacts into dist/.
  *
  *   node scripts/agent-assets.js
@@ -14,6 +15,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+// Node22.18+ strips this public-only TypeScript module; same facts as rendered pricing.
+const { BILLING_OFFERS } = require('../src/content/billing-offers.ts');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const ORIGIN = 'https://flowsmartly.com';
@@ -174,7 +177,7 @@ const SECTIONS = [
   ['Solutions', /^\/(solutions|flowagent)/],
   ['Learning', /^\/(education\/|solutions\/flowlearner)/],
   ['Pricing', /^\/pricing$/],
-  ['Resources', /^\/resources/],
+  ['Resources', /^\/(resources|news)/],
   ['Company', /^\/company/],
   ['Legal', /^\/legal/],
 ];
@@ -256,9 +259,8 @@ the AI proposes, a person approves, and the result is measured.
 
 ## Pricing
 
-Starter is free (500 credits/month). Pro is $20/month (1,500 credits).
-Business is $50/month (4,000 credits). Usage-based rates apply to Call Agent
-minutes, image and video generation, and SMS/MMS delivery. Authoritative
+${BILLING_OFFERS.map((offer) => `${offer.name}: $${offer.monthlyAmountMinor / 100}/month, ${offer.monthlyIncludedCredits} included credits each month${offer.yearlyAmountMinor === 0 ? '' : `; $${offer.yearlyAmountMinor / 100}/year billed yearly`}.`).join('\n')}
+Included credits reset monthly; purchased credits carry over. Governed actions are quoted in credits. Authoritative
 pricing: ${ORIGIN}/pricing
 
 ${blocks.join('\n\n')}
@@ -412,11 +414,11 @@ const WEBSITE = {
  * No `aggregateRating`: there are no collected reviews to aggregate, and
  * inventing one is exactly the kind of markup that earns a manual action.
  */
-const PLAN_OFFERS = [
-  { name: 'Starter', price: '0', description: '500 credits monthly' },
-  { name: 'Pro', price: '20', description: '1,500 credits monthly' },
-  { name: 'Business', price: '50', description: '4,000 credits monthly' },
-];
+const PLAN_OFFERS = BILLING_OFFERS.map((offer) => ({
+  name: offer.name,
+  price: String(offer.monthlyAmountMinor / 100),
+  description: `${offer.monthlyIncludedCredits} included credits each month; purchased credits carry over`,
+}));
 
 const SOFTWARE = {
   '@context': 'https://schema.org',
@@ -445,7 +447,7 @@ const SOFTWARE = {
     '@type': 'AggregateOffer',
     priceCurrency: 'USD',
     lowPrice: '0',
-    highPrice: '50',
+    highPrice: String(Math.max(...BILLING_OFFERS.map((offer) => offer.monthlyAmountMinor / 100))),
     offerCount: PLAN_OFFERS.length,
     url: `${ORIGIN}/pricing`,
     offers: PLAN_OFFERS.map((plan) => ({
@@ -565,7 +567,10 @@ const pruned = prune();
 // Redirect stubs are written first, then excluded from every generated index —
 // a moved URL must not be advertised in the sitemap it redirects away from.
 const redirects = writeRedirects();
-const list = routes().sort().filter((route) => !isMoved(route));
+// /news/article is a rendering template, not a canonical article. The backend
+// requires ?slug= and advertises only published URLs via /_news/sitemap.xml.
+// Retain its HTML for the backend renderer; omit it from public discovery.
+const list = routes().sort().filter((route) => !isMoved(route) && route !== '/news/article');
 const urls = writeSitemap(list);
 const groups = writeLlms(list);
 const feed = writeFeed();

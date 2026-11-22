@@ -64,6 +64,7 @@ export const ROUTES = {
   learningCenter: '/solutions/flowlearner/learning-center',
   trainingAnalytics: '/solutions/flowlearner/training-analytics',
 
+  news: '/news',
   resources: '/resources',
   helpCenter: '/resources/help-center',
   blog: '/resources/blog',
@@ -125,6 +126,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
 export const RESOURCES_GROUP: NavGroup = {
   title: 'Resources',
   links: [
+    { label: 'FlowSmartly News', href: ROUTES.news, icon: 'newspaper', description: 'Headlines from public sources' },
     { label: 'Help Center', href: ROUTES.helpCenter, icon: 'circle-question', description: 'Guides, tutorials and answers' },
     { label: 'Blog', href: ROUTES.blog, icon: 'newspaper', description: 'Ideas and insights for smarter growth' },
     { label: 'Guides', href: ROUTES.guides, icon: 'book-open', description: 'Playbooks for every growth stage' },
