@@ -45,13 +45,50 @@ export type NewsArticle = {
   editorial: {
     storyKey: string;
     category: string;
-    mode: "reporting" | "analysis";
+    /** `source_summary`: a public source's own headline and feed excerpt (no AI). */
+    mode: "reporting" | "analysis" | "source_summary";
     researchedAt: string;
     sources: NewsSource[];
     uncertainty: string[];
     corrections: { at: string; note: string }[];
   };
 };
+/**
+ * Who writes this newsroom, and its words — read from the feed's `_newsroom`, which the core
+ * API derives from one fact (`newsroomWords`, flowsmartly-v5 `domains/websites/src/news.ts`).
+ * flowsmartly.com/news is the first-party software newsroom, so its words are the default
+ * before the feed is read (the static export) and whenever a feed does not say.
+ */
+export type Newsroom = {
+  kind: "first_party" | "flowagent";
+  name: string;
+  description: string;
+  author: string;
+};
+export const FIRST_PARTY_NEWSROOM: Newsroom = {
+  kind: "first_party",
+  name: "FlowSmartly News",
+  description: "Headlines from public sources, each linked to its publisher.",
+  author: "FlowSmartly",
+};
+export function decodeNewsroom(value: unknown): Newsroom {
+  const raw = (value as { _newsroom?: Partial<Newsroom> } | null)?._newsroom;
+  return raw &&
+    (raw.kind === "first_party" || raw.kind === "flowagent") &&
+    typeof raw.name === "string" &&
+    typeof raw.description === "string" &&
+    typeof raw.author === "string"
+    ? { kind: raw.kind, name: raw.name, description: raw.description, author: raw.author }
+    : FIRST_PARTY_NEWSROOM;
+}
+/** The line that says what an item is: its publisher for a headline, its label otherwise. */
+export function itemKind(a: NewsArticle): string {
+  return a.editorial.mode === "source_summary"
+    ? `From ${a.editorial.sources[0]?.publisher ?? "its publisher"}`
+    : a.editorial.mode === "analysis"
+      ? "Analysis"
+      : "Reporting";
+}
 export function decodeNews(value: unknown): NewsArticle[] {
   const feed = value as { articles?: unknown } | null;
   if (!feed || !Array.isArray(feed.articles))
@@ -71,7 +108,7 @@ export function decodeNews(value: unknown): NewsArticle[] {
       !NEWS_TOPICS.includes(
         a.editorial.category as (typeof NEWS_TOPICS)[number],
       ) ||
-      !["analysis", "reporting"].includes(a.editorial.mode) ||
+      !["analysis", "reporting", "source_summary"].includes(a.editorial.mode) ||
       !Array.isArray(a.editorial.sources) ||
       !Array.isArray(a.editorial.uncertainty) ||
       !Array.isArray(a.editorial.corrections)
