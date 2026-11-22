@@ -69,6 +69,12 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # The public newsroom's decoder must accept every item mode the core feed
+      # emits (a refused `source_summary` turns /news "temporarily unavailable"),
+      # and its first-party words must never claim FlowAgent authorship.
+      - name: News decoder and newsroom words
+        run: npm run test:news
+
   # The type check above cannot see a broken export: `expo export` can fail, or
   # silently drop routes, on code that type-checks perfectly. Since the V5 site
   # is deployed as a static export, an export that does not run is an outage —

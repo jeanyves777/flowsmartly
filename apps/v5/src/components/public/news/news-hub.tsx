@@ -14,17 +14,22 @@ import { softFill } from "@/theme/tokens";
 import {
   articleHref,
   decodeNews,
+  decodeNewsroom,
+  FIRST_PARTY_NEWSROOM,
+  itemKind,
   NEWS_TOPICS,
   selectNews,
   TOPIC_LABELS,
   type NewsArticle,
+  type Newsroom,
 } from "@/lib/news";
 
 function useNews() {
   const [state, setState] = useState<{
     kind: "loading" | "ready" | "failed";
     articles: NewsArticle[];
-  }>({ kind: "loading", articles: [] });
+    newsroom: Newsroom;
+  }>({ kind: "loading", articles: [], newsroom: FIRST_PARTY_NEWSROOM });
   const [attempt, retry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -33,25 +38,31 @@ function useNews() {
         ? document.getElementById("flowagent-public-news")?.textContent
         : null;
     const load = embedded
-      ? Promise.resolve().then(() => decodeNews(JSON.parse(embedded)))
+      ? Promise.resolve().then(() => JSON.parse(embedded) as unknown)
       : fetch("/_news/feed.json", { signal: controller.signal }).then(
           async (response) => {
             if (!response.ok) throw new Error();
-            return decodeNews(await response.json());
+            return (await response.json()) as unknown;
           },
         );
     load
-      .then((articles) => setState({ kind: "ready", articles }))
+      .then((feed) =>
+        setState({
+          kind: "ready",
+          articles: decodeNews(feed),
+          newsroom: decodeNewsroom(feed),
+        }),
+      )
       .catch(() => {
         if (!controller.signal.aborted)
-          setState({ kind: "failed", articles: [] });
+          setState({ kind: "failed", articles: [], newsroom: FIRST_PARTY_NEWSROOM });
       });
     return () => controller.abort();
   }, [attempt]);
   return {
     ...state,
     retry: () => {
-      setState({ kind: "loading", articles: [] });
+      setState({ kind: "loading", articles: [], newsroom: FIRST_PARTY_NEWSROOM });
       retry((x) => x + 1);
     },
   };
@@ -151,6 +162,8 @@ export function NewsHub({
   );
   const params = useLocalSearchParams<{ slug?: string; date?: string }>();
   const news = useNews();
+  const newsroom = news.newsroom;
+  const firstParty = newsroom.kind === "first_party";
   const [query, setQuery] = useState("");
   const chosen = article
     ? news.articles.find((a) => a.slug === params.slug)
@@ -158,7 +171,7 @@ export function NewsHub({
   const date =
     briefing && typeof params.date === "string" ? params.date : undefined;
   const title = article
-    ? (chosen?.title ?? "Read FlowAgent News")
+    ? (chosen?.title ?? `Read ${newsroom.name}`)
     : briefing
       ? "The daily briefing · UTC"
       : topic
@@ -191,7 +204,7 @@ export function NewsHub({
             chosen.editorial.corrections.at(-1)?.at ?? chosen.publishedAt,
           url: `https://flowsmartly.com${articleHref(chosen.slug)}`,
           articleSection: TOPIC_LABELS[chosen.editorial.category],
-          author: { "@type": "Organization", name: "FlowAgent · FlowSmartly" },
+          author: { "@type": "Organization", name: newsroom.author },
           citation: chosen.editorial.sources.map((s) => s.url),
         },
       ]
@@ -199,7 +212,7 @@ export function NewsHub({
         {
           "@context": "https://schema.org",
           "@type": "CollectionPage",
-          name: "FlowAgent News",
+          name: newsroom.name,
           url: "https://flowsmartly.com/news",
         },
       ];
@@ -207,8 +220,7 @@ export function NewsHub({
     <PageShell
       title={title}
       description={
-        chosen?.excerpt ??
-        "Source-grounded reporting and analysis on science, the AI race, banking and the business of technology."
+        chosen?.excerpt ?? newsroom.description
       }
       cta={false}
       canonicalPath={canonical}
@@ -218,14 +230,14 @@ export function NewsHub({
     >
       <Section>
         <View style={styles.intro}>
-          <SectionLabel>FLOWAGENT NEWS</SectionLabel>
+          <SectionLabel>{newsroom.name.toUpperCase()}</SectionLabel>
           <Heading level={1} style={type.display}>
             {title}
           </Heading>
           {!article && (
             <Text style={type.body}>
-              Science. The AI race. Money. The ideas moving business forward.
-              Original reporting and analysis, with the sources always in view.
+              Science. The AI race. Money. The ideas moving business forward.{" "}
+              {newsroom.description}
             </Text>
           )}
           <View style={styles.row}>
@@ -261,7 +273,7 @@ export function NewsHub({
       {news.kind === "loading" && (
         <Section>
           <Text accessibilityLiveRegion="polite" style={type.body}>
-            Loading published reporting…
+            {firstParty ? "Loading headlines…" : "Loading published reporting…"}
           </Text>
         </Section>
       )}
@@ -288,11 +300,8 @@ export function NewsHub({
           <Section>
             <View style={styles.reader}>
               <Text style={styles.meta}>
-                {TOPIC_LABELS[chosen.editorial.category]} ·{" "}
-                {chosen.editorial.mode === "analysis"
-                  ? "Analysis"
-                  : "Reporting"}{" "}
-                · FlowAgent
+                {TOPIC_LABELS[chosen.editorial.category]} · {itemKind(chosen)}
+                {firstParty ? "" : " · FlowAgent"}
               </Text>
               <Text style={styles.meta}>
                 Published {new Date(chosen.publishedAt).toUTCString()} ·
@@ -394,8 +403,10 @@ export function NewsHub({
               Article not found
             </Heading>
             <Text style={type.body}>
-              This address has no published article. Browse the latest reporting
-              above.
+              This address has no published article.{" "}
+              {firstParty
+                ? "Browse the latest headlines above."
+                : "Browse the latest reporting above."}
             </Text>
           </Section>
         ))}
@@ -453,7 +464,9 @@ export function NewsHub({
                 <Text style={type.body}>
                   {news.articles.length
                     ? "Try another topic, date or search."
-                    : "No articles have been published yet. Our editorial target is 20 original articles a day; only verified publications appear here."}
+                    : firstParty
+                      ? "No headlines have been published yet."
+                      : "No articles have been published yet. Our editorial target is 20 original articles a day; only verified publications appear here."}
                 </Text>
               </View>
             ) : (
@@ -461,10 +474,7 @@ export function NewsHub({
                 {filtered.map((a) => (
                   <View key={a.id} style={styles.card}>
                     <Text style={styles.meta}>
-                      {TOPIC_LABELS[a.editorial.category]} ·{" "}
-                      {a.editorial.mode === "analysis"
-                        ? "Analysis"
-                        : "Reporting"}
+                      {TOPIC_LABELS[a.editorial.category]} · {itemKind(a)}
                     </Text>
                     <Heading level={2} style={type.h3}>
                       {a.title}
@@ -486,9 +496,9 @@ export function NewsHub({
               </View>
             )}
             <Text style={styles.meta}>
-              Created by FlowAgent using public sources. Reporting and analysis
-              are labelled separately. Source timestamps and corrections remain
-              attached to every story.
+              {firstParty
+                ? `${newsroom.description} Source times stay attached to every headline.`
+                : "Created by FlowAgent using public sources. Reporting and analysis are labelled separately. Source timestamps and corrections remain attached to every story."}
             </Text>
           </View>
         </Section>
