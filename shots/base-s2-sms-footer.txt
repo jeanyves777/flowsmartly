@@ -1,0 +1,118 @@
+Dashboard
+Feed
+CONTENT
+Posts
+Schedule
+Strategy
+Content Campaigns
+Analytics
+FlowAI
+AI CREATIVES
+Image Studio
+Story Ad Campaign
+Video Editor
+Voice Studio
+Logo Generator
+Media Library
+My Designs
+MARKETING
+Contacts
+Campaigns
+Email Marketing
+SMS Marketing
+WhatsApp
+Ads
+WEB PRESENCE
+Landing Pages
+Website Builder
+Domains
+BUSINESS
+ListSmartly
+Business Plan
+Pitch Board
+TOOLS & INSIGHTS
+Follow-Ups
+Data Collection
+Surveys
+Events
+BG Remover
+MONEY
+Earnings
+Referrals
+TEAMS
+My Teams
+Messages
+Agent Marketplace
+Social Accounts
+Settings
+Help
+Start Store
+Log out
+200
+Report issue
+9+
+TU
+SMS Marketing Settings
+
+Manage your SMS phone number and messaging
+
+View Campaigns
+
+Status
+
+Not Set Up
+
+Phone
+
+None
+
+Sent
+
+0
+
+Per SMS
+
+$0.05
+
+Setup Progress
+
+Complete each step to start sending SMS campaigns
+
+1
+SMS Compliance
+Not Started
+
+Complete compliance verification to proceed.
+
+Start
+2
+Phone Number
+Not Rented
+
+Complete compliance first, then rent a number.
+
+3
+A2P 10DLC Registration
+Waiting
+
+Rent a phone number first.
+
+4
+Ready to Send
+Waiting
+
+Complete the steps above to start sending campaigns.
+
+No Phone Number Yet
+
+Complete compliance verification first, then rent a number.
+
+Complete Compliance Verification
+Pricing:
+Number $5.00/mo
+|
+SMS $0.05/msg
+|
+MMS $0.10/msg
+|
+1 credit = $0.05

@@ -1,0 +1,44 @@
+[
+ {
+  "name": "S1 Terms of Service — Credit Value",
+  "url": "http://localhost:3477/terms",
+  "hits": {
+   "1 credit = $0.05 USD": true,
+   "1 credit = $0.01 USD": false
+  },
+  "path": "D:/wt-credit/shots/base-s1-terms.png",
+  "bodyLen": 15813
+ },
+ {
+  "name": "S2 SMS Marketing settings — pricing footer",
+  "url": "http://localhost:3477/settings/sms-marketing",
+  "hits": {
+   "1 credit = $0.05": true,
+   "1 credit = $0.01": false
+  },
+  "path": "D:/wt-credit/shots/base-s2-sms-footer.png",
+  "bodyLen": 1269
+ },
+ {
+  "name": "S3 Admin credit-pricing — edit modal cost line",
+  "url": "http://localhost:3477/admin/credit-pricing",
+  "hits": {
+   "credits x $0.05": true,
+   "credits x $0.01": false,
+   "Credit Cost": true
+  },
+  "path": "D:/wt-credit/shots/base-s3-admin-credit-pricing.png",
+  "bodyLen": 1341
+ },
+ {
+  "name": "S4 Phone number rental — required credits",
+  "url": "http://localhost:3477/settings/sms-marketing/phone-number",
+  "hits": {
+   "You need 500 credits": false,
+   "You need 100 credits": false,
+   "Insufficient Credits": false
+  },
+  "path": "D:/wt-credit/shots/base-s4-phone-number.png",
+  "bodyLen": 1149
+ }
+]
