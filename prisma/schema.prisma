@@ -6379,10 +6379,25 @@ model TrainingSession {
   invites      TrainingInvite[]
   materials    TrainingMaterial[]
   messages     TrainingMessage[]
+  recordings   TrainingRecording[]
 
   @@index([userId, updatedAt])
   @@index([userId, status])
   @@index([status])
+}
+
+/// A finished recording of a session run. A session can be recorded MANY times (it can be reused /
+/// restarted), so every recording is kept as its own row instead of overwriting one recordingUrl —
+/// the session's recordingUrl still points at the LATEST for the card thumbnail. [[training-recording]]
+model TrainingRecording {
+  id        String   @id @default(cuid())
+  sessionId String
+  url       String
+  createdAt DateTime @default(now())
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
 }
 
 /// One planned block of a session — a node on the plan canvas.
