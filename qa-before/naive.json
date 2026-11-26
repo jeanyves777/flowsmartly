@@ -1,0 +1,311 @@
+{
+  "sha": "0b0136f037c3b99416a8c12656e58227ccb2faa1",
+  "out": [
+    {
+      "theme": "light",
+      "route": "/",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#2f89dc",
+      "pixelContrast": 3.66
+    },
+    {
+      "theme": "light",
+      "route": "/pricing",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#1b7ed9",
+      "pixelContrast": 4.17
+    },
+    {
+      "theme": "light",
+      "route": "/product",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#1b7ed9",
+      "pixelContrast": 4.17
+    },
+    {
+      "theme": "light",
+      "route": "/flowagent",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#0c75d7",
+      "pixelContrast": 4.62
+    },
+    {
+      "theme": "light",
+      "route": "/company/security",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#0873d6",
+      "pixelContrast": 4.74
+    },
+    {
+      "theme": "light",
+      "route": "/resources",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "naiveContrast": 1.08,
+      "allAncestorSurfaces": [
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(243, 246, 252)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#0c75d7",
+      "pixelContrast": 4.62
+    },
+    {
+      "theme": "grey",
+      "route": "/",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#477ec7",
+      "pixelContrast": 4.5
+    },
+    {
+      "theme": "grey",
+      "route": "/pricing",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#477ec7",
+      "pixelContrast": 4.5
+    },
+    {
+      "theme": "grey",
+      "route": "/product",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#4579bc",
+      "pixelContrast": 4.18
+    },
+    {
+      "theme": "grey",
+      "route": "/flowagent",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#477ec7",
+      "pixelContrast": 4.5
+    },
+    {
+      "theme": "grey",
+      "route": "/company/security",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#477ec7",
+      "pixelContrast": 4.5
+    },
+    {
+      "theme": "grey",
+      "route": "/resources",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "naiveContrast": 1.45,
+      "allAncestorSurfaces": [
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(47, 50, 56)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#477ec7",
+      "pixelContrast": 4.5
+    },
+    {
+      "theme": "dark",
+      "route": "/",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#4c7ab7",
+      "pixelContrast": 4.26
+    },
+    {
+      "theme": "dark",
+      "route": "/pricing",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#4d7bb8",
+      "pixelContrast": 4.32
+    },
+    {
+      "theme": "dark",
+      "route": "/product",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#4d7ab8",
+      "pixelContrast": 4.27
+    },
+    {
+      "theme": "dark",
+      "route": "/flowagent",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#5283c4",
+      "pixelContrast": 4.82
+    },
+    {
+      "theme": "dark",
+      "route": "/company/security",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#5283c3",
+      "pixelContrast": 4.81
+    },
+    {
+      "theme": "dark",
+      "route": "/resources",
+      "effectiveOpacity": 0,
+      "ownBgColor": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "naiveContrast": 1.05,
+      "allAncestorSurfaces": [
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(7, 11, 22)",
+        "rgb(242, 242, 242)"
+      ],
+      "pixelAtBannerCorner": "#5283c4",
+      "pixelContrast": 4.82
+    }
+  ]
+}

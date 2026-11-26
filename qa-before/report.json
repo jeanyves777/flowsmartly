@@ -1,0 +1,510 @@
+{
+  "sha": "0b0136f037c3b99416a8c12656e58227ccb2faa1",
+  "rows": [
+    {
+      "tag": "light-390",
+      "theme": "light",
+      "width": 390,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 14,
+        "y": 247.65625,
+        "w": 362,
+        "h": 466
+      },
+      "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#0971d6",
+          "rgb": [
+            9,
+            113,
+            214
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#1a48d1",
+          "rgb": [
+            26,
+            72,
+            209
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#5330d6",
+          "rgb": [
+            83,
+            48,
+            214
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.83,
+      "contrastNaive": 1.08
+    },
+    {
+      "tag": "light-768",
+      "theme": "light",
+      "width": 768,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 20,
+        "y": 288.65625,
+        "w": 728,
+        "h": 387
+      },
+      "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#0972d6",
+          "rgb": [
+            9,
+            114,
+            214
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#1948d1",
+          "rgb": [
+            25,
+            72,
+            209
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#5330d6",
+          "rgb": [
+            83,
+            48,
+            214
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.78,
+      "contrastNaive": 1.08
+    },
+    {
+      "tag": "light-1440",
+      "theme": "light",
+      "width": 1440,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 36,
+        "y": 343.765625,
+        "w": 1368,
+        "h": 265
+      },
+      "bgImage": "linear-gradient(90deg, rgb(0, 140, 248), rgb(23, 79, 240), rgb(107, 45, 248))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(255, 255, 255)",
+      "naiveBackground": "rgb(243, 246, 252)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#0972d6",
+          "rgb": [
+            9,
+            114,
+            214
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#1948d1",
+          "rgb": [
+            25,
+            72,
+            209
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#5330d6",
+          "rgb": [
+            83,
+            48,
+            214
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.78,
+      "contrastNaive": 1.08
+    },
+    {
+      "tag": "grey-390",
+      "theme": "grey",
+      "width": 390,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 14,
+        "y": 248.65625,
+        "w": 362,
+        "h": 466
+      },
+      "bgImage": "linear-gradient(90deg, rgb(86, 161, 255), rgb(132, 161, 255), rgb(172, 145, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#497fc9",
+          "rgb": [
+            73,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#687fc9",
+          "rgb": [
+            104,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#8374c9",
+          "rgb": [
+            131,
+            116,
+            201
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.58,
+      "contrastNaive": 1.45
+    },
+    {
+      "tag": "grey-768",
+      "theme": "grey",
+      "width": 768,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 20,
+        "y": 286.65625,
+        "w": 728,
+        "h": 387
+      },
+      "bgImage": "linear-gradient(90deg, rgb(86, 161, 255), rgb(132, 161, 255), rgb(172, 145, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#487fc9",
+          "rgb": [
+            72,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#687fc9",
+          "rgb": [
+            104,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#8373c9",
+          "rgb": [
+            131,
+            115,
+            201
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.57,
+      "contrastNaive": 1.45
+    },
+    {
+      "tag": "grey-1440",
+      "theme": "grey",
+      "width": 1440,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 36,
+        "y": 336.765625,
+        "w": 1368,
+        "h": 265
+      },
+      "bgImage": "linear-gradient(90deg, rgb(86, 161, 255), rgb(132, 161, 255), rgb(172, 145, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(16, 19, 23)",
+      "naiveBackground": "rgb(47, 50, 56)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#497fc9",
+          "rgb": [
+            73,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#687fc9",
+          "rgb": [
+            104,
+            127,
+            201
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#8374c9",
+          "rgb": [
+            131,
+            116,
+            201
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.58,
+      "contrastNaive": 1.45
+    },
+    {
+      "tag": "dark-390",
+      "theme": "dark",
+      "width": 390,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 14,
+        "y": 248.65625,
+        "w": 362,
+        "h": 466
+      },
+      "bgImage": "linear-gradient(90deg, rgb(104, 171, 255), rgb(145, 157, 255), rgb(181, 156, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#5584c7",
+          "rgb": [
+            85,
+            132,
+            199
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#717bc7",
+          "rgb": [
+            113,
+            123,
+            199
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#8a7ac7",
+          "rgb": [
+            138,
+            122,
+            199
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.91,
+      "contrastNaive": 1.05
+    },
+    {
+      "tag": "dark-768",
+      "theme": "dark",
+      "width": 768,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 20,
+        "y": 288.65625,
+        "w": 728,
+        "h": 387
+      },
+      "bgImage": "linear-gradient(90deg, rgb(104, 171, 255), rgb(145, 157, 255), rgb(181, 156, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#5584c7",
+          "rgb": [
+            85,
+            132,
+            199
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#717bc7",
+          "rgb": [
+            113,
+            123,
+            199
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#897ac7",
+          "rgb": [
+            137,
+            122,
+            199
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.91,
+      "contrastNaive": 1.05
+    },
+    {
+      "tag": "dark-1440",
+      "theme": "dark",
+      "width": 1440,
+      "asserts": {
+        "ASSERT_ROUTE_IDENTITY": true,
+        "ASSERT_PAGE_MOUNTED": true,
+        "ASSERT_CANDIDATE_SHA": true,
+        "ASSERT_NOT_404": true,
+        "ASSERT_EXPECTED_CONTENT": true
+      },
+      "hostText": "Ready to bring your business together?Connect your work, customers, content, systems, and decisions in one intelligent ",
+      "rect": {
+        "x": 36,
+        "y": 343.765625,
+        "w": 1368,
+        "h": 265
+      },
+      "bgImage": "linear-gradient(90deg, rgb(104, 171, 255), rgb(145, 157, 255), rgb(181, 156, 255))",
+      "bgColor": "rgba(0, 0, 0, 0)",
+      "effectiveOpacity": 1,
+      "ink": "rgb(11, 18, 32)",
+      "naiveBackground": "rgb(7, 11, 22)",
+      "strip": [
+        {
+          "at": 0.06,
+          "color": "#5584c7",
+          "rgb": [
+            85,
+            132,
+            199
+          ]
+        },
+        {
+          "at": 0.5,
+          "color": "#717bc7",
+          "rgb": [
+            113,
+            123,
+            199
+          ]
+        },
+        {
+          "at": 0.94,
+          "color": "#8a7ac7",
+          "rgb": [
+            138,
+            122,
+            199
+          ]
+        }
+      ],
+      "distinct": 3,
+      "contrastReal": 4.91,
+      "contrastNaive": 1.05
+    }
+  ],
+  "failures": []
+}
