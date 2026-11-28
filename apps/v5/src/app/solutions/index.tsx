@@ -3,7 +3,6 @@ import { Link, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Connectors, ConnectorSurface, useConnectorField, type Link as Wire } from '@/components/public/connectors';
-import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -15,7 +14,6 @@ import {
   OpenSection,
   PrimaryButton,
   SecondaryButton,
-  SectionAside,
   SectionLabel,
   type TypeScale,
   useAsideBand,
@@ -107,7 +105,7 @@ const START_STEPS: { key: string; icon: string; title: string; note: string; acc
  * The solutions this page never links to anywhere else.
  *
  * The outcome cards cover Website Builder, AI Studio, Social, Email + SMS, Ads,
- * FlowShop, ListSmartly and Domains; Call Agent, the marketplace and FlowLearner
+ * FlowShop, ListSmartly and Domains; Call Agent and FlowLearner
  * had no route in from here at all.
  */
 const DEEPER: { key: string; icon: string; label: string; note: string; href: string }[] = [
@@ -115,15 +113,8 @@ const DEEPER: { key: string; icon: string; label: string; note: string; href: st
     key: 'call-agent',
     icon: 'comment-dots',
     label: 'Call Agent',
-    note: 'Answers every call and books the work',
+    note: 'Manage incoming business calls and review call summaries',
     href: ROUTES.callAgent,
-  },
-  {
-    key: 'agent-marketplace',
-    icon: 'store',
-    label: 'Agent Marketplace',
-    note: 'Hire a vetted expert inside your workspace',
-    href: ROUTES.agentMarketplace,
   },
   {
     key: 'flowlearner',
@@ -216,7 +207,7 @@ const OUTCOMES: { key: string; icon: string; title: string; line: string; href: 
     key: 'ads',
     icon: 'bullhorn',
     title: 'Launch ads that convert',
-    line: 'One brief, every network, budget that follows the winners.',
+    line: 'Prepare campaigns for supported providers and review the budget before launch.',
     href: ROUTES.ads,
     accent: 'pink',
   },
@@ -262,11 +253,11 @@ const SCENARIOS: {
     key: 'small',
     eyebrow: 'SMALL BUSINESSES',
     heading: 'From first contact to loyal customer.',
-    body: 'One workspace that answers the phone, follows up, takes the booking and remembers everyone who ever called.',
+    body: 'Handle incoming calls, review what callers shared, and plan follow-ups from your workspace.',
     bullets: [
-      'A voice agent that never misses a call',
-      'Follow-ups that go out without you remembering',
-      'Every enquiry on one customer timeline',
+      'Call Agent with configurable greetings and handoffs',
+      'Follow-up tasks you can review',
+      'Call history and summaries',
     ],
     mockTitle: 'Today at a glance',
     mockRows: [
@@ -281,10 +272,10 @@ const SCENARIOS: {
     key: 'agencies',
     eyebrow: 'AGENCIES',
     heading: 'Deliver more. Manage less.',
-    body: 'Run every client from one console, with the reporting already written and your brand on the front page.',
+    body: 'Organize each client’s campaigns, tasks, and approvals in its own workspace.',
     bullets: [
       'Separate workspaces per client, one login',
-      'Reports generated and branded for you',
+      'Recorded campaign activity',
       'Approvals and roles for the whole team',
     ],
     mockTitle: 'Client console',
@@ -354,8 +345,6 @@ const COMPARISON: { feature: string; flowsmartly: Mark; tools: Mark; manual: Mar
   { feature: 'FlowShop & payments', flowsmartly: 'yes', tools: 'partial', manual: 'no' },
   { feature: 'Reviews & local SEO', flowsmartly: 'yes', tools: 'partial', manual: 'no' },
   { feature: 'Client management', flowsmartly: 'yes', tools: 'no', manual: 'no' },
-  { feature: 'White-label reporting', flowsmartly: 'yes', tools: 'no', manual: 'no' },
-  { feature: '24/7 support', flowsmartly: 'yes', tools: 'partial', manual: 'no' },
 ];
 
 const COMPARISON_COLUMNS: { key: 'flowsmartly' | 'tools' | 'manual'; label: string; strong?: boolean }[] = [
@@ -798,7 +787,7 @@ export default function SolutionsPage() {
         </View>
       </Band>
 
-      {/* ------------------------------------------------ comparison + testimonial */}
+      {/* ------------------------------------------------ comparison */}
       <Band tone="brand" art={{ variant: 'shield', color: t.brand, side: 'left' }}>
         <View style={styles.sectionHead}>
           <SectionLabel>WHY ONE PLATFORM</SectionLabel>
@@ -858,37 +847,7 @@ export default function SolutionsPage() {
             )}
           </Reveal>
 
-          <Reveal style={styles.testimonialColumn} distance={16} delay={90}>
-            <View style={styles.testimonialCard}>
-              <View style={styles.starRow}>
-                {[0, 1, 2, 3, 4].map((star) => (
-                  <FontAwesome6 key={star} name="star" size={13} color={t.orange}  aria-hidden={true}/>
-                ))}
-              </View>
-              <Text style={styles.quote}>
-                “FlowSmartly helped us streamline our entire client process. We save hours every week
-                and our clients see better results.”
-              </Text>
-              <View style={styles.quoteAuthor}>
-                <Media
-                  name="people/michael-reyes"
-                  alt="Michael Reyes, growth agency owner"
-                  style={styles.quoteAvatar}
-                  radius={24}
-                />
-                <View style={styles.quoteAuthorCopy}>
-                  <Text numberOfLines={1} style={styles.quoteName}>
-                    Michael Reyes
-                  </Text>
-                  <Text numberOfLines={1} style={styles.quoteRole}>
-                    Growth Agency Owner
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* The quote alone left ~260px of nothing beside the table. These
-                are the solutions the page never otherwise links to. */}
+          <Reveal style={styles.relatedColumn} distance={16} delay={90}>
             <View style={styles.deeperCard}>
               <Text style={styles.deeperHead}>GO DEEPER</Text>
               {DEEPER.map((item) => (
@@ -1284,7 +1243,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     compareTableColumn: stacked
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1.7, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    testimonialColumn: stacked
+    relatedColumn: stacked
       ? { width: '100%', minWidth: 0, gap: 18 }
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 18 },
 
@@ -1354,23 +1313,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minHeight: 26,
     },
     compareCardLabel: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
-
-    testimonialCard: {
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 18,
-      backgroundColor: t.brandSoft,
-      padding: l.isPhone ? 18 : 24,
-      gap: 16,
-      ...(elevation(t, 1) as ViewStyle),
-    },
-    starRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    quote: { ...type.body, color: t.text, fontWeight: '600' },
-    quoteAuthor: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    quoteAvatar: { width: 48, height: 48, flexGrow: 0, flexShrink: 0 },
-    quoteAuthorCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
-    quoteName: { ...type.bodySm, color: t.text, fontWeight: '800' },
-    quoteRole: { ...type.micro, color: t.textMuted },
 
     deeperCard: {
       borderWidth: 1,

@@ -4,13 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
 import { Fragment, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { ArrowLink } from '@/components/public/connectors';
 import { ConsentFooterLink } from '@/components/public/consent';
 import { ImageAsset } from '@/components/public/media';
 import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES, type NavGroup, type NavLink } from '@/components/public/nav';
-import { Animated, Reveal, Stagger, useCountUp, useGrowIn } from '@/components/public/motion';
+import { Animated, Reveal, Stagger, useGrowIn } from '@/components/public/motion';
 import {
   Heading,
   PrimaryButton,
@@ -39,7 +39,6 @@ export type V5PublicFooterProps = {
   showIntegrations?: boolean;
   showPricing?: boolean;
   showCta?: boolean;
-  testimonial?: { quote: string; name: string; role: string };
   onStartFree?: () => void;
   onBookDemo?: () => void;
 };
@@ -71,29 +70,17 @@ const socialProfiles = [
   ['youtube', 'FlowSmartly on YouTube', '#ff0000', 'https://www.youtube.com/@flowsmartly'],
 ] as const;
 
-/**
- * Business-wide outcomes, not a campaign scorecard. Faster campaign launches,
- * qualified leads, deliverability and revenue influenced described a marketing
- * suite on every page of the site.
- *
- * These are **illustrative** — the kind of figure a connected workspace
- * produces, not an aggregate we have measured across customers. The section
- * says so in the sub-line, because a number presented as proof has to be one.
- */
-const metrics = [
-  ['clock-rotate-left', '84+ hours', 'Time saved', 'through coordinated workflows'],
-  ['circle-check', '326', 'Work completed', 'tasks completed and verified'],
-  ['users', '1,284', 'Customers served', 'customers and community members'],
-  ['plug', '12', 'Connected systems', 'business systems working together'],
+const workflows = [
+  ['bullhorn', 'Prepare campaigns', 'Draft and preview email or SMS, then review the audience.'],
+  ['calendar-days', 'Schedule content', 'Plan posts and manage publication from the content calendar.'],
+  ['phone', 'Handle calls', 'Configure your Call Agent and review call summaries.'],
+  ['circle-check', 'Review approvals', 'See which actions need a decision and approve them from your workspace.'],
 ] as const;
 
-/** the nine sparkline bars behind every metric, in px */
-const TREND = [10, 16, 13, 23, 17, 25, 20, 29, 36] as const;
-
 const comparisons = [
-  ['wrench', '5 tools', '1 workspace'],
-  ['clock', '3 days', '4 hours'],
-  ['database', 'Scattered data', 'One customer view'],
+  ['envelope', 'Send an update', 'Preview a campaign and check eligibility'],
+  ['phone', 'Follow up on a call', 'Review the call summary'],
+  ['circle-check', 'Approve a change', 'Review the proposed action'],
 ] as const;
 
 const plans: Plan[] = PUBLIC_BILLING_PLANS.map((plan) => ({
@@ -165,131 +152,10 @@ function BrandTile({
 }
 
 /* ------------------------------------------------------------------ */
-/* outcomes + testimonial                                              */
+/* example workflows                                              */
 /* ------------------------------------------------------------------ */
 
-/**
- * Splits a headline figure into the part that can count and the part that must
- * not ("6×" → 6 + "×", "98.7%" → 98.7 + "%" at one decimal). Returns null for
- * anything that does not start with a number, so the caller can print the
- * string untouched rather than animating nonsense.
- */
-function splitMetric(
-  value: string,
-): { amount: number; suffix: string; decimals: number; grouped: boolean } | null {
-  // Thousands separators are part of the number, not the suffix. Without the
-  // comma in this character class "1,284" parsed as 1 with a ",284" suffix —
-  // it printed correctly by accident and then counted up from 0 to 1.
-  const match = /^([\d,]+(?:\.\d+)?)(.*)$/.exec(value);
-  if (!match) return null;
-  const [, raw, suffix] = match;
-  const digits = raw.replace(/,/g, '');
-  const dot = digits.indexOf('.');
-  return {
-    amount: Number(digits),
-    suffix,
-    decimals: dot < 0 ? 0 : digits.length - dot - 1,
-    grouped: raw.includes(','),
-  };
-}
-
-/**
- * One sparkline bar. The card owns a single grow-in value and every bar reads
- * it, offset a little by its index so the row sweeps left to right instead of
- * popping as a block. `start` is normalised so the last bar still lands exactly
- * on its full height when the shared progress reaches 1.
- */
-function TrendBar({
-  height,
-  index,
-  color,
-  progress,
-}: {
-  height: number;
-  index: number;
-  color: string;
-  progress: SharedValue<number>;
-}) {
-  const styles = useFooterStyles();
-  const animated = useAnimatedStyle(() => {
-    const start = index * 0.045;
-    const local = Math.min(1, Math.max(0, (progress.value - start) / (1 - start)));
-    // never fully collapse: a 2px baseline keeps the row from reflowing
-    return { height: Math.max(2, height * local) };
-  }, [height, index]);
-  return (
-    // The full height is in the static style as well as the animated one, so a
-    // render without JS still draws the finished sparkline.
-    <Animated.View
-      style={[
-        styles.trendBar,
-        { height, backgroundColor: color, opacity: 0.22 + index * 0.08 },
-        animated,
-      ]}
-    />
-  );
-}
-
-function MetricCard({
-  icon,
-  value,
-  caption,
-  detail,
-  accent,
-  index,
-}: {
-  icon: string;
-  value: string;
-  caption: string;
-  detail: string;
-  accent: string;
-  index: number;
-}) {
-  const t = useTokens();
-  const l = useLayout();
-  const type = useTypeScale();
-  const styles = useFooterStyles();
-
-  const parsed = useMemo(() => splitMetric(value), [value]);
-  const count = useCountUp(parsed?.amount ?? 0, { decimals: parsed?.decimals ?? 0, duration: 1100 });
-  // Each card's bars start a beat after the one before it, so the four sets do
-  // not all fire on the same frame.
-  const grow = useGrowIn({ duration: 620, delay: index * 90 });
-
-  return (
-    <>
-      <View style={styles.metricTop}>
-        <View style={[styles.metricIcon, { backgroundColor: softFill(accent, t) }]}>
-          <FontAwesome6 name={icon as never} size={l.isPhone ? 20 : 24} color={accent}  aria-hidden={true}/>
-        </View>
-        <Text
-          ref={count.ref as never}
-          style={[type.h2, styles.metricValue, { color: accentText(accent, t) }]}
-          numberOfLines={1}>
-          {parsed
-            ? `${
-                parsed.grouped
-                  ? count.value.toLocaleString('en-US', {
-                      minimumFractionDigits: parsed.decimals,
-                      maximumFractionDigits: parsed.decimals,
-                    })
-                  : count.value.toFixed(parsed.decimals)
-              }${parsed.suffix}`
-            : value}
-        </Text>
-      </View>
-      <Text style={[type.h4, styles.metricCaption]}>{caption}</Text>
-      <Text style={[type.caption, styles.metricDetail]}>{detail}</Text>
-      <View ref={grow.ref as never} style={styles.trend}>
-        {TREND.map((height, bar) => (
-          <TrendBar key={bar} height={height} index={bar} color={accent} progress={grow.progress} />
-        ))}
-      </View>
-    </>
-  );
-}
-
-export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testimonial'>) {
+export function OutcomesProof() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
@@ -297,84 +163,51 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
   const styles = useFooterStyles();
   const router = useRouter();
 
-  // On phone the 34px arrow cell + its gaps ate ~42px of a ~294px table, which
-  // pushed "One customer view" past two lines and made that row taller than the
-  // other two. The headings already say before/after, so the arrow is desktop-only.
+  // Keep the task and workflow text readable on narrow screens.
   const showArrow = !l.isPhone;
-
-  const quote =
-    testimonial?.quote ??
-    'FlowSmartly shows us what to do next—and lets our team approve it before it happens.';
-  const name = testimonial?.name ?? 'Maya Chen';
-  const role = testimonial?.role ?? 'Founder, Northline Studio';
 
   return (
     <View style={[open, styles.outcomesSection]}>
       <Reveal style={styles.outcomeHeading}>
-        <View style={styles.labelCenter}>
-          <SectionLabel>OUTCOMES THAT MATTER</SectionLabel>
-        </View>
         <Heading level={2} style={[type.display, styles.outcomesHeadingText]}>
-          One connected workspace. Real business outcomes.
+          Run marketing and operations in one workspace
         </Heading>
-        <Text style={[type.body, styles.outcomesSub]}>
-          Less manual work, faster customer service, safer automation and clearer decisions — what
-          a connected workspace gives back. Figures below are illustrative of a workspace at this
-          scale, not an average across customers.
-        </Text>
       </Reveal>
 
       <View style={styles.metricGrid}>
-        {/* The Reveal is the grid cell, so the card style lives on it. */}
         <Stagger step={90} style={styles.metricCard}>
-          {metrics.map(([icon, value, caption, detail], index) => (
-            <MetricCard
-              key={caption}
-              icon={icon}
-              value={value}
-              caption={caption}
-              detail={detail}
-              accent={index % 2 ? t.violet : t.brand}
-              index={index}
-            />
-          ))}
+          {workflows.map(([icon, title, detail], index) => {
+            const accent = index % 2 ? t.violet : t.brand;
+            return (
+              <Fragment key={title}>
+                <View style={[styles.metricIcon, { backgroundColor: softFill(accent, t) }]}>
+                  <FontAwesome6 name={icon} size={l.isPhone ? 20 : 24} color={accent} aria-hidden={true} />
+                </View>
+                <Heading level={3} style={[type.h4, styles.metricCaption]}>{title}</Heading>
+                <Text style={[type.bodySm, styles.metricDetail]}>{detail}</Text>
+              </Fragment>
+            );
+          })}
         </Stagger>
       </View>
 
       <Reveal style={styles.storyPanel}>
         <View style={styles.storyTop}>
           <View style={styles.storyCol}>
-            <View style={styles.storyPerson}>
-              {/* Genuinely decorative: the name and the role sit right beside
-                  it as text, so a description here would only make a screen
-                  reader say the same thing twice. Empty alt + aria-hidden is
-                  the explicit "skip me" — not a missing attribute. */}
-              <ImageAsset
-                source={require('../../../assets/images/v5/customer-sarah-johnson.png')}
-                style={styles.storyPhoto}
-                contentFit="cover"
-                alt=""
-              />
-              <View style={styles.storyPersonCopy}>
-                <Text style={[type.h4, styles.storyName]} numberOfLines={1}>
-                  {name}
-                </Text>
-                <Text style={[type.caption, styles.storyRole]} numberOfLines={2}>
-                  {role}
-                </Text>
-              </View>
-            </View>
-            <Text style={[type.h3, styles.storyQuote]}>“{quote}”</Text>
+            <Heading level={3} style={[type.h3, styles.storyTitle]}>See how the workflows fit together</Heading>
+            <Text style={type.bodySm}>
+              Explore examples for e-commerce, local services, and B2B teams.
+            </Text>
           </View>
 
           <View style={styles.comparison}>
             <View style={styles.comparisonRow}>
               <Text style={[type.caption, styles.beforeHead]} numberOfLines={1}>
-                Before FlowSmartly
+                Task
               </Text>
               {showArrow ? <View style={styles.arrowCell} /> : null}
               <Text style={[type.caption, styles.afterHead]} numberOfLines={1}>
-                With FlowSmartly
+                In your workspace
               </Text>
             </View>
             <Stagger
@@ -382,12 +215,12 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
               delay={140}
               distance={14}
               style={[styles.comparisonRow, styles.comparisonRowBody]}>
-              {comparisons.map(([icon, before, after]) => (
-                <Fragment key={before}>
+              {comparisons.map(([icon, task, workspaceAction]) => (
+                <Fragment key={task}>
                   <View style={styles.comparisonItem}>
                     <FontAwesome6 name={icon} size={14} color={t.textSubtle}  aria-hidden={true}/>
-                    <Text style={[type.bodySm, styles.comparisonText]} numberOfLines={2}>
-                      {before}
+                    <Text style={[type.bodySm, styles.comparisonText]}>
+                      {task}
                     </Text>
                   </View>
                   {showArrow ? (
@@ -399,8 +232,8 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
                     <View style={styles.comparisonCheck}>
                       <FontAwesome6 name="check" size={11} color={t.violet}  aria-hidden={true}/>
                     </View>
-                    <Text style={[type.bodySm, styles.comparisonText, styles.comparisonAfter]} numberOfLines={2}>
-                      {after}
+                    <Text style={[type.bodySm, styles.comparisonText, styles.comparisonAfter]}>
+                      {workspaceAction}
                     </Text>
                   </View>
                 </Fragment>
@@ -411,12 +244,12 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
 
         <View style={styles.storyCta}>
           <PrimaryButton
-            label="Read customer stories"
+            label="Explore use cases"
             icon="arrow-right"
             iconRight
             size="md"
             full={l.isPhone}
-            trackId="footer.outcomes.customer-stories"
+            trackId="footer.outcomes.explore-use-cases"
             onPress={() => router.push(ROUTES.customers as never)}
           />
         </View>
@@ -659,7 +492,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
 /* ------------------------------------------------------------------ */
 
 /**
- * The live-status pill.
+ * The platform status link.
  *
  * It used to be a styled `Pressable` inside `<Link asChild>`, and it shipped
  * with **no stylesheet at all** — a 39px-tall, transparent, borderless column
@@ -676,7 +509,7 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
  * `display: inline` until told otherwise, hence the explicit `display: 'flex'`
  * in `statusPill`.
  */
-function StatusPill() {
+function StatusLink() {
   const t = useTokens();
   const type = useTypeScale();
   const styles = useFooterStyles();
@@ -689,13 +522,12 @@ function StatusPill() {
       <Link
         href={ROUTES.status as never}
         accessibilityRole="link"
-        accessibilityLabel="All systems operational — open the status page"
         style={[styles.statusPill, hovered && styles.statusPillHover] as never}>
-        <View style={styles.statusDot} />
+        <FontAwesome6 name="circle-info" size={12} color={t.brand} aria-hidden={true} />
         <Text style={[type.caption, styles.statusText]} numberOfLines={1}>
-          All systems operational
+          Platform status
         </Text>
-        <FontAwesome6 name="arrow-right" size={11} color={t.successText}  aria-hidden={true}/>
+        <FontAwesome6 name="arrow-right" size={11} color={t.brand}  aria-hidden={true}/>
       </Link>
     </View>
   );
@@ -712,7 +544,7 @@ function WideFooterNavigation() {
         {/* Not decorative and not inside a labelled link: this wordmark is the
             only thing naming the site at the foot of every page. */}
         <ImageAsset
-          source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+          source={require('../../../assets/images/v5w/flowsmartly-logo.png')}
           style={styles.logo}
           contentFit="contain"
           contentPosition="left"
@@ -758,7 +590,7 @@ function WideFooterNavigation() {
             trackId="footer.nav.product-updates"
             onPress={() => router.push(contactHref('updates') as never)}
           />
-          <StatusPill />
+          <StatusLink />
         </View>
       </View>
       <View style={styles.linkGroups}>
@@ -854,7 +686,7 @@ function usePhoneSections(): NavGroup[] {
  *
  * The press feedback lives on a wrapper rather than on the link itself:
  * `asChild` spreads the child's props onto the anchor, so a Pressable `style`
- * written as a function spreads to nothing (see StatusPill above). Pointer
+ * written as a function spreads to nothing (see StatusLink above). Pointer
  * events on a View survive, and they fire for touch as well as for a mouse.
  */
 function PhoneNavLink({ link }: { link: NavLink }) {
@@ -877,17 +709,6 @@ function PhoneNavLink({ link }: { link: NavLink }) {
           numberOfLines={1}>
           {link.label}
         </Text>
-        {/* The live-status pill was a block of its own on the brand rail. On a
-            phone it becomes the trailing mark on the Status link that Platform
-            already carries — the state without the extra row. */}
-        {link.href === ROUTES.status ? (
-          <View style={styles.phoneStatus}>
-            <View style={styles.statusDot} />
-            <Text style={[type.caption, styles.phoneStatusText]} numberOfLines={1}>
-              Operational
-            </Text>
-          </View>
-        ) : null}
       </Link>
     </View>
   );
@@ -911,7 +732,7 @@ function PhoneFooterNavigation() {
             phone: the logo already says FlowSmartly, and the line cost a row
             on all 44 routes. */}
         <ImageAsset
-          source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+          source={require('../../../assets/images/v5w/flowsmartly-logo.png')}
           style={styles.phoneLogo}
           contentFit="contain"
           contentPosition="left"
@@ -1026,13 +847,12 @@ export function V5PageEnd({
   showIntegrations = true,
   showPricing = true,
   showCta = true,
-  testimonial,
   onStartFree,
   onBookDemo,
 }: V5PublicFooterProps) {
   return (
     <>
-      {showProof && <OutcomesProof testimonial={testimonial} />}
+      {showProof && <OutcomesProof />}
       {showIntegrations && <IntegrationShelf />}
       {showPricing && <PricingShelf onStartFree={onStartFree} />}
       {showCta && <GrowthCta onStartFree={onStartFree} onBookDemo={onBookDemo} />}
@@ -1136,7 +956,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     return `${pct}%` as `${number}%`;
   };
 
-  // 4 metrics: 1-up on phone, 2-up while the page is stacked, 4-up above it.
+  // 4 workflow cards: 1-up on phone, 2-up while the page is stacked, 4-up above it.
   // `gridColumns(4)` caps at 3 between 1024 and 1440, which would orphan the
   // fourth card on its own row, so the count uses the shared `isStacked` flag
   // (BP.split) rather than a per-section width threshold.
@@ -1157,7 +977,6 @@ function createStyles(t: ThemeTokens, l: Layout) {
     stacked ? contentWidth : Math.max(240, contentWidth - BRAND_COLUMN - 28),
   );
 
-  const photo = phone ? 76 : l.isCompact ? 92 : 120;
 
   return StyleSheet.create({
     // The page's trailing padding. It used to sit on a wrapper around the
@@ -1168,9 +987,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
     /* -------------------------------------------------- outcomes */
     outcomesSection: { gap: gridGap + 6 },
     outcomeHeading: { alignItems: 'center', gap: 10 },
-    labelCenter: { alignSelf: 'center' },
     outcomesHeadingText: { textAlign: 'center', maxWidth: 860, alignSelf: 'center' },
-    outcomesSub: { textAlign: 'center', maxWidth: 720, alignSelf: 'center' },
 
     metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gridGap },
     metricCard: {
@@ -1185,7 +1002,6 @@ function createStyles(t: ThemeTokens, l: Layout) {
       backgroundColor: t.surfaceRaised,
       padding: phone ? 16 : 20,
     },
-    metricTop: { flexDirection: 'row', alignItems: 'center', gap: 14, minWidth: 0 },
     metricIcon: {
       width: phone ? 44 : 52,
       height: phone ? 44 : 52,
@@ -1195,11 +1011,9 @@ function createStyles(t: ThemeTokens, l: Layout) {
       flexGrow: 0,
       flexShrink: 0,
     },
-    metricValue: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+
     metricCaption: { marginTop: 8 },
-    metricDetail: { color: t.textSubtle },
-    trend: { height: 48, flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 10 },
-    trendBar: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 6, maxWidth: 22, borderRadius: 3 },
+    metricDetail: { color: t.textMuted },
 
     /* -------------------------------------------------- story panel */
     storyPanel: {
@@ -1223,13 +1037,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       minWidth: 0,
       gap: 16,
     },
-    storyPerson: { flexDirection: 'row', alignItems: 'center', gap: 14, minWidth: 0 },
-    storyPhoto: { width: photo, height: photo, borderRadius: 18, flexGrow: 0, flexShrink: 0 },
-    storyPersonCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 2 },
-    storyName: { color: t.text },
-    storyRole: { color: t.textMuted },
-    storyQuote: { color: t.text, fontWeight: '700' },
-
+    storyTitle: { color: t.text, fontWeight: '700' },
     comparison: {
       flexGrow: 1,
       flexShrink: 1,
@@ -1244,8 +1052,6 @@ function createStyles(t: ThemeTokens, l: Layout) {
       paddingTop: stacked ? 18 : 0,
     },
     comparisonRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 8 },
-    // Every body row is the same height whether its value takes one line or
-    // two, so the three rows keep their rhythm.
     comparisonRowBody: { borderTopWidth: 1, borderTopColor: t.divider, minHeight: phone ? 54 : 48 },
     comparisonItem: {
       flexGrow: 1,
@@ -1375,6 +1181,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       borderRadius: l.radius,
       padding: l.sectionPad,
       flexDirection: stacked ? 'column' : 'row',
+      flexWrap: stacked ? 'nowrap' : 'wrap',
       alignItems: stacked ? 'stretch' : 'center',
       gap: stacked ? 20 : 30,
       overflow: 'hidden',
@@ -1391,7 +1198,8 @@ function createStyles(t: ThemeTokens, l: Layout) {
     ctaCopy: {
       flexGrow: 1,
       flexShrink: 1,
-      flexBasis: stacked ? 'auto' : 0,
+      flexBasis: stacked ? 'auto' : 320,
+      maxWidth: '100%',
       width: stacked ? '100%' : undefined,
       minWidth: 0,
       gap: 10,
@@ -1414,6 +1222,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       flexBasis: 'auto',
       width: stacked ? '100%' : 300,
       minWidth: 0,
+      maxWidth: '100%',
       gap: 10,
       borderRadius: 16,
       backgroundColor: t.surface,
@@ -1469,11 +1278,10 @@ function createStyles(t: ThemeTokens, l: Layout) {
       borderRadius: 999,
       borderWidth: 1,
       borderColor: t.border,
-      backgroundColor: t.successBg,
+      backgroundColor: t.surfaceMuted,
     },
     statusPillHover: { opacity: 0.85 },
-    statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.successText },
-    statusText: { color: t.successText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    statusText: { color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     linkGroups: {
       flexGrow: 1,
       flexShrink: 1,
@@ -1551,8 +1359,6 @@ function createStyles(t: ThemeTokens, l: Layout) {
     phoneLinkText: { color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
     // any accent used as text goes through accentText, which guarantees 4.5:1
     phoneLinkTextActive: { color: accentText(t.brand, t), fontWeight: '600' },
-    phoneStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 0, flexShrink: 0 },
-    phoneStatusText: { color: t.successText, fontWeight: '700' },
 
     /* -------------------------------------------------- bottom bar */
     bottom: {

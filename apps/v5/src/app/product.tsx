@@ -10,6 +10,7 @@ import { CapabilityGroupsSection } from '@/components/public/business-os-section
 import { PageShell } from '@/components/public/page-shell';
 import { CardGrid, FeatureCard, SteppedFlow } from '@/components/public/responsive-grid';
 import { breadcrumbJsonLd } from '@/components/public/seo';
+import PRODUCT_FACTS from '@/content/product-facts.json';
 import { FONT_SANS,
   Band,
   type BandTone,
@@ -25,7 +26,7 @@ import { FONT_SANS,
   useOpenSection,
   useTypeScale,
 } from '@/components/public/ui';
-import { goToRegister } from '@/lib/destinations';
+import { AUTH, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -34,7 +35,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 /* content                                                             */
 /* ------------------------------------------------------------------ */
 
-const PROOF = ['No credit card', 'Human-approved AI'];
+const PROOF = ['No credit card', 'Workspace approval controls'];
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
@@ -100,7 +101,7 @@ const MODULE_CARDS: {
     bullets: [
       'Copy, images and video from one brief',
       'Brand voice and templates you reuse',
-      'From idea to scheduled in minutes',
+      'Review content before scheduling',
     ],
     href: ROUTES.aiStudio,
     accent: 'violet',
@@ -111,9 +112,9 @@ const MODULE_CARDS: {
     name: 'Social',
     blurb: 'Plan, publish and reply without switching tabs.',
     bullets: [
-      'Every network on one calendar',
-      'Comments and DMs in a single inbox',
-      'Posting times drawn from your data',
+      'One calendar for supported connected accounts',
+      'Review posts and replies in the workspace',
+      'Track the results your providers report',
     ],
     href: ROUTES.social,
     accent: 'brand',
@@ -135,11 +136,11 @@ const MODULE_CARDS: {
     key: 'ads',
     icon: 'bullhorn',
     name: 'Ads',
-    blurb: 'One brief, every network, budget that follows results.',
+    blurb: 'Prepare ad campaigns for supported connected accounts.',
     bullets: [
-      'Launch across networks in one pass',
+      'Choose supported ad placements',
       'Creative variants generated for you',
-      'Spend shifts to what actually converts',
+      'Set a budget and review launch readiness',
     ],
     href: ROUTES.ads,
     accent: 'pink',
@@ -150,7 +151,7 @@ const MODULE_CARDS: {
     name: 'Call Agent',
     blurb: 'A voice that answers when you cannot.',
     bullets: [
-      'Picks up every call, day or night',
+      'Answers on configured business numbers',
       'Qualifies, books and follows up',
       'Transcripts land on the customer timeline',
     ],
@@ -423,14 +424,14 @@ const PILLARS: Pillar[] = [
 const TRUST: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
     icon: 'paper-plane',
-    title: 'High deliverability',
-    body: 'Authenticated sending, warmed domains and honest list hygiene keep your messages out of the spam folder.',
+    title: 'Sending readiness',
+    body: 'Review sender readiness and eligible recipients before sending a campaign.',
     accent: 'brand',
   },
   {
     icon: 'shield-halved',
     title: 'Explicit consent',
-    body: 'Opt-in is recorded, quiet hours are enforced and unsubscribes apply everywhere, immediately.',
+    body: 'Campaign audiences reflect recorded consent, opt-outs and channel eligibility.',
     accent: 'green',
   },
   {
@@ -442,7 +443,7 @@ const TRUST: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
     icon: 'eye',
     title: 'AI transparency',
-    body: 'Every generated asset is labelled, reviewable and editable, and nothing publishes without approval.',
+    body: 'Workspace authority sets which work can run and which actions require approval.',
     accent: 'orange',
   },
 ];
@@ -848,8 +849,8 @@ export default function ProductPage() {
 
   return (
     <PageShell
-      title="Product"
-      description="One agentic system across five capability groups: business and growth, engineering, operations, intelligence and the agent platform they are all built on."
+      title="How FlowSmartly works"
+      description={PRODUCT_FACTS.overview.answer}
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -857,21 +858,17 @@ export default function ProductPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={[open, asideBand]} distance={22}>
-        <View style={styles.heroRow}>
+      <Reveal testID="fs-product-hero" style={[open, asideBand]} distance={22}>
+        <View nativeID="fs-product-hero-row" style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>THE AGENTIC BUSINESS OPERATING SYSTEM</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Not a collection of AI features. One agentic system.
+              How FlowSmartly works
             </Heading>
-            {/* Written for a 540px column. Unclamped it runs to seven lines in
-                a 362px one, which is most of a phone screen before the CTAs. */}
-            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
-              FlowSmartly combines capabilities, tools, context and specialized agents to execute
-              work around the way your organization operates — across the systems you already run,
-              inside the authority you define, with your team keeping the last word.
+            <Text style={[type.body, styles.heroBody]}>
+              {PRODUCT_FACTS.overview.answer}
             </Text>
-            <View style={styles.heroButtons}>
+            <View nativeID="fs-product-hero-actions" style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
                   label="Create account"
@@ -880,7 +877,8 @@ export default function ProductPage() {
                   icon="arrow-right"
                   iconRight
                   trackId="product.hero.start-free"
-                  onPress={() => goToRegister()}
+                  webHref={AUTH.register}
+                  onPress={goToRegister}
                 />
                 {/* Was "Explore the platform", which had no destination other
                     than the page it sits on. Pricing is the question a visitor
@@ -894,7 +892,7 @@ export default function ProductPage() {
                 />
               </ButtonRow>
             </View>
-            <View style={styles.proofRow}>
+            <View nativeID="fs-product-hero-proof" style={styles.proofRow}>
               {PROOF.map((item) => (
                 <View key={item} style={styles.proofItem}>
                   <View style={styles.proofIcon}>
@@ -909,6 +907,7 @@ export default function ProductPage() {
           </View>
 
           <View style={styles.heroVisual}>
+            <Text style={[type.caption, { color: t.textMuted }]}>Example workspace data</Text>
             <CommandCentre styles={styles} t={t} l={l} />
           </View>
         </View>
@@ -1314,6 +1313,35 @@ export default function ProductPage() {
         </View>
         )}
       </Band>
+
+      <OpenSection>
+        <View style={styles.sectionHead}>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Questions about FlowSmartly
+          </Heading>
+        </View>
+        <View style={styles.productAnswers}>
+          {[PRODUCT_FACTS.overview, ...PRODUCT_FACTS.questions].map(({ question, answer }) => (
+            <View key={question} style={styles.productAnswer}>
+              <Heading level={3} style={[type.h3, { color: t.text }]}>
+                {question}
+              </Heading>
+              <Text style={[type.body, { color: t.textMuted }]}>{answer}</Text>
+            </View>
+          ))}
+          <View style={styles.productAnswerLinks}>
+            <Link href={ROUTES.pricing as never} style={{ color: accentText(t.brand, t) }}>
+              View pricing
+            </Link>
+            <Link href={ROUTES.integrations as never} style={{ color: accentText(t.brand, t) }}>
+              Explore integrations
+            </Link>
+            <Link href={ROUTES.helpCenter as never} style={{ color: accentText(t.brand, t) }}>
+              Read the help center
+            </Link>
+          </View>
+        </View>
+      </OpenSection>
     </PageShell>
   );
 }
@@ -1547,6 +1575,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     /* -------------------------------------------------- shared section head */
     sectionHead: { gap: 11, alignItems: l.isPhone ? 'flex-start' : 'center' },
+    productAnswers: { alignSelf: 'center', width: '100%', maxWidth: 780, gap: 20 },
+    productAnswer: { gap: 6 },
+    productAnswerLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
     sectionTitle: { textAlign: l.isPhone ? 'left' : 'center' },
     sectionSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 660 },
 

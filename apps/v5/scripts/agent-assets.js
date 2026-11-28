@@ -4,7 +4,7 @@
  *   node scripts/agent-assets.js
  *
  * Produces:
- *   dist/sitemap.xml   every real route, derived from the export itself
+ *   dist/sitemap.xml   indexable pages present in the static export
  *   dist/llms.txt      the site summary answer engines read
  *   dist/feed.xml      RSS for the blog, from the same index the site renders
  *
@@ -15,11 +15,12 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { ORIGIN, exportedPages } = require('./public-pages.cjs');
 // Node22.18+ strips this public-only TypeScript module; same facts as rendered pricing.
 const { BILLING_OFFERS } = require('../src/content/billing-offers.ts');
+const PRODUCT_FACTS = require('../src/content/product-facts.json');
 
 const DIST = path.join(__dirname, '..', 'dist');
-const ORIGIN = 'https://flowsmartly.com';
 const BLOG_BASE = '/resources/blog';
 
 /**
@@ -108,63 +109,16 @@ function prune() {
   return removed;
 }
 
-/* ---------- route discovery ---------- */
-
-function routes(dir = DIST, prefix = '') {
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (['_expo', 'assets', 'node_modules', '.well-known'].includes(entry.name)) continue;
-      out.push(...routes(full, `${prefix}/${entry.name}`));
-    } else if (entry.name.endsWith('.html')) {
-      // `+not-found` is a fallback, not a page; a leading `_` is expo-router's
-      // reserved prefix for internal screens and never a public route.
-      if (entry.name.startsWith('+') || entry.name.startsWith('_') || DEV_ONLY.includes(entry.name))
-        continue;
-      out.push(entry.name === 'index.html' ? prefix || '/' : `${prefix}/${entry.name.replace(/\.html$/, '')}`);
-    }
-  }
-  return out;
-}
-
-/** Landing pages deserve a higher weight than a policy document. */
-function priorityFor(route) {
-  if (route === '/') return '1.0';
-  if (/^\/(product|pricing|solutions|flowagent)$/.test(route)) return '0.9';
-  if (/^\/legal\//.test(route)) return '0.3';
-  if (/^\/company\/(status|press)$/.test(route)) return '0.4';
-  const depth = route.split('/').filter(Boolean).length;
-  return depth <= 1 ? '0.8' : '0.6';
-}
-
-function changefreqFor(route) {
-  if (route === '/' || /changelog|status|blog/.test(route)) return 'weekly';
-  if (/^\/legal\//.test(route)) return 'yearly';
-  return 'monthly';
-}
-
 /* ---------- sitemap ---------- */
 
 function writeSitemap(list) {
-  const today = new Date().toISOString().slice(0, 10);
-  // A post's lastmod is the day it was published or last revised, not the day
-  // the site happened to be rebuilt. Stamping every URL with today's date tells
-  // a crawler the whole archive changed on every deploy, which is how a sitemap
-  // stops being believed.
-  const lastmodFor = (route) => {
+  const body = list.map((route) => {
+    // Published posts carry an editorial date. Static pages without a reliable
+    // content revision date omit lastmod.
     const post = POST_BY_ROUTE.get(route);
-    return post ? post.updated || post.date : today;
-  };
-  const body = list
-    .map(
-      (route) =>
-        `  <url>\n    <loc>${ORIGIN}${route === '/' ? '/' : route}</loc>\n` +
-        `    <lastmod>${lastmodFor(route)}</lastmod>\n` +
-        `    <changefreq>${changefreqFor(route)}</changefreq>\n` +
-        `    <priority>${priorityFor(route)}</priority>\n  </url>`,
-    )
-    .join('\n');
+    const lastmod = post ? `\n    <lastmod>${escapeXml(post.updated || post.date)}</lastmod>` : '';
+    return `  <url>\n    <loc>${escapeXml(ORIGIN + route)}</loc>${lastmod}\n  </url>`;
+  }).join('\n');
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
   fs.writeFileSync(path.join(DIST, 'sitemap.xml'), xml);
   return list.length;
@@ -174,7 +128,7 @@ function writeSitemap(list) {
 
 const SECTIONS = [
   ['Platform', /^\/(product|platform\/)/],
-  ['Solutions', /^\/(solutions|flowagent)/],
+  ['Solutions', /^\/solutions/],
   ['Learning', /^\/(education\/|solutions\/flowlearner)/],
   ['Pricing', /^\/pricing$/],
   ['Resources', /^\/(resources|news)/],
@@ -203,9 +157,9 @@ function titleFor(route) {
  * description are what let it decide whether the piece answers the question in
  * front of it — which is the entire job of this file.
  */
-function blogSection() {
-  if (!POSTS.length) return null;
-  const lines = POSTS.map(
+function blogSection(posts) {
+  if (!posts.length) return null;
+  const lines = posts.map(
     (post) =>
       `- [${post.title}](${ORIGIN}${BLOG_BASE}/${post.slug}) — ${post.description} ` +
       `(${post.topic}, published ${post.date})`,
@@ -213,7 +167,7 @@ function blogSection() {
   return `## Blog\n\nWriting from the team building FlowSmartly. Full archive: ${ORIGIN}${BLOG_BASE}\nFeed: ${ORIGIN}/feed.xml\n\n${lines.join('\n')}`;
 }
 
-function writeLlms(list) {
+function writeLlms(list, posts) {
   // Post routes are described by `blogSection()`; without this they would also
   // be listed under Resources as bare slugs, twice, with no summary.
   const used = new Set(POST_BY_ROUTE.keys());
@@ -228,34 +182,28 @@ function writeLlms(list) {
   const rest = list.filter((r) => !used.has(r) && r !== '/').sort();
   if (rest.length) blocks.push(`## Other\n\n${rest.map((r) => `- [${titleFor(r)}](${ORIGIN}${r})`).join('\n')}`);
 
-  const blog = blogSection();
+  const blog = blogSection(posts);
   if (blog) blocks.push(blog);
 
+  const capabilities = PRODUCT_FACTS.capabilities
+    .map(({ name, description }) => `- **${name}** — ${description}`)
+    .join('\n');
+  const answers = PRODUCT_FACTS.questions
+    .map(({ question, answer }) => `### ${question}\n\n${answer}`)
+    .join('\n\n');
   const text = `# FlowSmartly
 
-> The AI Business Operating System. One intelligent platform to run, connect
-> and grow a business: the daily work, the content, the conversations, the
-> customers, the sales and the numbers in one place, with an AI partner
-> (FlowAgent) that prepares the next action for a person to approve.
-
-FlowSmartly is a single platform rather than a bundle of point tools, and it
-is built for real businesses of any kind — services, retail, healthcare,
-professional practices, education, hospitality — not for one industry. Its
-distinguishing idea is that every action is **human-approved by default**:
-the AI proposes, a person approves, and the result is measured.
+> ${PRODUCT_FACTS.overview.answer}
 
 ## What it does
 
-- **AI Studio** — generate on-brand images, video, posts, emails, ads and copy.
-- **Social** — plan, publish and engage across channels from one calendar.
-- **Email + SMS** — campaigns, journeys, deliverability and consent handling.
-- **Ads** — cross-channel campaigns with budget guardrails and approvals.
-- **Analytics** — unified reporting and attribution across every channel.
-- **FlowShop** — a storefront with AI-ready product data for agent shopping.
-- **ListSmartly** — local listings, reviews and AI-search visibility.
-- **Call Agent** — an AI voice agent that answers, books and qualifies.
-- **FlowLearner** — build training, teach live, and sell courses.
-- **FlowAgent** — the AI business operator that ties all of it together.
+${capabilities}
+
+## Questions about FlowSmartly
+
+${answers}
+
+See ${ORIGIN}/product for these answers and links to the relevant public pages.
 
 ## Pricing
 
@@ -269,7 +217,7 @@ ${blocks.join('\n\n')}
 
 - Figures inside product screenshots and dashboards on this site are
   **illustrative examples**, not customer data or performance guarantees.
-- The status page is an illustrative representation, not a live feed.
+- Service support information: ${ORIGIN}/company/status.
 - Cite the specific page for a claim; ${ORIGIN} is the canonical source.
 - Usage policy: ${ORIGIN}/ai.txt
 `;
@@ -285,10 +233,13 @@ ${blocks.join('\n\n')}
  * full body on purpose: a feed that ships the whole article invites scrapers to
  * republish it verbatim, which `ai.txt` explicitly denies.
  */
-function writeFeed() {
-  if (!POSTS.length) return 0;
-  const items = POSTS.map((post) => {
-    const url = `${ORIGIN}${BLOG_BASE}/${post.slug}`;
+function writeFeed(posts) {
+  if (!posts.length) {
+    fs.rmSync(path.join(DIST, 'feed.xml'), { force: true });
+    return 0;
+  }
+  const items = posts.map((post) => {
+    const url = escapeXml(`${ORIGIN}${BLOG_BASE}/${post.slug}`);
     return (
       `    <item>\n` +
       `      <title>${escapeXml(post.title)}</title>\n` +
@@ -301,7 +252,7 @@ function writeFeed() {
     );
   }).join('\n');
 
-  const newest = POSTS[0];
+  const lastRevision = posts.map((post) => post.updated || post.date).sort().at(-1);
   const xml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n` +
@@ -310,24 +261,19 @@ function writeFeed() {
     `    <link>${ORIGIN}${BLOG_BASE}</link>\n` +
     `    <description>Notes from building FlowSmartly — the decisions, the things that broke, and the practices that came out of fixing them.</description>\n` +
     `    <language>en-us</language>\n` +
-    `    <lastBuildDate>${rfc822(newest.updated || newest.date)}</lastBuildDate>\n` +
+    `    <lastBuildDate>${rfc822(lastRevision)}</lastBuildDate>\n` +
     `    <atom:link href="${ORIGIN}/feed.xml" rel="self" type="application/rss+xml"/>\n` +
     `${items}\n` +
     `  </channel>\n` +
     `</rss>\n`;
   fs.writeFileSync(path.join(DIST, 'feed.xml'), xml);
-  return POSTS.length;
+  return posts.length;
 }
 
 /* ---------- JSON-LD injection ---------- */
 
-/*
- * expo-router's <Head> silently drops <script> children, so JSON-LD authored in
- * a component never reaches the HTML. Breadcrumbs are purely a function of the
- * URL, so they are generated here and injected into the exported markup — which
- * also guarantees every route gets one rather than relying on 41 pages each
- * remembering to.
- */
+/* The export preserves page-authored schemas. Fill in missing public product,
+ * article and breadcrumb schemas from the same facts used by the site. */
 const LABELS = {
   '': 'Home',
   flowagent: 'FlowAgent',
@@ -350,21 +296,17 @@ function label(segment) {
     .join(' ');
 }
 
-/** `/platform/ads` has no `/platform` page, so it hangs off Product. */
-const PARENT = { platform: '/product', education: '/resources', company: '/company/about', legal: '/legal/privacy' };
-
-function breadcrumbFor(route) {
+function breadcrumbFor(route, indexRoutes) {
   const parts = route.split('/').filter(Boolean);
   const trail = [{ name: 'Home', path: '/' }];
   let acc = '';
-  parts.forEach((segment, i) => {
+  for (const segment of parts) {
     acc += `/${segment}`;
-    const last = i === parts.length - 1;
-    // a directory that has no page of its own points at its real parent
-    const target = !last && !fs.existsSync(path.join(DIST, `${acc.slice(1)}.html`)) ? PARENT[segment] || acc : acc;
-    if (!last && !PARENT[segment] && !fs.existsSync(path.join(DIST, `${acc.slice(1)}.html`))) return;
-    trail.push({ name: label(segment), path: target });
-  });
+    // `/platform` is a route group. Its actual overview is `/product`.
+    const target = acc === '/platform' ? '/product' : acc;
+    if (!indexRoutes.has(target)) continue;
+    trail.push({ name: POST_BY_ROUTE.get(target)?.title || label(target.split('/').at(-1)), path: target });
+  }
   return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -383,7 +325,7 @@ const ORGANIZATION = {
   name: 'FlowSmartly',
   url: ORIGIN,
   logo: `${ORIGIN}/icon.png`,
-  description: 'FlowSmartly — the AI Business Operating System. One platform to run, connect and grow a business, with every AI action approved by a person.',
+  description: PRODUCT_FACTS.overview.answer,
   sameAs: [
     'https://www.linkedin.com/company/flowsmartly',
     'https://www.instagram.com/flowsmartly',
@@ -417,7 +359,7 @@ const WEBSITE = {
 const PLAN_OFFERS = BILLING_OFFERS.map((offer) => ({
   name: offer.name,
   price: String(offer.monthlyAmountMinor / 100),
-  description: `${offer.monthlyIncludedCredits} included credits each month; purchased credits carry over`,
+  description: `${offer.monthlyIncludedCredits} included credits each month. Purchased credits carry over.`,
 }));
 
 const SOFTWARE = {
@@ -428,26 +370,14 @@ const SOFTWARE = {
   applicationSubCategory: 'AI Business Operating System',
   operatingSystem: 'Web',
   url: ORIGIN,
-  description:
-    'One intelligent platform to run, connect and grow a business — work, content, conversations, customers, sales and analytics in one place, with every AI action approved by a person.',
-  featureList: [
-    'AI Studio — images, video, posts, emails, ads and copy',
-    'Social — plan, publish and engage from one calendar',
-    'Email + SMS — campaigns, journeys, deliverability and consent',
-    'Ads — cross-channel campaigns with budget guardrails',
-    'Analytics — unified reporting and attribution',
-    'FlowShop — storefront with AI-ready product data',
-    'ListSmartly — local listings, reviews and AI-search visibility',
-    'Call Agent — an AI voice agent that answers, books and qualifies',
-    'FlowLearner — build training, teach live, and sell courses',
-    'FlowAgent — the AI business operator across all of it',
-  ],
+  description: PRODUCT_FACTS.overview.answer,
+  featureList: PRODUCT_FACTS.capabilities.map(({ name, description }) => `${name} — ${description}`),
   publisher: { '@type': 'Organization', name: 'FlowSmartly', url: ORIGIN },
   offers: {
     '@type': 'AggregateOffer',
     priceCurrency: 'USD',
-    lowPrice: '0',
-    highPrice: String(Math.max(...BILLING_OFFERS.map((offer) => offer.monthlyAmountMinor / 100))),
+    lowPrice: String(Math.min(...PLAN_OFFERS.map(({ price }) => Number(price)))),
+    highPrice: String(Math.max(...PLAN_OFFERS.map(({ price }) => Number(price)))),
     offerCount: PLAN_OFFERS.length,
     url: `${ORIGIN}/pricing`,
     offers: PLAN_OFFERS.map((plan) => ({
@@ -457,17 +387,17 @@ const SOFTWARE = {
       priceCurrency: 'USD',
       description: plan.description,
       url: `${ORIGIN}/pricing`,
-      availability: 'https://schema.org/InStock',
+      priceSpecification: {
+        '@type': 'UnitPriceSpecification',
+        price: plan.price,
+        priceCurrency: 'USD',
+        unitCode: 'MON',
+      },
     })),
   },
 };
 
-/*
- * The pricing questions, marked up from the same JSON the page renders — the
- * page authored `faqJsonLd(...)` and it never reached the HTML, because
- * expo-router's <Head> drops <script> children. Reading the shared file keeps
- * the markup and the visible answers identical, which is what Google requires.
- */
+/* Use the rendered pricing facts if an export omits its FAQ markup. */
 function faqPage() {
   const items = JSON.parse(
     fs.readFileSync(path.join(__dirname, '..', 'src', 'content', 'pricing-faq.json'), 'utf8'),
@@ -488,26 +418,57 @@ function extrasFor(route) {
   if (route === '/') return [ORGANIZATION, WEBSITE, SOFTWARE];
   if (route === '/product') return [SOFTWARE];
   if (route === '/pricing') return [SOFTWARE, faqPage()];
+  const post = POST_BY_ROUTE.get(route);
+  if (post) {
+    return [{
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.description,
+      url: ORIGIN + route,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': ORIGIN + route },
+      datePublished: post.date,
+      ...(post.updated ? { dateModified: post.updated } : {}),
+      articleSection: post.topic,
+      author: post.author ? { '@type': 'Person', name: post.author } : { '@type': 'Organization', name: 'FlowSmartly' },
+      publisher: { '@type': 'Organization', name: 'FlowSmartly', url: ORIGIN },
+    }];
+  }
   return [];
 }
 
-function injectJsonLd(list) {
+function existingJsonLdTypes(html) {
+  const types = new Set();
+  function collect(node) {
+    if (Array.isArray(node)) {
+      node.forEach(collect);
+    } else if (node && typeof node === 'object') {
+      for (const type of [].concat(node['@type'] || [])) types.add(type);
+      collect(node['@graph']);
+    }
+  }
+  for (const [, attributes, source] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (!/\btype\s*=\s*["']application\/ld\+json["']/i.test(attributes)) continue;
+    try {
+      collect(JSON.parse(source));
+    } catch {
+      // Report invalid authored JSON-LD in the export validator.
+    }
+  }
+  return types;
+}
+
+function injectJsonLd(pages, indexRoutes) {
   let touched = 0;
-  for (const route of list) {
-    // A section landing page exports as `solutions/index.html`, not
-    // `solutions.html` — resolving only the flat form silently skipped them.
-    const flat = path.join(DIST, route === '/' ? 'index.html' : `${route.slice(1)}.html`);
-    const nested = path.join(DIST, route.slice(1), 'index.html');
-    const file = fs.existsSync(flat) ? flat : nested;
-    if (!fs.existsSync(file)) continue;
-    let html = fs.readFileSync(file, 'utf8');
-    if (html.includes('application/ld+json')) continue;
-    const blocks = [...extrasFor(route), breadcrumbFor(route)];
-    const tags = blocks
-      .map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`)
+  for (const { route, file, html } of pages) {
+    // BreadcrumbList requires at least two entries. Home carries entity data.
+    const blocks = route === '/' ? extrasFor(route) : [...extrasFor(route), breadcrumbFor(route, indexRoutes)];
+    const types = existingJsonLdTypes(html);
+    const tags = blocks.filter((block) => !types.has(block['@type']))
+      .map((b) => `<script type="application/ld+json">${JSON.stringify(b).replace(/</g, '\\u003c')}</script>`)
       .join('');
-    html = html.replace('</head>', `${tags}</head>`);
-    fs.writeFileSync(file, html);
+    if (!tags) continue;
+    fs.writeFileSync(file, html.replace('</head>', `${tags}</head>`));
     touched += 1;
   }
   return touched;
@@ -523,12 +484,12 @@ function injectJsonLd(list) {
  * **The real 301 belongs in the web server** — the stub is the belt, not the
  * braces. For nginx:
  *
- *     location = /flow-ai { return 301 /flowagent; }
+ *     location = /flow-ai { return 301 /platform/flowagent$is_args$args; }
  *
  * Without the server rule the old URL still resolves, which is fine for
  * bookmarks and shared previews but does not consolidate ranking signals.
  */
-const MOVED = [{ from: '/flow-ai', to: '/flowagent', why: 'Flow.AI renamed to FlowAgent' }];
+const MOVED = [{ from: '/flow-ai', to: '/platform/flowagent', why: 'Flow.AI renamed to FlowAgent' }];
 
 function writeRedirects() {
   for (const { from, to, why } of MOVED) {
@@ -552,11 +513,6 @@ function writeRedirects() {
   return MOVED.length;
 }
 
-/** A moved route must never appear in the sitemap or llms.txt. */
-function isMoved(route) {
-  return MOVED.some((m) => m.from === route);
-}
-
 /* ---------- run ---------- */
 
 if (!fs.existsSync(DIST)) {
@@ -567,14 +523,14 @@ const pruned = prune();
 // Redirect stubs are written first, then excluded from every generated index —
 // a moved URL must not be advertised in the sitemap it redirects away from.
 const redirects = writeRedirects();
-// /news/article is a rendering template, not a canonical article. The backend
-// requires ?slug= and advertises only published URLs via /_news/sitemap.xml.
-// Retain its HTML for the backend renderer; omit it from public discovery.
-const list = routes().sort().filter((route) => !isMoved(route) && route !== '/news/article');
+const pages = exportedPages(DIST).filter((page) => page.indexable);
+const list = pages.map((page) => page.route);
+const indexRoutes = new Set(list);
+const posts = POSTS.filter((post) => indexRoutes.has(`${BLOG_BASE}/${post.slug}`));
 const urls = writeSitemap(list);
-const groups = writeLlms(list);
-const feed = writeFeed();
-const injected = injectJsonLd(list);
+const groups = writeLlms(list, posts);
+const feed = writeFeed(posts);
+const injected = injectJsonLd(pages, indexRoutes);
 console.log(`pruned: ${pruned.length ? pruned.join(', ') : 'nothing'}`);
 console.log(`redirects: ${redirects}`);
 console.log(`sitemap.xml: ${urls} urls`);

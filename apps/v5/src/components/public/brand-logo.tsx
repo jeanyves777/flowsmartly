@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import * as simpleIcons from 'simple-icons';
 import { Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import brandLogos from '@/content/brand-logos.generated.json';
 import { brandColor, hexToRgba } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
 
@@ -22,7 +22,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type SimpleIcon = { title: string; hex: string; path: string };
 
-const SIMPLE = simpleIcons as unknown as Record<string, SimpleIcon | undefined>;
+const SIMPLE_BRANDS: Readonly<Record<string, SimpleIcon | undefined>> = brandLogos;
 
 /** brand key → FontAwesome6 glyph name, where one exists */
 const FA_BRANDS: Record<string, string> = {
@@ -44,28 +44,6 @@ const FA_BRANDS: Record<string, string> = {
   amazon: 'amazon',
   github: 'github',
   x: 'x-twitter',
-};
-
-/** brand key → simple-icons export name, for what FontAwesome lacks */
-const SI_BRANDS: Record<string, string> = {
-  zendesk: 'siZendesk',
-  zapier: 'siZapier',
-  make: 'siMake',
-  googleanalytics: 'siGoogleanalytics',
-  mailchimp: 'siMailchimp',
-  intercom: 'siIntercom',
-  notion: 'siNotion',
-  asana: 'siAsana',
-  trello: 'siTrello',
-  zoho: 'siZoho',
-  airtable: 'siAirtable',
-  googledrive: 'siGoogledrive',
-  copilot: 'siGithubcopilot',
-  githubcopilot: 'siGithubcopilot',
-  gemini: 'siGooglegemini',
-  googlegemini: 'siGooglegemini',
-  perplexity: 'siPerplexity',
-  claude: 'siClaude',
 };
 
 /**
@@ -108,7 +86,7 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
     return <FontAwesome6 name={fa as never} size={size} color={tint} accessibilityRole="image" accessibilityLabel={label ?? name} />;
   }
 
-  const icon = SIMPLE[SI_BRANDS[key] ?? ''];
+  const icon = SIMPLE_BRANDS[key];
   if (icon) {
     const tint = color ?? (monochrome ? t.text : brandColor(`#${icon.hex}`, t));
     return (
@@ -193,4 +171,4 @@ const FA_TINTS: Record<string, string> = {
 };
 
 /** Brands this component can render for real, for building integration strips. */
-export const AVAILABLE_BRANDS = [...Object.keys(FA_BRANDS), ...Object.keys(SI_BRANDS)];
+export const AVAILABLE_BRANDS = [...Object.keys(FA_BRANDS), ...Object.keys(SIMPLE_BRANDS)];

@@ -30,7 +30,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { contactHref, goToRegister } from '@/lib/destinations';
+import { AUTH, contactHref, goToRegister } from '@/lib/destinations';
 import { accentText, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -248,7 +248,7 @@ export default function PricingPage() {
         faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
       ]}>
       {/* ------------------------------------------------ hero + toggle */}
-      <OpenSection>
+      <OpenSection nativeID="fs-pricing-intro">
         <Reveal style={styles.hero} distance={16}>
           <SectionLabel>SIMPLE, FLEXIBLE PRICING</SectionLabel>
           <Heading level={1} style={[type.display, styles.heroTitle]}>
@@ -259,7 +259,7 @@ export default function PricingPage() {
           </Text>
 
           <View style={styles.toggleWrap}>
-            <View style={styles.toggle}>
+            <View nativeID="fs-pricing-billing" style={styles.toggle}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: !annual }}
@@ -286,7 +286,7 @@ export default function PricingPage() {
         </Reveal>
 
         {/* ------------------------------------------------ plans */}
-        <View style={styles.planGrid}>
+        <View nativeID="fs-pricing-plans" style={styles.planGrid}>
           {PLANS.map((plan, index) => {
             const accent = accentOf(plan.accent);
             const monthly = annual ? plan.yearlyPrice / 12 : plan.price;
@@ -347,7 +347,8 @@ export default function PricingPage() {
                       label="Create account"
                       full
                       trackId={`pricing.plan.${plan.id}`}
-                      onPress={() => goToRegister()}
+                      webHref={AUTH.register}
+                      onPress={goToRegister}
                     />
                   ) : (
                     <Pressable
@@ -699,6 +700,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /** stacks below the split breakpoint: price beside copy needs real width */
     customCard: {
       flexDirection: l.isStacked ? 'column' : 'row',
+      flexWrap: l.isStacked ? 'nowrap' : 'wrap',
       alignItems: l.isStacked ? 'stretch' : 'center',
       gap: l.isStacked ? 20 : 32,
       borderWidth: 1,
@@ -710,13 +712,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     customCopy: l.isStacked
       ? { width: '100%', minWidth: 0, gap: 10 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 320, minWidth: 0, maxWidth: '100%', gap: 10 },
     customEyebrow: { ...type.caption, color: accentText(t.violet, t), fontWeight: '800', letterSpacing: 1.2 },
     customTitle: type.h3,
     customBody: { ...type.bodySm, color: t.textMuted, maxWidth: 620 },
     customAside: l.isStacked
       ? { width: '100%', minWidth: 0, gap: 6 }
-      : { flexGrow: 0, flexShrink: 0, flexBasis: 260, minWidth: 0, gap: 6 },
+      : { flexGrow: 0, flexShrink: 0, flexBasis: 260, minWidth: 0, maxWidth: '100%', gap: 6 },
     customPrice: { ...type.h2, color: t.text },
     customPriceNote: { ...type.caption, color: t.textSubtle },
     customButtons: { gap: 10, marginTop: 10 },

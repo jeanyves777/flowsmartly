@@ -101,7 +101,7 @@ const INCLUDED: { key: string; icon: string; title: string; body: string; accent
     key: 'mobile',
     icon: 'mobile-screen',
     title: 'Designed at phone width first',
-    body: 'Every layout is laid out for a 390px screen before it is laid out for a desktop one.',
+    body: 'Preview your pages at phone and desktop sizes before you publish.',
     accent: 'pink',
   },
   {
@@ -114,15 +114,15 @@ const INCLUDED: { key: string; icon: string; title: string; body: string; accent
   {
     key: 'speed',
     icon: 'gauge-high',
-    title: 'Fast, secure hosting',
-    body: 'Global delivery, HTTPS, compressed images and daily backups from the first publish.',
+    title: 'Managed website hosting',
+    body: 'Publish a website and use HTTPS once your connected domain is ready.',
     accent: 'green',
   },
   {
     key: 'found',
     icon: 'magnifying-glass',
-    title: 'Legible to search and AI',
-    body: 'Titles, descriptions, structured data, a sitemap and an answer-engine summary per page.',
+    title: 'Findable public pages',
+    body: 'Published pages carry titles, descriptions, canonical URLs and applicable structured data.',
     accent: 'brand',
   },
 ];
@@ -156,11 +156,10 @@ const EDIT_WAYS: { key: string; icon: string; title: string; body: string }[] = 
 /** What ships in the HTML, stated as outcomes rather than tags. */
 const SEO_ROWS: { key: string; label: string; value: string }[] = [
   { key: 'title', label: 'Page title & description', value: 'Per page' },
-  { key: 'schema', label: 'Structured data', value: 'LocalBusiness' },
-  { key: 'sitemap', label: 'Sitemap & robots', value: 'Generated' },
-  { key: 'og', label: 'Social preview card', value: 'Per page' },
-  { key: 'speed', label: 'Core Web Vitals', value: 'Pass' },
-  { key: 'llms', label: 'Answer-engine summary', value: 'Included' },
+  { key: 'schema', label: 'Structured data', value: 'Based on page type' },
+  { key: 'sitemap', label: 'Sitemap & robots', value: 'On published domains' },
+  { key: 'canonical', label: 'Canonical URL', value: 'Per page' },
+  { key: 'mobile', label: 'Device preview', value: 'Phone and desktop' },
 ];
 
 /** Four, so the row divides at 1, 2 and 4 columns. */
@@ -214,11 +213,11 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Is hosting included?',
-    a: 'Yes — global hosting, HTTPS, image optimisation and daily backups are part of the site. There is no separate host to buy or configure.',
+    a: 'You can publish from FlowSmartly and serve the site over HTTPS once your connected domain is ready. Domain connection and registration are managed separately.',
   },
   {
     q: 'Will the site work on phones?',
-    a: 'Every layout is designed at phone width first, then widened. The phone version is the real design, not a squeezed desktop one.',
+    a: 'The editor has phone and desktop previews so you can check the layout at both sizes before publishing.',
   },
   {
     q: 'Can I sell products from it?',
@@ -627,27 +626,6 @@ export default function WebsiteBuilderPage() {
         </View>
       </Band>
 
-      {/* ------------------------------------------------ testimonial */}
-      <Band tone="violet" art={{ variant: 'learn', color: t.violet, side: 'left' }}>
-        <View style={styles.quoteRow}>
-          <Media
-            name="people/maya-chen"
-            alt="Maya Chen, owner of Fern &amp; Vine"
-            style={styles.quoteAvatar}
-            radius={l.isPhone ? 34 : 44}
-          />
-          <View style={styles.quoteCopy}>
-            <FontAwesome6 name="quote-left" size={18} color={t.brand}  aria-hidden={true}/>
-            <Text style={[type.h3, styles.quoteText]}>
-              I had put off the website for two years because I did not know where to start. I wrote
-              four sentences about the shop and had something I was proud of the same afternoon.
-            </Text>
-            <Text numberOfLines={2} style={styles.quoteAttribution}>
-              Maya Chen • Owner, Fern &amp; Vine
-            </Text>
-          </View>
-        </View>
-      </Band>
     </PageShell>
   );
 }
@@ -1003,20 +981,5 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     faqQ: { ...type.caption, color: t.text, fontWeight: '800' },
     faqA: { ...type.caption, color: t.textMuted },
 
-    /* -------------------------------------------------- quote */
-    quoteRow: {
-      flexDirection: l.isPhone ? 'column' : 'row',
-      alignItems: l.isPhone ? 'flex-start' : 'center',
-      gap: l.isPhone ? 16 : 26,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 20,
-      backgroundColor: t.surfaceMuted,
-      padding: l.isPhone ? 18 : 28,
-    },
-    quoteAvatar: { width: l.isPhone ? 68 : 88, height: l.isPhone ? 68 : 88, flexGrow: 0, flexShrink: 0 },
-    quoteCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 12 },
-    quoteText: { color: t.text },
-    quoteAttribution: { ...type.caption, color: t.textMuted, fontWeight: '600' },
   });
 }

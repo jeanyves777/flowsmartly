@@ -49,37 +49,19 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
-const PROOF = ['No credit card', 'Approval before spend', 'Pause anytime'];
-
-/** Hero figures — the same claims the customer stories are built on. */
-const HERO_FIGURES: { value: string; label: string; accent: Accent }[] = [
-  { value: '2.4×', label: 'Average ROAS on managed spend', accent: 'green' },
-  { value: '5', label: 'Ad networks, one campaign', accent: 'brand' },
-  { value: '$0', label: 'Spent before you approve it', accent: 'violet' },
-];
-
-/** The three things that stop being five things once every network shares a board. */
-const CROSS_CHANNEL_FIGURES: { value: string; label: string; accent: Accent }[] = [
-  { value: '5', label: 'Networks on one board', accent: 'brand' },
-  { value: '1', label: 'Budget, split how you like', accent: 'violet' },
-  { value: '1', label: 'Definition of a conversion', accent: 'green' },
-];
+const PROOF = ['Saved campaign drafts', 'Provider eligibility', 'Budget review'];
 
 /** The networks the hero strip names, in the fixed order used everywhere. */
 const NETWORKS: { key: string; brand: string; name: string }[] = [
   { key: 'meta', brand: 'facebook', name: 'Meta' },
   { key: 'google', brand: 'google', name: 'Google' },
   { key: 'linkedin', brand: 'linkedin', name: 'LinkedIn' },
-  { key: 'tiktok', brand: 'tiktok', name: 'TikTok' },
-  { key: 'youtube', brand: 'youtube', name: 'YouTube' },
 ];
 
-/** Builder chips — three are selected, so the form reads as half-filled. */
+/** Example provider selection for a campaign draft. */
 const CHANNEL_CHIPS: { key: string; brand: string; label: string; on: boolean }[] = [
   { key: 'meta', brand: 'facebook', label: 'Meta', on: true },
   { key: 'google', brand: 'google', label: 'Google', on: true },
-  { key: 'tiktok', brand: 'tiktok', label: 'TikTok', on: true },
-  { key: 'youtube', brand: 'youtube', label: 'YouTube', on: false },
   { key: 'linkedin', brand: 'linkedin', label: 'LinkedIn', on: false },
 ];
 
@@ -124,29 +106,26 @@ const PROJECTIONS: {
   delta: string;
   accent: Accent;
 }[] = [
-  { key: 'roas', label: 'Projected ROAS', target: 4.2, decimals: 1, prefix: '', suffix: 'x', delta: '+26%', accent: 'green' },
+  { key: 'roas', label: 'Example ROAS', target: 4.2, decimals: 1, prefix: '', suffix: 'x', delta: '+26%', accent: 'green' },
   { key: 'conversions', label: 'Conversions', target: 1240, decimals: 0, prefix: '', suffix: '', delta: '+19%', accent: 'brand' },
   { key: 'revenue', label: 'Revenue', target: 62300, decimals: 0, prefix: '$', suffix: '', delta: '+24%', accent: 'violet' },
 ];
 
 const CROSS_CHANNEL_POINTS = [
-  'One brief becomes each network’s native format and aspect ratio.',
-  'Budgets, schedules and audiences stay in sync across every platform.',
-  'Pause, boost or clone a campaign anywhere from a single board.',
+  'Meta placements use your connected Facebook and Instagram accounts.',
+  'Google supports Search campaigns. LinkedIn supports website-traffic text ads.',
+  'Campaign availability depends on the connected account and ad format.',
 ];
 
 const CHANNEL_ROWS: { key: string; brand: string; name: string; placements: string; share: number; accent: Accent }[] = [
-  { key: 'meta', brand: 'facebook', name: 'Meta', placements: 'Feed · Reels · Stories', share: 34, accent: 'brand' },
-  { key: 'google', brand: 'google', name: 'Google', placements: 'Search · Display · Shopping', share: 26, accent: 'green' },
-  { key: 'tiktok', brand: 'tiktok', name: 'TikTok', placements: 'In-feed · Spark Ads', share: 18, accent: 'pink' },
-  { key: 'youtube', brand: 'youtube', name: 'YouTube', placements: 'Shorts · In-stream', share: 12, accent: 'orange' },
-  { key: 'linkedin', brand: 'linkedin', name: 'LinkedIn', placements: 'Feed · Sponsored messages', share: 10, accent: 'violet' },
+  { key: 'meta', brand: 'facebook', name: 'Meta', placements: 'Facebook and Instagram', share: 65, accent: 'brand' },
+  { key: 'google', brand: 'google', name: 'Google', placements: 'Search', share: 35, accent: 'green' },
 ];
 
-const BOOST_POINTS = [
-  'FlowSmartly ranks last month’s posts by the engagement that actually preceded a sale.',
-  'One tap turns the winner into a campaign — copy, audience and budget already filled in.',
-  'The organic post keeps its social proof; the ad inherits it.',
+const REUSE_POINTS = [
+  'Review the results of your published content.',
+  'Choose a saved image or video from Media Library for a draft.',
+  'Review the ad copy and settings before launch.',
 ];
 
 const VARIANT_CARDS: {
@@ -275,9 +254,9 @@ const RECOMMENDATIONS: {
   {
     key: 'shift',
     icon: 'arrow-right-arrow-left',
-    title: 'Move $1,200 from Display to Meta Reels',
-    reason: 'Reels returned 5.1x last week against Display’s 2.2x, on the same audience.',
-    impact: '+18% ROAS',
+    title: 'Review spending by provider',
+    reason: 'Compare reported campaign results during the same period.',
+    impact: 'Budget review',
     accent: 'green',
   },
   {
@@ -291,9 +270,9 @@ const RECOMMENDATIONS: {
   {
     key: 'extend',
     icon: 'users-viewfinder',
-    title: 'Extend the high-value lookalike to TikTok',
-    reason: 'The same audience converts on Meta at $28 CPA; TikTok inventory is unspent.',
-    impact: '+240 conversions',
+    title: 'Review a draft for Google Search',
+    reason: 'Check that the connected account supports the selected format and objective.',
+    impact: 'Provider check',
     accent: 'brand',
   },
 ];
@@ -363,72 +342,6 @@ function useMeasuredWidth(fallback: number) {
     setWidth((prev) => (Math.abs(prev - next) < 1 ? prev : next));
   }, []);
   return { width, onLayout };
-}
-
-/**
- * Three short figures under a claim. Used in the hero and beside the
- * cross-channel points, where the copy column would otherwise end long before
- * the panel next to it does.
- */
-function FigureStrip({
-  figures,
-  styles,
-  accentOf,
-  compact = false,
-}: {
-  figures: { value: string; label: string; accent: Accent }[];
-  styles: Styles;
-  accentOf: (accent: Accent) => string;
-  /**
-   * PHONE RECOMPOSITION.
-   *
-   * Three figure tiles stacked one per row is the desktop composition made
-   * taller: 93px of tile for a two-character number, three times over, 279px in
-   * all. `compact` answers a 390px viewport with the shape a phone actually
-   * wants for three short facts — one bordered proof strip whose rows put the
-   * value and its label on the SAME line. Same three figures, 136px.
-   *
-   * It is opt-in rather than automatic because the hero strip is a different
-   * argument on a different lane, and this must not silently redraw it.
-   */
-  compact?: boolean;
-}) {
-  const l = useLayout();
-  const t = useTokens();
-
-  if (compact && l.isPhone) {
-    return (
-      <View style={styles.proofStrip}>
-        {figures.map((figure) => (
-          <View key={figure.label} style={styles.proofStripRow}>
-            <Text
-              numberOfLines={1}
-              style={[styles.proofStripValue, { color: accentText(accentOf(figure.accent), t) }]}>
-              {figure.value}
-            </Text>
-            <Text numberOfLines={2} style={styles.proofStripLabel}>
-              {figure.label}
-            </Text>
-          </View>
-        ))}
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.figureRow}>
-      {figures.map((figure) => (
-        <View key={figure.label} style={styles.figureCell}>
-          <View style={styles.figureTile}>
-            <Text numberOfLines={1} style={[styles.figureValue, { color: accentOf(figure.accent) }]}>
-              {figure.value}
-            </Text>
-            <Text style={styles.figureLabel}>{figure.label}</Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
 }
 
 /** Smooth cubic through the points, bending only on the x axis. */
@@ -676,54 +589,10 @@ export default function AdsPage() {
   const chartFallback = Math.max(240, contentWidth - (l.isPhone ? 32 : 44));
   const chartHeight = l.isPhone ? 168 : l.isTablet ? 196 : 224;
 
-  /*
-   * The hero's supporting proof: three figures and the customer line.
-   *
-   * It is ONE fragment rendered in ONE of two places, not two copies. Wide, it
-   * closes the copy column, which is the shorter of the two and would otherwise
-   * end 300px above the console beside it. On a phone there are no columns to
-   * balance, so it moves BELOW the console: the reading order a phone wants is
-   * claim → CTA → the product → the proof, and leaving it in the copy column
-   * put 470px of supporting material between the CTA and the thing it is
-   * selling.
-   */
-  const heroProof = (
-    <>
-      {/* `compact` is the phone-only proof strip: the same three figures as
-          rows of value + label rather than three 93px tiles. It is inert at
-          every other width. */}
-      <FigureStrip figures={HERO_FIGURES} styles={styles} accentOf={accentOf} compact />
-
-      <View style={styles.quoteCard}>
-        <FontAwesome6 name="quote-left" size={15} color={t.brand} aria-hidden={true} />
-        <Text style={styles.quoteText}>
-          We moved budget between networks in one afternoon and stopped paying twice for the same
-          conversion.
-        </Text>
-        <View style={styles.quoteWho}>
-          <Media
-            name="people/priya-shah"
-            alt="Priya Shah, Demand Generation Lead at Vantage Analytics"
-            style={styles.quoteAvatar}
-            radius={16}
-          />
-          <View style={styles.quoteWhoCopy}>
-            <Text numberOfLines={1} style={styles.quoteName}>
-              Priya Shah
-            </Text>
-            <Text numberOfLines={1} style={styles.quoteRole}>
-              Demand Generation Lead, Vantage Analytics
-            </Text>
-          </View>
-        </View>
-      </View>
-    </>
-  );
-
   return (
     <PageShell
       title="Ads"
-      description="Plan, launch and optimize ads across Meta, Google, LinkedIn, TikTok and YouTube from one place — with connected audiences, budget guardrails and human approval."
+      description="Prepare ad campaigns in FlowSmartly, review budgets and account eligibility, and check results from supported providers."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -740,18 +609,10 @@ export default function AdsPage() {
           <View style={styles.heroCopy}>
             <SectionLabel>ADS WITH CONNECTED INTELLIGENCE</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Turn your best ideas into campaigns that perform.
+              Plan and manage ad campaigns
             </Heading>
-            {/* Two strings, not one clamped one. The wide sentence is written
-                for a 540px column; at 362px it runs to five lines and pushes
-                the CTA off the first screen. `numberOfLines` is kept as a
-                floor so a future edit cannot quietly restore that, but the
-                phone reads a sentence that ENDS rather than one cut
-                mid-clause. */}
-            <Text numberOfLines={l.isPhone ? 3 : undefined} style={[type.body, styles.heroBody]}>
-              {l.isPhone
-                ? 'Build once, launch everywhere you sell. Nothing spends until you approve it.'
-                : 'Build once and launch across every network you sell on. FlowSmartly writes the variants, assembles the audience from data you already own, and holds the spend until you approve it.'}
+            <Text style={[type.body, styles.heroBody]}>
+              Draft campaigns and review creative, targeting, and budget before authorizing paid delivery on an eligible connected account.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -765,7 +626,7 @@ export default function AdsPage() {
                   onPress={() => goToRegister()}
                 />
                 <SecondaryButton
-                  label="See Ads Manager"
+                  label="Request a demo"
                   size="lg"
                   full={l.isPhone}
                   trackId="ads.hero.demo"
@@ -786,7 +647,6 @@ export default function AdsPage() {
               ))}
             </View>
 
-            {l.isPhone ? null : heroProof}
           </View>
 
           <View style={styles.heroVisual}>
@@ -797,15 +657,15 @@ export default function AdsPage() {
                 </View>
                 <View style={styles.consoleHeadCopy}>
                   <Text numberOfLines={1} style={styles.consoleTitle}>
-                    Ads Command Center
+                    Campaign overview
                   </Text>
                   <Text numberOfLines={1} style={styles.consoleSub}>
-                    Draft · 3 networks · not yet launched
+                    Draft with Meta and Google
                   </Text>
                 </View>
                 <View style={styles.consoleChip}>
                   <View style={styles.consoleDot} />
-                  <Text style={styles.consoleChipText}>Live</Text>
+                  <Text style={styles.consoleChipText}>Example</Text>
                 </View>
               </View>
 
@@ -931,15 +791,11 @@ export default function AdsPage() {
             </View>
           </View>
 
-          {/* Phone only — see `heroProof`. Wrapped so the quote card's own
-              18px offset from the figures stays inside the block instead of
-              becoming a second 28px row gap. */}
-          {l.isPhone ? <View>{heroProof}</View> : null}
         </View>
 
         {/* channels strip */}
         <View style={styles.networkStrip}>
-          <Text style={styles.networkStripTitle}>Works across the channels you use</Text>
+          <Text style={styles.networkStripTitle}>Supported campaign providers</Text>
           <View style={styles.networkRow}>
             {NETWORKS.map((network) => (
               <View key={network.key} style={styles.networkItem}>
@@ -957,11 +813,10 @@ export default function AdsPage() {
       <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
-            <SectionLabel>ONE BOARD, EVERY NETWORK</SectionLabel>
-            <Heading level={2} style={[type.h2, styles.blockTitle]}>Run cross-channel ads in one place.</Heading>
+            <SectionLabel>CONNECTED PROVIDERS</SectionLabel>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Choose where a campaign can run</Heading>
             <Text style={[type.body, styles.blockBody]}>
-              Five ad managers, five logins and five ways of counting a conversion is how budget
-              quietly leaks. FlowSmartly runs them as one campaign with one set of numbers.
+              Review eligible accounts when you set up a campaign. Select providers yourself or review the budget split FlowAgent proposes for supported accounts.
             </Text>
             <View style={styles.pointList}>
               {CROSS_CHANNEL_POINTS.map((point) => (
@@ -978,14 +833,13 @@ export default function AdsPage() {
               ))}
             </View>
 
-            <FigureStrip figures={CROSS_CHANNEL_FIGURES} styles={styles} accentOf={accentOf} compact />
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
             <View style={styles.panelCard}>
               <View style={styles.panelCardHead}>
                 <Text numberOfLines={1} style={styles.panelCardTitle}>
-                  Budget split
+                  Example budget split
                 </Text>
                 <Text numberOfLines={1} style={styles.panelCardMeta}>
                   $15,000 / month
@@ -1025,16 +879,15 @@ export default function AdsPage() {
       <Band tone="surface" art={{ variant: 'network', color: t.brand, side: 'right' }}>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
-            <SectionLabel>PROVEN BEFORE IT PAYS</SectionLabel>
+            <SectionLabel>REUSE MEDIA LIBRARY ASSETS</SectionLabel>
             <Heading level={2} style={[type.h2, styles.blockTitle]}>
-              Turn your top organic posts into ad campaigns.
+              Use existing creative in a campaign
             </Heading>
             <Text style={[type.body, styles.blockBody]}>
-              The post your audience already reacted to is the safest thing to put money behind.
-              FlowSmartly finds it and promotes it without you rebuilding anything.
+              When a post gives you an idea for an ad, use its saved media in a new draft and write copy for that campaign.
             </Text>
             <View style={styles.pointList}>
-              {BOOST_POINTS.map((point) => (
+              {REUSE_POINTS.map((point) => (
                 <View key={point} style={styles.pointRow}>
                   <View style={styles.pointTick}>
                     <FontAwesome6 name="check" size={9} color={t.green}  aria-hidden={true}/>
@@ -1050,7 +903,7 @@ export default function AdsPage() {
               <View style={styles.boostCard}>
                 <View style={styles.boostBadge}>
                   <FontAwesome6 name="arrow-trend-up" size={10} color={t.green}  aria-hidden={true}/>
-                  <Text style={styles.boostBadgeText}>Top post this week</Text>
+                  <Text style={styles.boostBadgeText}>Example social creative</Text>
                 </View>
                 <Media
                   name="scenes/post-sneakers-lifestyle"
@@ -1101,7 +954,7 @@ export default function AdsPage() {
                     Conversions
                   </Text>
                   <Text numberOfLines={1} style={styles.boostTag}>
-                    Meta + TikTok
+                    Meta
                   </Text>
                 </View>
               </View>
@@ -1114,10 +967,9 @@ export default function AdsPage() {
       <Band tone="pink" art={{ variant: 'chart', color: t.pink, side: 'left' }}>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CREATIVE THAT EARNS ITS PLACE</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Heading>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Prepare creative approaches for review</Heading>
           <Text style={[type.body, styles.headSub]}>
-            Three angles from one brief, each written in your voice and sized for the placement.
-            Spend follows whichever one the market picks.
+            Explore sample approaches using different images and copy. Review creative and format for the chosen placement before launch.
           </Text>
         </Reveal>
 
@@ -1327,7 +1179,7 @@ export default function AdsPage() {
                     Networks
                   </Text>
                   <Text numberOfLines={1} style={styles.approvalFactValue}>
-                    Meta · Google · TikTok
+                    Meta · Google
                   </Text>
                 </View>
                 <View style={styles.approvalFact}>
@@ -1404,7 +1256,7 @@ export default function AdsPage() {
 
             <View style={styles.chartHead}>
               <Text numberOfLines={1} style={styles.chartTitle}>
-                Last 8 weeks
+                Example performance
               </Text>
               <Text numberOfLines={1} style={styles.chartNote}>
                 Indexed to week 1 = 100
@@ -1530,7 +1382,7 @@ export default function AdsPage() {
                     Disclosure field
                   </Text>
                   <Text numberOfLines={1} style={styles.discMetaValue}>
-                    Set on Meta, Google, TikTok
+                    Example disclosure
                   </Text>
                 </View>
                 <View style={styles.discMetaRow}>
@@ -1654,7 +1506,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
-  const figureColumns = columns(1, 3, 3, 3); // 3 figures
   const variantColumns = columns(1, 3, 3, 3);
   // Five across needs the laptop width. At 768 each source got 130px, which
   // left "Openers & clickers" 65 of the 97 it needs, so the tablet lays them
@@ -1994,75 +1845,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     pointText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
-
-    /* -------------------------------------------------- figures + quote */
-    figureRow: { ...gridBase, marginTop: 22 - half },
-    figureCell: cellBase(figureColumns),
-    figureTile: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: 'auto',
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 14,
-      paddingVertical: 13,
-      gap: 4,
-    },
-    figureValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 30 : 33, fontWeight: '800' , fontFamily: FONT_SANS },
-    figureLabel: { ...type.micro, color: t.textMuted, fontWeight: '600' },
-
-    /*
-      Phone-only proof strip (see FigureStrip `compact`). One card, three rows,
-      value and label on one line each: 13 + 30 + 10 + 30 + 10 + 30 + 13 = 136px
-      against 3 x 93 = 279px for the same three figures as stacked tiles.
-    */
-    proofStrip: {
-      marginTop: 22,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 14,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 14,
-      paddingVertical: 13,
-      gap: 10,
-    },
-    proofStripRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    proofStripValue: {
-      fontFamily: FONT_SANS,
-      fontSize: 24,
-      lineHeight: 30,
-      fontWeight: '800',
-      flexGrow: 0,
-      flexShrink: 0,
-      minWidth: 40,
-    },
-    proofStripLabel: {
-      ...type.bodySm,
-      color: t.textMuted,
-      fontWeight: '600',
-      flexGrow: 1,
-      flexShrink: 1,
-      minWidth: 0,
-    },
-
-    quoteCard: {
-      marginTop: 18,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 16,
-      backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 14 : 18,
-      gap: 10,
-      alignItems: 'flex-start',
-    },
-    quoteText: { ...type.bodySm, color: t.text, fontWeight: '700' },
-    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-    quoteAvatar: { width: 32, height: 32, flexGrow: 0, flexShrink: 0 },
-    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
-    quoteRole: { ...type.micro, color: t.textSubtle },
 
     /* -------------------------------------------------- channel split */
     panelCard: { ...cardBase, backgroundColor: t.surfaceMuted, gap: 12 },

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Link, useLocalSearchParams, usePathname } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { PageShell } from "../page-shell";
+import { SITE } from "../seo";
 import {
   Heading,
   OpenSection as Section,
@@ -13,6 +14,7 @@ import { useLayout } from "@/theme/use-responsive";
 import { softFill } from "@/theme/tokens";
 import {
   articleHref,
+  articleCanonicalPath,
   decodeNews,
   decodeNewsroom,
   FIRST_PARTY_NEWSROOM,
@@ -23,6 +25,15 @@ import {
   type NewsArticle,
   type Newsroom,
 } from "@/lib/news";
+
+const TOPIC_DESCRIPTIONS: Record<string, string> = {
+  briefing: "Browse the daily briefing of public news headlines by UTC date, with a link to the original reporting for every story.",
+  science: "Read science headlines from public sources, with links to the original publishers and the dates they reported each story.",
+  "ai-race": "Follow public reporting on AI companies, models, and competition. Each headline links to its original publisher.",
+  banking: "Find banking headlines from public sources with publication dates and direct links to the original stories.",
+  business: "Browse business headlines and public reporting on companies and markets. Each story links to its original publisher.",
+  technology: "Follow technology headlines from public sources, with publication dates and links to the original reporting.",
+};
 
 function useNews() {
   const [state, setState] = useState<{
@@ -161,6 +172,7 @@ export function NewsHub({
     [t, l, type],
   );
   const params = useLocalSearchParams<{ slug?: string; date?: string }>();
+  const pathname = usePathname();
   const news = useNews();
   const newsroom = news.newsroom;
   const firstParty = newsroom.kind === "first_party";
@@ -177,6 +189,7 @@ export function NewsHub({
       : topic
         ? (TOPIC_LABELS[topic] ?? "News")
         : "A clearer view of what’s next.";
+  const sectionDescription = firstParty ? TOPIC_DESCRIPTIONS[briefing ? "briefing" : (topic ?? "")] : undefined;
   const filtered = selectNews(news.articles, query, topic, date);
   const dates = [
     ...new Set(
@@ -189,7 +202,7 @@ export function NewsHub({
     article &&
     typeof params.slug === "string" &&
     /^[a-z0-9-]+$/.test(params.slug)
-      ? articleHref(params.slug)
+      ? chosen ? articleCanonicalPath(chosen, newsroom) : articleHref(params.slug)
       : briefing && date
         ? `/news/briefing?date=${encodeURIComponent(date)}`
         : undefined;
@@ -202,7 +215,7 @@ export function NewsHub({
           datePublished: chosen.publishedAt,
           dateModified:
             chosen.editorial.corrections.at(-1)?.at ?? chosen.publishedAt,
-          url: `https://flowsmartly.com${articleHref(chosen.slug)}`,
+          url: `${newsroom.site?.origin ?? SITE.origin}${articleCanonicalPath(chosen, newsroom)}`,
           articleSection: TOPIC_LABELS[chosen.editorial.category],
           author: { "@type": "Organization", name: newsroom.author },
           citation: chosen.editorial.sources.map((s) => s.url),
@@ -213,20 +226,20 @@ export function NewsHub({
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: newsroom.name,
-          url: "https://flowsmartly.com/news",
+          url: `${newsroom.site?.origin ?? SITE.origin}${canonical ?? pathname}`,
         },
       ];
   return (
     <PageShell
-      title={title}
-      description={
-        chosen?.excerpt ?? newsroom.description
-      }
+      title={firstParty && !article && !topic && !briefing ? newsroom.name : title}
+      description={chosen?.excerpt ?? sectionDescription ?? newsroom.description}
       cta={false}
       canonicalPath={canonical}
+      canonicalOrigin={newsroom.site?.origin}
       type={chosen ? "article" : "website"}
       jsonLd={jsonLd}
-      noIndex={news.kind === "ready" && article && !chosen}
+      noIndex={newsroom.site?.noIndex === true || (news.kind === "ready" && article && !chosen)}
+      followOnNoIndex={newsroom.site?.noIndex === true}
     >
       <Section>
         <View style={styles.intro}>

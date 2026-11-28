@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Platform, type ViewStyle } from 'react-native';
+import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -66,7 +66,7 @@ export function useInView(onEnter: () => void, { threshold = 0.15, once = true }
 
 export type RevealProps = {
   children: React.ReactNode;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   /** ms before this element starts, for staggering a group */
   delay?: number;
   /** Animation duration; defaults to the shared entrance timing. */

@@ -288,7 +288,7 @@ function Hub({ field, styles, t }: { field: ConnectorField; styles: Styles; t: T
       {/* The mark is the only thing naming the centre node — every other node in
           this diagram carries a visible text label, so this one cannot be silent. */}
       <ImageAsset
-        source={require('../../../assets/images/v5/flowsmartly-mark.png')}
+        source={require('../../../assets/images/v5w/flowsmartly-mark.png')}
         style={styles.hubMark}
         contentFit="contain"
         alt="FlowSmartly"

@@ -25,7 +25,7 @@ export const ROUTES = {
   home: '/',
   product: '/product',
   pricing: '/pricing',
-  flowAgent: '/flowagent',
+  flowAgent: '/platform/flowagent',
 
   /**
    * Neither of these is the real authentication any more, and **no CTA should
@@ -104,7 +104,7 @@ export const PLATFORM_GROUP: NavGroup = {
     { label: 'Analytics', href: ROUTES.analytics, icon: 'chart-column', description: 'Research, analysis and decision support' },
     { label: 'Integrations', href: ROUTES.integrations, icon: 'plug', description: 'The tools your agents are allowed to operate' },
     { label: 'Security', href: ROUTES.security, icon: 'lock', description: 'Permissions, authority and how we protect your data' },
-    { label: 'Status', href: ROUTES.status, icon: 'signal', description: 'Live platform status' },
+    { label: 'Platform status', href: ROUTES.status, icon: 'circle-info', description: 'Support for platform services' },
   ],
 };
 
@@ -114,7 +114,6 @@ export const SOLUTIONS_GROUP: NavGroup = {
     { label: 'FlowShop', href: ROUTES.flowshop, icon: 'bag-shopping', description: 'Sell wherever customers discover you' },
     { label: 'ListSmartly', href: ROUTES.listsmartly, icon: 'magnifying-glass', description: 'Local listings, reviews and AI visibility' },
     { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'The agentic layer that turns objectives into work' },
-    { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store', description: 'Hire vetted experts inside your workspace' },
     { label: 'Call Agent', href: ROUTES.callAgent, icon: 'comment-dots', description: 'An AI voice agent that answers 24/7' },
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
     { label: 'Domains', href: ROUTES.domains, icon: 'globe', description: 'Search, register and connect a name' },
@@ -173,7 +172,7 @@ export const COMPANY_GROUP: NavGroup = {
   title: 'Company',
   links: [
     { label: 'About', href: ROUTES.about, icon: 'building' },
-    { label: 'Customers', href: ROUTES.customers, icon: 'star' },
+    { label: 'Business use cases', href: ROUTES.customers, icon: 'diagram-project' },
     { label: 'Careers', href: ROUTES.careers, icon: 'briefcase' },
     { label: 'Press', href: ROUTES.press, icon: 'newspaper' },
     { label: 'Partners', href: ROUTES.partners, icon: 'handshake' },
@@ -213,6 +212,14 @@ export type MainNavItem = {
   overview?: NavLink[];
 };
 
+function groupLinks(group: NavGroup, ...routes: string[]): NavLink[] {
+  return routes.map((route) => {
+    const link = group.links.find(({ href }) => href === route);
+    if (!link) throw new Error(`Navigation group ${group.title} has no link to ${route}`);
+    return link;
+  });
+}
+
 export const MAIN_NAV: MainNavItem[] = [
   {
     label: 'Product',
@@ -229,9 +236,15 @@ export const MAIN_NAV: MainNavItem[] = [
      * given a menu entry that leads nowhere.
      */
     columns: [
-      { title: 'Business & growth', links: [PLATFORM_GROUP.links[0], PLATFORM_GROUP.links[1], PLATFORM_GROUP.links[2], PLATFORM_GROUP.links[3]] },
-      { title: 'Intelligence & operations', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5], SOLUTIONS_GROUP.links[8]] },
-      { title: 'Agent platform & trust', links: [SOLUTIONS_GROUP.links[2], PLATFORM_GROUP.links[6], PLATFORM_GROUP.links[7]] },
+      { title: 'Business & growth', links: groupLinks(PLATFORM_GROUP, ROUTES.aiStudio, ROUTES.social, ROUTES.emailSms, ROUTES.ads) },
+      { title: 'Intelligence & operations', links: [
+        ...groupLinks(PLATFORM_GROUP, ROUTES.analytics, ROUTES.integrations),
+        ...groupLinks(SOLUTIONS_GROUP, ROUTES.customAutomation),
+      ] },
+      { title: 'Agent platform & trust', links: [
+        ...groupLinks(SOLUTIONS_GROUP, ROUTES.flowAgent),
+        ...groupLinks(PLATFORM_GROUP, ROUTES.security, ROUTES.status),
+      ] },
     ],
     overview: [
       { label: 'The whole system', href: ROUTES.product, icon: 'table-cells-large' },
@@ -243,14 +256,13 @@ export const MAIN_NAV: MainNavItem[] = [
     label: 'Solutions',
     href: ROUTES.solutions,
     columns: [
-      { title: 'Build & sell', links: [SOLUTIONS_GROUP.links[5], SOLUTIONS_GROUP.links[6], SOLUTIONS_GROUP.links[0]] },
-      { title: 'Create & reach', links: [SOLUTIONS_GROUP.links[7], SOLUTIONS_GROUP.links[1], SOLUTIONS_GROUP.links[4]] },
-      { title: 'Learn & teach', links: [FLOWLEARNER_GROUP.links[0], FLOWLEARNER_GROUP.links[1], FLOWLEARNER_GROUP.links[2]] },
+      { title: 'Build & sell', links: groupLinks(SOLUTIONS_GROUP, ROUTES.websiteBuilder, ROUTES.domains, ROUTES.flowshop) },
+      { title: 'Create & reach', links: groupLinks(SOLUTIONS_GROUP, ROUTES.videoStudio, ROUTES.listsmartly, ROUTES.callAgent) },
+      { title: 'Learn & teach', links: groupLinks(FLOWLEARNER_GROUP, ROUTES.flowLearner, ROUTES.trainingStudio, ROUTES.liveRoom) },
     ],
     overview: [
       { label: 'All solutions', href: ROUTES.solutions, icon: 'table-cells-large' },
       { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles' },
-      { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store' },
     ],
   },
   { label: 'FlowAgent', href: ROUTES.flowAgent },
@@ -258,9 +270,9 @@ export const MAIN_NAV: MainNavItem[] = [
     label: 'Resources',
     href: ROUTES.resources,
     columns: [
-      { title: 'Learn', links: [RESOURCES_GROUP.links[0], RESOURCES_GROUP.links[2], RESOURCES_GROUP.links[1]] },
+      { title: 'Learn', links: groupLinks(RESOURCES_GROUP, ROUTES.news, ROUTES.blog, ROUTES.helpCenter) },
       { title: 'Education', links: [EDUCATION_GROUP.links[0], EDUCATION_GROUP.links[1], EDUCATION_GROUP.links[3]] },
-      { title: 'Company', links: [COMPANY_GROUP.links[0], COMPANY_GROUP.links[1], COMPANY_GROUP.links[2]] },
+      { title: 'Company', links: groupLinks(COMPANY_GROUP, ROUTES.about, ROUTES.customers, ROUTES.careers) },
     ],
     overview: [
       { label: 'All resources', href: ROUTES.resources, icon: 'table-cells-large' },

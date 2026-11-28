@@ -23,6 +23,8 @@ export type SeoProps = {
   /** page title without the site suffix */
   title: string;
   canonicalPath?: string;
+  /** Canonical origin of an independently published customer Site. */
+  canonicalOrigin?: string;
   description?: string;
   /** absolute or root-relative image for the social unfurl */
   image?: string;
@@ -32,6 +34,7 @@ export type SeoProps = {
   type?: 'website' | 'article';
   /** keep this page out of the index (thank-you pages, 404) */
   noIndex?: boolean;
+  followOnNoIndex?: boolean;
   /** JSON-LD objects to embed */
   jsonLd?: object[];
   article?: {
@@ -42,9 +45,9 @@ export type SeoProps = {
   };
 };
 
-export function Seo({ title, description, image, imageAlt, type = 'website', noIndex, jsonLd, article, canonicalPath }: SeoProps) {
+export function Seo({ title, description, image, imageAlt, type = 'website', noIndex, followOnNoIndex, jsonLd, article, canonicalPath, canonicalOrigin = SITE.origin }: SeoProps) {
   const pathname = usePathname();
-  const canonical = `${SITE.origin}${canonicalPath ?? (pathname === '/' ? '' : pathname)}`;
+  const canonical = `${canonicalOrigin}${canonicalPath ?? pathname}`;
   const fullTitle = `${title} — ${SITE.name}`;
   const ogImage = image
     ? image.startsWith('http')
@@ -57,7 +60,7 @@ export function Seo({ title, description, image, imageAlt, type = 'website', noI
       <title>{fullTitle}</title>
       {description ? <meta name="description" content={description} /> : null}
       <link rel="canonical" href={canonical} />
-      {noIndex ? <meta name="robots" content="noindex, nofollow" /> : <meta name="robots" content="index, follow" />}
+      <meta name="robots" content={noIndex ? `noindex, ${followOnNoIndex ? 'follow' : 'nofollow'}` : 'index, follow'} />
 
       {/* An unfurl card without dimensions is laid out only after the image
           downloads, and several scrapers skip it entirely; without alt text it
@@ -113,11 +116,9 @@ export function Seo({ title, description, image, imageAlt, type = 'website', noI
       {article?.section ? <meta property="article:section" content={article.section} /> : null}
 
       {(jsonLd ?? []).map((block, index) => (
-        <script
-          key={index}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(block).replace(/</g, '\\u003c') }}
-        />
+        <script key={index} type="application/ld+json">
+          {JSON.stringify(block).replace(/</g, '\\u003c')}
+        </script>
       ))}
     </Head>
   );
@@ -184,7 +185,7 @@ export function articleJsonLd(input: {
 }) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     headline: input.headline,
     description: input.description,
     url: `${SITE.origin}${input.path}`,

@@ -10,6 +10,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { gzipSync } = require('node:zlib');
+const { ORIGIN, brokenPublicLinks, exportedPages } = require('./public-pages.cjs');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const STRICT = process.argv.includes('--strict');
@@ -17,24 +19,6 @@ const STRICT = process.argv.includes('--strict');
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
-
-function htmlFiles(dir = DIST, prefix = '') {
-  const out = [];
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (['_expo', 'assets', 'node_modules', '.well-known'].includes(e.name)) continue;
-      out.push(...htmlFiles(full, `${prefix}/${e.name}`));
-    } else if (e.name.endsWith('.html') && e.name !== '_sitemap.html') {
-      out.push({
-        route: e.name === 'index.html' ? prefix || '/' : `${prefix}/${e.name.replace(/\.html$/, '')}`,
-        file: full,
-        isNotFound: e.name.startsWith('+'),
-      });
-    }
-  }
-  return out;
-}
 
 const read = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
 // The exporter injects `data-rh="true"` as the FIRST attribute, so every
@@ -53,34 +37,21 @@ const jsonLdBlocks = (html) =>
       } catch {
         return null;
       }
-    })
-    .filter(Boolean);
+    });
 
 /* ------------------------------------------------------------------ */
 /* checks                                                              */
 /* ------------------------------------------------------------------ */
 
-/**
- * A redirect stub is not a page.
- *
- * `/flow-ai` exists only to move a visitor to `/flowagent`. It is deliberately
- * `noindex` and deliberately has no content, so scoring it drags every metric
- * down and trips the "accidentally noindex" guard on a page that is
- * intentionally so. Detected by the meta refresh, which nothing else emits.
- */
-const isRedirectStub = (file) => /<meta http-equiv="refresh"/i.test(read(file) || '');
-
-const pages = htmlFiles().filter((p) => !p.isNotFound && !isRedirectStub(p.file));
-const redirects = htmlFiles().filter((p) => isRedirectStub(p.file));
-const notFound = htmlFiles().filter((p) => p.isNotFound);
-
-if (!pages.length) {
+if (!fs.existsSync(DIST)) {
   console.error('dist/ has no pages — run `npx expo export -p web` first');
   process.exit(1);
 }
+const exported = exportedPages(DIST);
+const pages = exported.filter((page) => page.isPublic);
+const indexUrls = new Set(pages.filter((page) => page.indexable).map(({ route }) => ORIGIN + route));
 
-const perPage = pages.map(({ route, file }) => {
-  const html = read(file) || '';
+const perPage = pages.map(({ route, html, canonical }) => {
   const ld = jsonLdBlocks(html);
   const description = attr(html, /<meta [^>]*name="description"[^>]*content="([^"]*)"/);
   return {
@@ -89,13 +60,13 @@ const perPage = pages.map(({ route, file }) => {
     title: attr(html, /<title[^>]*>([^<]*)<\/title>/),
     description,
     descriptionLength: description ? description.length : 0,
-    canonical: attr(html, /<link [^>]*rel="canonical"[^>]*href="([^"]*)"/),
+    canonical: canonical.length === 1 ? canonical[0] : null,
     ogTitle: has(html, /property="og:title"/),
     ogImage: has(html, /property="og:image"/),
     twitter: has(html, /name="twitter:card"/),
-    robots: attr(html, /<meta [^>]*name="robots"[^>]*content="([^"]*)"/),
     lang: attr(html, /<html[^>]*lang="([^"]*)"/),
-    jsonLd: ld,
+    jsonLd: ld.filter(Boolean),
+    invalidJsonLd: ld.some((block) => !block || typeof block !== 'object'),
     // `role="heading" aria-level={1}` on a react-native-web Text really does
     // emit an <h1> carrying the aria attribute — counting both double-counts
     // the same element and reports a correct page as having two H1s.
@@ -113,7 +84,8 @@ const site = {
   security: read(path.join(DIST, '.well-known', 'security.txt')),
 };
 
-const pct = (n, total) => (total ? Math.round((n / total) * 100) : 0);
+const pct = (n, total) => (total ? (n / total) * 100 : 0);
+const display = (value) => String(Math.floor(value * 10) / 10);
 const count = (fn) => perPage.filter(fn).length;
 
 const metrics = [
@@ -133,7 +105,7 @@ const metrics = [
 ];
 
 const totalWeight = metrics.reduce((n, m) => n + m.weight, 0);
-const score = Math.round(metrics.reduce((n, m) => n + (m.value / 100) * m.weight, 0) / totalWeight * 100);
+const score = metrics.reduce((n, m) => n + m.value * m.weight, 0) / totalWeight;
 
 /* ------------------------------------------------------------------ */
 /* safety guards — a failure here is not a score, it is a defect        */
@@ -142,28 +114,38 @@ const score = Math.round(metrics.reduce((n, m) => n + (m.value / 100) * m.weight
 const guards = [];
 const guard = (name, ok, detail) => guards.push({ name, ok, detail });
 
-guard('Redirect stubs are noindex and canonical to their target',
-  redirects.every((p) => {
-    const html = read(p.file) || '';
-    return /noindex/.test(html) && /rel="canonical"/.test(html);
-  }),
-  'a moved URL must not compete with the page it points at');
+const wrongDirectives = exported.filter((page) => (page.isPublic || page.expectedNoindex) && page.noindex !== page.expectedNoindex);
+guard('Page indexing directives match their purpose', wrongDirectives.length === 0,
+  wrongDirectives.map(({ route, expectedNoindex }) => `${route} needs ${expectedNoindex ? 'noindex' : 'to be indexable'}`).join(', '));
 
-guard('404 is noindex', notFound.every((p) => /noindex/.test(read(p.file) || '')),
-  'the not-found page must never be indexed');
+const badRedirects = exported.filter((page) => {
+  if (!page.redirect) return false;
+  const target = page.redirect.split(/;\s*url\s*=\s*/i).at(-1);
+  return page.canonical.length !== 1 || page.canonical[0] !== new URL(target, ORIGIN).href || !indexUrls.has(page.canonical[0]);
+});
+guard('Redirect stubs point at indexable destinations', badRedirects.length === 0,
+  badRedirects.map(({ route }) => route).join(', '));
 
-guard('No page is accidentally noindex', !perPage.some((p) => p.robots && /noindex/.test(p.robots)),
-  perPage.filter((p) => p.robots && /noindex/.test(p.robots)).map((p) => p.route).join(', ') || 'none');
+const wrongCanonicals = perPage.filter(({ canonical, route }) => canonical !== ORIGIN + route);
+guard('Public routes have one production self-canonical', wrongCanonicals.length === 0,
+  wrongCanonicals.map(({ route, canonical }) => `${route}: ${canonical || 'missing or duplicated'}`).join(', '));
 
-guard('Canonical points at the production origin',
-  perPage.every((p) => !p.canonical || p.canonical.startsWith('https://flowsmartly.com')),
-  'no localhost or preview host may leak into a canonical');
+const brokenLinks = brokenPublicLinks(DIST, exported);
+guard('Public HTML links resolve within the V5 export or a declared public route', brokenLinks.length === 0, brokenLinks.join(', '));
+const missingMetadata = perPage.filter(({ title, description, lang }) => !title || !description || !lang);
+guard('Public pages declare their title, description and language', missingMetadata.length === 0,
+  missingMetadata.map(({ route }) => route).join(', '));
+const invalidSchema = perPage.filter(({ invalidJsonLd }) => invalidJsonLd);
+guard('Exported JSON-LD parses as structured data', invalidSchema.length === 0,
+  invalidSchema.map(({ route }) => route).join(', '));
 
-guard('robots.txt declares an AI policy',
-  !!site.robots && /GPTBot|ClaudeBot|PerplexityBot/.test(site.robots),
-  'answer-engine crawlers must be addressed explicitly, not left to the wildcard');
+const searchBots = ['OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot'];
+guard('robots.txt declares search and retrieval policy',
+  searchBots.every((bot) => new RegExp(`^User-agent:\\s*${bot}\\s*$`, 'im').test(site.robots || '')),
+  'identify the search crawlers separately from model-use controls');
 
-guard('robots.txt references the sitemap', !!site.robots && /Sitemap:/i.test(site.robots), '');
+guard('robots.txt references the public and published news sitemaps',
+  ['/sitemap.xml', '/_news/sitemap.xml'].every((route) => (site.robots || '').split(/\r?\n/).includes(`Sitemap: ${ORIGIN}${route}`)), '');
 
 guard('security.txt present and not expired',
   !!site.security && (() => {
@@ -179,23 +161,72 @@ guard('No personal data in structured data',
 guard('Illustrative figures are disclosed to agents',
   !!site.ai && /Illustrative-Figures:\s*yes/.test(site.ai),
   'dashboards show example numbers; an answer engine must not repeat them as fact');
+guard('The homepage links to account registration before JavaScript',
+  /<a\b[^>]*\shref=["']\/register["']/i.test(perPage.find((page) => page.route === '/')?.html || ''),
+  'render a document link to the existing V5 registration handler');
 
-guard('Sitemap has no non-production URLs',
-  !site.sitemap || !/localhost|127\.0\.0\.1|:8093/.test(site.sitemap), '');
+const locs = [...(site.sitemap || '').matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
+const urlsInSitemap = new Set(locs);
+const unexpected = [...urlsInSitemap].filter((url) => !indexUrls.has(url));
+const missing = [...indexUrls].filter((url) => !urlsInSitemap.has(url));
+guard('Sitemap lists every indexable export exactly once',
+  indexUrls.size > 0 && locs.length === urlsInSitemap.size && unexpected.length === 0 && missing.length === 0,
+  `Missing: ${missing.join(', ') || 'none'}. Unexpected: ${unexpected.join(', ') || 'none'}. Duplicate count: ${locs.length - urlsInSitemap.size}.`);
+
+// Production-build regression cases for the initial response, independent of
+// SEO scoring or simulated network and CPU timings.
+const startupBudget = 1.5 * 1024 * 1024;
+const startupSizes = new Map();
+const startup = perPage.map(({ route, html }) => {
+  const sources = new Set([...html.matchAll(/<script\b[^>]*\bsrc="(\/_expo\/static\/js\/[\w/.-]+\.js)"/gi)]
+    .map((match) => match[1]));
+  const bytes = [...sources].reduce((total, src) => {
+    if (!startupSizes.has(src)) {
+      const file = path.join(DIST, src);
+      startupSizes.set(src, fs.existsSync(file) ? gzipSync(fs.readFileSync(file), { level: 6 }).length : Infinity);
+    }
+    return total + startupSizes.get(src);
+  }, 0);
+  return { route, bytes };
+});
+const largestStartup = [...startup].sort((a, b) => b.bytes - a.bytes)[0];
+const incompleteSkipLinks = perPage.filter(({ html }) =>
+  !/<a\b[^>]*\bhref="#fs-main"[^>]*>/i.test(html) ||
+  !/<main\b(?=[^>]*\bid="fs-main")(?=[^>]*\btabindex="-1")[^>]*>/i.test(html));
+const home = perPage.find(({ route }) => route === '/')?.html ?? '';
+const webChecks = [
+  {
+    name: 'Initial first-party JavaScript fits the 1.5 MiB gzip budget',
+    ok: Boolean(largestStartup && largestStartup.bytes <= startupBudget),
+    detail: largestStartup ? `${largestStartup.bytes.toLocaleString('en-US')} compressed bytes at ${largestStartup.route}` : 'No public routes',
+  },
+  {
+    name: 'Public pages provide a native keyboard skip link to the main landmark',
+    ok: incompleteSkipLinks.length === 0,
+    detail: incompleteSkipLinks.map(({ route }) => route).join(', '),
+  },
+  {
+    name: 'The homepage hero image is available to the initial browser fetch',
+    ok: /<img\b(?=[^>]*\bloading="eager")(?=[^>]*\bfetchpriority="high")(?=[^>]*\bsrc="\/assets\/)[^>]*>/i.test(home),
+  },
+];
 
 /* ------------------------------------------------------------------ */
 /* report                                                              */
 /* ------------------------------------------------------------------ */
 
 console.log(`\nAGENT READINESS — ${pages.length} pages\n`);
-console.log(`  score  ${score}/100\n`);
+console.log(`  export score  ${display(score)}/100\n`);
 metrics.forEach((m) => {
   const bar = '#'.repeat(Math.round(m.value / 5)).padEnd(20, '.');
-  console.log(`  ${String(m.value).padStart(3)}%  ${bar}  ${m.key}  (weight ${m.weight})`);
+  console.log(`  ${display(m.value).padStart(5)}%  ${bar}  ${m.key}  (weight ${m.weight})`);
 });
 
 console.log('\nSAFETY GUARDS\n');
 guards.forEach((g) => console.log(`  ${g.ok ? 'PASS' : 'FAIL'}  ${g.name}${g.ok || !g.detail ? '' : `\n        ${g.detail}`}`));
+
+console.log('\nWEB QUALITY CHECKS\n');
+webChecks.forEach((c) => console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `\n        ${c.detail}` : ''}`));
 
 const weakest = metrics.filter((m) => m.value < 100).sort((a, b) => b.weight * (100 - b.value) - a.weight * (100 - a.value));
 if (weakest.length) {
@@ -209,10 +240,12 @@ if (weakest.length) {
       'Unique titles': () => [],
     }[m.key];
     const list = offenders ? offenders() : [];
-    console.log(`  ${m.key} — ${m.value}%${list.length ? `\n    ${list.slice(0, 8).join(', ')}${list.length > 8 ? ` … +${list.length - 8}` : ''}` : ''}`);
+    console.log(`  ${m.key} — ${display(m.value)}%${list.length ? `\n    ${list.slice(0, 8).join(', ')}${list.length > 8 ? ` … +${list.length - 8}` : ''}` : ''}`);
   });
 }
 
 const failed = guards.filter((g) => !g.ok);
-console.log(`\n${failed.length ? `${failed.length} GUARD FAILURE(S)` : 'all guards pass'}\n`);
-if (STRICT && failed.length) process.exit(1);
+const failedChecks = webChecks.filter((check) => !check.ok);
+console.log(`\n${failed.length ? `${failed.length} GUARD FAILURE(S)` : 'all guards pass'}`);
+console.log(`${failedChecks.length ? `${failedChecks.length} WEB QUALITY CHECK FAILURE(S)` : 'all web quality checks pass'}\n`);
+if (STRICT && (failed.length || failedChecks.length)) process.exit(1);

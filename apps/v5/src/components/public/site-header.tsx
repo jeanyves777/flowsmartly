@@ -8,7 +8,7 @@ import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/toke
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
-import { goToRegister, goToLogin } from '@/lib/destinations';
+import { AUTH, goToRegister, goToLogin } from '@/lib/destinations';
 import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
 import {
@@ -39,51 +39,19 @@ function isRouteActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/**
- * The id of the page's `<main>`, and the target of the skip link below.
- *
- * It is declared **here** rather than in `PageShell` because the link itself
- * has to live inside the banner. A control floating outside every landmark is
- * exactly the orphaned content the landmark structure exists to remove, and
- * axe only forgives a skip link it can recognise by its `href` — which a
- * single-page app cannot hand it without pushing a fragment onto the router.
- * `PageShell` imports the id from here, so the dependency stays one-way: it
- * already imports this header.
- */
+/** The skip link targets the focusable main landmark in PageShell. */
 export const MAIN_CONTENT_ID = 'fs-main';
 
-/**
- * "Skip to main content" — the first focusable thing on every page.
- *
- * Hidden by a transform, not by `display:none`, `visibility` or a zero size:
- * hidden-but-focusable is the whole point, and every one of those removes the
- * element from the tab order. It stays in the layer above the header (it is a
- * child of the banner, which already owns a stacking context), so on focus it
- * slides into the corner over the bar rather than under it.
- *
- * It **moves focus**; it does not merely scroll. `<main>` carries
- * `tabIndex={-1}` so it can accept focus programmatically without ever
- * becoming a tab stop of its own, and focusing it brings it into view — so the
- * next Tab continues *inside* the content instead of resuming in the
- * navigation the visitor just asked to skip.
- */
 function SkipToContent() {
   const styles = useHeaderStyles();
-  const [focused, setFocused] = useState(false);
+  if (Platform.OS !== 'web') return null;
+
+  // View renders a native anchor when given an href on web, including in the static export.
+  const link = { href: `#${MAIN_CONTENT_ID}` };
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel="Skip to main content"
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onPress={() => {
-        if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-        const main = document.getElementById(MAIN_CONTENT_ID);
-        if (main && typeof main.focus === 'function') main.focus();
-      }}
-      style={[styles.skipLink, focused && styles.skipLinkVisible]}>
+    <View {...link} nativeID="fs-skip-link" style={styles.skipLink}>
       <Text style={styles.skipLinkText}>Skip to main content</Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -96,7 +64,7 @@ function Brand() {
           for anyone browsing with images off, where an unlabelled wordmark is
           the only thing naming the site. */}
       <ImageAsset
-        source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+        source={require('../../../assets/images/v5w/flowsmartly-logo.png')}
         style={styles.logo}
         contentFit="contain"
         contentPosition="left"
@@ -577,7 +545,7 @@ function MobileNavOverlay({
             accessibilityLabel="FlowSmartly home"
             style={styles.overlayBrandLink as never}>
             <ImageAsset
-              source={require('../../../assets/images/v5/flowsmartly-logo.png')}
+              source={require('../../../assets/images/v5w/flowsmartly-logo.png')}
               style={styles.overlayLogo}
               contentFit="contain"
               contentPosition="left"
@@ -679,6 +647,7 @@ function MobileNavOverlay({
           />
           <PrimaryButton
             label="Create account"
+            webHref={AUTH.register}
             size="lg"
             full
             trackId="header.mobile.start-free"
@@ -705,6 +674,7 @@ export function SiteHeader() {
   const [centres, setCentres] = useState<Record<string, number>>({});
   const [navWidth, setNavWidth] = useState(0);
   const compact = l.isCompact;
+  const web = Platform.OS === 'web';
   const openItem = MAIN_NAV.find((item) => item.label === openMenu && item.columns);
   const menuTriggerRef = useRef<View | null>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -730,10 +700,12 @@ export function SiteHeader() {
       {/* The hover region spans the bar *and* the panel, so moving down into
           the menu keeps it open. */}
       <View onPointerLeave={() => setOpenMenu(null)}>
-        <View style={styles.header}>
+        <View nativeID="fs-header-row" style={styles.header}>
           <Brand />
-          {compact ? (
-            <View style={styles.headerActions}>
+          {/* Static exports cannot know the viewport width. CSS chooses the
+              header variant before hydration on web. */}
+          {web || compact ? (
+            <View nativeID="fs-header-compact" style={styles.headerActions}>
               <ThemeToggle />
               <Pressable
                 ref={menuTriggerRef}
@@ -746,9 +718,11 @@ export function SiteHeader() {
                 <FontAwesome6 name={menuOpen ? 'xmark' : 'bars'} size={18} color={t.text}  aria-hidden={true}/>
               </Pressable>
             </View>
-          ) : (
+          ) : null}
+          {web || !compact ? (
             <>
               <View
+                nativeID="fs-header-navigation"
                 role="navigation"
                 aria-label="Main"
                 style={styles.navWrap}
@@ -784,26 +758,28 @@ export function SiteHeader() {
                   />
                 ) : null}
               </View>
-              <View style={styles.headerActions}>
+              <View nativeID="fs-header-desktop" style={styles.headerActions}>
                 <ThemeToggle />
                 <Pressable
+                  {...(web ? { href: AUTH.login } : {})}
                   accessibilityRole="link"
                   onPress={() => {
                     trackCta('header.log-in');
-                    goToLogin();
+                    if (!web) goToLogin();
                   }}
                   style={styles.signInButton}>
                   <Text style={styles.signIn}>Log in</Text>
                 </Pressable>
                 <PrimaryButton
                   label="Create account"
+                  webHref={AUTH.register}
                   size="sm"
                   trackId="header.start-free"
                   onPress={() => goToRegister()}
                 />
               </View>
             </>
-          )}
+          ) : null}
         </View>
       </View>
 
@@ -872,7 +848,6 @@ function createStyles(
       transform: [{ translateY: -200 }],
       ...(elevation(t, 3) as object),
     },
-    skipLinkVisible: { opacity: 1, transform: [{ translateY: 0 }] },
     skipLinkText: { ...type.bodySm, color: t.text, fontWeight: '700' },
 
     headerSafe: {

@@ -1,6 +1,7 @@
+import { Asset } from 'expo-asset';
 import { Image, type ImageContentFit, type ImageContentPosition, type ImageProps } from 'expo-image';
 import { useMemo } from 'react';
-import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -193,6 +194,29 @@ export type MediaProps = AltProp & {
   /** rounded corners on both the image and the placeholder */
   radius?: number;
 };
+
+/** A static, above-the-fold image whose request should start with the HTML. */
+export function PriorityMedia({ name, alt, style }: Pick<MediaProps, 'name' | 'alt' | 'style'>) {
+  const source = REGISTRY[name];
+  if (Platform.OS !== 'web' || source === undefined) {
+    return <Media name={name} alt={alt} style={style} radius={0} />;
+  }
+
+  // Expo Image inserts its active image after mounting. Render the bundled
+  // asset directly so the page's principal visual also works without JS.
+  const { uri } = Asset.fromModule(source);
+  return (
+    <View style={style as ViewStyle}>
+      <img
+        src={uri}
+        alt={alt}
+        loading="eager"
+        fetchPriority="high"
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: isCutout(name) ? 'contain' : 'cover' }}
+      />
+    </View>
+  );
+}
 
 /**
  * Renders a registered image, or a branded gradient placeholder when the asset

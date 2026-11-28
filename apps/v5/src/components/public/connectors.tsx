@@ -396,16 +396,19 @@ export function ArrowLink({
  */
 export function ConnectorSurface({
   field,
+  nativeID,
   style,
   children,
 }: {
   field: ConnectorField;
+  nativeID?: string;
   style?: React.ComponentProps<typeof View>['style'];
   children: React.ReactNode;
 }) {
   return (
     <View
       ref={field.fieldRef as never}
+      nativeID={nativeID}
       onLayout={field.onFieldLayout}
       style={[{ position: 'relative' }, style]}
       // RNW paints later siblings on top; the overlay is rendered first so the

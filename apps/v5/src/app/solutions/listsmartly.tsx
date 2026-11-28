@@ -1531,27 +1531,6 @@ export default function ListSmartlyPage() {
         </View>
       </OpenSection>
 
-      {/* ------------------------------------------------ testimonial */}
-      <Band tone="surface" art={{ variant: 'tasks', color: t.brand, side: 'right' }}>
-        <View style={styles.quoteRow}>
-          <Media
-            name="people/amanda-rodriguez"
-            alt="Amanda Rodriguez, Director of Marketing at Luxe Salons"
-            style={styles.quoteAvatar}
-            radius={l.isPhone ? 34 : 44}
-          />
-          <View style={styles.quoteCopy}>
-            <FontAwesome6 name="quote-left" size={18} color={t.brand}  aria-hidden={true}/>
-            <Text style={[type.h3, styles.quoteText]}>
-              ListSmartly made our locations easier to find, our info more accurate, and our reviews
-              our superpower.
-            </Text>
-            <Text numberOfLines={2} style={styles.quoteAttribution}>
-              Amanda Rodriguez • Director of Marketing, Luxe Salons
-            </Text>
-          </View>
-        </View>
-      </Band>
     </PageShell>
   );
 }
@@ -2411,16 +2390,5 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     doButtonFull: { width: '100%' },
     doButtonText: { ...type.caption, color: accentText(t.brand, t), fontWeight: '800' },
-
-    /* -------------------------------------------------- testimonial */
-    quoteRow: {
-      flexDirection: l.isPhone ? 'column' : 'row',
-      alignItems: l.isPhone ? 'flex-start' : 'center',
-      gap: l.isPhone ? 18 : 28,
-    },
-    quoteAvatar: { ...avatarBase, width: l.isPhone ? 68 : 88, height: l.isPhone ? 68 : 88 },
-    quoteCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 12 },
-    quoteText: { maxWidth: 760 },
-    quoteAttribution: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
   });
 }

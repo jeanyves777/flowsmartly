@@ -34,7 +34,7 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
-const PROOF = ['Your brand kit applied', 'Nothing publishes unapproved', 'Unlimited revisions'];
+const PROOF = ['Brand context', 'Workspace approvals', 'Editable drafts'];
 
 /** Left rail of the studio mock. */
 const RAIL: { key: string; icon: string; label: string; active?: boolean }[] = [
@@ -683,29 +683,6 @@ export default function AiStudioPage() {
                 </View>
               ))}
             </View>
-
-            <View style={styles.quoteCard}>
-              <FontAwesome6 name="quote-left" size={15} color={t.brand}  aria-hidden={true}/>
-              <Text style={styles.quoteText}>
-                Every draft already looks like us. The team edits words now, not brand mistakes.
-              </Text>
-              <View style={styles.quoteWho}>
-                <Media
-                  name="people/amanda-rodriguez"
-                  alt="Amanda Rodriguez, Marketing Director at Harbor &amp; Co."
-                  style={styles.quoteAvatar}
-                  radius={16}
-                />
-                <View style={styles.quoteWhoCopy}>
-                  <Text numberOfLines={1} style={styles.quoteName}>
-                    Amanda Rodriguez
-                  </Text>
-                  <Text numberOfLines={1} style={styles.quoteRole}>
-                    Marketing Director, Harbor &amp; Co.
-                  </Text>
-                </View>
-              </View>
-            </View>
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -1232,7 +1209,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const stageImage: ImageStyle = { width: '100%', aspectRatio: 16 / 10 };
   const templateImage: ImageStyle = { width: '100%', aspectRatio: 16 / 10 };
   const versionAvatar: ImageStyle = { width: 32, height: 32, flexGrow: 0, flexShrink: 0 };
-  const quoteAvatar: ImageStyle = { width: 32, height: 32, flexGrow: 0, flexShrink: 0 };
   const commentAvatar: ImageStyle = { width: 28, height: 28, flexGrow: 0, flexShrink: 0 };
 
   const railWide = !l.isCompact;
@@ -1490,7 +1466,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     tickText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
-    /* -------------------------------------------------- brand setup + quote */
+    /* -------------------------------------------------- brand setup */
     setupCard: {
       marginTop: 22,
       borderWidth: 1,
@@ -1516,23 +1492,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     setupCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     setupTitle: { ...type.caption, color: t.text, fontWeight: '800' },
     setupNote: { ...type.caption, color: t.textMuted },
-
-    quoteCard: {
-      marginTop: 14,
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 16,
-      backgroundColor: t.surfaceRaised,
-      padding: l.isPhone ? 14 : 18,
-      gap: 10,
-      alignItems: 'flex-start',
-    },
-    quoteText: { ...type.bodySm, color: t.text, fontWeight: '700' },
-    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-    quoteAvatar,
-    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
-    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
-    quoteRole: { ...type.micro, color: t.textSubtle },
 
     /* -------------------------------------------------- generic panel */
     panel: {

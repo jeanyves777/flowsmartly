@@ -31,6 +31,30 @@ const OUT = path.join(ROOT, 'src', 'content', 'posts.generated.ts');
 const OUT_JSON = path.join(ROOT, 'src', 'content', 'posts.index.json');
 const CHANGELOG_DIR = path.join(ROOT, 'src', 'content', 'changelog');
 const OUT_CHANGELOG = path.join(ROOT, 'src', 'content', 'changelog.generated.ts');
+const OUT_BRAND_LOGOS = path.join(ROOT, 'src', 'content', 'brand-logos.generated.json');
+
+// FontAwesome supplies the remaining marks. Keep this projection at build time so the
+// shared browser entry contains only the official Simple Icons marks used by V5.
+const SIMPLE_BRANDS = {
+  zendesk: 'siZendesk',
+  zapier: 'siZapier',
+  make: 'siMake',
+  googleanalytics: 'siGoogleanalytics',
+  mailchimp: 'siMailchimp',
+  intercom: 'siIntercom',
+  notion: 'siNotion',
+  asana: 'siAsana',
+  trello: 'siTrello',
+  zoho: 'siZoho',
+  airtable: 'siAirtable',
+  googledrive: 'siGoogledrive',
+  copilot: 'siGithubcopilot',
+  githubcopilot: 'siGithubcopilot',
+  gemini: 'siGooglegemini',
+  googlegemini: 'siGooglegemini',
+  perplexity: 'siPerplexity',
+  claude: 'siClaude',
+};
 
 const TONES = ['brand', 'violet', 'green', 'orange', 'pink'];
 /** average adult reading speed for non-fiction prose, rounded to a flat number */
@@ -450,11 +474,24 @@ function buildChangelog() {
   return { text, count: entries.length };
 }
 
+function buildBrandLogos() {
+  const official = require('simple-icons');
+  const logos = {};
+  for (const [name, exportName] of Object.entries(SIMPLE_BRANDS)) {
+    const icon = official[exportName];
+    if (!icon) {
+      fail(OUT_BRAND_LOGOS, `Simple Icons no longer contains ${exportName}`);
+      continue;
+    }
+    logos[name] = { title: icon.title, hex: icon.hex, path: icon.path };
+  }
+  return `${JSON.stringify(logos, null, 2)}\n`;
+}
+
 const result = build();
 const log = result ? buildChangelog() : null;
+const brandLogos = buildBrandLogos();
 
-// One failure report for both passes: a broken changelog entry must not be
-// masked by the posts having compiled cleanly.
 if (problems.length) {
   console.error('content: cannot build —');
   problems.forEach((problem) => console.error(`  ${problem}`));
@@ -465,7 +502,8 @@ if (problems.length) {
   const stale =
     read(OUT) !== result.text ||
     read(OUT_JSON) !== result.json ||
-    (log.text !== null && read(OUT_CHANGELOG) !== log.text);
+    (log.text !== null && read(OUT_CHANGELOG) !== log.text) ||
+    read(OUT_BRAND_LOGOS) !== brandLogos;
   if (check) {
     if (stale) {
       console.error('content: generated files are stale — run `npm run content`');
@@ -477,6 +515,7 @@ if (problems.length) {
     fs.writeFileSync(OUT, result.text);
     fs.writeFileSync(OUT_JSON, result.json);
     if (log.text !== null) fs.writeFileSync(OUT_CHANGELOG, log.text);
+    fs.writeFileSync(OUT_BRAND_LOGOS, brandLogos);
     console.log(`content: ${result.count} posts, ${log.count} changelog entries`);
   }
 }

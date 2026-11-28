@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "question": "What is FlowSmartly?",
+    "answer": "FlowSmartly is an AI business operating system for small businesses managing marketing, customer communication, websites, storefronts and daily operations."
+  },
+  "capabilities": [
+    { "name": "FlowAgent", "description": "Plans work and uses enabled capabilities within workspace authority." },
+    { "name": "AI Studio", "description": "Creates and edits content and media from a brief." },
+    { "name": "Social", "description": "Plans, schedules and publishes posts to supported connected accounts." },
+    { "name": "Email and SMS", "description": "Builds campaigns, reviews qualified audiences and respects recorded consent and opt-outs." },
+    { "name": "Ads", "description": "Prepares campaigns for supported ad accounts with budgets and launch checks." },
+    { "name": "Sites and FlowShop", "description": "Builds websites and publishes storefronts with product and checkout tools." },
+    { "name": "Phone Agent", "description": "Answers calls on configured numbers and follows the business’s call instructions." },
+    { "name": "ListSmartly", "description": "Reviews listings and local search presence using recorded sources." }
+  ],
+  "questions": [
+    {
+      "question": "What is FlowAgent allowed to do?",
+      "answer": "FlowAgent can plan work and use the capabilities enabled for a workspace. Workspace permissions, connection status and approval rules determine which work can run automatically or needs someone to approve it."
+    },
+    {
+      "question": "Can FlowSmartly use the tools I already have?",
+      "answer": "You can connect supported provider accounts in the workspace. Available actions depend on the provider’s permissions, the enabled workspace capabilities and any channel requirements."
+    },
+    {
+      "question": "How do plans and credits work?",
+      "answer": "Pay as you go has no monthly credit allowance. Paid plans include a monthly allowance and additional credits can be purchased. Pricing lists the plan amounts and Billing shows the options available to your workspace."
+    },
+    {
+      "question": "How do I get started?",
+      "answer": "Create an account, set up your workspace and add your Brand Identity. Connect a supported account when you are ready to use a capability that needs it."
+    }
+  ]
+}

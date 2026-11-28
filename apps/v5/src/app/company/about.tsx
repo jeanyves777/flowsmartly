@@ -1,17 +1,14 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { Fragment, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
-  type DimensionValue,
   type ImageStyle,
   type ViewStyle,
 } from 'react-native';
-import { BrandLogo } from '@/components/public/brand-logo';
 import {
   Connectors,
   ConnectorSurface,
@@ -20,24 +17,23 @@ import {
   type Link,
 } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
-import { Reveal, useCountUp } from '@/components/public/motion';
+import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd, organizationJsonLd } from '@/components/public/seo';
-import { FONT_SANS,
+import {
   ButtonRow,
   Heading,
   PrimaryButton,
   SecondaryButton,
   Band,
   OpenSection,
-  SectionAside,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
-import { accentText, elevation, softFill, type ThemeTokens } from '@/theme/tokens';
-import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
+import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
+import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
 /* ------------------------------------------------------------------ */
@@ -60,8 +56,8 @@ const PRINCIPLES: { icon: string; title: string; lines: [string, string]; accent
     icon: 'compass',
     title: 'Customer success is our north star',
     lines: [
-      'We measure ourselves by the growth our customers can point to.',
-      'If a feature does not move that number, it does not ship.',
+      'We start with the work customers need to get done.',
+      'We prioritize improvements that make that work easier to complete.',
     ],
     accent: 'brand',
   },
@@ -69,8 +65,8 @@ const PRINCIPLES: { icon: string; title: string; lines: [string, string]; accent
     icon: 'feather',
     title: 'Simplicity creates momentum',
     lines: [
-      'Powerful should never mean complicated, and setup should never take a quarter.',
-      'Every surface earns its place or it comes back out.',
+      'Setup should make it clear what the system needs from you.',
+      'We aim to make routine workflows easy to learn and repeat.',
     ],
     accent: 'violet',
   },
@@ -79,75 +75,11 @@ const PRINCIPLES: { icon: string; title: string; lines: [string, string]; accent
     title: 'Trust earns everything',
     lines: [
       'Customer data is handled with consent, clarity and care by default.',
-      'Automation stays under human approval because that trust is the product.',
+      'Workspace rules determine which actions can run automatically and which need approval.',
     ],
     accent: 'green',
   },
 ];
-
-const STORY: { year: string; title: string; lines: [string, string]; icon: string; accent: Accent }[] = [
-  {
-    year: '2019',
-    title: 'The spark',
-    lines: [
-      'Two operators, tired of stitching six tools together.',
-      'The first prototype answered one question: what should we do next?',
-    ],
-    icon: 'lightbulb',
-    accent: 'brand',
-  },
-  {
-    year: '2020',
-    title: 'First playbooks',
-    lines: [
-      'We packaged what worked into repeatable growth playbooks.',
-      'Small teams started running campaigns they used to outsource.',
-    ],
-    icon: 'book-open',
-    accent: 'violet',
-  },
-  {
-    year: '2021',
-    title: 'Automation & AI',
-    lines: [
-      'Journeys, follow-ups and creation moved from manual to assisted.',
-      'Human approval was built in from the very first release.',
-    ],
-    icon: 'robot',
-    accent: 'orange',
-  },
-  {
-    year: '2022',
-    title: 'Open platform',
-    lines: [
-      'Channels, commerce and listings connected through one API.',
-      'Partners began building on top of the platform.',
-    ],
-    icon: 'plug',
-    accent: 'green',
-  },
-  {
-    year: '2023',
-    title: 'Scale & impact',
-    lines: [
-      'Multi-location brands and agencies made it their operating system.',
-      'Pipeline influenced passed the first billion.',
-    ],
-    icon: 'chart-line',
-    accent: 'pink',
-  },
-  {
-    year: '2024+',
-    title: 'The road ahead',
-    lines: [
-      'One connected operating system, guided by an AI partner you control.',
-      'Same promise: powerful tools, accessible to every business.',
-    ],
-    icon: 'compass',
-    accent: 'brand',
-  },
-];
-
 
 /*
  * One entry, because one person has been confirmed. Four invented colleagues
@@ -272,7 +204,7 @@ export default function AboutPage() {
   return (
     <PageShell
       title="About"
-      description="FlowSmartly is building an agentic business operating system: one intelligent system that can combine capabilities, tools, context and specialized agents to do work."
+      description="Learn how FlowSmartly combines AI agents, business tools, and workspace approvals to help teams run marketing and operations."
       jsonLd={[
         organizationJsonLd(),
         breadcrumbJsonLd([
@@ -286,13 +218,11 @@ export default function AboutPage() {
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Building the agentic operating system real businesses run on.
+              Building the agentic business operating system
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              FlowSmartly is not a collection of AI features. It is an agentic system that can
-              combine capabilities, tools, context, and specialized agents to execute work around
-              the way your organization operates — so a five-person team can run what used to need
-              a department.
+              FlowSmartly combines AI agents with tools for marketing and business operations.
+              Teams can prepare campaigns, create media, and coordinate work from one workspace.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -359,14 +289,12 @@ export default function AboutPage() {
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
             <Heading level={2} style={[type.h2, styles.missionTitle]}>
-              Move AI beyond assistance, for organizations of every size.
+              Help teams get work done with AI
             </Heading>
             <Text style={[type.body, styles.missionBody]}>
-              Assistance is not the hard part any more; getting work actually finished is. We build a
-              system that can understand a goal, coordinate the tools and specialized agents it
-              needs, execute inside the authority it has been given, check the result and continue —
-              and we build it so a five-person team can run it on a Tuesday afternoon, without hiring
-              an agency to translate it.
+              We build tools that help teams turn goals into work they can review and carry out.
+              FlowAgent coordinates available capabilities within workspace permissions and asks
+              for approval when an action requires it.
             </Text>
           </Reveal>
 
@@ -396,32 +324,10 @@ export default function AboutPage() {
         </Band>
       </View>
 
-      {/*
-        No "Our story" timeline and no "Platform impact" band.
-
-        The timeline ran 2019 to 2024 under "Six years of building in the
-        open", with milestones including "Pipeline influenced passed the first
-        billion". The band claimed 25,000+ teams, 90+ countries, 3.2M+
-        campaigns, $1.4B+ pipeline and 99.9% uptime.
-
-        Neither can be rescued with an "illustrative" label the way a product
-        mock can: a mock demonstrates what the software does, whereas these two
-        sections exist purely to assert a history and a scale. Labelling an
-        invented traction figure as illustrative just prints a number nobody
-        should read. They come back when there is a real history to tell and
-        real numbers to show.
-      */}
-
       {/* ------------------------------------------------ leadership */}
       <Band tone="surface" art={{ variant: 'funnel', color: t.brand, side: 'right' }}>
         <Reveal style={styles.head} distance={16}>
-          <SectionLabel>LEADERSHIP TEAM</SectionLabel>
-          <Heading level={2} style={[type.h2, styles.headTitle]}>
-            The people accountable for it.
-          </Heading>
-          <Text style={[type.body, styles.headSub]}>
-            Operators, engineers and support leads who have run the same problems you are running now.
-          </Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Leadership</Heading>
         </Reveal>
 
         <View style={styles.leaderGrid}>
@@ -442,25 +348,10 @@ export default function AboutPage() {
                     {leader.role}
                   </Text>
                 </View>
-                {/* Wide: pushes every LinkedIn tile onto one baseline however
-                    long the role runs. Row: pushes it to the right edge. */}
-                <View style={styles.leaderSpacer} />
-                <View style={styles.leaderSocial}>
-                  <BrandLogo name="linkedin" size={16} label={`${leader.name} on LinkedIn`} />
-                </View>
               </View>
             </Reveal>
           ))}
         </View>
-
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Meet the wider team on our careers page"
-          onPress={() => router.push(ROUTES.careers as never)}
-          style={({ pressed }) => [styles.teamLink, pressed ? styles.teamLinkPressed : null]}>
-          <Text style={styles.teamLinkText}>Meet the wider team</Text>
-          <FontAwesome6 name="arrow-right" size={12} color={t.brand}  aria-hidden={true}/>
-        </Pressable>
       </Band>
 
       {/* ------------------------------------------------ values */}
@@ -504,8 +395,7 @@ export default function AboutPage() {
                 Join our mission
               </Heading>
               <Text style={styles.closeBody}>
-                We hire people who would rather solve the customer&apos;s problem than defend their
-                function. Remote-first, deliberately small teams, and real ownership from week one.
+                Learn how we work and see current hiring information.
               </Text>
               <View style={styles.closeSpacer} />
               <PrimaryButton
@@ -526,8 +416,7 @@ export default function AboutPage() {
                 Partner with FlowSmartly
               </Heading>
               <Text style={styles.closeBody}>
-                Agencies, consultants and technology partners build on the platform and bring their
-                own playbooks to it. Shared revenue, shared roadmap, no gatekeeping.
+                Explore partnership options for agencies, consultants, and technology companies.
               </Text>
               <View style={styles.closeSpacer} />
               <SecondaryButton
@@ -552,11 +441,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const stacked = l.isStacked;
   const gridGap = l.isPhone ? 12 : 18;
 
-  const contentWidth = Math.max(
-    280,
-    Math.min(l.width, BP.maxContent) - l.gutter * 2 - l.sectionPad * 2,
-  );
-
   /*
     Five-up grids use cell padding rather than `gap`, because a percentage basis
     plus a pixel gap cannot make five fit: five cells of the honest basis still
@@ -572,12 +456,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const fiveColumns = l.isCompact ? 1 : 5;
 
   const hub = l.isPhone ? 84 : l.isTablet ? 100 : 116;
-  // Below 1120 the six timeline steps reflow onto a vertical rail; six across a
-  // stacked column would leave each step about 90px wide.
-  const verticalTimeline = stacked;
-  const dot = 46;
-  const railInset = `${Math.floor((100 / STORY.length / 2) * 100) / 100}%` as DimensionValue;
-
   const twoUp: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
   const cardBase: ViewStyle = {
     borderWidth: 1,
@@ -696,55 +574,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* -------------------------------------------------- shared heads */
     head: { gap: 10, alignItems: l.isPhone ? 'flex-start' : 'center' },
     headTitle: { textAlign: l.isPhone ? 'left' : 'center' },
-    headSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 680 },
-
-    /* -------------------------------------------------- timeline */
-    timelineRail: verticalTimeline
-      ? {
-          position: 'absolute',
-          left: dot / 2 - 1,
-          top: dot / 2,
-          bottom: dot / 2,
-          width: 2,
-          backgroundColor: t.divider,
-        }
-      : {
-          position: 'absolute',
-          left: railInset,
-          right: railInset,
-          top: dot / 2 - 1,
-          height: 2,
-          backgroundColor: t.divider,
-        },
-    timelineItem: verticalTimeline
-      ? { flexDirection: 'row', alignItems: 'flex-start', gap: 16 }
-      : {
-          flexGrow: 1,
-          flexShrink: 1,
-          flexBasis: 0,
-          minWidth: 0,
-          alignItems: 'center',
-          paddingHorizontal: 8,
-          gap: 10,
-        },
-    timelineCopy: verticalTimeline
-      ? { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 3, paddingTop: 2 }
-      : { alignItems: 'center', gap: 3, alignSelf: 'stretch' },
-
-    /* -------------------------------------------------- stats */
-    statItem: l.isCompact
-      ? {
-          width: '100%',
-          minWidth: 0,
-          flexDirection: 'row',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 14,
-        }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 6 },
-    statDivider: l.isCompact
-      ? { width: '100%', height: 1, backgroundColor: t.divider }
-      : { width: 1, alignSelf: 'stretch', flexGrow: 0, flexShrink: 0, backgroundColor: t.divider },
 
     /* -------------------------------------------------- leadership */
     leaderGrid: {
@@ -781,42 +610,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     leaderCopy: l.isCompact
       ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 }
       : { width: '100%', minWidth: 0, gap: 3 },
-    // Row form: the copy's own `flexGrow` already carries the tile to the right
-    // edge, so the spacer must contribute nothing or it steals that space back.
-    leaderSpacer: l.isCompact
-      ? { flexGrow: 0, flexShrink: 0, flexBasis: 0 }
-      : { flexGrow: 1, flexShrink: 0, flexBasis: 2 },
     leaderName: { ...type.bodySm, color: t.text, fontWeight: '800' },
     leaderRole: { ...type.caption, color: t.textMuted },
-    leaderSocial: {
-      width: 36,
-      height: 36,
-      flexGrow: 0,
-      flexShrink: 0,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: t.border,
-      backgroundColor: t.surfaceMuted,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    teamLink: {
-      marginTop: l.isPhone ? 18 : 24,
-      alignSelf: l.isPhone ? 'stretch' : 'center',
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 9,
-      borderWidth: 1,
-      borderColor: t.borderStrong,
-      borderRadius: 10,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: 20,
-    },
-    teamLinkPressed: { backgroundColor: t.surfaceInset },
-    teamLinkText: { fontSize: 14, fontWeight: '700', color: accentText(t.brand, t) , fontFamily: FONT_SANS },
-
     /* -------------------------------------------------- values */
     valueGrid: {
       flexDirection: 'row',

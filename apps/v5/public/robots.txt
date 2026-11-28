@@ -9,20 +9,12 @@ Allow: /
 Disallow: /+not-found
 
 # ---------------------------------------------------------------
-# Answer engines and AI assistants — explicitly ALLOWED.
-# These send real visitors and cite sources, and being findable in an
-# assistant's answer is the outcome this product exists to deliver.
+# Search and user-requested retrieval
 # ---------------------------------------------------------------
 User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: ChatGPT-User
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
 Allow: /
 
 User-agent: Claude-User
@@ -37,12 +29,6 @@ Allow: /
 User-agent: Perplexity-User
 Allow: /
 
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
 User-agent: Bingbot
 Allow: /
 
@@ -50,8 +36,23 @@ User-agent: DuckDuckBot
 Allow: /
 
 # ---------------------------------------------------------------
-# Bulk training scrapers that neither cite nor refer traffic.
-# Not a judgement on AI — a judgement on attribution.
+# Model-use controls. Google-Extended also covers certain grounding uses.
+# See /ai.txt for FlowSmartly's content use and attribution policy.
+# ---------------------------------------------------------------
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# ---------------------------------------------------------------
+# Blocked bulk crawlers
 # ---------------------------------------------------------------
 User-agent: CCBot
 Disallow: /
@@ -63,5 +64,4 @@ User-agent: Omgilibot
 Disallow: /
 
 Sitemap: https://flowsmartly.com/sitemap.xml
-
 Sitemap: https://flowsmartly.com/_news/sitemap.xml

@@ -8,6 +8,7 @@
 //   empty      first-party feed with no articles        -> empty state
 //   headlines  first-party feed of source_summary items -> headlines, labelled by publisher
 //   failed     feed returns 503                         -> "temporarily unavailable" (and only then)
+//   article   published customer and first-party indexing after hydration
 //   nav        the Resources menu names "FlowSmartly News"
 import http from 'node:http';
 import fs from 'node:fs';
@@ -18,7 +19,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium, devices } = require('playwright');
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dist = path.join(here, '../dist');
+const dist = path.resolve(process.env.QA_NEWS_DIST ?? path.join(here, '../dist'));
 const shotsAt = process.argv.indexOf('--shots');
 const shots = shotsAt > 0 ? process.argv[shotsAt + 1] : null;
 if (shots) fs.mkdirSync(shots, { recursive: true });
@@ -65,6 +66,21 @@ const HEADLINES = feed([
   headline(3, 'Example Tech Review', 'Chipmakers outline new packaging roadmap for data-centre parts', 'technology'),
   headline(4, 'Example Business Post', 'Small retailers lean on local delivery partnerships this season', 'business'),
 ]);
+const customerOrigin = 'https://merchant.example';
+const customerPost = {
+  ...HEADLINES.articles[0],
+  title: 'Customer fixture with literal </script> text',
+  canonicalUrl: `${customerOrigin}/blog/${HEADLINES.articles[0].slug}`,
+  editorial: { ...HEADLINES.articles[0].editorial, mode: 'analysis' },
+};
+const CUSTOMER = {
+  ...feed([customerPost]),
+  _newsroom: {
+    kind: 'flowagent', name: 'FlowAgent News', author: 'FlowAgent · FlowSmartly',
+    description: 'Original source-grounded reporting and analysis from FlowAgent.',
+    site: { origin: customerOrigin, noIndex: true },
+  },
+};
 
 // Static server with the export's clean URLs (/news -> news/index.html, /x -> x.html).
 const server = http.createServer((req, res) => {
@@ -105,7 +121,7 @@ function forbiddenIn(w) {
   return Object.entries(w).flatMap(([k, v]) => FORBIDDEN.filter((re) => re.test(v)).map((re) => `${k} ${re}`));
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.QA_NEWS_CHROMIUM_EXECUTABLE });
 const viewports = [
   ['desktop', { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 }],
   ['phone', { ...devices['iPhone 13'] }],
@@ -152,6 +168,29 @@ for (const [vpName, ctxOptions] of viewports) {
   }
 }
 
+for (const [vpName, ctxOptions] of viewports) {
+  for (const [name, snapshot, canonical, robots] of [
+    ['customer', CUSTOMER, customerPost.canonicalUrl, 'noindex, follow'],
+    ['first-party', HEADLINES, HEADLINES.articles[0].url, 'index, follow'],
+  ]) {
+    const context = await browser.newContext(ctxOptions);
+    const page = await context.newPage();
+    await page.route('**/_news/feed.json', (route) => route.fulfill({ json: snapshot }));
+    await page.goto(`${origin}/news/article?slug=${snapshot.articles[0].slug}`, { waitUntil: 'networkidle' });
+    const title = snapshot.articles[0].title;
+    await page.getByRole('heading', { name: title }).first().waitFor({ timeout: 15000 });
+    const head = await page.evaluate(() => ({
+      canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+      robots: document.querySelector('meta[name="robots"]')?.getAttribute('content'),
+      schema: [...document.querySelectorAll('script[type="application/ld+json"]')].map((script) => JSON.parse(script.textContent ?? '{}')).find((data) => data['@type'] === 'NewsArticle'),
+    }));
+    check(head.canonical === canonical && head.schema?.url === canonical, `${vpName}/${name} article: canonical URL agrees with NewsArticle markup (expected ${canonical}, head ${head.canonical}, schema ${head.schema?.url})`);
+    check(head.schema?.headline === title, `${vpName}/${name} article: structured data round-trips the headline`);
+    check(head.robots === robots, `${vpName}/${name} article: robots is ${robots}`);
+    await context.close();
+  }
+}
+
 // Nav: the Resources entry, as painted (desktop mega menu; phone drawer). The description
 // 'Headlines from public sources' is not painted by either, so news.test.mjs checks it in nav.ts.
 for (const [vpName, ctxOptions] of viewports) {
@@ -180,6 +219,18 @@ for (const [vpName, ctxOptions] of viewports) {
   const menu = await page.evaluate(() => document.body.innerText);
   check(!/FlowAgent News|Source-grounded news/i.test(menu), `${vpName}/nav: the page never says FlowAgent News or source-grounded news`);
   if (shots) await page.screenshot({ path: path.join(shots, `news-${vpName}-nav.png`) });
+  if (vpName === 'phone') {
+    const product = page.getByRole('button', { name: 'Product', exact: true });
+    if ((await product.getAttribute('aria-expanded')) !== 'true') await product.click();
+  } else {
+    await page.locator('nav[aria-label="Main"]').getByText('Product', { exact: true }).hover();
+  }
+  const productEntries = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href="/solutions/custom-automation"]')]
+      .filter((a) => !a.closest('main, footer') && a.getBoundingClientRect().height > 0)
+      .map((a) => a.innerText.trim()),
+  );
+  check(productEntries.some((text) => /Custom AI Automation/.test(text)), `${vpName}/nav: Product opens with the Custom AI Automation link`);
   await context.close();
 }
 

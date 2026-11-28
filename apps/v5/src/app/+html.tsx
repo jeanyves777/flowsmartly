@@ -1,6 +1,9 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
+import { buildTypeScale } from '../components/public/ui';
+import { palettes } from '../theme/tokens';
 import { FOCUS_INDICATOR } from '../theme/focus-tokens';
+import { BP, resolveLayout } from '../theme/use-responsive';
 
 /**
  * THE HTML SHELL.
@@ -25,6 +28,9 @@ import { FOCUS_INDICATOR } from '../theme/focus-tokens';
  * data-rh and come from the app at render time, not from here; dropping them
  * from this shell is not possible, but shadowing them is.
  */
+const phoneLayout = resolveLayout(0);
+const phoneType = buildTypeScale(phoneLayout, palettes.light);
+
 const FONT_CSS = `
 @font-face {
   font-family: 'Plus Jakarta Sans';
@@ -80,6 +86,119 @@ html { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 #fs-nav-scroll { overscroll-behavior: contain; }
 #fs-nav-top { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
 #fs-nav-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+#fs-skip-link { text-decoration: none; }
+#fs-skip-link:focus { opacity: 1; transform: none; }
+
+/* Select the header that fits even before the static page hydrates. */
+#fs-header-row { padding-inline: ${resolveLayout(0).gutter}px; }
+#fs-header-navigation, #fs-header-desktop { display: none; }
+@media (min-width: ${BP.phone}px) {
+  #fs-header-row { padding-inline: ${resolveLayout(BP.phone).gutter}px; }
+}
+@media (min-width: ${BP.tablet}px) {
+  #fs-header-row { padding-inline: ${resolveLayout(BP.tablet).gutter}px; }
+  #fs-header-compact { display: none; }
+  #fs-header-navigation, #fs-header-desktop { display: flex; }
+}
+@media (min-width: ${BP.desktop}px) {
+  #fs-header-row { padding-inline: ${resolveLayout(BP.desktop).gutter}px; }
+}
+
+/* Size the homepage photograph and copy together before hydration. */
+#fs-home-hero {
+  --hero-gutter: ${resolveLayout(0).gutter}px;
+  --hero-bleed: max(0px, calc((100vw - ${BP.maxContent}px) / 2));
+  --hero-inset: calc(var(--hero-gutter) + var(--hero-bleed));
+  --hero-copy-gap: 14px;
+  --hero-display: clamp(28px, 7.9vw, 34px);
+  --hero-title-width: 76%;
+  --hero-body-size: 17px;
+  --hero-body-width: 74%;
+  --hero-hub: 88px;
+  --hero-system-gap: 14px;
+  margin-inline: calc(-1 * var(--hero-bleed));
+  padding-inline: var(--hero-inset);
+  padding-top: 34px;
+}
+#fs-home-hero-layout { flex-direction: column; align-items: stretch; gap: 28px; }
+#fs-home-hero-copy { flex: none; width: 100%; gap: var(--hero-copy-gap); }
+#fs-home-hero h1 {
+  font-size: var(--hero-display);
+  line-height: 1.14;
+  letter-spacing: -0.025em;
+  max-width: var(--hero-title-width);
+}
+#fs-home-hero-detail, #fs-home-hero-wide-actions { display: none; }
+#fs-home-hero-detail { gap: var(--hero-copy-gap); }
+#fs-home-hero-brief, #fs-home-hero-detail > * {
+  font-size: var(--hero-body-size);
+  line-height: 1.62;
+  max-width: var(--hero-body-width);
+}
+#fs-home-hero-diagram { flex: none; width: 100%; min-height: 300px; margin: 8px 0 0; align-self: stretch; }
+#fs-home-hero-system-row > :not(#fs-home-hero-hub) { gap: var(--hero-system-gap); }
+#fs-home-hero-hub { width: var(--hero-hub); height: var(--hero-hub); border-radius: 50%; }
+#fs-home-hero-trust { padding-inline: var(--hero-inset); margin-inline: calc(-1 * var(--hero-inset)); }
+@media (max-width: ${BP.phone - 1}px) {
+  #fs-home-hero-badge { gap: 7px; padding: 5px 10px; }
+  #fs-home-hero-badge-text { max-width: 206px; }
+  #fs-home-hero-activity { margin-top: 16px; }
+  #fs-home-hero-trust { margin-top: 24px; gap: 12px; }
+}
+@media (min-width: ${BP.phone}px) {
+  #fs-home-hero {
+    --hero-gutter: ${resolveLayout(BP.phone).gutter}px;
+    --hero-display: 41px;
+    --hero-title-width: 640px;
+    --hero-body-width: 620px;
+    --hero-hub: 108px;
+    --hero-system-gap: 26px;
+    padding-top: 52px;
+  }
+  #fs-home-hero-brief, #fs-home-hero-phone-actions { display: none; }
+  #fs-home-hero-detail, #fs-home-hero-wide-actions { display: flex; }
+}
+@media (min-width: ${BP.tablet}px) {
+  #fs-home-hero {
+    --hero-gutter: ${resolveLayout(BP.tablet).gutter}px;
+    --hero-display: 47px;
+    --hero-body-size: 18px;
+  }
+}
+@media (min-width: ${BP.split}px) {
+  #fs-home-hero { --hero-copy-gap: 16px; }
+  #fs-home-hero-layout { flex-direction: row; align-items: center; gap: 34px; }
+  #fs-home-hero-copy { flex: 0.95 1 0; width: auto; }
+  #fs-home-hero-diagram { flex: 1 1 0; width: auto; min-height: 380px; margin: 0 0 4px; align-self: flex-end; }
+}
+@media (min-width: ${BP.desktop}px) {
+  #fs-home-hero { --hero-gutter: ${resolveLayout(BP.desktop).gutter}px; --hero-display: 52px; }
+}
+
+/* Match the phone content geometry on Pricing and Product before hydration. */
+@media (max-width: ${BP.phone - 1}px) {
+  #fs-pricing-intro, [data-testid="fs-product-hero"] {
+    padding: ${phoneLayout.sectionSpace}px ${phoneLayout.gutter}px !important;
+  }
+  :is(#fs-pricing-intro, [data-testid="fs-product-hero"]) h1 {
+    font-size: ${phoneType.display.fontSize}px !important;
+    line-height: ${phoneType.display.lineHeight}px !important;
+    letter-spacing: ${phoneType.display.letterSpacing}px !important;
+  }
+  :is(#fs-pricing-intro, [data-testid="fs-product-hero"]) h1 + div {
+    font-size: ${phoneType.body.fontSize}px !important;
+    line-height: ${phoneType.body.lineHeight}px !important;
+  }
+  #fs-pricing-billing > [role="button"] { padding-inline: 14px !important; }
+  #fs-pricing-plans { gap: 12px !important; margin-top: 24px !important; }
+  #fs-pricing-plans > div { flex-basis: 100% !important; }
+  #fs-pricing-plans > div > div { padding: 18px !important; }
+  #fs-product-hero-row { flex-direction: column !important; align-items: stretch !important; gap: 28px !important; }
+  #fs-product-hero-row > div { flex: 0 0 auto !important; width: 100% !important; min-width: 0 !important; }
+  #fs-product-hero-actions > div { flex-direction: column !important; align-items: stretch !important; }
+  #fs-product-hero-actions > div > :is(a, [role="button"]) { width: 100% !important; }
+  #fs-product-hero-proof { gap: 10px !important; }
+}
 
 /*
   PUBLIC CONTROL FEEDBACK.

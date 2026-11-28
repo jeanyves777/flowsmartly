@@ -14,6 +14,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   FIRST_PARTY_NEWSROOM,
+  articleCanonicalPath,
+  articleHref,
   decodeNews,
   decodeNewsroom,
   itemKind,
@@ -143,6 +145,20 @@ test('the newsroom words come from _newsroom, with the first-party words as the 
   assert.deepEqual(decodeNewsroom(null), FIRST_PARTY_NEWSROOM);
   assert.deepEqual(decodeNewsroom({ _newsroom: { kind: 'something-else' } }), FIRST_PARTY_NEWSROOM);
   assert.deepEqual(FIRST_PARTY_NEWSROOM, FIRST_PARTY, 'the static default matches the core first-party words');
+});
+
+test('customer article indexing follows the published Site without changing first-party canonicals', () => {
+  const site = { origin: 'https://merchant.example', noIndex: true };
+  const source = item('analysis');
+  const article = { ...source, canonicalUrl: `${site.origin}/blog/${source.slug}` };
+  const customer = decodeNewsroom(feed([article], { ...FLOWAGENT, site }));
+  assert.deepEqual(customer.site, site);
+  assert.equal(articleCanonicalPath(article, customer), `/blog/${source.slug}`);
+  assert.equal(articleCanonicalPath({ ...article, canonicalUrl: 'https://elsewhere.example/blog/story' }, customer), articleHref(source.slug));
+  const firstParty = decodeNewsroom(feed([article], { ...FIRST_PARTY, site }));
+  assert.equal(firstParty.site, undefined);
+  assert.equal(articleCanonicalPath(article, firstParty), articleHref(source.slug));
+  assert.equal(decodeNewsroom(feed([], { ...FLOWAGENT, site: { ...site, origin: 'https://merchant.example/path' } })).site, undefined);
 });
 
 /** What the first-party newsroom must never claim: it is software, no AI, no writing. */

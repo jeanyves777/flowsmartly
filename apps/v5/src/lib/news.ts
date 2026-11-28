@@ -37,6 +37,7 @@ export type NewsArticle = {
   id: string;
   slug: string;
   url: string;
+  canonicalUrl?: string;
   title: string;
   excerpt: string | null;
   publishedAt: string;
@@ -64,6 +65,7 @@ export type Newsroom = {
   name: string;
   description: string;
   author: string;
+  site?: { origin: string; noIndex: boolean };
 };
 export const FIRST_PARTY_NEWSROOM: Newsroom = {
   kind: "first_party",
@@ -73,13 +75,34 @@ export const FIRST_PARTY_NEWSROOM: Newsroom = {
 };
 export function decodeNewsroom(value: unknown): Newsroom {
   const raw = (value as { _newsroom?: Partial<Newsroom> } | null)?._newsroom;
-  return raw &&
-    (raw.kind === "first_party" || raw.kind === "flowagent") &&
-    typeof raw.name === "string" &&
-    typeof raw.description === "string" &&
-    typeof raw.author === "string"
-    ? { kind: raw.kind, name: raw.name, description: raw.description, author: raw.author }
-    : FIRST_PARTY_NEWSROOM;
+  if (
+    !raw ||
+    (raw.kind !== "first_party" && raw.kind !== "flowagent") ||
+    typeof raw.name !== "string" ||
+    typeof raw.description !== "string" ||
+    typeof raw.author !== "string"
+  ) return FIRST_PARTY_NEWSROOM;
+
+  const room: Newsroom = { kind: raw.kind, name: raw.name, description: raw.description, author: raw.author };
+  if (room.kind === "flowagent" && typeof raw.site?.origin === "string") {
+    try {
+      const origin = new URL(raw.site.origin);
+      if (origin.protocol === "https:" && origin.origin === raw.site.origin) {
+        room.site = { origin: origin.origin, noIndex: raw.site.noIndex === true };
+      }
+    } catch {
+      return room;
+    }
+  }
+  return room;
+}
+
+/** Preserve the Site canonical declared by the published snapshot when React takes over. */
+export function articleCanonicalPath(article: NewsArticle, room: Newsroom): string {
+  const publishedPath = `/blog/${article.slug}`;
+  return room.site && article.canonicalUrl === `${room.site.origin}${publishedPath}`
+    ? publishedPath
+    : articleHref(article.slug);
 }
 /** The line that says what an item is: its publisher for a headline, its label otherwise. */
 export function itemKind(a: NewsArticle): string {

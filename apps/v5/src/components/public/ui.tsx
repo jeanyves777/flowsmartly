@@ -9,7 +9,7 @@ import {
   useContext,
   useMemo,
 } from 'react';
-import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { trackCta } from '@/lib/analytics';
 import { accentText, elevation, hexToRgba, type ThemeTokens } from '@/theme/tokens';
@@ -303,11 +303,13 @@ function hasAside(children: ReactNode, aside?: SectionAsideProps): boolean {
 
 export function OpenSection({
   children,
+  nativeID,
   style,
   art,
   aside,
 }: {
   children: React.ReactNode;
+  nativeID?: string;
   style?: ViewStyle | ViewStyle[];
   /**
    * Illustration for the gap above this section — see `SectionArt`. Omit it
@@ -334,7 +336,7 @@ export function OpenSection({
   const band = useAsideBand();
   const reserve = hasAside(children, aside) ? band : null;
   return (
-    <View style={[open, style, reserve]}>
+    <View nativeID={nativeID} style={[open, style, reserve]}>
       {seam ? <SectionArt {...seam} bleed /> : null}
       {aside ? <SectionAside {...aside} /> : null}
       {children}
@@ -1109,17 +1111,20 @@ export function PrimaryButton({
   iconRight,
   accessibilityLabel,
   trackId,
-}: ButtonProps) {
+  webHref,
+}: ButtonProps & { webHref?: string }) {
   const t = useTokens();
   const s = SIZES[size];
+  const href = Platform.OS === 'web' ? webHref : undefined;
   const handlePress = () => {
     trackCta(trackId ?? label, { variant: 'primary' });
-    onPress?.();
+    if (!href) onPress?.();
   };
   return (
     <Pressable
+      {...(href ? { href } : {})}
       onPress={handlePress}
-      accessibilityRole="button"
+      accessibilityRole={href ? 'link' : 'button'}
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
         {

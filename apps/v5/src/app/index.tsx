@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  Linking,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -38,7 +38,7 @@ import {
 } from "@/components/public/connectors";
 import { ListSmartlySection } from "@/components/public/listsmartly-section";
 import { BrandLogo } from "@/components/public/brand-logo";
-import { ImageAsset, Media } from "@/components/public/media";
+import { ImageAsset, PriorityMedia } from "@/components/public/media";
 import {
   Animated,
   Reveal,
@@ -60,8 +60,8 @@ import { FONT_SANS,
 } from "@/components/public/ui";
 import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
-import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
-import { contactHref, goToRegister } from "@/lib/destinations";
+import { organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
+import { AUTH, contactHref, goToRegister } from "@/lib/destinations";
 import { accentText, brandColor, elevation, hexToRgba, palettes, type ThemeTokens } from "@/theme/tokens";
 import { BP, type Layout, useLayout } from "@/theme/use-responsive";
 import { useTokens } from "@/theme/v5-theme-provider";
@@ -881,11 +881,11 @@ const HERO_TRUST = [
 function Hero() {
   const styles = useStyles();
   const l = useLayout();
+  const web = Platform.OS === 'web';
   const t = useTokens();
   const router = useRouter();
   const field = useConnectorField();
   const reduced = useReducedMotion();
-  const prepared = useCountUp(326);
   const cycle = useHeroCycle(HERO_PREPARED.length);
 
   const links = useMemo<Link[]>(
@@ -895,10 +895,10 @@ function Hero() {
 
   return (
     <>
-    <View style={styles.heroScene}>
+    <View nativeID="fs-home-hero" style={styles.heroScene}>
       {/* The photograph is the ground. It is decorative — the headline on it
           carries the meaning — so it takes an empty alt. */}
-      <Media name="scenes/careers-team" alt="" radius={0} style={styles.heroPhoto} />
+      <PriorityMedia name="scenes/careers-team" alt="" style={styles.heroPhoto} />
       {/*
         ONE scrim, and it is LOCAL to the copy rather than a sheet over the
         photograph.
@@ -933,11 +933,11 @@ function Hero() {
         pointerEvents="none"
       />
 
-      <View style={styles.heroTop}>
-        <View style={styles.heroCopy}>
+      <View nativeID="fs-home-hero-layout" style={styles.heroTop}>
+        <View nativeID="fs-home-hero-copy" style={styles.heroCopy}>
           <Stagger mode="enter" step={75} distance={16}>
             {[
-              <View key="eyebrow" style={styles.heroBadge}>
+              <View key="eyebrow" nativeID="fs-home-hero-badge" style={styles.heroBadge}>
                 {/* A mark rather than a dot. The dot read as "live", which this
                     is not - it is a category claim - and a glyph carries that in
                     less room than the circle plus its gap did. */}
@@ -947,60 +947,39 @@ function Hero() {
                   color={t.scrimAccent}
                   aria-hidden={true}
                 />
-                <Text style={styles.heroBadgeText}>THE AGENTIC BUSINESS OPERATING SYSTEM</Text>
+                <Text nativeID="fs-home-hero-badge-text" style={styles.heroBadgeText}>THE AGENTIC BUSINESS OPERATING SYSTEM</Text>
               </View>,
               // The one h1 on the site root. react-native-web renders every
               // Text as a div, so without this the page ships no heading at all.
               <Heading key="title" level={1} style={styles.heroTitle}>
                 Agentic AI built to operate, adapt, and scale with your business.
               </Heading>,
-              /*
-                A phone gets ONE paragraph, not two.
-
-                Both desktop paragraphs rendered at every width, which is what
-                made the phone hero a wall of reading before the photograph or
-                the CTA arrived. This is a real content variant rather than
-                smaller type - the same claim, said once - and "It can act."
-                keeps a line of its own, because it is the sentence the section
-                exists to land.
-              */
-              l.isPhone ? (
-                <Text key="body" style={styles.heroBody}>
-                  FlowSmartly is an agentic business operating system that understands goals,
-                  coordinates tools, executes work, and improves with feedback.
-                </Text>
-              ) : (
-                <Text key="body" style={styles.heroBody}>
-                  FlowSmartly is an agentic business operating system designed to understand goals,
-                  coordinate tools, execute work, learn from feedback, and continuously improve across
-                  your organization.
-                </Text>
-              ),
-              /*
-                No standalone 'It can act.' on a phone.
-              
-                On desktop it is the last three words of a sentence that earns them -
-                '...can do more than assist. It can act.' On its own line, stripped of
-                the clause it answers, it is a fragment that asserts rather than says
-                anything. The phone keeps the one paragraph and drops the orphan.
-              */
-              l.isPhone ? null : (
-                <Text key="body2" style={styles.heroBody}>
-                  From marketing and customer engagement to engineering, operations, analytics, and
-                  specialized workflows, FlowSmartly gives businesses an intelligent system that can do
-                  more than assist. <Text style={styles.heroBodyLead}>It can act.</Text>
-                </Text>
-              ),
+              <View key="body">
+                {web || l.isPhone ? (
+                  <Text nativeID="fs-home-hero-brief" style={styles.heroBody}>
+                    FlowSmartly is an agentic business operating system that understands goals,
+                    coordinates tools, executes work, and improves with feedback.
+                  </Text>
+                ) : null}
+                {web || !l.isPhone ? (
+                  <View nativeID="fs-home-hero-detail" style={styles.heroDescription}>
+                    <Text style={styles.heroBody}>
+                      FlowSmartly is an agentic business operating system designed to understand goals,
+                      coordinate tools, execute work, learn from feedback, and continuously improve across
+                      your organization.
+                    </Text>
+                    <Text style={styles.heroBody}>
+                      From marketing and customer engagement to engineering, operations, analytics, and
+                      specialized workflows, FlowSmartly gives businesses an intelligent system that can do
+                      more than assist. <Text style={styles.heroBodyLead}>It can act.</Text>
+                    </Text>
+                  </View>
+                ) : null}
+              </View>,
               <View key="metric" style={styles.heroMetric}>
-                <Text ref={prepared.ref as never} style={styles.heroMetricValue}>
-                  {Math.round(prepared.value).toLocaleString('en-US')}
-                </Text>
-                {/* Two short lines on a phone. One long one wraps three times
-                    beside a 34px numeral and reads as another paragraph. */}
+                <FontAwesome6 name="shield-halved" size={15} color={t.scrimText} aria-hidden />
                 <Text style={styles.heroMetricLabel}>
-                  {l.isPhone
-                    ? 'actions prepared this week.\nNone sent without approval.'
-                    : 'actions prepared this week · none of them sent without approval'}
+                  Workspace permissions and approval controls
                 </Text>
               </View>,
               <View key="cta" style={styles.heroActions}>
@@ -1014,15 +993,16 @@ function Hero() {
                   half-width the full string cannot set beside a play icon
                   without either wrapping or clipping.
                 */}
-                {l.isPhone ? (
-                  <View style={styles.heroCtaRow}>
+                {web || l.isPhone ? (
+                  <View nativeID="fs-home-hero-phone-actions" style={styles.heroCtaRow}>
                     <View style={styles.heroCtaHalf}>
                       <PrimaryButton
                         label="Create account"
                         size="md"
                         full
                         trackId="home.hero.start-workspace"
-                        onPress={() => goToRegister()}
+                        webHref={AUTH.register}
+                        onPress={goToRegister}
                       />
                     </View>
                     <View style={styles.heroCtaHalf}>
@@ -1038,25 +1018,27 @@ function Hero() {
                       />
                     </View>
                   </View>
-                ) : (
-                  <ButtonRow>
-                    <PrimaryButton
-                      label="Create account"
-                      size="lg"
-                      trackId="home.hero.start-workspace"
-                      onPress={() => goToRegister()}
-                    />
-                    {/* No demo video exists, so this books a real one rather than
-                        opening a player that has nothing to play. */}
-                    <SecondaryButton
-                      label="See FlowAgent in action"
-                      size="lg"
-                      icon="play"
-                      trackId="home.hero.see-in-action"
-                      onPress={() => router.push(contactHref('demo') as never)}
-                    />
-                  </ButtonRow>
-                )}
+                ) : null}
+                {web || !l.isPhone ? (
+                  <View nativeID="fs-home-hero-wide-actions">
+                    <ButtonRow>
+                      <PrimaryButton
+                        label="Create account"
+                        size="lg"
+                        trackId="home.hero.start-workspace"
+                        webHref={AUTH.register}
+                        onPress={goToRegister}
+                      />
+                      <SecondaryButton
+                        label="See FlowAgent in action"
+                        size="lg"
+                        icon="play"
+                        trackId="home.hero.see-in-action"
+                        onPress={() => router.push(contactHref('demo') as never)}
+                      />
+                    </ButtonRow>
+                  </View>
+                ) : null}
               </View>,
             ]}
           </Stagger>
@@ -1066,7 +1048,7 @@ function Hero() {
             the surface and its nodes — the overlay measures them against each
             other with getBoundingClientRect, so a per-tile reveal or a scale
             here would detach every wire. */}
-        <ConnectorSurface field={field} style={styles.heroSystemField}>
+        <ConnectorSurface nativeID="fs-home-hero-diagram" field={field} style={styles.heroSystemField}>
           <Connectors
             field={field}
             links={links}
@@ -1077,7 +1059,7 @@ function Hero() {
             flow={!reduced}
             endDots={false}
           />
-          <View style={styles.heroSystemRow}>
+          <View nativeID="fs-home-hero-system-row" style={styles.heroSystemRow}>
             <View style={styles.heroSystemColumn}>
               {HERO_SYSTEMS.filter((s) => s.at === 'left').map((s) => (
                 <HeroSystem key={s.key} system={s} field={field} styles={styles} />
@@ -1088,9 +1070,9 @@ function Hero() {
                 the only thing naming a centre node when every other node in the
                 picture wears a text label. A word set in a blue circle is not
                 the brand — this is. */}
-            <View {...field.node('hub')} style={styles.heroHub}>
+            <View {...field.node('hub')} nativeID="fs-home-hero-hub" style={styles.heroHub}>
               <ImageAsset
-                source={require("../../assets/images/v5/flowsmartly-mark.png")}
+                source={require("../../assets/images/v5w/flowsmartly-mark.png")}
                 style={styles.heroHubMark}
                 contentFit="contain"
                 alt="FlowSmartly"
@@ -1117,7 +1099,7 @@ function Hero() {
             * see `heroSystemField` / `heroSystemRow`, which is what used to
             * drop the Calendar and Payments tiles on top of this sentence.
             */}
-          <View style={styles.heroActivity}>
+          <View nativeID="fs-home-hero-activity" style={styles.heroActivity}>
             <Animated.Text style={[styles.heroTyped, cycle.enter]}>
               {HERO_TITLE_LEAD}{' '}
               <Text style={styles.heroTypedTail}>{HERO_PREPARED[cycle.current].tail}</Text>
@@ -1140,7 +1122,7 @@ function Hero() {
         </ConnectorSurface>
       </View>
 
-      <View style={styles.heroTrust}>
+      <View nativeID="fs-home-hero-trust" style={styles.heroTrust}>
         {HERO_TRUST.map((line) => (
           <Text key={line} style={styles.heroTrustText}>
             {line}
@@ -1156,7 +1138,7 @@ function Hero() {
 /** The hub is the only round node, so the wires stop at its edge not its box. */
 const HERO_HUB = ['hub'];
 
-const HERO_TITLE_LEAD = 'While you were away, FlowAgent prepared';
+const HERO_TITLE_LEAD = 'In this example, FlowAgent prepared';
 
 /* ------------------------------------------------------------------ */
 /* growth command center                                               */
@@ -1647,7 +1629,7 @@ function Dashboard() {
         <View style={styles.dashboardTitleRow}>
           <View style={styles.dashboardTitleCopy}>
             <Heading level={2} style={styles.dashboardTitle}>
-              Business Command Center
+              Example business dashboard
             </Heading>
             <Text numberOfLines={l.isPhone ? 2 : undefined} style={styles.dashboardSub}>
               See what needs attention, what FlowAgent completed, and how your organization is performing.
@@ -1727,11 +1709,10 @@ function FlowShopSection() {
       <View style={styles.featureCopy}>
         <SectionLabel>FLOWSHOP</SectionLabel>
         <Heading level={2} style={styles.featureTitle}>
-          Build once. Sell everywhere customers and AI agents shop.
+          Publish a storefront with FlowShop.
         </Heading>
         <Text numberOfLines={l.isPhone ? 3 : undefined} style={styles.featureBody}>
-          Launch a polished storefront, keep product data AI-ready, and turn every campaign into a direct path to
-          purchase.
+          Publish product listings and give shoppers a direct path to checkout.
         </Text>
         <PrimaryButton
           label="Explore FlowShop"
@@ -1746,7 +1727,7 @@ function FlowShopSection() {
       <View style={styles.storePanel}>
         <View style={styles.readinessBar}>
           <View style={styles.readinessCell}>
-            <Text style={styles.storePanelTitle}>AI Commerce Readiness</Text>
+            <Text style={styles.storePanelTitle}>Example commerce review</Text>
             <Text style={styles.readinessScore}>
               86<Text style={styles.readinessSmall}>/100</Text>
             </Text>
@@ -1982,13 +1963,7 @@ export default function HomeScreen() {
       // 159 chars — the readiness audit fails a description over 165.
       description="An agentic system that understands goals, coordinates tools and specialized agents, executes work within defined authority, and improves from verified results."
       footer="full"
-      // The site root, so it carries the Organization and WebSite records as
-      // well as its own breadcrumb.
-      jsonLd={[
-        organizationJsonLd(),
-        webSiteJsonLd(),
-        breadcrumbJsonLd([{ name: "Home", path: ROUTES.home }]),
-      ]}>
+      jsonLd={[organizationJsonLd(), webSiteJsonLd()]}>
       {/* The category claim first, then the breadth it covers, then who it is
           for, then the product itself — the proof only lands once a visitor
           knows what they are being shown. A channel is never named before the
@@ -2188,13 +2163,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     heroTicker: { height: 53, alignSelf: 'stretch', position: 'relative' },
     heroTickerSlot: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
 
-    heroMetric: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
-    heroMetricValue: {
-      ...ty.h3,
-      color: t.scrimText,
-      fontVariant: ['tabular-nums'],
-    },
-    heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint , maxWidth: l.isPhone ? 208 : undefined },
+    heroMetric: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    heroMetricLabel: { ...ty.caption, color: t.scrimTextFaint, flexShrink: 1 },
     heroTrust: {
       // A LOCAL field, not a floor-wide wash. The strip sits where the veil has
       // already cleared so the photograph can be seen, which left its 14px ink
@@ -2329,6 +2299,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
           letterSpacing: Math.round(heroDisplay * -0.025 * 100) / 100 }
       : { ...ty.display, color: t.scrimText, marginTop: 4, maxWidth: 640 },
     heroBody: { ...ty.body, color: t.scrimTextMuted, maxWidth: l.isPhone ? '74%' : 620 },
+    heroDescription: { gap: stacked ? 14 : 16 },
     // "It can act." is the sentence the paragraph is built to reach, so it
     // carries the copy colour rather than the muted one around it.
     heroBodyLead: { color: t.scrimText, fontWeight: '700', fontFamily: FONT_SANS },
